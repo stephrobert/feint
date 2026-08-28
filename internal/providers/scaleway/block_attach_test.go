@@ -298,3 +298,112 @@ func TestTheSweepSeesABlockVolumeThatNamesADeadServer(t *testing.T) {
 		t.Errorf("the sweep did not report the block volume that names a dead server: %v", found)
 	}
 }
+
+// A default DEV1-S gets its root disk in the block product, like the cloud.
+//
+// #365, and the whole of it. A DEV1-S created on a real fr-par-1 account was
+// given an SBS root volume — corpus/scaleway/scw-instance.jsonl, recorded
+// 2026-08-21 and confirmed 2026-08-24 — and `scw` then read it back through
+// GET /block/v1alpha1/zones/fr-par-1/volumes/{id} (200) and deleted it there
+// (204). This emulator answered 404 on both, on a path every `scw instance
+// server delete` takes.
+//
+// The client asks for nothing here: no `volumes` map at all, which is what `scw
+// instance server create type=DEV1-S image=ubuntu_jammy` actually sends (`scw
+// -D`, 2.56.3). So this is the default and not an opt-in.
+func TestADefaultRootVolumeLivesInBlockLikeTheCloud(t *testing.T) {
+	ts := newTestServer(t)
+	_, server := serverWith(t, ts, `{"name":"plain","commercial_type":"DEV1-S","image":"ubuntu_jammy"}`)
+
+	volumes, _ := server["volumes"].(map[string]any)
+	root, _ := volumes["0"].(map[string]any)
+	if root == nil {
+		t.Fatalf("the server carries no root volume: %v", server["volumes"])
+	}
+	if root["volume_type"] != "sbs_volume" {
+		t.Fatalf("a default root volume is %v, want sbs_volume: the cloud gives a DEV1-S an SBS root", root["volume_type"])
+	}
+	id, _ := root["id"].(string)
+
+	// The read #365 is titled after. Instance keeps its typed 404 so the SDK's
+	// fallback fires, and block answers.
+	if status, _ := do(t, ts, "GET", zone+"/volumes/"+id, ""); status != http.StatusNotFound {
+		t.Errorf("instance answered %d for the root volume, want 404 so getUnknownVolume falls back", status)
+	}
+	status, got := do(t, ts, "GET", blockURL+"/volumes/"+id, "")
+	if status != http.StatusOK {
+		t.Fatalf("block answered %d for the root volume, want 200: this is #365", status)
+	}
+	if got["id"] != id {
+		t.Errorf("block answered another volume: %v", got)
+	}
+}
+
+// A root disk restored from an image names the snapshot it came from.
+//
+// The cloud does: corpus/scaleway/scw-instance.jsonl seq 9 answers a
+// parent_snapshot_id on the root volume of a DEV1-S created from ubuntu_jammy,
+// and this emulator answered null there. It became comparable only when #365
+// made the volume answerable at all — before that the whole object was missing
+// and `corpus --check` excused it wholesale.
+func TestARootVolumeNamesTheImageSnapshotItCameFrom(t *testing.T) {
+	ts := newTestServer(t)
+	_, server := serverWith(t, ts, `{"name":"plain","commercial_type":"DEV1-S","image":"ubuntu_jammy"}`)
+	volumes, _ := server["volumes"].(map[string]any)
+	root, _ := volumes["0"].(map[string]any)
+	id, _ := root["id"].(string)
+
+	_, got := do(t, ts, "GET", blockURL+"/volumes/"+id, "")
+	parent, _ := got["parent_snapshot_id"].(string)
+	if parent == "" {
+		t.Fatalf("the root volume names no parent snapshot: %v", got["parent_snapshot_id"])
+	}
+	// The identifier the emulator itself publishes for that image's root volume,
+	// read back through the image door: two views of one fact, and inventing a
+	// third id here would give a client two answers to the same question.
+	_, image := do(t, ts, "GET", zone+"/images/"+imageIDOf(t, server), "")
+	img, _ := image["image"].(map[string]any)
+	imageRoot, _ := img["root_volume"].(map[string]any)
+	if imageRoot == nil || imageRoot["id"] != parent {
+		t.Errorf("the root volume's parent is %q and the image's root volume is %v: the two must be the same snapshot", parent, image["image"])
+	}
+}
+
+// imageIDOf reads the image id off a server body.
+func imageIDOf(t *testing.T, server map[string]any) string {
+	t.Helper()
+	image, _ := server["image"].(map[string]any)
+	id, _ := image["id"].(string)
+	if id == "" {
+		t.Fatalf("the server carries no image: %v", server["image"])
+	}
+	return id
+}
+
+// A released block volume says WHEN it was released.
+//
+// Both recordings carry null on every read while the volume is held and a
+// timestamp on the read that follows the detach: scw-instance.jsonl seq 9/14
+// null then seq 18 a string, scw-billed-shapes.jsonl seq 2/13/27 null then seq
+// 33 a string. `feint corpus --check` reported "last_detached_at is string
+// upstream, null here" the moment #365 made this volume comparable.
+func TestAReleasedBlockVolumeSaysWhenItWasDetached(t *testing.T) {
+	ts := newTestServer(t)
+	srv, body := serverWith(t, ts, `{"name":"plain","commercial_type":"DEV1-S"}`)
+	volumes, _ := body["volumes"].(map[string]any)
+	root, _ := volumes["0"].(map[string]any)
+	id, _ := root["id"].(string)
+
+	_, got := do(t, ts, "GET", blockURL+"/volumes/"+id, "")
+	if got["last_detached_at"] != nil {
+		t.Fatalf("a volume that was never detached reports %v, want null", got["last_detached_at"])
+	}
+
+	if status, out := do(t, ts, "DELETE", zone+"/servers/"+srv, ""); status != http.StatusNoContent {
+		t.Fatalf("delete server answered %d: %v", status, out)
+	}
+	_, got = do(t, ts, "GET", blockURL+"/volumes/"+id, "")
+	if _, ok := got["last_detached_at"].(string); !ok {
+		t.Errorf("a released volume reports last_detached_at %v, want the moment it was released", got["last_detached_at"])
+	}
+}

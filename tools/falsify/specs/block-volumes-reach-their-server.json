@@ -98,6 +98,38 @@
       "replace": "\tid := r.PathValue(\"id\")\n\tres, found := p.anyVolume(id)\n\tif !found {\n\t\tres, found = p.env.Store.Get(Name, kindVolume, id)\n\t}\n\tif !found || res.Tenant.Zone != zone {",
       "expect": "the over-correction: getUnknownVolume stops at the instance answer and never reads block, so the Terraform provider gets a field set without size, references or status — the failure #8 exists to prevent, reintroduced by a fix that looked symmetrical",
       "test": "TestAnSbsRootVolumeIsReadableThroughTheBlockFallback"
+    },
+    {
+      "label": "a default root disk goes back to instance/v1, where the cloud does not keep it",
+      "file": "internal/providers/scaleway/servers.go",
+      "find": "\tif wanted.VolumeType == \"\" || wanted.VolumeType == \"sbs_volume\" {",
+      "replace": "\tif (wanted.VolumeType == \"\" && false) || wanted.VolumeType == \"sbs_volume\" {",
+      "expect": "`scw` follows the server's own volumes[\"0\"].id into block/v1alpha1 and meets a 404, which is #365's title",
+      "test": "TestADefaultRootVolumeLivesInBlockLikeTheCloud"
+    },
+    {
+      "label": "a root disk stops naming the image snapshot it was restored from",
+      "file": "internal/providers/scaleway/servers.go",
+      "find": "\trootVol := p.rootVolume(res, req.Name, project, organization, p.imageRootSnapshot(resolvedImageID), req.Volumes[\"0\"])",
+      "replace": "\trootVol := p.rootVolume(res, req.Name, project, organization, p.imageRootSnapshot(resolvedImageID)[:0], req.Volumes[\"0\"])",
+      "expect": "parent_snapshot_id answers null where the recorded cloud answers the image's snapshot, and a client asking where its disk came from is told nowhere",
+      "test": "TestARootVolumeNamesTheImageSnapshotItCameFrom"
+    },
+    {
+      "label": "a released block volume stops saying when it was released",
+      "file": "internal/providers/scaleway/volumes.go",
+      "find": "\t\t\tstored.Attrs[\"last_detached_at\"] = p.env.Now().Format(time.RFC3339)",
+      "replace": "\t\t\tstored.Attrs[\"last_detached_at-not-answered\"] = p.env.Now().Format(time.RFC3339)",
+      "expect": "last_detached_at stays null for ever, where both recordings of a real account carry a timestamp on the read that follows the detach",
+      "test": "TestAReleasedBlockVolumeSaysWhenItWasDetached"
+    },
+    {
+      "label": "the view stops publishing the detachment it recorded",
+      "file": "internal/providers/scaleway/block.go",
+      "find": "\tif detached := textOf(res.Attrs[\"last_detached_at\"]); detached != \"\" {\n\t\tview[\"last_detached_at\"] = detached\n\t}",
+      "replace": "\tif detached := textOf(res.Attrs[\"last_detached_at\"]); detached != \"\" && false {\n\t\tview[\"last_detached_at\"] = detached\n\t}",
+      "expect": "the field is recorded and never answered, which reads to a client exactly like a volume nothing has ever released",
+      "test": "TestAReleasedBlockVolumeSaysWhenItWasDetached"
     }
   ]
 }

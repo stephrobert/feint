@@ -151,13 +151,18 @@ func TestDeletingAServerLeavesItsVolumeAvailable(t *testing.T) {
 		t.Fatalf("delete: status %d", status)
 	}
 
-	status, out = do(t, ts, "GET", zone+"/volumes/"+rootID, "")
+	// In block, where the root disk lives since #365, and where `scw instance
+	// server delete` goes to read it: the recorded account answered 200 there
+	// after the server was gone, then 204 to the delete.
+	status, out = do(t, ts, "GET", blockURL+"/volumes/"+rootID, "")
 	if status != http.StatusOK {
 		t.Fatalf("the root volume went with the server: status %d", status)
 	}
-	volume, _ := out["volume"].(map[string]any)
-	if server := volume["server"]; server != nil {
-		t.Fatalf("the volume still belongs to the deleted server: %v", server)
+	if refs, _ := out["references"].([]any); len(refs) != 0 {
+		t.Fatalf("the volume still belongs to the deleted server: %v", out["references"])
+	}
+	if out["status"] != "available" {
+		t.Fatalf("the released volume reads status %v, want available: this is the field the CLI polls", out["status"])
 	}
 }
 

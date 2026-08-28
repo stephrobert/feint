@@ -46,8 +46,8 @@
     {
       "label": "a released block volume keeps reading in_use, and `scw instance server delete` polls it for ever (#365)",
       "file": "internal/providers/scaleway/volumes.go",
-      "find": "\t\tif stored.Kind == kindBlockVolume {\n\t\t\tstored.State = blockVolumeAvailable\n\t\t}",
-      "replace": "\t\tif stored.Kind == kindBlockVolume && false {\n\t\t\tstored.State = blockVolumeAvailable\n\t\t}",
+      "find": "\t\t\tstored.State = blockVolumeAvailable\n",
+      "replace": "\t\t\tstored.State = stored.State + blockVolumeAvailable[:0]\n",
       "test": "TestABlockVolumeIsAvailableOnceItsServerIsGone"
     },
     {

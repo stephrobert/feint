@@ -326,6 +326,18 @@ func (p *Pack) detachStoredVolume(vol *resource.Resource) {
 		// TestABlockVolumeIsAvailableOnceItsServerIsGone fails without this.
 		if stored.Kind == kindBlockVolume {
 			stored.State = blockVolumeAvailable
+			// And it says WHEN, which is the other half of the same fact and
+			// the one nothing could compare while a default root disk lived in
+			// instance/v1. Both recordings of a real account carry a timestamp
+			// here on the read that follows the detach and null on every read
+			// before it: corpus/scaleway/scw-instance.jsonl seq 18 and
+			// scw-billed-shapes.jsonl seq 33, against null on seq 9/14 and
+			// 2/13/27. `feint corpus --check` reported "last_detached_at is
+			// string upstream, null here" the moment #365 made this volume
+			// comparable at all.
+			//
+			// TestAReleasedBlockVolumeSaysWhenItWasDetached fails without this.
+			stored.Attrs["last_detached_at"] = p.env.Now().Format(time.RFC3339)
 		}
 		stored.Updated = p.env.Now()
 		return nil

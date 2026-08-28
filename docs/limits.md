@@ -803,9 +803,10 @@ Measured by @vde-dis on #8, with OpenTofu 1.12.5 and `scaleway/scaleway` 2.80.0:
   migrate to sbs or downgrade terraform."*
 - **`sbs_volume` used to plan for ever**, because the emulator overrode the type
   to `b_ssd` and the value read back never matched the value sent. It is now
-  honoured: the disk is created in `block/v1`, and the provider reads it back
-  through the fallback it always used — `instance.GetVolume` first, then
-  `block.GetVolume` on a typed 404.
+  honoured, and since #365 it is also what a request naming no type gets: the
+  disk is created in `block/v1`, and the provider reads it back through the
+  fallback it always used — `instance.GetVolume` first, then `block.GetVolume`
+  on a typed 404.
 - **The local types (`l_ssd`, `scratch`) are still overridden**, and that has its
   own reason, unchanged: the emulated catalogue declares
   `volumes_constraint.min_size` at 0 and the CLI sums local volumes against it,
@@ -897,27 +898,40 @@ the pack: this emulator was never asked to delete the gateway, and answering
 to avoid. They go when the gateway is recorded again with its destruction in
 the transcript.
 
-### A server's root volume lives in `instance/v1` here and in `block` upstream
+### A server's root volume lives in `block`, like the cloud's — since #365
 
-The largest single divergence the 2026-08-24 recording found, and it is one
-default. `CreateServer` with no `volumes` in the body is answered by `fr-par`
-with `volumes: {"0": {"volume_type": "sbs_volume"}}` — a *block* volume — and
-the recording then reads that volume three times through
-`block/v1alpha1/API.GetVolume` and deletes it there. This emulator gives such a
-server a `b_ssd` volume in `instance/v1`, so all four of those calls answer
-`404`: **forty-three findings, one default.**
+This entry used to be the largest single divergence the 2026-08-24 recording
+found, and it is over. `CreateServer` with no `volumes` in the body is answered
+by `fr-par` with `volumes: {"0": {"volume_type": "sbs_volume"}}` — a *block*
+volume — and the recording then reads that volume three times through
+`block/v1alpha1/API.GetVolume` and deletes it there. This emulator gave such a
+server a `b_ssd` volume in `instance/v1`, so all four of those calls answered
+`404`: forty-three findings, one default. The eighteen acceptance entries that
+carried them are deleted, and `feint corpus --check` compares those exchanges
+for real now.
 
-`sbs_volume` is honoured when a client asks for it, and
-`tools/conformance/scaleway/terraform/main.tf` asks for it, so the path itself
-is proven end to end by the real provider. What is not done is making it the
-default, and the reason is measured rather than assumed: the whole
-`instance/v1` volume surface reads a server's root disk out of the instance
-store. Flipping the default reds ten tests at once — `CreateSnapshot` and
-`CreateImage` cannot find the volume to snapshot, `attach-volume` and
-`detach-volume` refuse it, and terminate stops carrying it away. That is a
-batch of its own, not a line in a handler, and it is the same shape of decision
-as the asynchronous-delete entry above: a lifecycle that belongs to every kind,
-changed in one place.
+It is worth keeping why it took two steps, because the first was mistaken for a
+price rather than a defect. The reason not to flip was measured: the whole
+`instance/v1` volume surface read a server's root disk out of the instance
+store, so a block root was invisible to `attach-volume`, `detach-volume`, the
+update's volume map, a create naming a volume and `CreateSnapshot`. But that was
+already true for anybody who wrote `root_volume { volume_type = "sbs_volume" }`,
+which has worked since SW-3 — the defect existed, unmeasured, and the flip only
+made it universal. **The cost of a change and a defect it exposes are not the
+same thing**, and reading one as the other is what left this open for a month.
+#571 fixed the five resolutions first; this became one line.
+
+What the flip left standing, and it is a client behaviour rather than an
+emulator one: **`scw instance snapshot create volume-id=<a server's root disk>`
+no longer works without `unified=true`**. The CLI calls `instance.GetVolume`
+itself before it sends anything (scaleway-cli 2.56.3,
+`internal/namespaces/instance/v1/custom_snapshot.go`) and returns that error, so
+the command stops one call before the emulator. The instance route does resolve
+a block volume — `unified=true` reaches it and answers an `sbs_snapshot` — and
+`scw block snapshot create volume-id=<root>` is the path the conformance suite
+walks. Whether the real cloud answers `instance.GetVolume` for an SBS volume is
+**not measured here**: no recording carries that call, and the SDK's own
+`getUnknownVolume` only makes sense if it can 404.
 
 ## What survives a dead emulator, in one table
 

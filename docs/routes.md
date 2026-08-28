@@ -409,7 +409,7 @@ are in `coverage/`, one artefact per provider.
 - `instance` — 1 operation — it writes into Object Storage, which is not emulated because the Terraform provider builds the S3 endpoint in code: supporting it needs DNS interception and a certificate, measured in docs/limits.md
 - `instance` — 1 operation — its request carries tags and nothing else, and the pack stores no tag on a private NIC, so it would answer success over a field nothing reads back
 - `instance` — 1 operation — its thirteen counters span resources this pack does not serve, so every total would be short by the unemulated remainder with nothing saying which
-- `instance` — 1 operation — the emulator serves one volume type, b_ssd, because that is what its catalogue attaches, so a type list would describe capabilities nothing here can create
+- `instance` — 1 operation — the instance volumes this emulator makes are b_ssd, its servers' root disks are sbs_volume in the block product, and neither is backed by storage: a type list would describe capabilities and constraints nothing here can honour
 - `instance` — 1 operation — the server already publishes allowed_actions, derived from its state, so a second listing would be a second place to keep in step with the first
 - `ipam` — 1 operation — ipam/v1alpha1 is the superseded draft of ipam/v1, which is served
 - `lb` — 53 operations — the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI

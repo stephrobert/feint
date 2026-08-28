@@ -1414,7 +1414,7 @@
     {
       "operation": "instance/v1/API.ListVolumesTypes",
       "product": "instance",
-      "reason": "the emulator serves one volume type, b_ssd, because that is what its catalogue attaches, so a type list would describe capabilities nothing here can create",
+      "reason": "the instance volumes this emulator makes are b_ssd, its servers' root disks are sbs_volume in the block product, and neither is backed by storage: a type list would describe capabilities and constraints nothing here can honour",
       "version": "v1",
       "status": "declined"
     },

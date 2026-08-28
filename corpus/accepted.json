@@ -623,14 +623,6 @@
     },
     {
       "file": "scaleway/scw-billed-shapes.jsonl",
-      "operation": "block/v1alpha1/API.DeleteVolume",
-      "kind": "status",
-      "path": "",
-      "reason": "A SERVER'S ROOT VOLUME LIVES IN instance/v1 HERE AND IN block UPSTREAM, and every finding on this operation is that one default. corpus/scaleway/scw-billed-shapes.jsonl seq 11 is a CreateServer whose body names no volume, and fr-par answered volumes {\"0\": {volume_type: sbs_volume}} -- a block volume -- then read it three times through block/v1alpha1 (seq 13, 27, 33) and deleted it there (seq 34). This emulator gives such a server a b_ssd volume in instance/v1, so all four calls answer 404, and a 404 reports every field of the expected body as absent. sbs_volume IS honoured when a client asks for it, and tools/conformance/scaleway/terraform/main.tf asks for it, so the path is proven end to end by the real provider; what is not done is the default. MEASURED WHY NOT: flipping it reds ten tests at once, because the whole instance/v1 volume surface reads a server's root disk out of the instance store -- CreateSnapshot and CreateImage cannot find the volume to snapshot, attach-volume and detach-volume refuse it, and terminate stops carrying it away. docs/limits.md carries it. It goes the day the default moves, which is a batch of its own and not a line in a handler. Recorded 2026-08-24 (#427).",
-      "issue": "https://github.com/stephrobert/feint/issues/433"
-    },
-    {
-      "file": "scaleway/scw-billed-shapes.jsonl",
       "operation": "block/v1alpha1/API.GetSnapshot",
       "kind": "absent",
       "path": "class",
@@ -731,118 +723,6 @@
       "kind": "status",
       "path": "",
       "reason": "THIS EMULATOR'S LIFECYCLE TRANSITIONS ARE IMMEDIATE, which docs/limits.md states as a decision, and this is that decision seen from block/v1alpha1. A snapshot is `available` the instant it is cut here; upstream it is born in a transient state and a DeleteSnapshot issued while it settles is refused with 412 and a body. corpus/scaleway/scw-billed-shapes.jsonl seq 9-12 is exactly that sequence: the refused delete, a read that still finds the snapshot, the accepted delete, a read that does not. Here the FIRST delete succeeds, so the read between them finds nothing (404 against 200, which reports all twelve fields of the snapshot absent) and the second delete meets nothing (404 against 204). A refusal whose state is not reachable here cannot be served: a guard for a state nothing can enter is a control that can never fire, which is the rule docs/limits.md already draws for Outscale's InvalidVolumeState. It goes the day a snapshot has a settling state. Recorded 2026-08-24 (#427).",
-      "issue": "https://github.com/stephrobert/feint/issues/433"
-    },
-    {
-      "file": "scaleway/scw-billed-shapes.jsonl",
-      "operation": "block/v1alpha1/API.GetVolume",
-      "kind": "absent",
-      "path": "created_at",
-      "reason": "A SERVER'S ROOT VOLUME LIVES IN instance/v1 HERE AND IN block UPSTREAM, and every finding on this operation is that one default. corpus/scaleway/scw-billed-shapes.jsonl seq 11 is a CreateServer whose body names no volume, and fr-par answered volumes {\"0\": {volume_type: sbs_volume}} -- a block volume -- then read it three times through block/v1alpha1 (seq 13, 27, 33) and deleted it there (seq 34). This emulator gives such a server a b_ssd volume in instance/v1, so all four calls answer 404, and a 404 reports every field of the expected body as absent. sbs_volume IS honoured when a client asks for it, and tools/conformance/scaleway/terraform/main.tf asks for it, so the path is proven end to end by the real provider; what is not done is the default. MEASURED WHY NOT: flipping it reds ten tests at once, because the whole instance/v1 volume surface reads a server's root disk out of the instance store -- CreateSnapshot and CreateImage cannot find the volume to snapshot, attach-volume and detach-volume refuse it, and terminate stops carrying it away. docs/limits.md carries it. It goes the day the default moves, which is a batch of its own and not a line in a handler. Recorded 2026-08-24 (#427).",
-      "issue": "https://github.com/stephrobert/feint/issues/433"
-    },
-    {
-      "file": "scaleway/scw-billed-shapes.jsonl",
-      "operation": "block/v1alpha1/API.GetVolume",
-      "kind": "absent",
-      "path": "id",
-      "reason": "A SERVER'S ROOT VOLUME LIVES IN instance/v1 HERE AND IN block UPSTREAM, and every finding on this operation is that one default. corpus/scaleway/scw-billed-shapes.jsonl seq 11 is a CreateServer whose body names no volume, and fr-par answered volumes {\"0\": {volume_type: sbs_volume}} -- a block volume -- then read it three times through block/v1alpha1 (seq 13, 27, 33) and deleted it there (seq 34). This emulator gives such a server a b_ssd volume in instance/v1, so all four calls answer 404, and a 404 reports every field of the expected body as absent. sbs_volume IS honoured when a client asks for it, and tools/conformance/scaleway/terraform/main.tf asks for it, so the path is proven end to end by the real provider; what is not done is the default. MEASURED WHY NOT: flipping it reds ten tests at once, because the whole instance/v1 volume surface reads a server's root disk out of the instance store -- CreateSnapshot and CreateImage cannot find the volume to snapshot, attach-volume and detach-volume refuse it, and terminate stops carrying it away. docs/limits.md carries it. It goes the day the default moves, which is a batch of its own and not a line in a handler. Recorded 2026-08-24 (#427).",
-      "issue": "https://github.com/stephrobert/feint/issues/433"
-    },
-    {
-      "file": "scaleway/scw-billed-shapes.jsonl",
-      "operation": "block/v1alpha1/API.GetVolume",
-      "kind": "absent",
-      "path": "last_detached_at",
-      "reason": "A SERVER'S ROOT VOLUME LIVES IN instance/v1 HERE AND IN block UPSTREAM, and every finding on this operation is that one default. corpus/scaleway/scw-billed-shapes.jsonl seq 11 is a CreateServer whose body names no volume, and fr-par answered volumes {\"0\": {volume_type: sbs_volume}} -- a block volume -- then read it three times through block/v1alpha1 (seq 13, 27, 33) and deleted it there (seq 34). This emulator gives such a server a b_ssd volume in instance/v1, so all four calls answer 404, and a 404 reports every field of the expected body as absent. sbs_volume IS honoured when a client asks for it, and tools/conformance/scaleway/terraform/main.tf asks for it, so the path is proven end to end by the real provider; what is not done is the default. MEASURED WHY NOT: flipping it reds ten tests at once, because the whole instance/v1 volume surface reads a server's root disk out of the instance store -- CreateSnapshot and CreateImage cannot find the volume to snapshot, attach-volume and detach-volume refuse it, and terminate stops carrying it away. docs/limits.md carries it. It goes the day the default moves, which is a batch of its own and not a line in a handler. Recorded 2026-08-24 (#427).",
-      "issue": "https://github.com/stephrobert/feint/issues/433"
-    },
-    {
-      "file": "scaleway/scw-billed-shapes.jsonl",
-      "operation": "block/v1alpha1/API.GetVolume",
-      "kind": "absent",
-      "path": "name",
-      "reason": "A SERVER'S ROOT VOLUME LIVES IN instance/v1 HERE AND IN block UPSTREAM, and every finding on this operation is that one default. corpus/scaleway/scw-billed-shapes.jsonl seq 11 is a CreateServer whose body names no volume, and fr-par answered volumes {\"0\": {volume_type: sbs_volume}} -- a block volume -- then read it three times through block/v1alpha1 (seq 13, 27, 33) and deleted it there (seq 34). This emulator gives such a server a b_ssd volume in instance/v1, so all four calls answer 404, and a 404 reports every field of the expected body as absent. sbs_volume IS honoured when a client asks for it, and tools/conformance/scaleway/terraform/main.tf asks for it, so the path is proven end to end by the real provider; what is not done is the default. MEASURED WHY NOT: flipping it reds ten tests at once, because the whole instance/v1 volume surface reads a server's root disk out of the instance store -- CreateSnapshot and CreateImage cannot find the volume to snapshot, attach-volume and detach-volume refuse it, and terminate stops carrying it away. docs/limits.md carries it. It goes the day the default moves, which is a batch of its own and not a line in a handler. Recorded 2026-08-24 (#427).",
-      "issue": "https://github.com/stephrobert/feint/issues/433"
-    },
-    {
-      "file": "scaleway/scw-billed-shapes.jsonl",
-      "operation": "block/v1alpha1/API.GetVolume",
-      "kind": "absent",
-      "path": "parent_snapshot_id",
-      "reason": "A SERVER'S ROOT VOLUME LIVES IN instance/v1 HERE AND IN block UPSTREAM, and every finding on this operation is that one default. corpus/scaleway/scw-billed-shapes.jsonl seq 11 is a CreateServer whose body names no volume, and fr-par answered volumes {\"0\": {volume_type: sbs_volume}} -- a block volume -- then read it three times through block/v1alpha1 (seq 13, 27, 33) and deleted it there (seq 34). This emulator gives such a server a b_ssd volume in instance/v1, so all four calls answer 404, and a 404 reports every field of the expected body as absent. sbs_volume IS honoured when a client asks for it, and tools/conformance/scaleway/terraform/main.tf asks for it, so the path is proven end to end by the real provider; what is not done is the default. MEASURED WHY NOT: flipping it reds ten tests at once, because the whole instance/v1 volume surface reads a server's root disk out of the instance store -- CreateSnapshot and CreateImage cannot find the volume to snapshot, attach-volume and detach-volume refuse it, and terminate stops carrying it away. docs/limits.md carries it. It goes the day the default moves, which is a batch of its own and not a line in a handler. Recorded 2026-08-24 (#427).",
-      "issue": "https://github.com/stephrobert/feint/issues/433"
-    },
-    {
-      "file": "scaleway/scw-billed-shapes.jsonl",
-      "operation": "block/v1alpha1/API.GetVolume",
-      "kind": "absent",
-      "path": "project_id",
-      "reason": "A SERVER'S ROOT VOLUME LIVES IN instance/v1 HERE AND IN block UPSTREAM, and every finding on this operation is that one default. corpus/scaleway/scw-billed-shapes.jsonl seq 11 is a CreateServer whose body names no volume, and fr-par answered volumes {\"0\": {volume_type: sbs_volume}} -- a block volume -- then read it three times through block/v1alpha1 (seq 13, 27, 33) and deleted it there (seq 34). This emulator gives such a server a b_ssd volume in instance/v1, so all four calls answer 404, and a 404 reports every field of the expected body as absent. sbs_volume IS honoured when a client asks for it, and tools/conformance/scaleway/terraform/main.tf asks for it, so the path is proven end to end by the real provider; what is not done is the default. MEASURED WHY NOT: flipping it reds ten tests at once, because the whole instance/v1 volume surface reads a server's root disk out of the instance store -- CreateSnapshot and CreateImage cannot find the volume to snapshot, attach-volume and detach-volume refuse it, and terminate stops carrying it away. docs/limits.md carries it. It goes the day the default moves, which is a batch of its own and not a line in a handler. Recorded 2026-08-24 (#427).",
-      "issue": "https://github.com/stephrobert/feint/issues/433"
-    },
-    {
-      "file": "scaleway/scw-billed-shapes.jsonl",
-      "operation": "block/v1alpha1/API.GetVolume",
-      "kind": "absent",
-      "path": "references",
-      "reason": "A SERVER'S ROOT VOLUME LIVES IN instance/v1 HERE AND IN block UPSTREAM, and every finding on this operation is that one default. corpus/scaleway/scw-billed-shapes.jsonl seq 11 is a CreateServer whose body names no volume, and fr-par answered volumes {\"0\": {volume_type: sbs_volume}} -- a block volume -- then read it three times through block/v1alpha1 (seq 13, 27, 33) and deleted it there (seq 34). This emulator gives such a server a b_ssd volume in instance/v1, so all four calls answer 404, and a 404 reports every field of the expected body as absent. sbs_volume IS honoured when a client asks for it, and tools/conformance/scaleway/terraform/main.tf asks for it, so the path is proven end to end by the real provider; what is not done is the default. MEASURED WHY NOT: flipping it reds ten tests at once, because the whole instance/v1 volume surface reads a server's root disk out of the instance store -- CreateSnapshot and CreateImage cannot find the volume to snapshot, attach-volume and detach-volume refuse it, and terminate stops carrying it away. docs/limits.md carries it. It goes the day the default moves, which is a batch of its own and not a line in a handler. Recorded 2026-08-24 (#427).",
-      "issue": "https://github.com/stephrobert/feint/issues/433"
-    },
-    {
-      "file": "scaleway/scw-billed-shapes.jsonl",
-      "operation": "block/v1alpha1/API.GetVolume",
-      "kind": "absent",
-      "path": "size",
-      "reason": "A SERVER'S ROOT VOLUME LIVES IN instance/v1 HERE AND IN block UPSTREAM, and every finding on this operation is that one default. corpus/scaleway/scw-billed-shapes.jsonl seq 11 is a CreateServer whose body names no volume, and fr-par answered volumes {\"0\": {volume_type: sbs_volume}} -- a block volume -- then read it three times through block/v1alpha1 (seq 13, 27, 33) and deleted it there (seq 34). This emulator gives such a server a b_ssd volume in instance/v1, so all four calls answer 404, and a 404 reports every field of the expected body as absent. sbs_volume IS honoured when a client asks for it, and tools/conformance/scaleway/terraform/main.tf asks for it, so the path is proven end to end by the real provider; what is not done is the default. MEASURED WHY NOT: flipping it reds ten tests at once, because the whole instance/v1 volume surface reads a server's root disk out of the instance store -- CreateSnapshot and CreateImage cannot find the volume to snapshot, attach-volume and detach-volume refuse it, and terminate stops carrying it away. docs/limits.md carries it. It goes the day the default moves, which is a batch of its own and not a line in a handler. Recorded 2026-08-24 (#427).",
-      "issue": "https://github.com/stephrobert/feint/issues/433"
-    },
-    {
-      "file": "scaleway/scw-billed-shapes.jsonl",
-      "operation": "block/v1alpha1/API.GetVolume",
-      "kind": "absent",
-      "path": "specs",
-      "reason": "A SERVER'S ROOT VOLUME LIVES IN instance/v1 HERE AND IN block UPSTREAM, and every finding on this operation is that one default. corpus/scaleway/scw-billed-shapes.jsonl seq 11 is a CreateServer whose body names no volume, and fr-par answered volumes {\"0\": {volume_type: sbs_volume}} -- a block volume -- then read it three times through block/v1alpha1 (seq 13, 27, 33) and deleted it there (seq 34). This emulator gives such a server a b_ssd volume in instance/v1, so all four calls answer 404, and a 404 reports every field of the expected body as absent. sbs_volume IS honoured when a client asks for it, and tools/conformance/scaleway/terraform/main.tf asks for it, so the path is proven end to end by the real provider; what is not done is the default. MEASURED WHY NOT: flipping it reds ten tests at once, because the whole instance/v1 volume surface reads a server's root disk out of the instance store -- CreateSnapshot and CreateImage cannot find the volume to snapshot, attach-volume and detach-volume refuse it, and terminate stops carrying it away. docs/limits.md carries it. It goes the day the default moves, which is a batch of its own and not a line in a handler. Recorded 2026-08-24 (#427).",
-      "issue": "https://github.com/stephrobert/feint/issues/433"
-    },
-    {
-      "file": "scaleway/scw-billed-shapes.jsonl",
-      "operation": "block/v1alpha1/API.GetVolume",
-      "kind": "absent",
-      "path": "status",
-      "reason": "A SERVER'S ROOT VOLUME LIVES IN instance/v1 HERE AND IN block UPSTREAM, and every finding on this operation is that one default. corpus/scaleway/scw-billed-shapes.jsonl seq 11 is a CreateServer whose body names no volume, and fr-par answered volumes {\"0\": {volume_type: sbs_volume}} -- a block volume -- then read it three times through block/v1alpha1 (seq 13, 27, 33) and deleted it there (seq 34). This emulator gives such a server a b_ssd volume in instance/v1, so all four calls answer 404, and a 404 reports every field of the expected body as absent. sbs_volume IS honoured when a client asks for it, and tools/conformance/scaleway/terraform/main.tf asks for it, so the path is proven end to end by the real provider; what is not done is the default. MEASURED WHY NOT: flipping it reds ten tests at once, because the whole instance/v1 volume surface reads a server's root disk out of the instance store -- CreateSnapshot and CreateImage cannot find the volume to snapshot, attach-volume and detach-volume refuse it, and terminate stops carrying it away. docs/limits.md carries it. It goes the day the default moves, which is a batch of its own and not a line in a handler. Recorded 2026-08-24 (#427).",
-      "issue": "https://github.com/stephrobert/feint/issues/433"
-    },
-    {
-      "file": "scaleway/scw-billed-shapes.jsonl",
-      "operation": "block/v1alpha1/API.GetVolume",
-      "kind": "absent",
-      "path": "tags",
-      "reason": "A SERVER'S ROOT VOLUME LIVES IN instance/v1 HERE AND IN block UPSTREAM, and every finding on this operation is that one default. corpus/scaleway/scw-billed-shapes.jsonl seq 11 is a CreateServer whose body names no volume, and fr-par answered volumes {\"0\": {volume_type: sbs_volume}} -- a block volume -- then read it three times through block/v1alpha1 (seq 13, 27, 33) and deleted it there (seq 34). This emulator gives such a server a b_ssd volume in instance/v1, so all four calls answer 404, and a 404 reports every field of the expected body as absent. sbs_volume IS honoured when a client asks for it, and tools/conformance/scaleway/terraform/main.tf asks for it, so the path is proven end to end by the real provider; what is not done is the default. MEASURED WHY NOT: flipping it reds ten tests at once, because the whole instance/v1 volume surface reads a server's root disk out of the instance store -- CreateSnapshot and CreateImage cannot find the volume to snapshot, attach-volume and detach-volume refuse it, and terminate stops carrying it away. docs/limits.md carries it. It goes the day the default moves, which is a batch of its own and not a line in a handler. Recorded 2026-08-24 (#427).",
-      "issue": "https://github.com/stephrobert/feint/issues/433"
-    },
-    {
-      "file": "scaleway/scw-billed-shapes.jsonl",
-      "operation": "block/v1alpha1/API.GetVolume",
-      "kind": "absent",
-      "path": "updated_at",
-      "reason": "A SERVER'S ROOT VOLUME LIVES IN instance/v1 HERE AND IN block UPSTREAM, and every finding on this operation is that one default. corpus/scaleway/scw-billed-shapes.jsonl seq 11 is a CreateServer whose body names no volume, and fr-par answered volumes {\"0\": {volume_type: sbs_volume}} -- a block volume -- then read it three times through block/v1alpha1 (seq 13, 27, 33) and deleted it there (seq 34). This emulator gives such a server a b_ssd volume in instance/v1, so all four calls answer 404, and a 404 reports every field of the expected body as absent. sbs_volume IS honoured when a client asks for it, and tools/conformance/scaleway/terraform/main.tf asks for it, so the path is proven end to end by the real provider; what is not done is the default. MEASURED WHY NOT: flipping it reds ten tests at once, because the whole instance/v1 volume surface reads a server's root disk out of the instance store -- CreateSnapshot and CreateImage cannot find the volume to snapshot, attach-volume and detach-volume refuse it, and terminate stops carrying it away. docs/limits.md carries it. It goes the day the default moves, which is a batch of its own and not a line in a handler. Recorded 2026-08-24 (#427).",
-      "issue": "https://github.com/stephrobert/feint/issues/433"
-    },
-    {
-      "file": "scaleway/scw-billed-shapes.jsonl",
-      "operation": "block/v1alpha1/API.GetVolume",
-      "kind": "absent",
-      "path": "zone",
-      "reason": "A SERVER'S ROOT VOLUME LIVES IN instance/v1 HERE AND IN block UPSTREAM, and every finding on this operation is that one default. corpus/scaleway/scw-billed-shapes.jsonl seq 11 is a CreateServer whose body names no volume, and fr-par answered volumes {\"0\": {volume_type: sbs_volume}} -- a block volume -- then read it three times through block/v1alpha1 (seq 13, 27, 33) and deleted it there (seq 34). This emulator gives such a server a b_ssd volume in instance/v1, so all four calls answer 404, and a 404 reports every field of the expected body as absent. sbs_volume IS honoured when a client asks for it, and tools/conformance/scaleway/terraform/main.tf asks for it, so the path is proven end to end by the real provider; what is not done is the default. MEASURED WHY NOT: flipping it reds ten tests at once, because the whole instance/v1 volume surface reads a server's root disk out of the instance store -- CreateSnapshot and CreateImage cannot find the volume to snapshot, attach-volume and detach-volume refuse it, and terminate stops carrying it away. docs/limits.md carries it. It goes the day the default moves, which is a batch of its own and not a line in a handler. Recorded 2026-08-24 (#427).",
-      "issue": "https://github.com/stephrobert/feint/issues/433"
-    },
-    {
-      "file": "scaleway/scw-billed-shapes.jsonl",
-      "operation": "block/v1alpha1/API.GetVolume",
-      "kind": "status",
-      "path": "",
-      "reason": "A SERVER'S ROOT VOLUME LIVES IN instance/v1 HERE AND IN block UPSTREAM, and every finding on this operation is that one default. corpus/scaleway/scw-billed-shapes.jsonl seq 11 is a CreateServer whose body names no volume, and fr-par answered volumes {\"0\": {volume_type: sbs_volume}} -- a block volume -- then read it three times through block/v1alpha1 (seq 13, 27, 33) and deleted it there (seq 34). This emulator gives such a server a b_ssd volume in instance/v1, so all four calls answer 404, and a 404 reports every field of the expected body as absent. sbs_volume IS honoured when a client asks for it, and tools/conformance/scaleway/terraform/main.tf asks for it, so the path is proven end to end by the real provider; what is not done is the default. MEASURED WHY NOT: flipping it reds ten tests at once, because the whole instance/v1 volume surface reads a server's root disk out of the instance store -- CreateSnapshot and CreateImage cannot find the volume to snapshot, attach-volume and detach-volume refuse it, and terminate stops carrying it away. docs/limits.md carries it. It goes the day the default moves, which is a batch of its own and not a line in a handler. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/433"
     },
     {
@@ -1308,30 +1188,6 @@
       "path": "s3_integration_enabled",
       "reason": "THE RECORDING PREDATES THE RENAME, AND ONLY AN ACCOUNT CAN RE-RECORD IT. Scaleway renamed the vpc/v2 Object Storage family on 2026-08-25: the VPC's s3_integration_enabled became object_storage_private_access_enabled and the Private Network's has_s3_integration became has_object_storage_private_access. Both upstream sources agree and neither declares a deprecation alias, read on 2026-08-28: .upstream/scaleway-sdk-go/api/vpc/v2/vpc_sdk.go:1024 and :646, and .upstream/scaleway-openapi/vpc-v2.yml, whose x-properties-order -- the document's own exhaustive property list for each object -- carries the new name and not the old one. So the emulator answers the new name alone; answering both would invent a deprecation window no source declares. This corpus was recorded on 2026-08-20, five days before, so it is evidence of what the cloud answered BEFORE the rename and it still settles the two things a rename does not touch: the field is present on every answer, and its value is false on an account with nothing attached. Re-recording needs a paid vpc/v2 account this repository does not have, and `mise run corpus:cloud` is what would arbitrate it. It goes the day that recording is made. (#570)",
       "issue": "https://github.com/stephrobert/feint/issues/570"
-    },
-    {
-      "file": "scaleway/scw-instance.jsonl",
-      "operation": "block/v1alpha1/API.DeleteVolume",
-      "kind": "status",
-      "path": "",
-      "reason": "scw deletes the root volume through block/v1alpha1 after deleting the server, and the cloud answers 204 where this emulator answers 404 because the volume it created is an instance/v1 one",
-      "issue": "#365"
-    },
-    {
-      "file": "scaleway/scw-instance.jsonl",
-      "operation": "block/v1alpha1/API.GetVolume",
-      "kind": "absent",
-      "path": "*",
-      "reason": "every top-level field of a body this emulator does not serve at all: the block volume behind the root disk does not exist here, so its fourteen fields are absent for the one reason the status divergence above states",
-      "issue": "#365"
-    },
-    {
-      "file": "scaleway/scw-instance.jsonl",
-      "operation": "block/v1alpha1/API.GetVolume",
-      "kind": "status",
-      "path": "",
-      "reason": "the cloud gave the DEV1-S an SBS root volume and answers 200 on the block path scw follows; this emulator attaches a local instance/v1 volume, so the same read answers 404",
-      "issue": "#365"
     },
     {
       "file": "scaleway/scw-instance.jsonl",

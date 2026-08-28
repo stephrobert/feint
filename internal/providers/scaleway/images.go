@@ -100,12 +100,40 @@ func (p *Pack) imageView(zone, id, label string) map[string]any {
 		// TestTheCatalogueImageTypesFromServerLikeTheCloudDoes fails without this.
 		"from_server": "",
 		"root_volume": map[string]any{
-			"id":          "33333333-3333-4333-8333-333333333333",
+			"id":          catalogueImageSnapshot,
 			"name":        label + "-root",
 			"size":        20_000_000_000,
 			"volume_type": "b_ssd",
 		},
 	}
+}
+
+// catalogueImageSnapshot is the snapshot every catalogue image's root volume
+// names. Fixed, like the rest of the catalogue, and named here because a second
+// reader appeared: a root disk restored from an image carries this identifier as
+// its parent_snapshot_id, and a literal written twice is a literal that will one
+// day be written differently.
+const catalogueImageSnapshot = "33333333-3333-4333-8333-333333333333"
+
+// imageRootSnapshot is the snapshot an image's root volume names, which is what
+// a disk created from that image carries as its parent.
+//
+// Not an invention: `root_volume` on an instance/v1 Image IS the snapshot the
+// image was built from — createImage below reads the client's snapshot id out of
+// that very field — so the emulator already publishes this identifier, and a
+// root volume restored from the image points back at it. The cloud does the
+// same, measured: corpus/scaleway/scw-instance.jsonl seq 9 answers a
+// parent_snapshot_id on the root volume of a DEV1-S created from ubuntu_jammy,
+// and scw-billed-shapes.jsonl seq 13 does on another.
+//
+// TestARootVolumeNamesTheImageSnapshotItCameFrom fails without this.
+func (p *Pack) imageRootSnapshot(imageID string) string {
+	if res, found := p.env.Store.Get(Name, kindImage, imageID); found {
+		if root, _ := res.Attrs["root_volume"].(map[string]any); root != nil {
+			return textOf(root["id"])
+		}
+	}
+	return catalogueImageSnapshot
 }
 
 // resolveImage maps what a create request put in `image` onto what the

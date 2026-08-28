@@ -760,7 +760,13 @@ func (p *Pack) Declined() []emulator.Decline {
 		// say so: it returns a catalogue of volume types with their constraints,
 		// which is the same nature as ListServersTypes — served. It is declined
 		// for the reason that actually applies to it.
-		emulator.Because("the emulator serves one volume type, b_ssd, because that is what its catalogue attaches, so a type list would describe capabilities nothing here can create",
+		// The reason it names has to stay true, and #365 moved the fact under
+		// it: a server's root disk is an sbs_volume now, like the cloud's, and
+		// b_ssd is what `scw instance volume create` makes when a client asks
+		// for a disk of its own. Two types, both of them the same single
+		// capability — a size, recorded and answered, with nothing written
+		// anywhere — so the decline stands and its sentence does not.
+		emulator.Because("the instance volumes this emulator makes are b_ssd, its servers' root disks are sbs_volume in the block product, and neither is backed by storage: a type list would describe capabilities and constraints nothing here can honour",
 			"instance/v1/API.ListVolumesTypes"),
 
 		emulator.Because("its thirteen counters span resources this pack does not serve, so every total would be short by the unemulated remainder with nothing saying which",

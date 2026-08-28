@@ -228,10 +228,17 @@ func (p *Pack) blockVolumeView(res *resource.Resource) map[string]any {
 			"class":     blockStorageClass,
 			"perf_iops": res.Attrs["perf_iops"],
 		},
-		// Present and null on every volume the recorded account returned. Neither
-		// is emulated: no Key Manager, and no detachment history.
-		"kms_key_id":       nil,
+		// Present and null on every volume the recorded account returned. Not
+		// emulated: there is no Key Manager here.
+		"kms_key_id": nil,
+		// A timestamp once something has released this volume, null before —
+		// which is what both recordings show, null while attached and a string
+		// on the read that follows the detach. Written by detachStoredVolume,
+		// the one place a volume stops being held.
 		"last_detached_at": nil,
+	}
+	if detached := textOf(res.Attrs["last_detached_at"]); detached != "" {
+		view["last_detached_at"] = detached
 	}
 	// A string when the volume came from a snapshot, null otherwise. The SDK
 	// declares a pointer and the recorded account only had volumes with a parent,
@@ -833,7 +840,11 @@ const (
 // block one — being in both would answer the first call and never exercise the
 // fallback, which is precisely the path #8 exists to unblock.
 // TestAnSbsRootVolumeIsReadableThroughTheBlockFallback fails without this.
-func (p *Pack) newBlockRootVolume(zone, project, name string, size uint64) *resource.Resource {
+//
+// parentSnapshot is the image snapshot the disk was restored from, which is what
+// the cloud publishes and what a client reads to know where its root came from
+// (see imageRootSnapshot).
+func (p *Pack) newBlockRootVolume(zone, project, name string, size uint64, parentSnapshot string) *resource.Resource {
 	now := p.env.Now()
 	return &resource.Resource{
 		ID:      p.env.NewID(),
@@ -848,7 +859,7 @@ func (p *Pack) newBlockRootVolume(zone, project, name string, size uint64) *reso
 			"tags":               []any{},
 			"size":               size,
 			"zone":               zone,
-			"parent_snapshot_id": "",
+			"parent_snapshot_id": parentSnapshot,
 			"perf_iops":          uint32(blockDefaultIOPS),
 		},
 	}

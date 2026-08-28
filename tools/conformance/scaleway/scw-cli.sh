@@ -387,7 +387,39 @@ img_server_id="$(printf '%s' "$img_server" | jq -r '(.server // .).id')"
 img_root="$(printf '%s' "$img_server" | jq -r '(.server // .).volumes["0"].id')"
 [ -n "$img_root" ] && [ "$img_root" != null ] || fail "the server carries no root volume: $img_server"
 
-snap="$(scw instance snapshot create name=conformance-snap volume-id="$img_root" zone="$ZONE" -o json)" \
+# The root disk is a BLOCK volume since #365, which is what the cloud gives a
+# DEV1-S, so it is snapshotted through the product that owns it. This step is
+# new and it is not decoration: it is the whole reason the subject of the
+# instance snapshot below had to change.
+#
+# `scw instance snapshot create volume-id=<a block volume>` cannot be that
+# subject, and the refusal comes from the CLI rather than from here: without
+# `unified=true` the command calls instance.GetVolume itself before it sends
+# anything (scaleway-cli 2.56.3, internal/namespaces/instance/v1/
+# custom_snapshot.go) and returns that error. The instance route DOES resolve a
+# block volume — TestAnInstanceSnapshotOfABlockVolumeIsAnSbsSnapshot, and
+# `unified=true` reaches it — but a fixture cannot assert it through a client
+# that stops one call earlier.
+root_snap="$(scw block snapshot create name=conformance-root-snap volume-id="$img_root" \
+              zone="$ZONE" -o json)" || fail "block snapshot of the server root rejected: $root_snap"
+root_snap_id="$(printf '%s' "$root_snap" | jq -r '(.snapshot // .).id')"
+[ -n "$root_snap_id" ] && [ "$root_snap_id" != null ] \
+  || fail "no id in the root snapshot response: $root_snap"
+scw block snapshot get "$root_snap_id" zone="$ZONE" -o json \
+  | jq -e --arg v "$img_root" '(.snapshot // .).parent_volume.id == $v' >/dev/null \
+  || fail "the snapshot of the root disk does not name the root disk"
+scw block snapshot delete "$root_snap_id" zone="$ZONE" >/dev/null \
+  || fail "delete of the root snapshot rejected"
+
+# An instance volume for the instance snapshot, created by the client the way a
+# client does. It used to be the server's root disk, which was an instance
+# volume until #365 moved it where the cloud keeps it.
+img_vol="$(scw instance volume create name=conformance-golden-vol volume-type=b_ssd size=10G \
+            zone="$ZONE" -o json)" || fail "volume create for the image test rejected: $img_vol"
+img_vol_id="$(printf '%s' "$img_vol" | jq -r '(.volume // .).id')"
+[ -n "$img_vol_id" ] && [ "$img_vol_id" != null ] || fail "no id in the volume create response: $img_vol"
+
+snap="$(scw instance snapshot create name=conformance-snap volume-id="$img_vol_id" zone="$ZONE" -o json)" \
   || fail "snapshot create rejected: $snap"
 snap_id="$(printf '%s' "$snap" | jq -r '(.snapshot // .).id')"
 [ -n "$snap_id" ] && [ "$snap_id" != null ] || fail "no id in the snapshot create response: $snap"
@@ -395,7 +427,7 @@ snap_id="$(printf '%s' "$snap" | jq -r '(.snapshot // .).id')"
 printf '%s' "$snap" | jq -e '(.snapshot // .).state == "available"' >/dev/null \
   || fail "the snapshot is not available on creation: $snap"
 scw instance snapshot get "$snap_id" zone="$ZONE" -o json \
-  | jq -e --arg v "$img_root" '(.snapshot // .).base_volume.id == $v' >/dev/null \
+  | jq -e --arg v "$img_vol_id" '(.snapshot // .).base_volume.id == $v' >/dev/null \
   || fail "the snapshot does not name the volume it was taken of"
 
 # arch is required by the CLI, not by the API: `scw instance image create`
@@ -423,6 +455,8 @@ prove_end "$neg"
 scw instance image delete "$img_id" zone="$ZONE" >/dev/null || fail "image delete rejected"
 scw instance snapshot delete "$snap_id" zone="$ZONE" >/dev/null \
   || fail "snapshot delete rejected once its image was gone"
+scw instance volume delete "$img_vol_id" zone="$ZONE" >/dev/null \
+  || fail "delete of the snapshotted volume rejected"
 scw instance server stop "$img_server_id" zone="$ZONE" >/dev/null || fail "cleanup: poweroff rejected"
 scw instance server delete "$img_server_id" zone="$ZONE" >/dev/null || fail "cleanup: delete rejected"
 prove_end "$span"

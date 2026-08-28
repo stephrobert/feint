@@ -214,7 +214,7 @@ const rootVolumeSize = 20_000_000_000
 // ever. Omitting the root_volume block is the way through, which is what the
 // conformance fixture happens to do — which is also why nothing here shows it.
 // docs/limits.md carries that as a stated limit rather than a surprise.
-func (p *Pack) rootVolume(server *resource.Resource, name, project, organization string, wanted volumeTemplate) *resource.Resource {
+func (p *Pack) rootVolume(server *resource.Resource, name, project, organization, parentSnapshot string, wanted volumeTemplate) *resource.Resource {
 	// The size the client asked for, when it asked. Ignoring it gave every
 	// server the catalogue's disk whatever the request said.
 	size := uint64(rootVolumeSize)
@@ -225,26 +225,33 @@ func (p *Pack) rootVolume(server *resource.Resource, name, project, organization
 	if wanted.Name != "" {
 		volumeName = wanted.Name
 	}
-	// sbs_volume is honoured since SW-3, and it is the only asked-for type that
-	// is: the local ones stay overridden for the reason above, which is unchanged.
-	// The disk lands in block/v1 rather than instance/v1, which is where the
-	// Terraform provider goes to read it back.
+	// The default is block, which is what the cloud does (#365).
 	//
-	// THE DEFAULT IS STILL INSTANCE/V1, AND #365 IS THE OPEN QUESTION ABOUT IT.
-	// The cloud gives a DEV1-S an SBS root volume — measured twice, 2026-08-21
-	// and 2026-08-24 — so `scw` follows the server's own volumes["0"].id into
-	// block/v1alpha1 and this emulator answers 404 there. Flipping this one
-	// condition to `wanted.VolumeType == "" || …` makes that read answer, and
-	// was tried on 2026-08-27: it moves EVERY server's root disk out of
-	// instance/v1, where this pack implements the whole server-volume
-	// relationship. attach-volume, the update's volume map, CreateSnapshot,
-	// GetVolume and DeleteVolume all resolve kindVolume alone, so a client's
-	// own root disk stops being reachable through any of them — and the
-	// ownership guard that keeps one server from stealing another's root volume
-	// stops covering the root volume at all. That is a decision about where a
-	// root disk lives, not a line here, and it is the maintainer's to take.
-	if wanted.VolumeType == "sbs_volume" {
-		vol := p.newBlockRootVolume(server.Tenant.Zone, project, volumeName, size)
+	// A DEV1-S created on a real fr-par-1 account was given an SBS root volume,
+	// measured twice — 2026-08-21 and 2026-08-24, recorded in
+	// corpus/scaleway/scw-instance.jsonl — and `scw` then read it back through
+	// GET /block/v1alpha1/zones/fr-par-1/volumes/{id} and deleted it there. An
+	// instance root made that read a 404 on the path the cloud answers 200 on,
+	// on a command every client runs.
+	//
+	// This flip was tried on 2026-08-27 and reverted, because at the time it
+	// moved every root disk into a product where nothing could reach it:
+	// attach-volume, detach-volume, the update's volume map, a create naming a
+	// volume and CreateSnapshot all resolved kindVolume alone. That is fixed
+	// first and separately (#571, step 1): those five go through anyVolume, and
+	// the ownership guard covers both products. The flip is this line only
+	// because that work landed before it.
+	//
+	// The local types stay overridden for the reason above, which is unchanged:
+	// the CLI sums LOCAL volumes against volumes_constraint.min_size and would
+	// refuse the very creation it just asked for. A block root sums to nothing
+	// local, which is why this default is reachable at all —
+	// TestCatalogueKeepsTheLocalVolumeTrapDisarmed and the `scw instance server
+	// create` of the conformance suite are the two halves of that check.
+	//
+	// TestADefaultRootVolumeLivesInBlockLikeTheCloud fails without this.
+	if wanted.VolumeType == "" || wanted.VolumeType == "sbs_volume" {
+		vol := p.newBlockRootVolume(server.Tenant.Zone, project, volumeName, size, parentSnapshot)
 		// A volume this call just built: it can belong to nobody else, so the
 		// only error attachVolume returns cannot happen here.
 		_ = p.attachVolume(vol, server, name)
@@ -371,7 +378,7 @@ func (p *Pack) createServer(w http.ResponseWriter, r *http.Request) {
 	resolvedImageID, imageDisplay, imageLabel := resolveImage(req.Image)
 
 	res := resource.New(p.env.NewID(), kindServer, resource.Tenant{Provider: Name, Project: project, Zone: zone}, "stopped", now)
-	rootVol := p.rootVolume(res, req.Name, project, organization, req.Volumes["0"])
+	rootVol := p.rootVolume(res, req.Name, project, organization, p.imageRootSnapshot(resolvedImageID), req.Volumes["0"])
 
 	res.Attrs = map[string]any{
 		"name":            req.Name,
