@@ -159,10 +159,10 @@ It needs Incus with OVN; `mise run demo:network` records it.
 ## Is this the right tool for your test?
 
 Ask before installing anything, and read the answer somewhere other than here:
-**[what you can validate](docs/confidence.md)** is one page and one table, and it
-answers that question in your vocabulary rather than this project's. A row is a
-thing you might want to test; its verdict carries whatever establishes it — the suite
-that drives it, the runtime capability it keys on, or the section of
+**[what you can validate](docs/confidence.md)** is one page and one table, and
+it answers that question in your vocabulary rather than this project's. A row is
+a thing you might want to test; its verdict carries whatever establishes it —
+the suite that drives it, the runtime capability it keys on, or the section of
 [what it does not do](docs/limits.md) that says why the answer is no. A row with
 nothing to point at is refused by a test rather than by a reviewer.
 

@@ -13,8 +13,10 @@ beside its original, and the English one prevails if the two disagree.
 Start at the [quick start](../README.md#quick-start): four commands, a stack
 small enough to read, and no cloud account.
 
-- [install.md](install.md) — prerequisites, the released binary and its checksum,
-  the container image, Homebrew, and building from source.
+- [install.md](install.md) — the released binary and the signature to check it
+  against, the container image, Homebrew, and the prerequisites per
+  distribution. Building from source is in the README, beside the other
+  install routes.
 - [environment.md](environment.md) — every field of `feint.yaml`, generated from
   the schema the code validates against, so a field added without a doc update
   fails a gate rather than a reader.
