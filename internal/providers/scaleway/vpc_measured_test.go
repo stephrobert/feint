@@ -78,18 +78,44 @@ func TestBookIPAnswersWhatTheRealCloudAnswers(t *testing.T) {
 	}
 }
 
-// The two Object Storage flags are served, on every door.
+// The two Object Storage flags are served, on every door, under the names
+// upstream publishes today (#352, renamed by #570).
 //
 // They are false and can only be false here: the five operations that attach a
 // private network to Object Storage are declined in pack.go with their reason.
-// That is not an argument for omitting them — a client reading
-// `has_s3_integration` off a decoded object gets the zero value either way, and
-// a client comparing field sets does not. The contract has always declared
-// both; nothing observed them until a Private Network and a VPC existed at the
-// moment of a recording.
+// That is not an argument for omitting them — a client reading the flag off a
+// decoded object gets the zero value either way, and a client comparing field
+// sets does not. The contract declares both; nothing observed them until a
+// Private Network and a VPC existed at the moment of a recording.
 //
 // Every door, because the emulator has more than one: a create, a read, and a
 // list, and the list is the one a previous omission survived in.
+//
+// # What the 2026-08-20 recording still arbitrates, and what it no longer does
+//
+// This file grades against a capture taken from a real fr-par account on
+// 2026-08-20, and Scaleway renamed this family on 2026-08-25. The recording is
+// therefore historical for one of the two things it used to settle, and saying
+// which is the whole point of writing it here rather than moving the divergence
+// into the gate:
+//
+//   - it still settles that the field is **present on every answer** and that
+//     its **value is false** on an account with no Object Storage endpoint
+//     attached. A rename does not touch either, and nothing else in this
+//     repository establishes them;
+//   - it no longer settles the **spelling**. That comes from upstream, read on
+//     2026-08-28: vpc_sdk.go:1024 and :646, and the published document
+//     .upstream/scaleway-openapi/vpc-v2.yml, whose x-properties-order — the
+//     document's own exhaustive property list — carries
+//     object_storage_private_access_enabled and
+//     has_object_storage_private_access, and neither old name.
+//
+// Re-recording would need a paid account, which this repository does not have
+// for vpc/v2 after 2026-08-20, so the split above is the honest form: the
+// assertion below names the new fields, and corpus/scaleway/terraform.jsonl
+// keeps answering with the old ones. That disagreement is real, it is declared
+// in the corpus acceptance list with this reason and this date, and it is what
+// `mise run corpus:cloud` would arbitrate the day somebody has an account.
 func TestTheObjectStorageFlagsAreServedOnEveryDoor(t *testing.T) {
 	ts := newTestServer(t)
 
@@ -112,13 +138,27 @@ func TestTheObjectStorageFlagsAreServedOnEveryDoor(t *testing.T) {
 		}
 	}
 
-	present("CreateVPC", createdVPC, "s3_integration_enabled")
-	present("CreatePrivateNetwork", createdPN, "has_s3_integration")
+	// And the old spelling is gone rather than kept beside the new one. No
+	// upstream source declares a deprecation alias — the SDK has one field and
+	// the document's x-properties-order has one entry — so a body carrying
+	// both would be a shape this emulator invented, which is the one thing a
+	// response body may never be.
+	absent := func(what string, body map[string]any, field string) {
+		t.Helper()
+		if _, carried := body[field]; carried {
+			t.Errorf("%s still carries %s, renamed by Scaleway on 2026-08-25; nothing upstream "+
+				"declares it any more, and a field no source declares is a field this emulator "+
+				"invented", what, field)
+		}
+	}
+
+	present("CreateVPC", createdVPC, "object_storage_private_access_enabled")
+	present("CreatePrivateNetwork", createdPN, "has_object_storage_private_access")
 
 	_, readVPC := do(t, ts, "GET", vpcRegion+"/vpcs/"+vpcID, "")
-	present("GetVPC", readVPC, "s3_integration_enabled")
+	present("GetVPC", readVPC, "object_storage_private_access_enabled")
 	_, readPN := do(t, ts, "GET", vpcRegion+"/private-networks/"+pnID, "")
-	present("GetPrivateNetwork", readPN, "has_s3_integration")
+	present("GetPrivateNetwork", readPN, "has_object_storage_private_access")
 
 	_, listedVPCs := do(t, ts, "GET", vpcRegion+"/vpcs", "")
 	vpcs, _ := listedVPCs["vpcs"].([]any)
@@ -127,7 +167,7 @@ func TestTheObjectStorageFlagsAreServedOnEveryDoor(t *testing.T) {
 	}
 	for _, raw := range vpcs {
 		entry, _ := raw.(map[string]any)
-		present("ListVPCs", entry, "s3_integration_enabled")
+		present("ListVPCs", entry, "object_storage_private_access_enabled")
 	}
 
 	_, listedPNs := do(t, ts, "GET", vpcRegion+"/private-networks", "")
@@ -137,8 +177,13 @@ func TestTheObjectStorageFlagsAreServedOnEveryDoor(t *testing.T) {
 	}
 	for _, raw := range networks {
 		entry, _ := raw.(map[string]any)
-		present("ListPrivateNetworks", entry, "has_s3_integration")
+		present("ListPrivateNetworks", entry, "has_object_storage_private_access")
 	}
+
+	absent("CreateVPC", createdVPC, "s3_integration_enabled")
+	absent("GetVPC", readVPC, "s3_integration_enabled")
+	absent("CreatePrivateNetwork", createdPN, "has_s3_integration")
+	absent("GetPrivateNetwork", readPN, "has_s3_integration")
 }
 
 // The default VPC carries tags ["default"], and one a client creates carries

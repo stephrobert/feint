@@ -4,8 +4,8 @@
     {
       "label": "the default VPC goes back to answering no tags, which is what a fresh emulator did while the real one answered [\"default\"] — the first defect the committed corpus surfaced",
       "file": "internal/providers/scaleway/vpc.go",
-      "find": "\tres.Attrs[\"tags\"] = []string{defaultVPCTag}",
-      "replace": "\tres.Attrs[\"tags\"] = []string{}\n\t_ = defaultVPCTag",
+      "find": "\tres.Attrs[\"tags\"] = []any{defaultVPCTag}",
+      "replace": "\tres.Attrs[\"tags\"] = []any{}\n\t_ = defaultVPCTag",
       "test": "TestTheDefaultVPCCarriesTheDefaultTag"
     },
     {

@@ -1,0 +1,72 @@
+{
+  "package": "./internal/core/store/storetest/",
+  "mutations": [
+    {
+      "label": "the shape control accepts every Go type, so a barrage of packs storing []Rule, []string and map[string]string sweeps clean and reports a repository where nothing is lost across a snapshot",
+      "file": "internal/core/store/storetest/goshapes.go",
+      "find": "\treturn fmt.Sprintf(\"%T\", v), false\n}",
+      "replace": "\treturn fmt.Sprintf(\"%T\", v), true\n}",
+      "test": "TestGoShapesReportsWhatASnapshotCannotGiveBack"
+    },
+    {
+      "label": "the walk stops at the top level, so a Go shape one hop inside a legitimate map is invisible — which is the half no grep on the assignment can see",
+      "file": "internal/core/store/storetest/goshapes.go",
+      "find": "\t\tfor _, key := range keys {\n\t\t\twalkShape(res, path+\".\"+key, inner[key], found)\n\t\t}",
+      "replace": "\t\tfor _, key := range keys[:0] {\n\t\t\twalkShape(res, path+\".\"+key, inner[key], found)\n\t\t}",
+      "test": "TestGoShapesReportsWhatASnapshotCannotGiveBack"
+    },
+    {
+      "label": "THE SECOND DIRECTION: a []any is reported as a Go shape, so the control refuses the very shape it exists to require and every barrage goes red",
+      "file": "internal/core/store/storetest/goshapes.go",
+      "find": "\tcase []any:\n\t\treturn \"[]any\", true",
+      "replace": "\tcase []any:\n\t\treturn \"[]any\", false",
+      "test": "TestGoShapesStaysSilentOnEverythingAPackLegitimatelyWrites"
+    },
+    {
+      "label": "THE SECOND DIRECTION: a stored number is reported, so the control contradicts resource.Number and #542's accepted remedy on every pack",
+      "file": "internal/core/store/storetest/goshapes.go",
+      "find": "\t\treturn \"number\", true",
+      "replace": "\t\treturn \"number\", false",
+      "test": "TestGoShapesStaysSilentOnEverythingAPackLegitimatelyWrites"
+    },
+    {
+      "label": "the report guesses instead of asking: what it says a snapshot gives back stops coming from a marshal-and-decode, and becomes an opinion about Go types",
+      "file": "internal/core/store/storetest/goshapes.go",
+      "find": "\tencoded, err := json.Marshal(v)",
+      "replace": "\tencoded, err := json.Marshal(\"a guess\")\n\t_ = v",
+      "test": "TestGoShapesReportsWhatASnapshotCannotGiveBack"
+    },
+    {
+      "label": "Scaleway puts a Go shape back inside Attrs[\"tags\"], which is the 82-resource defect the first run of this control measured on 2026-08-28. Planted inside the list rather than as the list, because orEmpty answers []any by signature and the barrage sends no tag: a mutation on the loop body never executed, and reported the guard as unmeasured",
+      "file": "internal/providers/scaleway/servers.go",
+      "find": "func orEmpty(tags []string) []any {\n\tout := make([]any, 0, len(tags))",
+      "replace": "func orEmpty(tags []string) []any {\n\tout := make([]any, 0, len(tags))\n\tout = append(out, []string(nil))",
+      "test": "TestABarrageLeavesTheStoreCoherent",
+      "package": "./internal/providers/scaleway/"
+    },
+    {
+      "label": "the model pack reads its identifier lists the Go way again, so a restored node wears no barrier and joins no segment while the API describes both",
+      "file": "internal/cli/testdata/provider-four/intents.go",
+      "find": "\tstored, _ := v.([]any)\n\tout := make([]string, 0, len(stored))",
+      "replace": "\tstored, _ := v.([]any)\n\tstored = stored[:0]\n\tout := make([]string, 0, len(stored))",
+      "test": "TestTheFourthPacksNodeKeepsWhatItWearsAcrossASnapshot",
+      "package": "./internal/cli/"
+    },
+    {
+      "label": "the model pack reads its address table the Go way again, so a restored node boots with no address on an interface the API publishes one for",
+      "file": "internal/cli/testdata/provider-four/intents.go",
+      "find": "\tstored, _ := res.Attrs[\"addresses\"].(map[string]any)\n\tout := make(map[string]string, len(stored))",
+      "replace": "\tstored, _ := res.Attrs[\"addresses\"].(map[string]any)\n\tstored = nil\n\tout := make(map[string]string, len(stored))",
+      "test": "TestTheFourthPacksNodeKeepsWhatItWearsAcrossASnapshot",
+      "package": "./internal/cli/"
+    },
+    {
+      "label": "the model pack reads its rule set the Go way again, so an empty set is handed to the runtime under a name the API describes as filtering",
+      "file": "internal/cli/testdata/provider-four/intents.go",
+      "find": "\tstored, _ := res.Attrs[\"rules\"].([]any)\n\trules := make([]Rule, 0, len(stored))",
+      "replace": "\tstored, _ := res.Attrs[\"rules\"].([]any)\n\tstored = stored[:0]\n\trules := make([]Rule, 0, len(stored))",
+      "test": "TestTheFourthPacksNodeKeepsWhatItWearsAcrossASnapshot",
+      "package": "./internal/cli/"
+    }
+  ]
+}

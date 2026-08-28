@@ -87,6 +87,37 @@ func (p *Pack) DeclinedFields() []emulator.FieldDecline {
 			Path:      "bastion_allowed_ips[]",
 			Reason:    "a range allowed through a bastion that accepts no connection here, while the three operations that would change the list are themselves declined: publishing one would claim a filter nothing enforces and no client can edit",
 		},
+		// The VPC's Object Storage flag under the name it had before
+		// 2026-08-25, and only under that name (#570).
+		//
+		// This is not a field the emulator omits: it serves the same flag,
+		// with the same false value, on the same door. Scaleway renamed it,
+		// and the shapes catalogue is a recording of what a real fr-par
+		// account answered on 2026-08-20 — five days before. Both upstream
+		// sources agree on the new spelling and neither declares a
+		// deprecation alias (vpc_sdk.go:1024, and vpc-v2.yml whose
+		// x-properties-order carries object_storage_private_access_enabled
+		// and not the old name), so answering both would invent a window no
+		// source declares.
+		//
+		// One entry rather than fourteen, and that is the gate's own rule
+		// rather than an omission: the offline store holds a default VPC and
+		// no private network, so ListVPCs is the only one of the fourteen
+		// recorded vpc/v2 operations whose element shape this gate reaches.
+		// A decline that excuses nothing fails, so the other thirteen have no
+		// entry until something compares them. The corpus replay, which does
+		// compare all of them, carries its own twenty entries in
+		// corpus/accepted.json with the same reason.
+		//
+		// It goes the day vpc/v2 is recorded again against a real account,
+		// and the gate makes that compulsory: the recording will carry the
+		// new name, this entry will excuse nothing, and the run will fail
+		// until somebody deletes it.
+		{
+			Operation: "GET /vpc/v2/regions/fr-par/vpcs",
+			Path:      "vpcs[].s3_integration_enabled",
+			Reason:    "the name Scaleway retired on 2026-08-25: the same flag is served on this door as object_storage_private_access_enabled, which is what the SDK and the published document declare, and the recording behind this catalogue predates the rename by five days",
+		},
 		{
 			Operation: "ipam/v1/API.ListIPs",
 			Path:      "ips[].source.zonal",

@@ -1142,16 +1142,40 @@ func (p *Pack) vpcView(res *resource.Resource) map[string]any {
 		"created_at":            res.Created.Format(time.RFC3339),
 		"updated_at":            res.Updated.Format(time.RFC3339),
 		"private_network_count": len(p.privateNetworksOf(res.ID)),
-		// Measured on 2026-08-20: the earlier recording of ListVPCs was taken
-		// on an account holding no VPC, so its element shape was never
-		// observed and this omission was invisible. It is served for the same
-		// reason its private-network counterpart is — the five operations that
-		// could attach an Object Storage endpoint are declined in pack.go —
-		// and listVPCs already answers `s3_integration_enabled=true` with an
-		// empty list, so the flag and the filter now say the same thing.
+		// Two measurements, of two different things, and keeping them apart
+		// is the whole of #570.
+		//
+		// *That* the field is carried, and that its value is false, was
+		// measured on 2026-08-20 against a real fr-par account: the earlier
+		// recording of ListVPCs was taken on an account holding no VPC, so
+		// its element shape was never observed and the omission was
+		// invisible. It is served for the same reason its private-network
+		// counterpart is — the five operations that could attach an Object
+		// Storage endpoint are declined in pack.go — and listVPCs already
+		// answers this filter with an empty list, so the flag and the filter
+		// say the same thing.
+		//
+		// *What it is called* is not that recording's to say any more.
+		// Scaleway renamed the family on 2026-08-25, and both upstream
+		// sources agree on the new name, read on 2026-08-28:
+		//
+		//   .upstream/scaleway-sdk-go/api/vpc/v2/vpc_sdk.go:1024
+		//     ObjectStoragePrivateAccessEnabled `json:"object_storage_private_access_enabled"`
+		//   .upstream/scaleway-openapi/vpc-v2.yml:796
+		//     scaleway.vpc.v2.VPC.object_storage_private_access_enabled
+		//
+		// The new name alone, and that is a reading of the document rather
+		// than a taste: `x-properties-order` (vpc-v2.yml:800-814) is the
+		// document's own exhaustive list of this object's properties, and it
+		// carries the new name and not the old. Nothing upstream declares a
+		// deprecation alias, so answering both would be inventing a field no
+		// source declares — which is the one thing rule 4 forbids. The query
+		// parameter is the other half and keeps accepting both spellings
+		// (listquery.go), because a client that has not been rebuilt still
+		// sends the old one.
 		//
 		// TestTheObjectStorageFlagsAreServedOnEveryDoor fails without it.
-		"s3_integration_enabled": false,
+		"object_storage_private_access_enabled": false,
 	}
 	for k, v := range res.Attrs {
 		out[k] = v
@@ -1172,13 +1196,23 @@ func privateNetworkView(res *resource.Resource) map[string]any {
 		// /vpc/v2/regions/fr-par/private-networks/{id}); the emulator omitted
 		// it, and the contract has always declared it.
 		//
+		// Renamed with its VPC sibling on 2026-08-25 (#570), and the name
+		// comes from upstream rather than from that recording, read on
+		// 2026-08-28:
+		//
+		//   .upstream/scaleway-sdk-go/api/vpc/v2/vpc_sdk.go:646
+		//     HasObjectStoragePrivateAccess `json:"has_object_storage_private_access"`
+		//   .upstream/scaleway-openapi/vpc-v2.yml:552, and its
+		//     x-properties-order at :556-569, which carries the new name and
+		//     not the old one
+		//
 		// Computed here rather than stored, and always false: it says an Object
 		// Storage endpoint is attached, and the five operations that could
 		// attach one are declined in pack.go with their reason. A stored flag
 		// would be a value nothing can ever change.
 		//
 		// TestTheObjectStorageFlagsAreServedOnEveryDoor fails without it.
-		"has_s3_integration": false,
+		"has_object_storage_private_access": false,
 	}
 	for k, v := range res.Attrs {
 		if k == "subnet" || k == "subnet_ipv6" {

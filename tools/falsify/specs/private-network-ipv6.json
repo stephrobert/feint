@@ -31,17 +31,17 @@
       "package": "./internal/core/network/"
     },
     {
-      "label": "the private network stops publishing the Object Storage flag the real cloud carries",
+      "label": "the private network stops publishing the Object Storage flag the real cloud carries, under the name upstream publishes since 2026-08-25 (#570)",
       "file": "internal/providers/scaleway/vpc.go",
-      "find": "\t\t\"has_s3_integration\": false,",
-      "replace": "\t\t\"has_s3_integration\" + \"-unserved\": false,",
+      "find": "\t\t\"has_object_storage_private_access\": false,",
+      "replace": "\t\t\"has_object_storage_private_access\" + \"-unserved\": false,",
       "test": "TestTheObjectStorageFlagsAreServedOnEveryDoor"
     },
     {
-      "label": "the VPC stops publishing the Object Storage flag the real cloud carries",
+      "label": "the VPC stops publishing the Object Storage flag the real cloud carries, under the name upstream publishes since 2026-08-25 (#570)",
       "file": "internal/providers/scaleway/vpc.go",
-      "find": "\t\t\"s3_integration_enabled\": false,",
-      "replace": "\t\t\"s3_integration_enabled\" + \"-unserved\": false,",
+      "find": "\t\t\"object_storage_private_access_enabled\": false,",
+      "replace": "\t\t\"object_storage_private_access_enabled\" + \"-unserved\": false,",
       "test": "TestTheObjectStorageFlagsAreServedOnEveryDoor"
     },
     {
@@ -50,6 +50,13 @@
       "find": "const vpcCreateStatus = http.StatusOK",
       "replace": "const vpcCreateStatus = http.StatusCreated",
       "test": "TestTheVpcCreatesAnswerWhatTheRealCloudAnswers"
+    },
+    {
+      "label": "THE SECOND DIRECTION (#570): the VPC answers the retired spelling beside the new one, which is the deprecation window no upstream source declares",
+      "file": "internal/providers/scaleway/vpc.go",
+      "find": "\t\t\"object_storage_private_access_enabled\": false,",
+      "replace": "\t\t\"object_storage_private_access_enabled\": false,\n\t\t\"s3_integration_enabled\":                false,",
+      "test": "TestTheObjectStorageFlagsAreServedOnEveryDoor"
     }
   ]
 }
