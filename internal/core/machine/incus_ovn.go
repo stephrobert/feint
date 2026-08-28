@@ -1172,16 +1172,18 @@ func (d *Incus) settleFirstBoot(ctx context.Context, machine string) error {
 	}
 	for _, device := range names {
 		if devices.own[device]["ipv4.address"] == "" {
-			continue
+			continue // DHCP owns this interface, and inventing an address for it is #202
 		}
 		if err := d.restorePinnedAddress(ctx, machine, device, devices.own[device]); err != nil {
-			return err
+			return fmt.Errorf("settle the first boot of %s: %w", machine, err)
 		}
-		if !d.OVN {
-			continue
-		}
-		if err := d.installGuestPrivateRoutes(ctx, machine, devices.own[device]["network"], device); err != nil {
-			return err
+		if d.OVN {
+			// A managed bridge has no router and no peerings, so there is
+			// nothing of this kind to lay there — the same mode split
+			// restoreGuestNetwork makes, for the same reason.
+			if err := d.installGuestPrivateRoutes(ctx, machine, devices.own[device]["network"], device); err != nil {
+				return fmt.Errorf("settle the first boot of %s: %w", machine, err)
+			}
 		}
 	}
 	return nil

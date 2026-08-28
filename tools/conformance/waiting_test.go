@@ -212,10 +212,12 @@ func TestTheWaitsRecordWhatTheyCostWhenAskedTo(t *testing.T) {
 	dir := t.TempDir()
 	trace := filepath.Join(dir, "trace.tsv")
 
-	// Budget 1 at scale 2: the expiry must wait the SCALED budget, so an
-	// elapsed under two seconds means WAIT_SCALE was ignored.
+	// Budget 1 at scale 3: unscaled, `wait_until 1 false` gives up at about two
+	// seconds (the budget plus the one-second rounding the file explains), and
+	// scaled it must run to about four. The threshold sits between the two, so
+	// a multiplier that is ignored is measured rather than argued about.
 	script := `
-export WAIT_TRACE="$1" WAIT_SCALE=2
+export WAIT_TRACE="$1" WAIT_SCALE=3
 if wait_until 1 false; then echo "verdict=passed"; else echo "verdict=failed"; fi
 `
 	start := time.Now()
@@ -247,16 +249,17 @@ if wait_until 1 false; then echo "verdict=passed"; else echo "verdict=failed"; f
 		t.Errorf("a wait whose condition never held is traced %q, so the trace disagrees with "+
 			"the verdict the suite drew", fields[2])
 	}
-	// The property worth a test: 1, not 2. The scale is a lever on the run, not
+	// The property worth a test: 1, not 3. The scale is a lever on the run, not
 	// a rewrite of what the suite asks for.
 	if fields[3] != "1" {
 		t.Errorf("the row reports budget %q where the caller asked for 1; under WAIT_SCALE the "+
 			"trace would then describe budgets nobody wrote, and a distribution read off it "+
 			"would justify raising a number that had already been raised", fields[3])
 	}
-	if elapsed < 2*time.Second {
-		t.Errorf("wait_until 1 under WAIT_SCALE=2 gave up after %s: the multiplier did not "+
-			"reach the budget, so a scaled run measures the unscaled wait", elapsed)
+	if elapsed < 3500*time.Millisecond {
+		t.Errorf("wait_until 1 under WAIT_SCALE=3 gave up after %s, which is the unscaled "+
+			"budget: the multiplier never reached it, so a scaled run measures the "+
+			"unscaled wait", elapsed)
 	}
 
 	// The other half. Unset, the instrument must not exist: these suites run in

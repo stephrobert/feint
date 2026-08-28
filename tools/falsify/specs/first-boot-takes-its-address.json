@@ -1,0 +1,19 @@
+{
+  "package": "./internal/core/machine/",
+  "mutations": [
+    {
+      "label": "the first boot skips the devices that reserve an address and settles the ones that do not, so whether a machine carries the address its API published is decided by the image's DHCP client again (#587)",
+      "file": "internal/core/machine/incus_ovn.go",
+      "find": "\t\tif devices.own[device][\"ipv4.address\"] == \"\" {\n\t\t\tcontinue // DHCP owns this interface, and inventing an address for it is #202",
+      "replace": "\t\tif devices.own[device][\"ipv4.address\"] != \"\" {\n\t\t\tcontinue // DHCP owns this interface, and inventing an address for it is #202",
+      "test": "TestAFirstBootGivesTheGuestTheAddressItReserved"
+    },
+    {
+      "label": "the ownership half the two doors share stops excluding foreign NICs, so a first boot configures an interface an operator added to one of our machines by hand (#587)",
+      "file": "internal/core/machine/incus_ovn.go",
+      "find": "\t\tif !ownedNetwork(cfg[\"network\"]) {\n\t\t\tcontinue\n\t\t}\n\t\tnames = append(names, device)",
+      "replace": "\t\tif !ownedNetwork(cfg[\"network\"]) && device == \"\\x00never\" {\n\t\t\tcontinue\n\t\t}\n\t\tnames = append(names, device)",
+      "test": "TestAFirstBootLeavesAForeignNICAlone"
+    }
+  ]
+}
