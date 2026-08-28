@@ -174,19 +174,21 @@ l'enregistre.
 
 La question se pose avant d'installer quoi que ce soit, et sa réponse est
 ailleurs qu'ici : **[ce que vous pouvez valider](docs/confidence.md)** est une
-page et un tableau, et il pose la question dans votre vocabulaire plutôt que dans
-celui du projet. Une ligne est une chose que vous pourriez vouloir tester ; son
+page et un tableau qui y répondent dans votre vocabulaire plutôt que dans celui
+du projet. Une ligne est une chose que vous pourriez vouloir tester ; son
 verdict porte ce qui l'établit : la suite qui le pilote, la capacité de runtime
 sur laquelle il s'appuie, ou la section de
 [ce qu'il ne fait pas](docs/limits.md) qui dit pourquoi la réponse est non. Une
 ligne qui ne pointe vers rien est refusée par un test, pas par un relecteur.
 
-Cette page est délibérément le seul endroit où ces verdicts sont écrits. En
-recopier six ici mettrait la réponse là où vous êtes, et l'y mettrait fausse en
-moins d'une version : une phrase de la ligne 41 de la page anglaise a contredit
-ce tableau pendant deux jours en août, à travers tous les contrôles de
-documentation verts de l'intervalle. La vue opération par opération, elle, est
-générée : [docs/routes.md](docs/routes.md).
+Cette page est délibérément le seul endroit où ces verdicts sont écrits, et
+celle-ci n'en recopie aucun. La promesse du démarrage rapide est générée depuis
+la matrice de capacités pour cette raison exacte : la phrase qu'un humain y
+tapait revendiquait un client que cet émulateur refuse au portillon, et elle a
+contredit la page de confiance pendant deux jours, à travers tous les contrôles
+de documentation verts de l'intervalle (#592). Un tableau recopié ici serait le
+même défaut, avec six lignes au lieu d'une. La vue opération par opération, elle,
+est générée : [docs/routes.md](docs/routes.md).
 
 ---
 

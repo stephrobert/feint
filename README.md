@@ -160,17 +160,19 @@ It needs Incus with OVN; `mise run demo:network` records it.
 
 Ask before installing anything, and read the answer somewhere other than here:
 **[what you can validate](docs/confidence.md)** is one page and one table, and it
-asks the question in your vocabulary rather than this project's. A row is a thing
-you might want to test; its verdict carries whatever establishes it — the suite
+answers that question in your vocabulary rather than this project's. A row is a
+thing you might want to test; its verdict carries whatever establishes it — the suite
 that drives it, the runtime capability it keys on, or the section of
 [what it does not do](docs/limits.md) that says why the answer is no. A row with
 nothing to point at is refused by a test rather than by a reviewer.
 
-That page is deliberately the only place those verdicts are written. Copying six
-of them onto this one would put the answer where you are, and put it there
-wrongly within a release: a sentence on line 41 of this file contradicted that
-page for two days in August, through every green documentation gate in between.
-The per-operation view, which is generated, is [docs/routes.md](docs/routes.md).
+That page is deliberately the only place those verdicts are written, and this one
+copies none of them. The promise above it is generated from the capability matrix
+for exactly that reason: the sentence a human used to type there claimed a client
+this emulator refuses at the doorstep, and it contradicted the confidence page
+for two days through every green documentation gate in between (#592). A table
+recopied here would be that defect again, with six rows instead of one. The
+per-operation view, which is generated, is [docs/routes.md](docs/routes.md).
 
 ---
 
