@@ -3278,11 +3278,13 @@ $ incus query /1.0/instances/feint-scw-d3eaa40c-… | jq -c '.expanded_devices |
 packet reached the guest and was refused by it, where a covered interface
 would have dropped it.
 
-**The migration was tried, and it is refused.** #548 left one thing untried —
-whether the driver could move the address onto the managed NIC once that one
-arrives, which is the shape the other creation order already produces and the
-one the rule set covers. It was attempted by hand on 2026-08-27, on the very
-machine above, and stopped on two measured facts:
+**Two migrations were tried and refused, and a third one works.** #548 left one
+thing untried — whether the driver could move the address onto the managed NIC
+once that one arrives, which is the shape the other creation order already
+produces and the one the rule set covers. Three attempts, and the third is the
+reason this paragraph changed on 2026-08-28.
+
+The first two, by hand on 2026-08-27:
 
 ```console
 $ incus network set feint-uplink ipv4.routes "…,203.0.113.2/32"
@@ -3293,16 +3295,69 @@ $ incus query /1.0/instances/feint-scw-d3eaa40c-… | jq -c '…'
 ```
 
 The uplink cannot be given the `/32` while the routed NIC still owns the host
-route for it — the collision #498 documents, met from the other side — so the
-address would have to leave the routed NIC first, and there is no ordering
-where it is delivered throughout. And removing the routed device unmasks the
-profile's `eth0` on `incusbr0`, the operator's own default bridge: the machine
-lands on a bridge this emulator refuses to put anything on. A sequence that
-gets there exists on paper (mask `eth0` with a `none` device, then delegate,
-then set `ipv4.routes.external`, then repair the guest) and it costs a
-reconfiguration of the public interface on every private-NIC attach, which
-Terraform performs on every apply. That trade was not taken; this paragraph is
-the record of the measurement rather than a plan.
+route for it — the collision #498 documents, met from the other side — and
+removing the routed device unmasks the profile's `eth0` on `incusbr0`, the
+operator's own default bridge, which this emulator refuses to put anything on.
+
+Both come from one place: the host route. **The third attempt takes the address
+off the device without taking the device off the instance**, which is neither of
+the two, and Incus 7.2 accepts it on a running instance. Measured on 2026-08-28,
+under `--vm incus-ovn`, on a server created with its flexible IP whose private
+NIC arrived afterwards — the exact shape above:
+
+```console
+$ ip route show | grep 203.0.113.2
+203.0.113.2 dev veth030d08f6 scope link
+$ incus config device set feint-scw-21c968ca-… eth0 ipv4.address=      # 1
+$ ip route show | grep 203.0.113.2                                     # gone
+$ incus network set feint-uplink ipv4.routes "10.199.0.0/24,203.0.113.2/32"   # 2, no longer refused
+$ incus config device set feint-scw-21c968ca-… eth1 \
+    ipv4.routes.external=203.0.113.2/32                                # 3
+$ incus query /1.0/instances/feint-scw-21c968ca-… | jq -c '…'
+{"eth0":{"ipv4.host_address":"169.254.0.1","nictype":"routed","type":"nic"},
+ "eth1":{"ipv4.address":"10.199.0.2","ipv4.routes.external":"203.0.113.2/32",
+         "network":"fnt-0da7a7bda1e","security.acls":"scw-892dbc3d91e","type":"nic"}}
+```
+
+Step 1 releases the address, step 2 is the first refusal now unblocked, step 3
+is `routeAddressOVN`'s own gesture, and the guest is then repaired the way that
+function already repairs one. The device stays, so `incusbr0` is never unmasked.
+
+**The coverage is real, and the probe tells the two answers apart.** The group's
+inbound default is `drop` with one rule allowing 443, and a listener sits on both
+ports, so a refusal cannot be mistaken for an empty port:
+
+```console
+  203.0.113.2:443   connect_ex=0    OPEN       # a rule opens it, the listener answers
+  203.0.113.2:80    connect_ex=111  refused    # a listener is there, no rule is
+  203.0.113.2:8080  connect_ex=111  refused    # no listener: the negative control
+```
+
+Before the migration, on the same machine, 80 was **OPEN** — that is the escape
+this section describes. And the machine keeps its way out: `ipv4.nat=true` on the
+OVN network, `ping 1.1.1.1` answers from inside, with the station as the control.
+
+**So this is a remedy, not an impossibility — and it is still not shipped, for
+two reasons that are measurements rather than reluctance.**
+
+- **What a machine "answers on" moves.** `Incus.Inspect` reports the first
+  global IPv4 of the lowest-named interface, and after the migration the public
+  and private addresses share `eth1`: the runtime answers
+  `{"eth0":[],"eth1":["10.199.0.2","203.0.113.2"]}`, stable across three reads,
+  so `Binding.Address` and `Started.Address` would report the private address
+  where they used to report the public one. The Scaleway API is unaffected —
+  it publishes the flexible IP from its own store, and it still answered
+  `public_ip: 203.0.113.2` throughout — but `Binding.Address` is the shared
+  layer, and the Exoscale pack reads it (`machines.go`, the membership
+  attachment). A fix has to say which of a machine's addresses is the one it
+  answers on, for three packs at once.
+- **Only OVN was measured.** The bridge mode delivers a public address through
+  `ipv4.routes` on the device rather than `ipv4.routes.external`, and nothing
+  above was run under `--vm incus`.
+
+Until those two are settled the bound in the table stands, and
+`tools/conformance/functional.sh` goes on skipping the public half by naming
+`capabilities.firewall_public_only` and #548.
 
 What #548 delivered instead is the naming: the refusal now carries every
 routed interface that escapes *and the addresses it delivers*
