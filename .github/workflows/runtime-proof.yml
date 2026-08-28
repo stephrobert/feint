@@ -222,6 +222,78 @@ jobs:
       # images are missing, so deleting this step fails at the doorstep with the
       # command to run, instead of ninety seconds later on an ssh timeout that
       # blames the network.
+      # The build container must reach a package repository before anything
+      # spends a minute finding out that it cannot (#583).
+      #
+      # On the night of 2026-08-28 both legs died here, on every image:
+      #
+      #   apk add --no-cache openssh in the build instance:
+      #     fetching https://dl-cdn.alpinelinux.org/alpine/v3.21/main: Permission denied
+      #
+      # `Permission denied` on a connect() is EACCES — what an nftables or
+      # iptables REJECT answers, not what a missing route (Network unreachable)
+      # or a CDN refusal (403) answers. Nothing on this side moved: the action is
+      # pinned by SHA, egress-policy is `audit`, and the Alpine CDN answered 200
+      # in 0.121 s from the maintainer's station the same morning. What moved is
+      # the runner image, from 20260729.566 on the last night that cleared this
+      # step to 20260819.586 on the night that did not.
+      #
+      # Both Docker and Incus manage that filter on a hosted runner: Docker sets
+      # a FORWARD DROP policy, Incus adds accept rules for its own bridge. An
+      # image that changes either one's version, or the order they are applied,
+      # takes egress away from containers in exactly this shape.
+      #
+      # So this step measures first and repairs second, and then **proves the
+      # repair before the build depends on it**: a throwaway container fetches
+      # one real URL. A prerequisite asserted rather than demonstrated is the
+      # defect this repository spends its time removing, and an image build that
+      # discovers a dead network a minute in reports the wrong thing — the night
+      # of the 28th surfaced `the emulator did not answer /_feint/conformance`,
+      # which was true and thirty milliseconds too late to be useful.
+      - name: The build container reaches the network, or this step says why
+        run: |
+          set -euo pipefail
+
+          echo "== what the filter looks like before anything"
+          sudo iptables -S FORWARD 2>&1 | head -20 || true
+          sudo iptables -t nat -S POSTROUTING 2>&1 | head -10 || true
+          docker --version 2>&1 || true
+          sudo incus --version 2>&1 || true
+
+          bridge="$(sudo incus network list --format csv \
+            | awk -F, '$2=="bridge" && $1 ~ /^incusbr/ {print $1; exit}')"
+          echo "== bridge: ${bridge:-none found}"
+
+          if [ -n "${bridge}" ]; then
+            # Insert rather than append: Docker's DROP policy and its own chains
+            # are already there, and a rule appended after a DROP never runs.
+            sudo iptables -I FORWARD -i "${bridge}" -j ACCEPT
+            sudo iptables -I FORWARD -o "${bridge}" -j ACCEPT
+            echo "== accept rules inserted for ${bridge}"
+          fi
+
+          # The positive control. A throwaway container, one real fetch, and a
+          # refusal that names what it could not reach — never a silent pass.
+          probe=rp-egress-probe
+          sudo incus delete --force "${probe}" >/dev/null 2>&1 || true
+          sudo incus launch images:alpine/3.21/cloud "${probe}" >/dev/null
+          trap 'sudo incus delete --force "${probe}" >/dev/null 2>&1 || true' EXIT
+          for _ in $(seq 1 20); do
+            if sudo incus exec "${probe}" -- ip -4 -o addr show scope global \
+              | grep -q .; then break; fi
+            sleep 1
+          done
+          echo "== the probe carries: $(sudo incus exec "${probe}" -- ip -4 -o addr show scope global | awk '{print $4}' | tr '\n' ' ')"
+          if ! sudo incus exec "${probe}" -- wget -q -O /dev/null -T 20 \
+            https://dl-cdn.alpinelinux.org/alpine/v3.21/main/x86_64/APKINDEX.tar.gz; then
+            echo "FAIL: a container on ${bridge:-no bridge} cannot reach the Alpine CDN," >&2
+            echo "      so every image build below would fail on apk with the runner's" >&2
+            echo "      filter, not with anything this repository controls (#583)." >&2
+            sudo iptables -S FORWARD 2>&1 | head -20 >&2 || true
+            exit 1
+          fi
+          echo "== a container reaches the Alpine CDN"
+
       - name: Build the machine images the suites boot
         env:
           MODE: ${{ matrix.mode }}
@@ -553,6 +625,78 @@ jobs:
 
       # The gate refuses without them rather than booting an upstream image with
       # no ssh daemon, so this is the half that makes the refusal never fire.
+      # The build container must reach a package repository before anything
+      # spends a minute finding out that it cannot (#583).
+      #
+      # On the night of 2026-08-28 both legs died here, on every image:
+      #
+      #   apk add --no-cache openssh in the build instance:
+      #     fetching https://dl-cdn.alpinelinux.org/alpine/v3.21/main: Permission denied
+      #
+      # `Permission denied` on a connect() is EACCES — what an nftables or
+      # iptables REJECT answers, not what a missing route (Network unreachable)
+      # or a CDN refusal (403) answers. Nothing on this side moved: the action is
+      # pinned by SHA, egress-policy is `audit`, and the Alpine CDN answered 200
+      # in 0.121 s from the maintainer's station the same morning. What moved is
+      # the runner image, from 20260729.566 on the last night that cleared this
+      # step to 20260819.586 on the night that did not.
+      #
+      # Both Docker and Incus manage that filter on a hosted runner: Docker sets
+      # a FORWARD DROP policy, Incus adds accept rules for its own bridge. An
+      # image that changes either one's version, or the order they are applied,
+      # takes egress away from containers in exactly this shape.
+      #
+      # So this step measures first and repairs second, and then **proves the
+      # repair before the build depends on it**: a throwaway container fetches
+      # one real URL. A prerequisite asserted rather than demonstrated is the
+      # defect this repository spends its time removing, and an image build that
+      # discovers a dead network a minute in reports the wrong thing — the night
+      # of the 28th surfaced `the emulator did not answer /_feint/conformance`,
+      # which was true and thirty milliseconds too late to be useful.
+      - name: The build container reaches the network, or this step says why
+        run: |
+          set -euo pipefail
+
+          echo "== what the filter looks like before anything"
+          sudo iptables -S FORWARD 2>&1 | head -20 || true
+          sudo iptables -t nat -S POSTROUTING 2>&1 | head -10 || true
+          docker --version 2>&1 || true
+          sudo incus --version 2>&1 || true
+
+          bridge="$(sudo incus network list --format csv \
+            | awk -F, '$2=="bridge" && $1 ~ /^incusbr/ {print $1; exit}')"
+          echo "== bridge: ${bridge:-none found}"
+
+          if [ -n "${bridge}" ]; then
+            # Insert rather than append: Docker's DROP policy and its own chains
+            # are already there, and a rule appended after a DROP never runs.
+            sudo iptables -I FORWARD -i "${bridge}" -j ACCEPT
+            sudo iptables -I FORWARD -o "${bridge}" -j ACCEPT
+            echo "== accept rules inserted for ${bridge}"
+          fi
+
+          # The positive control. A throwaway container, one real fetch, and a
+          # refusal that names what it could not reach — never a silent pass.
+          probe=rp-egress-probe-stacks
+          sudo incus delete --force "${probe}" >/dev/null 2>&1 || true
+          sudo incus launch images:alpine/3.21/cloud "${probe}" >/dev/null
+          trap 'sudo incus delete --force "${probe}" >/dev/null 2>&1 || true' EXIT
+          for _ in $(seq 1 20); do
+            if sudo incus exec "${probe}" -- ip -4 -o addr show scope global \
+              | grep -q .; then break; fi
+            sleep 1
+          done
+          echo "== the probe carries: $(sudo incus exec "${probe}" -- ip -4 -o addr show scope global | awk '{print $4}' | tr '\n' ' ')"
+          if ! sudo incus exec "${probe}" -- wget -q -O /dev/null -T 20 \
+            https://dl-cdn.alpinelinux.org/alpine/v3.21/main/x86_64/APKINDEX.tar.gz; then
+            echo "FAIL: a container on ${bridge:-no bridge} cannot reach the Alpine CDN," >&2
+            echo "      so every image build below would fail on apk with the runner's" >&2
+            echo "      filter, not with anything this repository controls (#583)." >&2
+            sudo iptables -S FORWARD 2>&1 | head -20 >&2 || true
+            exit 1
+          fi
+          echo "== a container reaches the Alpine CDN"
+
       - name: Build the machine images the stacks boot
         run: sudo ./feint images --vm incus-ovn
 
