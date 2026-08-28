@@ -933,6 +933,31 @@ walks. Whether the real cloud answers `instance.GetVolume` for an SBS volume is
 **not measured here**: no recording carries that call, and the SDK's own
 `getUnknownVolume` only makes sense if it can 404.
 
+**And the snapshots have not crossed, which the flip put on the default path.**
+Measured on 2026-08-28, against this emulator, with `scw` 2.56.3:
+
+| naming a *block* snapshot | naming an *instance* snapshot |
+|---|---|
+| `scw block snapshot create volume-id=<a server's root>` — works | n/a |
+| `scw instance image create snapshot-id=…` — **404** | works |
+| `scw instance snapshot get …` — 404 (the fallback's own shape) | works |
+| `scw block volume create from-snapshot.snapshot-id=…` — works | **404** |
+
+A block snapshot is now the only kind a client can take of a server's root disk,
+and `scw instance image create` cannot cut an image from one. So the golden-image
+chain — snapshot a disk, cut an image, boot from it — is walkable from a volume
+the client created and no longer from the server's own root. This is the shape
+#571 fixed for volumes, one product over, and it is **named rather than fixed**:
+the SDK says images built on block snapshots exist (`Image.RootVolume.VolumeType`
+can be `sbs_snapshot`, and `scw instance image list` reads `block.GetSnapshot`
+for exactly that value), so the gap is real and not a decision.
+
+One consequence is already guarded, because it was created and measured inside
+this change: an instance snapshot of a block volume is typed `unified`, never
+`sbs_snapshot`. `sbs_snapshot` is a promise that the id resolves in
+`block/v1alpha1`, and an image cut from a snapshot that broke that promise made
+`scw instance image list` fail for the whole zone.
+
 ## What survives a dead emulator, in one table
 
 The store is memory: a dead process loses every emulated resource, and that is

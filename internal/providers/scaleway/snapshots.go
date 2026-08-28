@@ -106,21 +106,39 @@ func (p *Pack) createSnapshot(w http.ResponseWriter, r *http.Request) {
 		// class, "sbs" — so the reading above leaves it empty and the default
 		// below would call the snapshot b_ssd, which is a different product.
 		//
-		// The value comes from the SDK's enum, not from the wire: instance/v1
-		// VolumeVolumeType declares sbs_snapshot beside sbs_volume, and
-		// Snapshot.VolumeType is a VolumeVolumeType, while CreateSnapshotRequest
-		// .VolumeType (SnapshotVolumeType) cannot even spell it — its four
-		// values are unknown_volume_type, l_ssd, b_ssd and unified, and its
-		// documentation says "if omitted, the volume type of the original volume
-		// will be used". So the request cannot ask for this and the answer has
-		// to derive it. No recorded account here holds one: this is a reading,
-		// declared as such, like the block snapshot shape above it.
+		// `unified` rather than `sbs_snapshot`, and the difference was MEASURED
+		// rather than reasoned. sbs_snapshot was the first answer here, read
+		// straight off the SDK's VolumeVolumeType enum, and it broke a command:
+		// `scw instance image list` calls block.GetSnapshot for every image whose
+		// root_volume.volume_type is sbs_snapshot and fails the WHOLE listing on
+		// error (scaleway-cli 2.56.3,
+		// internal/namespaces/instance/v1/custom_image.go:222). Cutting an image
+		// from such a snapshot therefore made `scw instance image list` answer
+		// "cannot find resource 'snapshot'" for the entire zone — measured
+		// 2026-08-28. sbs_snapshot is a promise that the id resolves in the
+		// BLOCK product, and this snapshot lives in instance/v1.
+		//
+		// `unified` is the value the CLI itself sends for this very input: with
+		// `unified=true` it skips the volume lookup entirely and asks for
+		// SnapshotVolumeTypeUnified, whatever the volume is. And without that
+		// flag it reads the volume through instance.GetVolume and gives up on a
+		// 404 — so unified is the ONLY instance snapshot of a block volume any
+		// scw user can ask for.
+		//
+		// What is not settled, and is not this change's to settle: whether the
+		// cloud makes such a snapshot readable through block/v1alpha1 as well.
+		// If it does, the honest answer is sbs_snapshot AND a snapshot that
+		// answers on both doors — which is the volume work of #571 done again
+		// for snapshots, and nothing here has measured it.
+		//
+		// TestAnInstanceSnapshotOfABlockVolumeDoesNotPromiseTheBlockProduct
+		// fails without this.
 		//
 		// Only when the client named none: the request field "overrides the
 		// volume_type of the snapshot", which is the SDK's own wording, so a
 		// client that asked for one keeps it.
 		if volumeType == "" && volume.Kind == kindBlockVolume {
-			volumeType = "sbs_snapshot"
+			volumeType = "unified"
 		}
 		// Through the shared reader: the assertion this replaces answered
 		// ok=false on a volume that had crossed a snapshot, so a snapshot taken

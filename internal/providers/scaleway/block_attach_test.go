@@ -211,18 +211,31 @@ func TestACreateNamingABlockVolumeAttachesIt(t *testing.T) {
 	}
 }
 
-// An instance snapshot of a block volume is an sbs_snapshot.
+// An instance snapshot of a block volume works, and does not promise the block
+// product.
 //
 // The route resolved kindVolume alone, so it answered 404 on the disk the same
-// emulator published under the server's volumes["0"]. The type is read from the
-// SDK rather than from a recording, and the reading is narrow: instance/v1
-// VolumeVolumeType declares sbs_snapshot beside sbs_volume and Snapshot
-// .VolumeType is a VolumeVolumeType, while CreateSnapshotRequest.VolumeType
-// (SnapshotVolumeType) cannot spell it — b_ssd would name a different product.
+// emulator published under the server's volumes["0"]. It answers now — and the
+// TYPE it answers was got wrong once, in this same change, which is why the
+// assertion below is about what the value must NOT be.
+//
+// sbs_snapshot was the first answer, read straight off the SDK's
+// VolumeVolumeType enum, and it broke a command: `scw instance image list` calls
+// block.GetSnapshot for every image whose root_volume.volume_type is
+// sbs_snapshot and fails the WHOLE listing on error (scaleway-cli 2.56.3,
+// internal/namespaces/instance/v1/custom_image.go:222). Cutting an image from
+// such a snapshot made `scw instance image list` answer "cannot find resource
+// 'snapshot'" for the entire zone — measured 2026-08-28, against the emulator
+// this test runs in.
+//
+// So the invariant is not "the type is unified". It is: **a type that promises
+// the block product must be answerable by the block product**, and this test
+// asserts the promise rather than the spelling, so it keeps holding the day a
+// snapshot really does cross the two.
 //
 // What a client asks for still wins, because the request field "overrides the
 // volume_type of the snapshot" in the SDK's own words.
-func TestAnInstanceSnapshotOfABlockVolumeIsAnSbsSnapshot(t *testing.T) {
+func TestAnInstanceSnapshotOfABlockVolumeDoesNotPromiseTheBlockProduct(t *testing.T) {
 	ts := newTestServer(t)
 	_, body := serverWith(t, ts,
 		`{"name":"sbs","commercial_type":"DEV1-S","volumes":{"0":{"volume_type":"sbs_volume","size":20000000000}}}`)
@@ -235,9 +248,7 @@ func TestAnInstanceSnapshotOfABlockVolumeIsAnSbsSnapshot(t *testing.T) {
 		t.Fatalf("snapshot of a block volume answered %d, want 201: %v", status, out)
 	}
 	snap, _ := out["snapshot"].(map[string]any)
-	if snap["volume_type"] != "sbs_snapshot" {
-		t.Errorf("the snapshot reports volume_type %v, want sbs_snapshot", snap["volume_type"])
-	}
+	snapID, _ := snap["id"].(string)
 	base, _ := snap["base_volume"].(map[string]any)
 	if base == nil || base["id"] != rootID {
 		t.Errorf("the snapshot does not name the volume it was taken of: %v", snap["base_volume"])
@@ -246,6 +257,17 @@ func TestAnInstanceSnapshotOfABlockVolumeIsAnSbsSnapshot(t *testing.T) {
 	// snapshot that reports 20 GB of a 40 GB disk is a lie a client stores.
 	if size, _ := snap["size"].(float64); size != 20000000000 {
 		t.Errorf("the snapshot reports size %v, want the volume's 20000000000", snap["size"])
+	}
+	// b_ssd would name the product it was NOT taken from.
+	if snap["volume_type"] == "b_ssd" {
+		t.Errorf("the snapshot of a block volume is typed b_ssd, which is the other product")
+	}
+	// And the promise: sbs_snapshot means "this id resolves in block/v1alpha1".
+	if snap["volume_type"] == "sbs_snapshot" {
+		if status, _ := do(t, ts, "GET", blockURL+"/snapshots/"+snapID, ""); status != http.StatusOK {
+			t.Errorf("the snapshot is typed sbs_snapshot and block answers %d for it: "+
+				"`scw instance image list` reads block.GetSnapshot on exactly that type and fails the whole listing", status)
+		}
 	}
 
 	// A named type wins, because the request field overrides.
