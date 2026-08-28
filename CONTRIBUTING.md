@@ -90,10 +90,19 @@ names, which is the half of it a table would get wrong first.
 **The plan replaces the full pass locally. It never replaces the CI matrix.**
 Every other gate here adds proof; this one subtracts it, and that inverts the
 failure mode — a wrong rule is silent. With CI untouched, the worst case of a
-wrong rule is a red pull request, which is exactly what CI is for. What no test
-can catch is a rule that names a real directory and prescribes the wrong leg:
-the two mechanical rots are guarded in `tools/testplan/plan_test.go`, the
-semantic one is not, and it is written down rather than pretended away.
+wrong rule is a red pull request, which is exactly what CI is for.
+
+**Every plan prints its own limit, and that is not a courtesy.** The tool was
+wrong five times in one week (#588). Four erred on the expensive side, which is
+survivable; the fifth named four runs and 27 specs, every one of them green,
+while the leg that reproduces the defect was in none of them — read as a
+ceiling, that plan said the work was done. So a plan now ends by naming what no
+table can answer: **which population the defect lives in**. Four mechanical rots
+are guarded in `tools/testplan/plan_test.go` — an un-triaged path, a rule
+matching nothing, an `Unproven` sentence contradicted by the artefact it names,
+and a rule prescribing a leg that cannot drive what it governs. The population
+error is not guarded by anything, and it is written down rather than pretended
+away.
 
 The table it reads, in short form:
 

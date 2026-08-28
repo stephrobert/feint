@@ -66,8 +66,9 @@
     },
     {
       "label": "a rule that runs several commands stops having to say what it leaves unproven, and the plan becomes a green describing a smaller world than its reader believes (#564)",
+      "note": "The sentence this used to mutate was the one #588 measured false — `mise run conformance:environment` proving a stored shape across a restart, against a suite that saves no state — so it is gone and this points at another rule with two runs.",
       "file": "tools/testplan/rules.go",
-      "find": "\t\tUnproven: \"a change to the stored shape is proved across a restart by `mise run conformance:environment`\",",
+      "find": "\t\tUnproven: \"octl reshapes its answers unless a call pins `-o raw`; the leg proves the wire, not the CLI's rendering\",",
       "replace": "\t\tUnproven: prepushIsTheWholeGate,",
       "test": "TestEveryRuleWithRunsSaysWhatItDoesNotProve"
     },
@@ -98,6 +99,55 @@
       "find": "\t\t\tif changed[m.File] {",
       "replace": "\t\t\tif changed[m.File] || true {",
       "test": "TestAChangedFileEarnsTheSpecsThatMutateIt"
+    },
+    {
+      "label": "the plan stops saying what it cannot know, so it reads as a ceiling again — which is how #521 was called done while the nightly leg kept failing (#588)",
+      "file": "tools/testplan/plan.go",
+      "find": "\tb.WriteString(cannotKnow)\n\treturn b.String()",
+      "replace": "\tif false {\n\t\tb.WriteString(cannotKnow)\n\t}\n\treturn b.String()",
+      "test": "TestEveryPlanSaysWhatItCannotKnow"
+    },
+    {
+      "label": "an Unproven sentence may name an artefact and cite nothing, which is the state the #567 sentence lived in: it claimed a suite proved a stored shape across a restart, and nothing read the suite (#588)",
+      "file": "tools/testplan/claims.go",
+      "find": "\t\tif named := artefactsNamed(r.Unproven); len(named) > 0 && len(r.Cites) == 0 {",
+      "replace": "\t\tif named := artefactsNamed(r.Unproven); len(named) > 0 && len(r.Cites) == 0 && false {",
+      "test": "TestTheClaimCheckerFindsAClaimThatHasGoneFalse"
+    },
+    {
+      "label": "a claim stops being read against the artefact it names, so a sentence resting on a token that has been deleted keeps reading as proof (#588)",
+      "file": "tools/testplan/claims.go",
+      "find": "\t\tif !strings.Contains(text, collapse(token)) {",
+      "replace": "\t\tif !strings.Contains(text, collapse(token)) && false {",
+      "test": "TestTheClaimCheckerFindsAClaimThatHasGoneFalse"
+    },
+    {
+      "label": "a claim of absence stops being checked — the exact half that would have caught #567, where up.sh contains neither `snapshot` nor `--state` and a rule said it proved a restart (#588)",
+      "file": "tools/testplan/claims.go",
+      "find": "\t\tif strings.Contains(text, collapse(token)) {",
+      "replace": "\t\tif strings.Contains(text, collapse(token)) && false {",
+      "test": "TestTheClaimCheckerFindsAClaimThatHasGoneFalse"
+    },
+    {
+      "label": "a real claim of this table is pointed at the wrong artefact: leg.sh does contain the word `snapshot`, so the sentence about the environment suite becomes false and must be caught against the committed table rather than against a fixture (#588)",
+      "file": "tools/testplan/rules.go",
+      "find": "\t\t\tIn:     \"tools/conformance/environment/up.sh\",\n\t\t\tAbsent: []string{\"--state\", \"snapshot\"},",
+      "replace": "\t\t\tIn:     \"tools/conformance/leg.sh\",\n\t\t\tAbsent: []string{\"--state\", \"snapshot\"},",
+      "test": "TestEveryUnprovenClaimHoldsAgainstTheArtefactItNames"
+    },
+    {
+      "label": "the stack gate is routed to `conformance:leg -- fields` again, which is #588's second error verbatim: a real leg, which runs, and which has no machine runtime — the one population that gate refuses to work in (#566, #477)",
+      "file": "tools/testplan/rules.go",
+      "find": "\t\tRuns: []string{\"FEINT_VM=incus-ovn mise run conformance:functional\"},\n\t\tUnproven: \"three passes on one host",
+      "replace": "\t\tRuns: []string{\"conformance:leg -- fields\"},\n\t\tUnproven: \"three passes on one host",
+      "test": "TestARuleMayNotPrescribeARunThatCannotDriveWhatItGoverns"
+    },
+    {
+      "label": "the runtime leg is prescribed without a runtime, so every rule naming it sends the reader to a leg leg.sh refuses at second zero (#459, #588)",
+      "file": "tools/testplan/plan.go",
+      "find": "const runtimeLeg = \"FEINT_VM=incus-ovn mise run conformance:leg -- runtime\"",
+      "replace": "const runtimeLeg = \"mise run conformance:leg -- runtime\"",
+      "test": "TestARuleMayNotPrescribeARunThatCannotDriveWhatItGoverns"
     }
   ]
 }

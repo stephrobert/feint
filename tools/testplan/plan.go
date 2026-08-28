@@ -251,8 +251,40 @@ func (p plan) String() string {
 			fmt.Fprintf(&b, "  · %s\n", u)
 		}
 	}
+	b.WriteString(cannotKnow)
 	return b.String()
 }
+
+// What every plan ends on, whatever it contains.
+//
+// This tool was wrong five times in one week (#588). Four erred on the
+// expensive side, which is survivable. The fifth was #521: it named `probe`,
+// `fields`, `runtime`, `environment` and 27 specs, every one of them green,
+// while the defect lived in a population none of them carried — the ssh suites
+// are in no leg, and `-- runtime` runs the network suites, which end on their
+// own `feint clean` and sweep the leak before any closing doorstep can see it.
+// Read as a ceiling, that plan said the work was done.
+//
+// Nothing mechanical sees that: the rule named a real directory and prescribed
+// a leg that runs. So the property has to live in the output. It said "a floor,
+// not a ceiling" once, in prose, in CONTRIBUTING.md, and every brief of that
+// week had to repeat it by hand — which is this repository's own rule about
+// comments, applied to a tool's documentation.
+//
+// The wording is deliberate and it is not "this plan is a floor". A clause of
+// that shape is a manner of speaking and gets skimmed; what does not get
+// skimmed is the name of the thing the reader is about to get wrong. So the
+// first sentence names what no table can answer — which population the defect
+// lives in — the second is the dated measurement rather than a caution, and
+// "floor" arrives last, as the conclusion of the two.
+//
+// TestEveryPlanSaysWhatItCannotKnow fails without this line, in all three of a
+// plan's shapes: runs, nothing-to-run, and un-triaged.
+const cannotKnow = "\n" +
+	"What this plan cannot know is which population the defect lives in. It routes\n" +
+	"on the paths a diff touched: on #521 it named four runs and 27 specs, all\n" +
+	"green, while the leg that reproduces the defect was in none of them. So it is\n" +
+	"a floor — add whatever you know that a path cannot say.\n"
 
 // resolve turns the requested base into one this clone actually has.
 //

@@ -97,10 +97,19 @@ de noms de répertoires, qui est la moitié qu'une table se tromperait en premie
 CI.** Tous les autres gates d'ici ajoutent de la preuve ; celui-ci en retire, et
 cela inverse le mode de défaillance : une règle fausse est silencieuse. La CI
 inchangée, le pire cas d'une règle fausse est une pull request rouge, ce pour
-quoi la CI existe. Ce qu'aucun test n'attrape, c'est une règle qui nomme un vrai
-répertoire et prescrit la mauvaise jambe : les deux pourritures mécaniques sont
-gardées dans `tools/testplan/plan_test.go`, la sémantique ne l'est pas, et c'est
-écrit plutôt que dissimulé.
+quoi la CI existe.
+
+**Chaque plan imprime sa propre limite, et ce n'est pas une politesse.** L'outil
+s'est trompé cinq fois en une semaine (#588). Quatre fois du côté cher, ce qui
+est survivable ; la cinquième, il a nommé quatre exécutions et 27 specs, toutes
+vertes, alors que la jambe qui reproduit le défaut n'était dans aucune. Pris
+pour un plafond, ce plan disait que le travail était fait. Un plan se termine
+donc en nommant ce qu'aucune table ne peut savoir : **dans quelle population
+vit le défaut**. Quatre pourritures mécaniques sont gardées dans
+`tools/testplan/plan_test.go` : un chemin non trié, une règle qui ne correspond
+à rien, une phrase `Unproven` que l'artefact qu'elle nomme contredit, et une
+règle qui prescrit une jambe incapable de piloter ce qu'elle trie. L'erreur de
+population n'est gardée par rien, et c'est écrit plutôt que dissimulé.
 
 La table qu'il lit, sous forme courte :
 

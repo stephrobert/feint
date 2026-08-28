@@ -501,3 +501,318 @@ func TestTheRealSpecsAreReadAndOnlyTheMatchingOnesAreEarned(t *testing.T) {
 		t.Errorf("a file no spec names earned %v", none)
 	}
 }
+
+// MECHANISM ONE OF #588, and the one that had to ship whatever else did.
+//
+// This tool was wrong five times in one week. Four erred expensively, which is
+// survivable; the fifth (#521) named four runs and 27 specs, all of which went
+// green, while the leg that reproduces the defect was in none of them. Read as
+// a ceiling, that plan said the work was done — and the property that would
+// have stopped it was written once, in prose, in CONTRIBUTING.md, where the
+// reader about to act had not looked.
+//
+// So it is printed. In every shape a plan takes, including the two that read
+// most like an all-clear: "nothing beyond prepush", and a plan whose runs are
+// all cheap. The un-triaged shape carries it too, because a reader who is being
+// told to add a rule is exactly a reader deciding what to run.
+func TestEveryPlanSaysWhatItCannotKnow(t *testing.T) {
+	// Three populations, chosen because they are the three branches of
+	// String(): a plan with runs, a plan with none, and a plan that refuses.
+	for _, tc := range []struct {
+		what  string
+		paths []string
+	}{
+		{"a plan with runs", []string{"internal/core/machine/incus.go"}},
+		{"a plan with nothing to run", []string{"LICENSE"}},
+		{"a plan that refuses an un-triaged path", []string{"quantum/teleporter.go"}},
+	} {
+		got := build(t.TempDir(), tc.paths).String()
+		for _, want := range []string{"which population the defect lives in", "#521", "floor"} {
+			if !strings.Contains(got, want) {
+				t.Errorf("%s does not say %q, so it can be read as a ceiling:\n%s", tc.what, want, got)
+			}
+		}
+	}
+	// The control, and it is what stops this passing over a String() that
+	// prints the notice and nothing else: the plan must still say what it does
+	// prescribe.
+	if runs := build(t.TempDir(), []string{"internal/core/machine/incus.go"}).String(); !strings.Contains(runs, "conformance:leg -- runtime") {
+		t.Fatalf("the plan lost its runs while gaining its closing line:\n%s", runs)
+	}
+}
+
+// MECHANISM TWO OF #588: an `Unproven` sentence is checked against the artefact
+// it names.
+//
+// The sentence that opened this: "a change to the stored shape is proved across
+// a restart by `mise run conformance:environment`" (#567). That suite is
+// tools/conformance/environment/up.sh, and it contains no `snapshot` and no
+// `--state` — it was false the day it was written, and greppable that same day.
+func TestEveryUnprovenClaimHoldsAgainstTheArtefactItNames(t *testing.T) {
+	problems := checkClaims(root(t), rules)
+	if len(problems) > 0 {
+		t.Errorf("%d claim(s) no longer hold:\n  %s", len(problems), strings.Join(problems, "\n  "))
+	}
+	// A control against the whole mechanism being asleep: the real table must
+	// actually carry claims, or the test above passes over an empty world in
+	// the most literal way.
+	cited := 0
+	for _, r := range rules {
+		cited += len(r.Cites)
+	}
+	if cited == 0 {
+		t.Fatal("no rule cites anything; this test would pass over a table that reads nothing")
+	}
+}
+
+// The witness this repository's own skill asks for: a control whose success is
+// "nothing was found" must first be shown to be able to find. Each planted
+// defect below is one of the ways a claim goes false, and the last of them is
+// the one #567 was.
+func TestTheClaimCheckerFindsAClaimThatHasGoneFalse(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "artefact.sh"), []byte("#!/bin/sh\necho    hello   world\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		what string
+		rule rule
+		want string
+	}{
+		{
+			what: "a sentence that names an artefact and cites nothing",
+			rule: rule{Path: "x/", Unproven: "this is proved by `mise run conformance:environment`"},
+			want: "cites nothing",
+		},
+		{
+			what: "a claim whose sentence has been edited out from under it",
+			rule: rule{Path: "x/", Unproven: "a rewritten sentence",
+				Cites: []claim{{About: "what it used to say", In: "artefact.sh", Shows: []string{"hello"}}}},
+			want: "not a fragment of its Unproven",
+		},
+		{
+			what: "a claim that asks nothing of the artefact it names",
+			rule: rule{Path: "x/", Unproven: "held by artefact.sh",
+				Cites: []claim{{About: "held by artefact.sh", In: "artefact.sh"}}},
+			want: "asks nothing of it",
+		},
+		{
+			what: "a claim resting on a token the artefact does not carry",
+			rule: rule{Path: "x/", Unproven: "held by artefact.sh",
+				Cites: []claim{{About: "held by artefact.sh", In: "artefact.sh", Shows: []string{"goodbye"}}}},
+			want: "no longer there",
+		},
+		{
+			what: "a claim naming an artefact that is not there at all",
+			rule: rule{Path: "x/", Unproven: "held by gone.sh",
+				Cites: []claim{{About: "held by gone.sh", In: "gone.sh", Shows: []string{"anything"}}}},
+			want: "cannot be read",
+		},
+		{
+			what: "a claim of absence the artefact has since contradicted — the #567 shape",
+			rule: rule{Path: "x/", Unproven: "artefact.sh says nothing about hello",
+				Cites: []claim{{About: "artefact.sh says nothing about hello", In: "artefact.sh", Absent: []string{"hello"}}}},
+			want: "needs rewriting",
+		},
+	} {
+		problems := checkClaims(dir, []rule{tc.rule})
+		if len(problems) == 0 {
+			t.Errorf("%s was not reported; the checker cannot find what it searches for", tc.what)
+			continue
+		}
+		if !strings.Contains(strings.Join(problems, "\n"), tc.want) {
+			t.Errorf("%s was reported as %q, which does not name the defect", tc.what, problems)
+		}
+	}
+	// The accepting half, without which a checker that refuses everything would
+	// pass every case above and make the table unwritable. Whitespace is
+	// collapsed on both sides, which is what lets a claim quote a gofmt-aligned
+	// struct field the way a reader would say it.
+	held := rule{Path: "x/", Unproven: "held by artefact.sh, which says hello world and nothing about goodbye",
+		Cites: []claim{{
+			About:  "held by artefact.sh, which says hello world and nothing about goodbye",
+			In:     "artefact.sh",
+			Shows:  []string{"hello world"},
+			Absent: []string{"goodbye"},
+		}}}
+	if problems := checkClaims(dir, []rule{held}); len(problems) > 0 {
+		t.Errorf("a claim that holds was reported anyway: %q", problems)
+	}
+}
+
+// MECHANISM THREE OF #588: a rule may not prescribe a run that cannot drive
+// what it governs.
+//
+// `functional.sh` sent to `conformance:leg -- fields` (#566/#477) is the shape:
+// a real leg, which runs, and which has no machine runtime — the one population
+// that gate refuses to work in. TestEveryLegTheRulesNameIsALegTheScriptAccepts
+// already ties leg names to leg.sh; this ties a suite's need for a runtime to
+// its leg's, and it reads leg.sh for both halves rather than a list kept here.
+//
+// What it can see, and it is deliberately the half a machine can read without
+// guessing:
+//
+//   - a script that resolves its runtime through tools/runtime-mode.sh, which
+//     refuses `--vm off` by construction (asserted below, so the marker cannot
+//     rot silently);
+//   - a suite leg.sh runs only on legs leg.sh itself refuses when FEINT_VM is
+//     off.
+//
+// What it cannot see is written down in rules.go beside the four suites: the
+// general property is that a prescribed run must invoke the file it was
+// prescribed for, and four scripts under tools/conformance still fail it.
+func TestARuleMayNotPrescribeARunThatCannotDriveWhatItGoverns(t *testing.T) {
+	dir := root(t)
+	legSh, err := os.ReadFile(filepath.Join(dir, "tools", "conformance", "leg.sh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	refused := legsRefusedWithoutARuntime(string(legSh))
+	if len(refused) == 0 {
+		t.Fatal("no leg refuses to run without a machine runtime, which cannot be right: " +
+			"leg.sh refuses `runtime` rather than letting its four suites skip themselves")
+	}
+	resolver, err := os.ReadFile(filepath.Join(dir, "tools", "runtime-mode.sh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(resolver), `if [ "$mode" = "off" ]`) {
+		t.Fatal("tools/runtime-mode.sh no longer refuses --vm off, so naming it no longer means " +
+			"a script needs a runtime; this test's whole population came from that refusal")
+	}
+
+	// Half one: a run naming a leg that leg.sh refuses without a runtime must
+	// supply one, or the reader pastes it and is refused at second zero.
+	for _, r := range rules {
+		for _, cmd := range r.Runs {
+			leg, ok := legIn(cmd)
+			if !ok || !refused[leg] {
+				continue
+			}
+			if !declaresARuntime(cmd) {
+				t.Errorf("rule %q prescribes %q, and tools/conformance/leg.sh refuses that leg "+
+					"with no FEINT_VM: the reader is sent to a run that exits 2 before it measures anything",
+					r.Path, cmd)
+			}
+		}
+	}
+
+	// Half two: a suite that cannot be driven without a machine runtime must
+	// earn a run that has one. This is the #566/#477 shape, and it is checked
+	// against the plan rather than against the table, so a catch-all routing it
+	// cheaply reddens exactly as a wrong rule does.
+	arms := legArms(string(legSh))
+	if len(arms) == 0 {
+		t.Fatal("no leg arm parsed out of leg.sh; this test would pass over an empty world")
+	}
+	population := 0
+	for _, path := range tracked(t) {
+		if !strings.HasPrefix(path, "tools/conformance/") || !strings.HasSuffix(path, ".sh") {
+			continue
+		}
+		why := needsAMachineRuntime(dir, path, arms, refused)
+		if why == "" {
+			continue
+		}
+		population++
+		got := build(dir, []string{path})
+		if !anyRunDeclaresARuntime(got) {
+			t.Errorf("%s %s, and its plan prescribes no run that declares one:\n%s", path, why, got)
+		}
+	}
+	if population == 0 {
+		t.Fatal("no suite in tools/conformance was found to need a machine runtime; the four " +
+			"dataplane suites do, so this test just measured its own breakage rather than the table")
+	}
+	// The control: a suite that runs perfectly well with no runtime must not be
+	// dragged into the 590 s leg by this, or the cheapest way to satisfy the
+	// test above would be to make every rule expensive.
+	if why := needsAMachineRuntime(dir, "tools/conformance/scaleway/scw-cli.sh", arms, refused); why != "" {
+		t.Errorf("the Scaleway CLI suite was read as needing a machine runtime (%s); the whole "+
+			"conformance matrix runs it with none", why)
+	}
+}
+
+// legsRefusedWithoutARuntime reads leg.sh's own refusal rather than a list kept
+// here: `if [ "$leg" = "runtime" ] && [ "$vm" = "off" ]`.
+var legRefusal = regexp.MustCompile(`\[ "\$leg" = "([a-z0-9-]+)" \] && \[ "\$vm" = "off" \]`)
+
+func legsRefusedWithoutARuntime(body string) map[string]bool {
+	refused := map[string]bool{}
+	for _, m := range legRefusal.FindAllStringSubmatch(body, -1) {
+		refused[m[1]] = true
+	}
+	return refused
+}
+
+// legArms maps each leg to the suites its case arm runs. Lines outside an arm
+// are deliberately ignored: guard.sh and score.sh run on every leg, and
+// attributing them to one would make this test claim they need a runtime.
+var suitePath = regexp.MustCompile(`tools/[A-Za-z0-9_./-]+\.sh`)
+
+func legArms(body string) map[string][]string {
+	arms := map[string][]string{}
+	var current []string
+	for _, line := range strings.Split(body, "\n") {
+		trimmed := strings.TrimSpace(line)
+		switch {
+		case trimmed == ";;":
+			current = nil
+			continue
+		case strings.HasSuffix(trimmed, ")") && !strings.ContainsAny(trimmed, " \t*"):
+			current = strings.Split(strings.TrimSuffix(trimmed, ")"), "|")
+			continue
+		case strings.HasPrefix(trimmed, "#") || len(current) == 0:
+			continue
+		}
+		for _, suite := range suitePath.FindAllString(trimmed, -1) {
+			for _, leg := range current {
+				arms[leg] = append(arms[leg], suite)
+			}
+		}
+	}
+	return arms
+}
+
+// needsAMachineRuntime answers from the artefacts, and says why when it does.
+func needsAMachineRuntime(root, path string, arms map[string][]string, refused map[string]bool) string {
+	body, err := os.ReadFile(filepath.Join(root, path))
+	if err != nil {
+		return ""
+	}
+	if strings.Contains(string(body), "tools/runtime-mode.sh") {
+		return "resolves its runtime through tools/runtime-mode.sh, which refuses --vm off"
+	}
+	carried, all := false, true
+	for leg, suites := range arms {
+		for _, suite := range suites {
+			if suite != path {
+				continue
+			}
+			carried = true
+			if !refused[leg] {
+				all = false
+			}
+		}
+	}
+	if carried && all {
+		return "is run by no leg but one tools/conformance/leg.sh refuses without a runtime"
+	}
+	return ""
+}
+
+// declaresARuntime reports whether a command hands a machine runtime to what it
+// starts. `FEINT_VM=off` is not one: it is the value every leg of the CI matrix
+// carries, and the value the suites above refuse.
+func declaresARuntime(cmd string) bool {
+	return strings.Contains(cmd, "FEINT_VM=") && !strings.Contains(cmd, "FEINT_VM=off")
+}
+
+func anyRunDeclaresARuntime(p plan) bool {
+	for _, r := range p.Runs {
+		if declaresARuntime(r.Command) {
+			return true
+		}
+	}
+	return false
+}
