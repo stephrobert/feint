@@ -1041,29 +1041,10 @@ const (
 // TestARestartedMachineGetsItsPinnedAddressBack fail without this, the second
 // in both modes.
 func (d *Incus) restoreGuestNetwork(ctx context.Context, machine string) error {
-	devices, err := d.instanceDevices(ctx, machine)
+	devices, names, err := d.ownedManagedNICs(ctx, machine)
 	if err != nil {
 		return fmt.Errorf("inspect %s to restore its routes: %w", machine, err)
 	}
-	// Sorted, so a machine with several private NICs is repaired in the same
-	// order between two runs and a failure names the same device twice.
-	names := make([]string, 0, len(devices.own))
-	for device, cfg := range devices.own {
-		if cfg["type"] != "nic" || cfg["network"] == "" {
-			continue
-		}
-		// Ours only, and the question is asked of the name the emulator itself
-		// derives (NetworkName). This call reads a network's gateway and then
-		// writes a route inside the guest through it: a NIC an operator added
-		// by hand to one of our machines is theirs, and is left exactly as they
-		// configured it. TestRestoringRoutesLeavesAForeignNICAlone fails
-		// without this half.
-		if !ownedNetwork(cfg["network"]) {
-			continue
-		}
-		names = append(names, device)
-	}
-	slices.Sort(names)
 	for _, device := range names {
 		// The address first, when the device pins one (#548). A NIC attached
 		// to a running machine is configured inside the guest by this driver,
@@ -1095,6 +1076,109 @@ func (d *Incus) restoreGuestNetwork(ctx context.Context, machine string) error {
 		// DHCP case it was written for.
 		if err := d.waitForGuestInterface(ctx, machine, device); err != nil {
 			return err
+		}
+		if err := d.installGuestPrivateRoutes(ctx, machine, devices.own[device]["network"], device); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ownedManagedNICs answers the machine's own NIC devices that sit on a network
+// this emulator derived, sorted so two runs repair them in the same order and a
+// failure names the same device twice.
+//
+// Shared by the two doors below rather than written twice, which is this
+// repository's own rule for anything a second caller would copy: the ownership
+// half is what keeps a NIC an operator added by hand out of every command these
+// paths emit, and a copy is what one door eventually forgets.
+// TestRestoringRoutesLeavesAForeignNICAlone and
+// TestAFirstBootLeavesAForeignNICAlone fail without it, one per door.
+func (d *Incus) ownedManagedNICs(ctx context.Context, machine string) (instanceView, []string, error) {
+	devices, err := d.instanceDevices(ctx, machine)
+	if err != nil {
+		return devices, nil, err
+	}
+	names := make([]string, 0, len(devices.own))
+	for device, cfg := range devices.own {
+		if cfg["type"] != "nic" || cfg["network"] == "" {
+			continue
+		}
+		// Ours only, and the question is asked of the name the emulator itself
+		// derives (NetworkName). These calls read a network's gateway and then
+		// write inside the guest through it: a NIC an operator added by hand to
+		// one of our machines is theirs, and is left exactly as they
+		// configured it.
+		if !ownedNetwork(cfg["network"]) {
+			continue
+		}
+		names = append(names, device)
+	}
+	slices.Sort(names)
+	return devices, names, nil
+}
+
+// settleFirstBoot gives a machine that has just been created the addresses its
+// own devices reserve, and the routes that go with them.
+//
+// WHY THE FIRST BOOT NEEDS THE SAME THING AS A RESTART (#587).
+//
+// The launch pins `ipv4.address` on the NIC and then trusts the guest's DHCP
+// client to ask for it. That trust is not warranted, and the failure is not
+// slow — it is permanent, and it depends on which client the image ships:
+//
+//	image (Outscale catalogue)   address carried after CreateVms answered
+//	ubuntu:24.04  (ami-…0001)    27 ms, 32 ms
+//	debian:12     (ami-…0002)    46 ms, 35 ms
+//	alpine:3.21   (ami-…0003)    never — measured to 45 s, 90 s and 180 s
+//
+// Measured on the maintainer's station, 2026-08-29, `--vm incus-ovn`, Incus 7.2,
+// OVN 24.03.6. The alpine image ships dhcpcd 10.1.0, which ARP-probes the
+// offered address before accepting it. The probe is flooded to the network's
+// localnet port, reaches the uplink, and the OVN gateway router answers it —
+// answering ARP for the block it fronts is that router's job. The guest reads
+// its own address as taken and declines its own lease, forever:
+//
+//	eth0: offered 10.182.9.4 from 10.182.9.1
+//	eth0: probing address 10.182.9.4/24
+//	eth0: 10:66:6a:88:5e:54(10:66:6a:88:5e:54) claims 10.182.9.4
+//	eth0: DAD detected 10.182.9.4
+//
+// So the address the API published was never on the machine, `wait_until 24` in
+// tools/conformance/outscale/network.sh expired at 24.8 s, and no budget could
+// have helped: at the end of a 90 s wait the guest's client had given up, while
+// a `udhcpc` exchange in that same guest was answered in 97–143 ms. The path was
+// open the whole time. Raising the budget would only have made the DAD answer
+// more certain, which is why CI's green on the same suite is luck rather than
+// proof — its probe wins a race this station loses.
+//
+// The fix is the one the driver already makes everywhere else it reserves an
+// address: Attach configures the guest, and restoreGuestNetwork puts it back
+// after a reboot. Only the first boot was left trusting DHCP. It belongs in
+// this layer for the reason #549 gives: no pack can forget it, and a fourth
+// pack gets it without writing a line.
+//
+// Devices that pin nothing are left alone — that is the DHCP case, it is
+// correct, and inventing an address for it is exactly what this emulator must
+// not do. There is no wait here for the same reason: the address this puts on
+// the interface is the one it just reserved, so the routes that follow have
+// their connected subnet already.
+//
+// TestAFirstBootGivesTheGuestTheAddressItReserved fails without this.
+func (d *Incus) settleFirstBoot(ctx context.Context, machine string) error {
+	devices, names, err := d.ownedManagedNICs(ctx, machine)
+	if err != nil {
+		return fmt.Errorf("inspect %s to settle its interfaces: %w", machine, err)
+	}
+	for _, device := range names {
+		if devices.own[device]["ipv4.address"] == "" {
+			continue
+		}
+		if err := d.restorePinnedAddress(ctx, machine, device, devices.own[device]); err != nil {
+			return err
+		}
+		if !d.OVN {
+			continue
 		}
 		if err := d.installGuestPrivateRoutes(ctx, machine, devices.own[device]["network"], device); err != nil {
 			return err

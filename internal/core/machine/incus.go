@@ -641,6 +641,26 @@ func (d *Incus) Start(ctx context.Context, spec Spec) (Machine, error) {
 	if err := d.attachExtra(ctx, spec); err != nil {
 		return Machine{}, err
 	}
+	// The address this driver reserved must be ON the machine, and not because
+	// the guest's DHCP client agreed to it (#587). settleFirstBoot carries the
+	// measurement: alpine:3.21's dhcpcd ARP-probes the offered address, the OVN
+	// gateway answers the probe because fronting that block is its job, and the
+	// guest declines its own lease for ever — 45 s, 90 s and 180 s all measured,
+	// while ubuntu and debian were carrying theirs 30 ms after this call
+	// returned. This is the last door that still trusted DHCP: Attach configures
+	// the guest, restoreGuestNetwork puts it back after a reboot, and the first
+	// boot did neither.
+	//
+	// Not fatal, and for the same reason the restart path above is not: the
+	// machine IS running, and answering FailedState for a running machine is the
+	// lie in the other direction. What the machine carries is what the packs
+	// publish and what the network suites assert, so a failure here still shows
+	// up as itself rather than as a green run.
+	if err := d.settleFirstBoot(ctx, spec.Name); err != nil {
+		d.logger().Error("a machine did not take the address its interface reserves",
+			"machine", spec.Name, "error", err,
+			"consequence", "the machine is running and the API publishes an address it may not carry; a guest whose DHCP client refuses the offer (alpine's dhcpcd ARP-probes it and the OVN gateway answers) never gets one at all")
+	}
 	return d.inspectOrFail(ctx, spec.Name)
 }
 
