@@ -67,20 +67,53 @@
 # condition here is one `incus exec`, tens of milliseconds.
 WAIT_POLL="${WAIT_POLL:-0.25}"
 
-# --- INSTRUMENT (temporary, #587) --------------------------------------------
+# --- THE INSTRUMENT (#587) ---------------------------------------------------
+#
+# A budget nobody measured is a number, and every budget in these suites is one
+# until something records what the wait actually cost. #587 is what that costs:
+# `wait_until 24` was 12 iterations of `sleep 2` converted by hand, it fails on
+# the maintainer's station and passes in CI, and no artefact anywhere said how
+# long the wait it replaced had ever taken.
+#
+# WAIT_TRACE names a file; every wait appends one tab-separated row to it —
+# suite, kind, verdict, the budget the CALLER asked for, the seconds it really
+# took, and the condition. WAIT_SCALE multiplies every budget without editing a
+# call site, so "is it slow or is it broken" is asked in one run.
+#
+# Both are off unless set, so a suite run without them behaves exactly as
+# before. TestTheWaitsRecordWhatTheyCostWhenAskedTo holds that, and holds that
+# the row carries the budget as asked rather than as scaled — a trace that
+# reported the scaled number would make every scaled run look like a suite whose
+# budgets had already been raised.
 WAIT_TRACE="${WAIT_TRACE:-}"
 WAIT_SCALE="${WAIT_SCALE:-1}"
 
 _wait_now() { date +%s%N; }
+# The suite's name is its directory and its file: three of the four runtime
+# suites are called `network.sh`, so `basename` alone collapsed scaleway,
+# outscale and exoscale into one label and a distribution read off it was the
+# sum of three different populations.
+_wait_suite() {
+  local file=${0##*/} path=${0%/*}
+  if [ "$path" = "$0" ]; then
+    printf '%s' "$file"
+  else
+    printf '%s/%s' "${path##*/}" "$file"
+  fi
+}
 _wait_record() { # kind verdict budget started command...
-  [ -n "$WAIT_TRACE" ] || return 0
+  # `${WAIT_TRACE:-}`, not `$WAIT_TRACE`: the suites run under `set -u`, and a
+  # caller that unsets the variable after sourcing this file would abort the
+  # whole suite on an instrument nobody asked for. Absent and empty both mean
+  # "record nothing".
+  [ -n "${WAIT_TRACE:-}" ] || return 0
   local kind=$1 verdict=$2 budget=$3 started=$4
   shift 4
   local now elapsed
   now="$(_wait_now)"
   elapsed=$(((now - started) / 1000000))
   printf '%s\t%s\t%s\t%s\t%s.%03d\t%s\n' \
-    "$(basename "$0")" "$kind" "$verdict" "$budget" \
+    "$(_wait_suite)" "$kind" "$verdict" "$budget" \
     "$((elapsed / 1000))" "$((elapsed % 1000))" "$*" >>"$WAIT_TRACE"
 }
 # -----------------------------------------------------------------------------

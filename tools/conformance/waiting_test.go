@@ -188,3 +188,91 @@ func runWaiting(t *testing.T, script string, args ...string) string {
 	}
 	return string(out)
 }
+
+// The instrument (#587), and the two properties that make its numbers usable.
+//
+// WHY IT IS IN THE TREE RATHER THAN IN A BRANCH. Every budget in the runtime
+// suites is a number nobody has re-derived: #459 converted 36 fixed sleeps into
+// polls and chose their budgets by hand from the loops it replaced — `wait_until
+// 24` is `for _ in 1..12; do sleep 2; done` transcribed — and nothing since has
+// measured one. #587 is the bill: a wait that fails on the maintainer's station,
+// passes in CI, and had no artefact anywhere saying what it ever cost.
+// WAIT_TRACE is what turns "raise it" into "measure it", and WAIT_SCALE is what
+// asks "slow or broken" in one run instead of by editing twenty call sites.
+//
+// The two halves below are what keep it from becoming a second thing to trust:
+//
+//  1. unset, it changes nothing — no file, no output, the same verdicts;
+//  2. the row reports the budget the CALLER asked for, never the scaled one, or
+//     every scaled run would read as a suite whose budgets had already been
+//     raised, which is the exact confusion the trace exists to end.
+//
+// tools/falsify/specs/waiting-is-not-sleeping.json replays both.
+func TestTheWaitsRecordWhatTheyCostWhenAskedTo(t *testing.T) {
+	dir := t.TempDir()
+	trace := filepath.Join(dir, "trace.tsv")
+
+	// Budget 1 at scale 2: the expiry must wait the SCALED budget, so an
+	// elapsed under two seconds means WAIT_SCALE was ignored.
+	script := `
+export WAIT_TRACE="$1" WAIT_SCALE=2
+if wait_until 1 false; then echo "verdict=passed"; else echo "verdict=failed"; fi
+`
+	start := time.Now()
+	out := runWaiting(t, script, trace)
+	elapsed := time.Since(start)
+
+	if !strings.Contains(out, "verdict=failed") {
+		t.Fatalf("the instrument changed the verdict of a condition that is never true:\n%s", out)
+	}
+	body, err := os.ReadFile(trace) //nolint:gosec // a path this test just made
+	if err != nil {
+		t.Fatalf("the wait wrote no trace though WAIT_TRACE named one: %v", err)
+	}
+	rows := strings.Split(strings.TrimSpace(string(body)), "\n")
+	if len(rows) != 1 {
+		t.Fatalf("expected one traced wait, got %d:\n%s", len(rows), body)
+	}
+	fields := strings.Split(rows[0], "\t")
+	if len(fields) != 6 {
+		t.Fatalf("a trace row is six tab-separated fields (suite, kind, verdict, "+
+			"budget asked, seconds, condition), got %d: %q", len(fields), rows[0])
+	}
+	if fields[0] != "waiting-test" {
+		t.Errorf("the row names the suite %q, not the script that ran the wait; a trace whose "+
+			"first field cannot tell scaleway/network.sh from outscale/network.sh sums three "+
+			"populations into one distribution", fields[0])
+	}
+	if fields[2] != "EXPIRED" {
+		t.Errorf("a wait whose condition never held is traced %q, so the trace disagrees with "+
+			"the verdict the suite drew", fields[2])
+	}
+	// The property worth a test: 1, not 2. The scale is a lever on the run, not
+	// a rewrite of what the suite asks for.
+	if fields[3] != "1" {
+		t.Errorf("the row reports budget %q where the caller asked for 1; under WAIT_SCALE the "+
+			"trace would then describe budgets nobody wrote, and a distribution read off it "+
+			"would justify raising a number that had already been raised", fields[3])
+	}
+	if elapsed < 2*time.Second {
+		t.Errorf("wait_until 1 under WAIT_SCALE=2 gave up after %s: the multiplier did not "+
+			"reach the budget, so a scaled run measures the unscaled wait", elapsed)
+	}
+
+	// The other half. Unset, the instrument must not exist: these suites run in
+	// CI and on a maintainer's station with nothing set, and a trace that wrote
+	// a file or a line there would be a side effect nobody asked for.
+	silent := filepath.Join(dir, "unasked.tsv")
+	out = runWaiting(t, `
+unset WAIT_TRACE
+export WAIT_SCALE=1
+if wait_until 1 false; then echo "verdict=passed"; else echo "verdict=failed"; fi
+`, silent)
+	if !strings.Contains(out, "verdict=failed") {
+		t.Errorf("without WAIT_TRACE the wait changed its verdict:\n%s", out)
+	}
+	if _, err := os.Stat(silent); !os.IsNotExist(err) {
+		t.Errorf("a trace file appeared with WAIT_TRACE unset (%v): the instrument is supposed "+
+			"to be absent unless asked for", err)
+	}
+}
