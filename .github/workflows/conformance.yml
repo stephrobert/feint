@@ -401,6 +401,20 @@ jobs:
         if: matrix.client == 'terraform' || matrix.client == 'opentofu'
         run: tools/conformance/stacks.sh http://127.0.0.1:4599
 
+      # The README's own four commands (#593): `feint up` on
+      # examples/quickstart, an empty second plan, `feint down`. The example a
+      # reader copies first is the one whose breakage they meet first, and it
+      # had no gate at all — a quickstart nobody runs is a README that rots.
+      #
+      # On the terraform and opentofu legs for the reason the stacks are, and
+      # on an emulator and a port of its own for the reason the environment
+      # suite has one: `feint up` and `feint down` are what it drives, so
+      # pointed at the shared address its cleanup would stop the emulator this
+      # job's other steps are measuring.
+      - name: Run the quick start the way the README prints it
+        if: matrix.client == 'terraform' || matrix.client == 'opentofu'
+        run: tools/conformance/quickstart.sh 127.0.0.1:4597
+
       # Fault injection (#26, #356): the four real clients meeting a refusal.
       #
       # On `fields` because that is the only leg with scw, octl, exo and

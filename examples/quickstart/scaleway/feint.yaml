@@ -1,0 +1,40 @@
+# The whole environment this example needs, declared once.
+#
+# `feint up` reads this file and does all of it: it checks the host, starts the
+# emulator, exports what the Scaleway clients need, runs Terraform here, and
+# waits for the conditions below against the emulator's own API. `feint down`
+# takes it back down and stops the emulator.
+#
+# docs/environment.md is the field reference and says why each line is here.
+version: 1
+
+cloud:
+  provider: scaleway
+
+emulator:
+  addr: 127.0.0.1:4599
+
+# Nothing here boots a machine, and that is the point of a first example: thirty
+# seconds means a control plane, an address, and a server the API describes.
+# Real machines are the ten-minute depth — set this to incus, incus-vm or
+# incus-ovn and `feint up` refuses if the host cannot deliver it, rather than
+# downgrading in silence. `examples/stacks/scaleway` is the stack written for
+# that.
+runtime:
+  mode: off
+
+iac:
+  engine: terraform
+  directory: .
+  vars:
+    # main.tf declares `endpoint` with a default of 127.0.0.1:4599. Left to that
+    # default against an emulator on another port, Terraform blocks to its own
+    # ceiling and the message blames the provider. Written once, here.
+    endpoint: ${feint.endpoint}
+
+# Asserted against the emulator, never against Terraform's state file: the
+# instance API answers, and it holds the one server this example creates.
+ready:
+  - http:/instance/v1/zones/fr-par-1/servers
+  - resource:instance/server:1
+  - resource:instance/ip:1

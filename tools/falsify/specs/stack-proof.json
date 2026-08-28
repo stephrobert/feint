@@ -11,8 +11,8 @@
     {
       "label": "a stack no run_stack line applies stops needing a declaration, so the table prints `no` for it as if that were a decision",
       "file": "internal/cli/docs_stacks.go",
-      "find": "\t\tif _, ok := declared[stack]; !ok {",
-      "replace": "\t\tif _, ok := declared[stack]; !ok && false {",
+      "find": "\t\t\tif _, ok := declared[key]; !ok {",
+      "replace": "\t\t\tif _, ok := declared[key]; !ok && false {",
       "test": "TestAStackCIDoesNotApplyIsDeclaredWithAReason"
     },
     {
@@ -25,15 +25,15 @@
     {
       "label": "a declaration for a stack that no longer exists stops being stale, so the list keeps reasons nothing checks",
       "file": "internal/cli/docs_stacks.go",
-      "find": "\t\tif !existing[e.Stack] {",
-      "replace": "\t\tif !existing[e.Stack] && false {",
+      "find": "\t\tif !existing[key] {",
+      "replace": "\t\tif !existing[key] && false {",
       "test": "TestADeclarationThatExcusesNothingIsStale"
     },
     {
       "label": "a declaration survives CI starting to apply the stack it excuses, which is the direction that reads like evidence while being false",
       "file": "internal/cli/docs_stacks.go",
-      "find": "\t\tif applied[e.Stack] {",
-      "replace": "\t\tif applied[e.Stack] && false {",
+      "find": "\t\tif applied[key] {\n\t\t\tproblems = append(problems, fmt.Sprintf(\n\t\t\t\t\"stacksRunByHand says %s is run by hand and %s applies it",
+      "replace": "\t\tif applied[key] && false {\n\t\t\tproblems = append(problems, fmt.Sprintf(\n\t\t\t\t\"stacksRunByHand says %s is run by hand and %s applies it",
       "test": "TestADeclarationThatExcusesNothingIsStale"
     }
   ],

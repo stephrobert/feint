@@ -51,7 +51,54 @@ change ni l'un ni l'autre a sa place dans `git log`.
   passe la déclare absente 31 % du temps, là où trois passes ramènent ce risque
   à 3 %, pour 295 s la passe.
 
+- **Une matrice de capacités possède chaque phrase qui revendique un client
+  pour un provider, et `docs:check` relit les pages (#592).** `README.md:41`
+  disait « Run your Terraform against Scaleway, Outscale or Exoscale » pendant
+  que `docs/confidence.md` disait l'inverse et que `feint up` refusait
+  `iac.engine: terraform` pour ce pack depuis l'arrivée de #525 le 2026-08-26.
+  Tous les gates de documentation sont restés verts, et aucun n'avait tort :
+  ils comparent des **valeurs** qu'un artefact porte aussi, et une revendication
+  de capacité n'en est pas une. La matrice (`internal/cli/capability.go`) est
+  provider × client × mode × support × **preuve** × raison, et la colonne preuve
+  est ce qui en fait autre chose qu'un tableau : une ligne `supported` se résout
+  contre le workflow de conformance qui pilote cette paire, une ligne `refused`
+  contre le `VetoEngine` du pack lui-même, le code que `up` et `down`
+  consultent, et les deux sens sont contrôlés. La promesse du README est
+  générée depuis elle dans les deux langues, et chaque bloc généré des pages
+  d'accueil est relu : une phrase qui nomme une paire refusée ne passe que si
+  elle nomme aussi l'issue amont qui la changerait. Code de sortie 2, comme le
+  reste de la chaîne.
+
+- **Le démarrage rapide tient en quatre commandes copiables, sur une stack assez
+  courte pour se lire d'un trait (#593).** Il enseignait la séquence de 0.10,
+  sans répertoire, sans `main.tf` et sans bloc provider, sous un
+  `Apply complete! Resources: 5 added` qu'on ne pouvait pas atteindre depuis
+  elle. `examples/quickstart/scaleway` et `examples/quickstart/outscale` sont
+  le premier exemple : un provider, une adresse, une machine, 34 et 43 lignes
+  de Terraform, `runtime: mode: off`. `examples/stacks/` ne bouge pas et garde
+  son rôle : c'est la stack de qualification qui a trouvé #249 et #250, et on
+  lui demandait d'être aussi une première lecture. La ligne d'apply est dérivée
+  de la configuration, et `tools/conformance/quickstart.sh` la sort du README
+  pour exiger que l'exécution l'imprime. La suite joue `feint up`, un second
+  plan vide et `feint down` sur les deux exemples, et le répertoire quickstart
+  rejoint la population que `feint docs --check` juge déjà : appliqué par la CI
+  ou déclaré avec sa raison, et épinglant le provider qui a répondu.
+
+- **Les blocs générés qui portent de la prose sont rendus par langue (#591).**
+  Le README français ouvrait sur un démarrage rapide en anglais, parce que le
+  générateur injectait le même bloc dans les deux pages au motif qu'une commande
+  ne se traduit pas. Vrai des commandes, et elles restent partagées avec la
+  version, l'image et le dépôt ; les phrases autour d'elles s'écrivent deux
+  fois.
+
 ### Corrigé
+
+- **Une seule exécution de `feint docs` qui changeait deux sections d'un README
+  n'en gardait qu'une.** La cible était écrite depuis une copie découpée en
+  début d'exécution, après les fonctions qui relisent le même fichier : elle
+  remettait leurs sections en place et annonçait un succès, et le seul symptôme
+  était un `docs --check` toujours rouge après une régénération qui venait de
+  dire `README.md updated`. Mesuré en ajoutant le bloc de promesse.
 
 - **Un serveur créé avec son IP publique ne garde plus une interface non
   filtrée à côté de sa filtrée (#548).** Créé *avec* un `ip_id`, un serveur

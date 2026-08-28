@@ -14,13 +14,35 @@ func provedPage(t *testing.T) string {
 	rendered, err := renderProved(
 		filepath.Join(root, conformanceWorkflow),
 		filepath.Join(root, conformanceRoot),
-		filepath.Join(root, stacksRoot),
-		filepath.Join(root, stacksScript),
+		repoSources(t),
 	)
 	if err != nil {
 		t.Fatalf("render the proved-against page: %v", err)
 	}
 	return rendered
+}
+
+// repoSources is the example roots as they stand, with absolute paths.
+func repoSources(t *testing.T) []exampleSource {
+	t.Helper()
+	_, _, sources := stackPaths(t)
+	return sources
+}
+
+// sourcesWithScript is the same list with one family's suite pointed at a copy,
+// which is how a test asks "what would the page say if CI stopped applying
+// this" without editing the repository.
+func sourcesWithScript(t *testing.T, ciRef, script string) []exampleSource {
+	t.Helper()
+	sources := repoSources(t)
+	for i := range sources {
+		if sources[i].CIRef == ciRef {
+			sources[i].Script = script
+			return sources
+		}
+	}
+	t.Fatalf("no example source runs %s", ciRef)
+	return nil
 }
 
 // rowContaining returns the single table row naming key, and fails when there
@@ -110,8 +132,7 @@ func TestEveryPinnedVersionIsInstalledByAStepThatUsesIt(t *testing.T) {
 	if err := os.WriteFile(copied, []byte(hardCoded), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	_, err = renderProved(copied, filepath.Join(root, conformanceRoot),
-		filepath.Join(root, stacksRoot), filepath.Join(root, stacksScript))
+	_, err = renderProved(copied, filepath.Join(root, conformanceRoot), repoSources(t))
 	if err == nil {
 		t.Fatal("the page renders a pinned version no step reads, so it would publish a number " +
 			"nothing installs")
@@ -142,8 +163,7 @@ func TestAPinnedVersionNoClientClaimsIsRefused(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = renderProved(copied, filepath.Join(root, conformanceRoot),
-		filepath.Join(root, stacksRoot), filepath.Join(root, stacksScript))
+	_, err = renderProved(copied, filepath.Join(root, conformanceRoot), repoSources(t))
 	if err == nil {
 		t.Fatal("a version CI pins is silently left off the page")
 	}
@@ -188,8 +208,7 @@ func TestAPinDeclaredInAFormTheReaderCannotSeeIsRefused(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = renderProved(copied, filepath.Join(root, conformanceRoot),
-		filepath.Join(root, stacksRoot), filepath.Join(root, stacksScript))
+	_, err = renderProved(copied, filepath.Join(root, conformanceRoot), repoSources(t))
 	if err == nil {
 		t.Fatal("a pin the reader cannot parse renders as \"not pinned\" instead of being refused")
 	}
@@ -232,7 +251,7 @@ func TestAFixtureNoSuiteAppliesIsNotAProof(t *testing.T) {
 		t.Fatal(err)
 	}
 	without, err := renderProved(filepath.Join(root, conformanceWorkflow),
-		filepath.Join(root, conformanceRoot), filepath.Join(root, stacksRoot), copied)
+		filepath.Join(root, conformanceRoot), sourcesWithScript(t, stacksScript, copied))
 	if err != nil {
 		t.Fatalf("render from the trimmed script: %v", err)
 	}
@@ -264,8 +283,7 @@ func TestAFixtureNoSuiteAppliesIsNotAProof(t *testing.T) {
 	if err := os.WriteFile(copiedFlow, []byte(unrun), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	page, err := renderProved(copiedFlow, filepath.Join(root, conformanceRoot),
-		filepath.Join(root, stacksRoot), filepath.Join(root, stacksScript))
+	page, err := renderProved(copiedFlow, filepath.Join(root, conformanceRoot), repoSources(t))
 	if err != nil {
 		t.Fatalf("render from the trimmed workflow: %v", err)
 	}

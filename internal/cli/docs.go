@@ -277,7 +277,7 @@ func docs(args []string, stdout, stderr io.Writer) int {
 	// workflow that installs the clients and every required_providers block the
 	// fixtures and stacks declare, so a release cannot claim a client version
 	// that nothing ran, nor a provider version that nothing pinned.
-	provedChanged, provedErr := spliceProved(*clientsPage, *workflow, conformanceRoot, stacksRoot, stacksScript)
+	provedChanged, provedErr := spliceProved(*clientsPage, *workflow, conformanceRoot, exampleSources())
 	if provedErr != nil {
 		fmt.Fprintf(stderr, "feint: %v\n", provedErr)
 		return exitError
@@ -290,6 +290,24 @@ func docs(args []string, stdout, stderr io.Writer) int {
 	environmentChanged, environmentErr := spliceEnvironment(filepath.Dir(*target))
 	if environmentErr != nil {
 		fmt.Fprintf(stderr, "feint: %v\n", environmentErr)
+		return exitError
+	}
+
+	// The README's promise, in both locales, derived from capabilityMatrix
+	// (#592). The sentence it replaced claimed Terraform on three packs while
+	// `feint up` refused one of them, and survived every green `docs:check`
+	// between #525 and the audit that read it — because it was prose, and prose
+	// is what the rest of this chain cannot own.
+	promiseChanged, promiseErr := splicePromise(filepath.Dir(*target))
+	if promiseErr != nil {
+		fmt.Fprintf(stderr, "feint: %v\n", promiseErr)
+		return exitError
+	}
+	// And the matrix itself, published beside the client versions it shares a
+	// source with.
+	capabilityChanged, capabilityErr := spliceCapability(*clientsPage)
+	if capabilityErr != nil {
+		fmt.Fprintf(stderr, "feint: %v\n", capabilityErr)
 		return exitError
 	}
 
@@ -321,13 +339,27 @@ func docs(args []string, stdout, stderr io.Writer) int {
 	// a stack CI applies without pinning the provider that answered, and a
 	// stack CI applies with nothing, declared nowhere. Neither is repaired by
 	// regenerating, which is why they belong here rather than in the render.
-	problems = append(problems, stackProofProblems(*workflow, conformanceRoot, stacksRoot, stacksScript)...)
+	problems = append(problems, stackProofProblems(*workflow, conformanceRoot, exampleSources())...)
 	// And the class #406 measured: a percentage about an evidence axis, typed
 	// into a page, that nothing ever compared to coverage/evidence.json. Three
 	// of them were wrong when somebody finally did, one by a factor of six.
 	// Regenerating repairs none of it — the sentence has to go — which is why it
 	// belongs here and not among the splices. See docs_axis_figures.go.
 	problems = append(problems, axisFigureProblems(filepath.Dir(*target))...)
+	// And the class #592 measured: a sentence claiming a client for a pack the
+	// doorstep refuses. Every row of capabilityMatrix is resolved against the
+	// instrument it names, and every generated block of the front pages is read
+	// back for a claim no row carries. Regenerating repairs neither — a row
+	// whose proof has gone is a decision, and a page claiming a refused pair
+	// has to stop claiming it.
+	problems = append(problems, capabilityProblems(*workflow)...)
+	// The half of it that reads the pages back runs here in --check mode, where
+	// the documents on disk are the artefact under judgement, and after the
+	// regeneration in write mode — see capabilityClaimProblems for why the
+	// order is not a detail.
+	if *check {
+		problems = append(problems, capabilityClaimProblems(*workflow, capabilityClaimPages(filepath.Dir(*target)))...)
+	}
 	if len(problems) > 0 {
 		for _, line := range problems {
 			fmt.Fprintf(stderr, "feint: %s\n", line)
@@ -399,6 +431,14 @@ func docs(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "feint: %s no longer matches the versions the suites pin; run `mise run docs:coverage`\n", *clientsPage)
 			return exitDrift
 		}
+		if promiseChanged {
+			fmt.Fprintf(stderr, "feint: the promise in the READMEs is behind the capability matrix; run `feint docs`\n")
+			return exitDrift
+		}
+		if capabilityChanged {
+			fmt.Fprintf(stderr, "feint: the capability matrix published in %s is behind the declared one; run `feint docs`\n", *clientsPage)
+			return exitDrift
+		}
 		// The screenshots of the page, on the same gate as every other generated
 		// document. A picture of a screen goes stale exactly like a table of
 		// numbers, and the only difference is that nobody notices for longer.
@@ -410,6 +450,24 @@ func docs(args []string, stdout, stderr io.Writer) int {
 		}
 		fmt.Fprintf(stdout, "%s is up to date\n", *target)
 		return exitOK
+	}
+	// The target is written here, before the helpers below that also write it.
+	// Every one of them re-reads the file and splices into what it finds, so a
+	// target written last would splice `updated` — a copy taken before any of
+	// them ran — over their work and revert it.
+	//
+	// Measured while adding the promise block (#592): a single run that changed
+	// the coverage tables and the quick start wrote the quick start and then
+	// put the old one back, and the only symptom was `docs --check` still red
+	// after a regeneration that reported success. Nothing had lied; the last
+	// writer won. TestARunThatChangesTwoSectionsOfTheREADMEKeepsBoth fails when
+	// this write moves back down.
+	targetChanged := updated != string(current)
+	if targetChanged {
+		if err := os.WriteFile(*target, []byte(updated), 0o644); err != nil { //nolint:gosec // a README is world-readable by design
+			fmt.Fprintf(stderr, "feint: %v\n", err)
+			return exitError
+		}
 	}
 	if safetyChanged {
 		if err := writeSplicedSafety(filepath.Dir(*target)); err != nil {
@@ -499,20 +557,43 @@ func docs(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "%s updated\n", *installDoc)
 	}
 	if provedChanged {
-		if err := writeSplicedProved(*clientsPage, *workflow, conformanceRoot, stacksRoot, stacksScript); err != nil {
+		if err := writeSplicedProved(*clientsPage, *workflow, conformanceRoot, exampleSources()); err != nil {
 			fmt.Fprintf(stderr, "feint: %v\n", err)
 			return exitError
 		}
 		fmt.Fprintf(stdout, "%s updated\n", *clientsPage)
 	}
+	// Second writer of the clients page, so it re-reads what the one above
+	// wrote rather than splicing into a copy that predates it.
+	if capabilityChanged {
+		if err := writeSplicedCapability(*clientsPage); err != nil {
+			fmt.Fprintf(stderr, "feint: %v\n", err)
+			return exitError
+		}
+		fmt.Fprintf(stdout, "the capability matrix in %s updated\n", *clientsPage)
+	}
+	if promiseChanged {
+		if err := writeSplicedPromise(filepath.Dir(*target)); err != nil {
+			fmt.Fprintf(stderr, "feint: %v\n", err)
+			return exitError
+		}
+		fmt.Fprintf(stdout, "the promise in the READMEs now matches the capability matrix\n")
+	}
 
-	if updated == string(current) {
+	// Read back what was just written. A regeneration repairs a stale block; it
+	// cannot repair a block whose content claims a client the doorstep refuses,
+	// and saying so afterwards is the only honest moment to say it.
+	if claims := capabilityClaimProblems(*workflow, capabilityClaimPages(filepath.Dir(*target))); len(claims) > 0 {
+		for _, line := range claims {
+			fmt.Fprintf(stderr, "feint: %s\n", line)
+		}
+		fmt.Fprintln(stderr, "feint: the pages were regenerated and still claim it; fix the claim itself")
+		return exitDrift
+	}
+
+	if !targetChanged {
 		fmt.Fprintf(stdout, "%s already up to date\n", *target)
 		return exitOK
-	}
-	if err := os.WriteFile(*target, []byte(updated), 0o644); err != nil { //nolint:gosec // a README is world-readable by design
-		fmt.Fprintf(stderr, "feint: %v\n", err)
-		return exitError
 	}
 	fmt.Fprintf(stdout, "%s updated\n", *target)
 	return exitOK

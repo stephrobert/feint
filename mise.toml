@@ -235,6 +235,20 @@ run = [
 description = "Apply the example stacks — realistic platform configurations, not fixtures"
 run = "tools/conformance/stacks.sh http://$FEINT_ADDR"
 
+[tasks."conformance:quickstart"]
+description = "Run the README's own four commands: `feint up` on examples/quickstart, an empty second plan, `feint down`"
+depends = ["build"]
+# On a port of its own, because this suite starts and stops emulators of its
+# own: it is `feint up` and `feint down` that are under test, and pointed at the
+# shared address its cleanup would stop the process every other suite is
+# measuring. Same reasoning as the environment suite, faults.sh and zones.sh.
+#
+# It exists because #593 asks for the thing that keeps a first example from
+# rotting. The qualification stacks have had a gate since the day they landed;
+# the example the most people copy had none, and it is the one whose breakage a
+# reader meets before anything else.
+run = "tools/conformance/quickstart.sh 127.0.0.1:4597"
+
 [tasks."conformance:environment"]
 description = "Prove `feint up` and `feint down` on a fixture declaration, with the real binary"
 depends = ["build"]
@@ -562,6 +576,11 @@ tools/conformance/outscale/terraform.sh "http://$FEINT_ADDR"
 # platform team writes Terraform rather than the way a fixture is written, and
 # they found two defects every other gate was blind to (#249, #250).
 tools/conformance/stacks.sh "http://$FEINT_ADDR"
+# And the other family of examples: the README's own four commands, on an
+# emulator and a port of their own because `feint up` and `feint down` are what
+# they drive. Small, so it costs seconds; gated, so the first thing a reader
+# copies cannot rot unnoticed (#593).
+tools/conformance/quickstart.sh 127.0.0.1:4597
 # The leg that is not here, named so its absence reads as the decision it is:
 # no Terraform for Exoscale until upstream #573 is fixed (#525 — five signed
 # requests left for api-ch-*.exoscale.com from a `feint down`). The exo legs

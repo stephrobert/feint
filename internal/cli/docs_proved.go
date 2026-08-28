@@ -59,7 +59,62 @@ const (
 	// is what decides which of them CI actually applies.
 	stacksRoot   = "examples/stacks"
 	stacksScript = "tools/conformance/stacks.sh"
+
+	// quickstartRoot holds the other kind of example, and the split is #593:
+	// examples/stacks/scaleway is 625 lines of two VPCs, ACLs, a bastion, a
+	// balancer and a golden image. It is an excellent qualification stack — it
+	// found #249 and #250, which every other gate was blind to — and a poor
+	// thing to read first, and it was being asked to be both. So the first
+	// success gets a directory of its own: a provider, an address, a server,
+	// short enough to read whole.
+	//
+	// It is held to the same terms as the qualification stacks rather than
+	// weaker ones, because "an example nobody runs is an example that rots" is
+	// the sentence stacks.sh opens with and a quickstart is the example most
+	// people run. Same population, same two refusals: applied by CI or declared
+	// with a reason, and pinning the provider that answered.
+	quickstartRoot   = "examples/quickstart"
+	quickstartScript = "tools/conformance/quickstart.sh"
+	// quickstartLead is the pack the README's first door lands in. One name,
+	// read by the generator and by nothing else, so the page cannot send a
+	// reader to a directory that moved.
+	quickstartLead = "scaleway"
 )
+
+// exampleSource is one directory of example configurations and the script that
+// applies them.
+//
+// Two of them since #593, and the plural is the point: every refusal in
+// docs_stacks.go walks this list, so the quickstart examples are judged by the
+// checks the qualification stacks are judged by rather than living one
+// directory away from them. Adding a root here is what wires a new family in;
+// forgetting to is what the second direction of undeclaredStacks catches.
+type exampleSource struct {
+	// Family is the repository-relative root, and it is the source's identity:
+	// what a declaration in stacksRunByHand names, what a refusal prints, and
+	// what keys the "is this applied" answer. Separate from Root for the reason
+	// CIRef is separate from Script — a test walks a copy, and a declaration
+	// about `examples/stacks/exoscale` must still be the declaration about it.
+	Family string
+	// Root is the directory to walk. A test may point it at a copy.
+	Root string
+	// Script is the suite whose `run_stack` lines are read. A test may point it
+	// at a copy too.
+	Script string
+	// CIRef is the repository-relative path the workflow has to name for the
+	// script to count as run in CI. Separate from Script for the reason
+	// stacksAppliedInCI already documented: a test renders from a copy
+	// elsewhere on disk, and looking the copy's own path up in the workflow
+	// would answer "CI does not run it" about every source.
+	CIRef string
+}
+
+func exampleSources() []exampleSource {
+	return []exampleSource{
+		{Family: stacksRoot, Root: stacksRoot, Script: stacksScript, CIRef: stacksScript},
+		{Family: quickstartRoot, Root: quickstartRoot, Script: quickstartScript, CIRef: quickstartScript},
+	}
+}
 
 // pinnedIn names the file every client version comes from. One string, so the
 // page cannot credit a pin to a file that does not hold it.
@@ -240,25 +295,33 @@ func providerPins(root string, driven func(dir string) bool) ([]providerPin, err
 // Both halves are read: the script that names them, and the workflow that runs
 // the script. A stack CI never applies proves nothing, whatever it pins, and
 // examples/stacks/exoscale is exactly that today.
-func stacksAppliedInCI(script, workflow string) (map[string]bool, error) {
-	body, err := os.ReadFile(script) //nolint:gosec // a path this repository owns
-	if err != nil {
-		return nil, err
-	}
+// The answer is keyed by directory, `examples/stacks/scaleway`, rather than by
+// bare name: two roots since #593, and `scaleway` names a stack under each of
+// them. A set of names would have credited the quickstart with the
+// qualification stack's run, which is the understated-proof half of the defect
+// the client matrix was filed for.
+func stacksAppliedInCI(sources []exampleSource, workflow string) (map[string]bool, error) {
 	flow, err := os.ReadFile(workflow) //nolint:gosec // a path this repository owns
 	if err != nil {
 		return nil, err
 	}
 	out := map[string]bool{}
-	// The workflow is searched for the repository-relative path a workflow can
-	// actually carry, not for the path this function was handed: a test renders
-	// from a copy elsewhere on disk, and comparing against that copy's own path
-	// would answer "CI does not run it" about every one of them.
-	if !strings.Contains(string(flow), stacksScript) {
-		return out, nil
-	}
-	for _, m := range runStack.FindAllStringSubmatch(string(body), -1) {
-		out[m[1]] = true
+	for _, source := range sources {
+		body, err := os.ReadFile(source.Script) //nolint:gosec // a path this repository owns
+		if err != nil {
+			return nil, err
+		}
+		// The workflow is searched for the repository-relative path a workflow
+		// can actually carry, not for the path this function was handed: a test
+		// renders from a copy elsewhere on disk, and comparing against that
+		// copy's own path would answer "CI does not run it" about every one of
+		// them.
+		if !strings.Contains(string(flow), source.CIRef) {
+			continue
+		}
+		for _, m := range runStack.FindAllStringSubmatch(string(body), -1) {
+			out[source.Family+"/"+m[1]] = true
+		}
 	}
 	return out, nil
 }
@@ -382,7 +445,7 @@ func unreadablePins(workflow string) ([]string, error) {
 }
 
 // renderProved builds the page.
-func renderProved(workflow, root, stacks, script string) (string, error) {
+func renderProved(workflow, root string, sources []exampleSource) (string, error) {
 	versions, err := pinnedVersions(workflow)
 	if err != nil {
 		return "", err
@@ -440,7 +503,7 @@ func renderProved(workflow, root, stacks, script string) (string, error) {
 				"nothing installs", workflow, strings.Join(unused, ", "))
 	}
 
-	pins, err := providerPinsOfRepository(workflow, root, stacks, script)
+	pins, err := providerPinsOfRepository(workflow, root, sources)
 	if err != nil {
 		return "", err
 	}
@@ -455,8 +518,8 @@ func renderProved(workflow, root, stacks, script string) (string, error) {
 // refusal in docs_stacks.go that will not let a directory be applied in CI
 // without saying which provider versions it accepts. Computing it twice would
 // be two chances for the page and the refusal to disagree about the same row.
-func providerPinsOfRepository(workflow, root, stacks, script string) ([]providerPin, error) {
-	appliedStacks, err := stacksAppliedInCI(script, workflow)
+func providerPinsOfRepository(workflow, root string, sources []exampleSource) ([]providerPin, error) {
+	appliedStacks, err := stacksAppliedInCI(sources, workflow)
 	if err != nil {
 		return nil, err
 	}
@@ -468,29 +531,37 @@ func providerPinsOfRepository(workflow, root, stacks, script string) ([]provider
 		if appliedFixtures[dir] {
 			return true
 		}
-		// The first segment under the stacks root, not the whole tail: a stack
-		// is applied with its `modules/` subtree copied beside it, so
+		// The first segment under the source's root, not the whole tail: a
+		// stack is applied with its `modules/` subtree copied beside it, so
 		// examples/stacks/outscale/modules/net is applied exactly when
 		// examples/stacks/outscale is. Comparing the whole tail said no, which
 		// would have understated a proof — the failure the client matrix was
 		// filed for, in its other direction.
-		rest := strings.TrimPrefix(dir, stacks+"/")
-		if rest == dir {
-			return false
+		for _, source := range sources {
+			rest := strings.TrimPrefix(dir, source.Root+"/")
+			if rest == dir {
+				continue
+			}
+			name, _, _ := strings.Cut(rest, "/")
+			if appliedStacks[source.Family+"/"+name] {
+				return true
+			}
 		}
-		name, _, _ := strings.Cut(rest, "/")
-		return appliedStacks[name]
+		return false
 	}
 
-	fixturePins, err := providerPins(root, driven)
+	pins, err := providerPins(root, driven)
 	if err != nil {
 		return nil, err
 	}
-	stackPins, err := providerPins(stacks, driven)
-	if err != nil {
-		return nil, err
+	for _, source := range sources {
+		more, err := providerPins(source.Root, driven)
+		if err != nil {
+			return nil, err
+		}
+		pins = append(pins, more...)
 	}
-	return append(fixturePins, stackPins...), nil
+	return pins, nil
 }
 
 // renderProved builds the page, continued.
@@ -550,7 +621,7 @@ func renderProvedTables(versions map[string]string, proofs map[string][]clientPr
 }
 
 // spliceProved reports whether the page is out of date, and leaves it alone.
-func spliceProved(path, workflow, root, stacks, script string) (bool, error) {
+func spliceProved(path, workflow, root string, sources []exampleSource) (bool, error) {
 	current, err := os.ReadFile(path) //nolint:gosec // a path this repository owns
 	if os.IsNotExist(err) {
 		return false, nil
@@ -561,7 +632,7 @@ func spliceProved(path, workflow, root, stacks, script string) (bool, error) {
 	if !strings.Contains(string(current), provedStartMarker) {
 		return false, nil
 	}
-	rendered, err := renderProved(workflow, root, stacks, script)
+	rendered, err := renderProved(workflow, root, sources)
 	if err != nil {
 		return false, err
 	}
@@ -572,12 +643,12 @@ func spliceProved(path, workflow, root, stacks, script string) (bool, error) {
 	return updated != string(current), nil
 }
 
-func writeSplicedProved(path, workflow, root, stacks, script string) error {
+func writeSplicedProved(path, workflow, root string, sources []exampleSource) error {
 	current, err := os.ReadFile(path) //nolint:gosec // same path as above
 	if err != nil {
 		return err
 	}
-	rendered, err := renderProved(workflow, root, stacks, script)
+	rendered, err := renderProved(workflow, root, sources)
 	if err != nil {
 		return err
 	}

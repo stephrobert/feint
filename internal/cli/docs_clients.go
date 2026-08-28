@@ -52,15 +52,23 @@ const (
 // It deliberately no longer says which provider the client proves: that is the
 // column this file exists to derive. A client the workflow drives and this list
 // does not name is an error in renderClients, not a silent omission.
+// It gained two columns with #592, and they belong here rather than beside the
+// capability matrix for the reason this repository states about every fact
+// expressed twice: `token` is the word prose uses for the client, and `engine`
+// is the `iac.engine` name when the client is one `feint up` runs. A second
+// list of client names next door would be a second thing to keep in step, and
+// capability.go asks this one instead.
 var clientSources = []struct {
 	name     string
 	variable string
+	token    string
+	engine   string
 }{
-	{"`scw`", "SCW_VERSION"},
-	{"Terraform", "TERRAFORM_VERSION"},
-	{"OpenTofu", "TOFU_VERSION"},
-	{"`octl`", "OCTL_VERSION"},
-	{"`exo`", "EXO_VERSION"},
+	{"`scw`", "SCW_VERSION", "scw", ""},
+	{"Terraform", "TERRAFORM_VERSION", "terraform", "terraform"},
+	{"OpenTofu", "TOFU_VERSION", "opentofu", "opentofu"},
+	{"`octl`", "OCTL_VERSION", "octl", ""},
+	{"`exo`", "EXO_VERSION", "exo", ""},
 }
 
 var (

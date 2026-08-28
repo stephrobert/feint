@@ -402,6 +402,19 @@ var rules = []rule{
 			"repository and a patched client is not the official one (#525)",
 	},
 	{
+		Path: "examples/quickstart/",
+		Why:  "the first example a reader copies, and the four commands the README prints",
+		Runs: []string{"conformance:quickstart"},
+		Unproven: "the suite drives `feint up` and `feint down` with no machine runtime, which is what " +
+			"thirty seconds means; a quickstart that booted a machine would need the runtime legs " +
+			"the qualification stacks have (#593)",
+		Cites: []claim{{
+			About: "the suite drives `feint up` and `feint down` with no machine runtime",
+			In:    "tools/conformance/quickstart.sh",
+			Shows: []string{"feint up", "feint down", "FEINT_VM` is deliberately not read"},
+		}},
+	},
+	{
 		Path:     "examples/",
 		Why:      "the example declarations and fixtures",
 		Runs:     []string{"conformance:environment"},
@@ -560,6 +573,18 @@ var rules = []rule{
 		Why:      "the stack gate's verdicts, held by functional_test.go against planted defects",
 		Runs:     []string{"FEINT_VM=incus-ovn mise run conformance:functional"},
 		Unproven: "the unit tests judge each verdict; only the gate judges them against machines that really boot",
+	},
+	{
+		Path: "tools/conformance/quickstart.sh",
+		Why:  "the gate on the four commands the README prints",
+		Runs: []string{"conformance:quickstart"},
+		Unproven: "it judges what a reader copies, never a machine that boots: the examples it applies " +
+			"declare `runtime: mode: off` and the suite never overrides it (#593)",
+		Cites: []claim{{
+			About: "the examples it applies declare `runtime: mode: off`",
+			In:    "examples/quickstart/scaleway/feint.yaml",
+			Shows: []string{"mode: off"},
+		}},
 	},
 	{
 		Path:     "tools/conformance/",

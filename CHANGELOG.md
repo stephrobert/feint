@@ -65,7 +65,56 @@ what this project is judged on: **a response shape a client can observe**, and
   is stated there too: a stack whose `project_name` is not `default` fails on
   the provider's own `FindExact`.
 
+- **A capability matrix owns every sentence that claims a client for a
+  provider, and `docs:check` reads the pages back (#592).** `README.md:41` said
+  *"Run your Terraform against Scaleway, Outscale or Exoscale"* while
+  `docs/confidence.md` said the opposite and `feint up` had been refusing
+  `iac.engine: terraform` for that pack since #525 landed on 2026-08-26. Every
+  doc gate stayed green throughout, and none of them was wrong: they compare
+  **values** an artefact also holds, and a claim about capability is not one.
+  The matrix (`internal/cli/capability.go`) is provider × client × mode ×
+  support × **proof** × reason, and the proof column is what makes it more than
+  a table: a `supported` row is resolved against the conformance workflow that
+  drives that pair, a `refused` row against the pack's own `VetoEngine` — the
+  code `up` and `down` consult — and both directions are checked, so a veto
+  nobody wrote down and a row nothing proves are equally refused. The README's
+  promise is generated from it in both languages, and every generated block of
+  the front pages is read back: a sentence naming a refused pair passes only if
+  it also names the upstream issue that would change it. Exit code 2, like the
+  rest of the chain.
+
+- **The Quick Start is four commands a reader can copy, on a stack short enough
+  to read whole (#593).** It taught the 0.10 sequence — `feint start`, `eval
+  "$(feint env scaleway)"`, `terraform apply` — with no directory, no `main.tf`
+  and no provider block, under an `Apply complete! Resources: 5 added` that was
+  not reachable from it. `examples/quickstart/scaleway` and
+  `examples/quickstart/outscale` are the first example now: a provider, an
+  address, one machine, 34 and 43 lines of Terraform, `runtime: mode: off`.
+  `examples/stacks/` is unchanged and keeps its job — it is the qualification
+  stack that found #249 and #250, and it was being asked to be a first read as
+  well. The apply line is derived from the configuration and
+  `tools/conformance/quickstart.sh` lifts it out of the README and requires the
+  run to print it, so the output shown is the output produced. The suite runs
+  `feint up`, an empty second plan and `feint down` on both examples, on the
+  terraform and opentofu legs, and the quickstart directory joins the population
+  `feint docs --check` already judges: applied by CI or declared with a reason,
+  and pinning the provider that answered.
+
+- **The generated blocks that carry prose are rendered per locale (#591).** The
+  French README opened with an English Quick Start — "On your machine", "In CI,
+  or anywhere Docker runs" — because the generator injected one block into both
+  pages on the rule that a command needs no translation. True of the commands,
+  and they are still shared along with the version, the image and the
+  repository; the sentences around them are written twice.
+
 ### Fixed
+
+- **A single `feint docs` run that changed two sections of a README kept only
+  one of them.** The target was written from a copy spliced at the top of the
+  run, after the helpers that re-read the same file and splice into what they
+  find — so it put their sections back and reported success, and the only
+  symptom was `docs --check` still red after a regeneration that had said
+  `README.md updated`. Measured while adding the promise block.
 
 - **A server created with its public IP no longer keeps an unfiltered
   interface beside its filtered one (#548).** Created *with* an `ip_id`, a

@@ -1,0 +1,96 @@
+{
+  "package": "./internal/cli/",
+  "mutations": [
+    {
+      "label": "the matrix stops asking the pack whether it vetoes the engine, so a row may promise Terraform on a pack `feint up` refuses before a process starts — #592, moved one storey down into the table",
+      "file": "internal/cli/capability.go",
+      "find": "\t\tif engine != \"\" && vetoes[row.Provider][engine] != \"\" {",
+      "replace": "\t\tif false && engine != \"\" && vetoes[row.Provider][engine] != \"\" {",
+      "test": "TestTheMatrixAndTheDoorstepCannotDisagree"
+    },
+    {
+      "label": "a veto no row carries stops being reported, so the refusal lives in up.go and no generated sentence can mention it",
+      "file": "internal/cli/capability.go",
+      "find": "\t\t\tif claimed[key] {\n\t\t\t\tcontinue\n\t\t\t}\n\t\t\tproblems = append(problems, fmt.Sprintf(\n\t\t\t\t\"the %s pack vetoes %s and capabilityMatrix has no row for it: the refusal exists in \"+",
+      "replace": "\t\t\tif claimed[key] || true {\n\t\t\t\tcontinue\n\t\t\t}\n\t\t\tproblems = append(problems, fmt.Sprintf(\n\t\t\t\t\"the %s pack vetoes %s and capabilityMatrix has no row for it: the refusal exists in \"+",
+      "test": "TestTheMatrixAndTheDoorstepCannotDisagree"
+    },
+    {
+      "label": "a supported row stops being checked against the workflow that is supposed to prove it, so `proof` becomes decoration",
+      "file": "internal/cli/capability.go",
+      "find": "\t\tif !drives[key] {",
+      "replace": "\t\tif !drives[key] && false {",
+      "test": "TestASupportedRowNamesAWorkflowThatDrivesIt"
+    },
+    {
+      "label": "a pair CI drives with no row at all passes, so a client this project really proves can be written down nowhere — the understated half of the same defect",
+      "file": "internal/cli/capability.go",
+      "find": "\tfor key := range drives {\n\t\tif claimed[key] {",
+      "replace": "\tfor key := range drives {\n\t\tif claimed[key] || true {",
+      "test": "TestASupportedRowNamesAWorkflowThatDrivesIt"
+    },
+    {
+      "label": "a refused row may name no reason and no marker, so \"refused\" stops being a decision and no sentence could name the pair at all",
+      "file": "internal/cli/capability.go",
+      "find": "\t\tcase capabilityRefused:\n\t\t\tif strings.TrimSpace(row.Reason) == \"\" {",
+      "replace": "\t\tcase capabilityRefused:\n\t\t\tif strings.TrimSpace(row.Reason) == \"\" && false {",
+      "test": "TestARefusedRowCarriesItsReasonAndItsMarker"
+    },
+    {
+      "label": "the mode column stops being read from the run it describes, so every row claims the control plane whatever the workflow arms",
+      "file": "internal/cli/capability.go",
+      "find": "\t\tif m[1] == \"off\" {",
+      "replace": "\t\tif m[1] == \"off\" || true {",
+      "test": "TestTheModeColumnIsReadFromTheRunItDescribes"
+    },
+    {
+      "label": "a claim naming a pair the matrix carries no row for at all passes, so an unowned capability claim becomes writable again — the class of README.md:41, in the half where nothing was ever declared",
+      "file": "internal/cli/capability_claims.go",
+      "find": "\t\t\t\tcase row == nil:",
+      "replace": "\t\t\t\tcase row == nil && false:",
+      "test": "TestTheClaimReaderRefusesEveryShapeOfTheClaim"
+    },
+    {
+      "label": "a sentence claiming a refused pair passes without naming what would change it, so the README can promise the one client the doorstep turns away",
+      "file": "internal/cli/capability_claims.go",
+      "find": "\t\t\t\tcase row.Support == capabilityRefused &&",
+      "replace": "\t\t\t\tcase false && row.Support == capabilityRefused &&",
+      "test": "TestTheClaimReaderRefusesEveryShapeOfTheClaim"
+    },
+    {
+      "label": "a list item stops being its own unit, so two bullets read as one paragraph and `scw` is claimed for the pack the next bullet names",
+      "file": "internal/cli/capability_claims.go",
+      "find": "\t\tif bulletStart.MatchString(trimmed) {",
+      "replace": "\t\tif bulletStart.MatchString(trimmed) && false {",
+      "test": "TestAUnitIsASentenceATableRowAListItemOrAWholeFence"
+    },
+    {
+      "label": "a table row stops being its own unit, so a table pairs every client it lists with every provider it lists",
+      "file": "internal/cli/capability_claims.go",
+      "find": "\t\tif strings.HasPrefix(trimmed, \"|\") {",
+      "replace": "\t\tif strings.HasPrefix(trimmed, \"|\") && false {",
+      "test": "TestAUnitIsASentenceATableRowAListItemOrAWholeFence"
+    },
+    {
+      "label": "the quickstart family leaves the population, so an example nobody applies is no longer a finding — the README rotting with no gate saying so",
+      "file": "internal/cli/docs_proved.go",
+      "find": "\t\t{Family: quickstartRoot, Root: quickstartRoot, Script: quickstartScript, CIRef: quickstartScript},",
+      "replace": "\t\t{Family: quickstartRoot, Root: quickstartRoot, Script: quickstartScript, CIRef: \"tools/conformance/nothing-runs-this.sh\"},",
+      "test": "TestAQuickstartCIDoesNotApplyIsRefusedToo"
+    },
+    {
+      "label": "a quick start whose resource blocks are not its objects is counted anyway, so the front page prints an apply line no run produces — #593's second finding, restored",
+      "file": "internal/cli/docs_quickstart.go",
+      "find": "\t\tif strings.HasPrefix(trimmed, \"count \") || strings.HasPrefix(trimmed, \"count=\") ||\n\t\t\tstrings.HasPrefix(trimmed, \"for_each \") || strings.HasPrefix(trimmed, \"for_each=\") {",
+      "replace": "\t\tif false && (strings.HasPrefix(trimmed, \"count \") || strings.HasPrefix(trimmed, \"count=\") ||\n\t\t\tstrings.HasPrefix(trimmed, \"for_each \") || strings.HasPrefix(trimmed, \"for_each=\")) {",
+      "test": "TestAQuickStartThatMultipliesItsResourcesIsRefusedRatherThanMiscounted"
+    },
+    {
+      "label": "the target is written last again, so a run that changes two sections of the README keeps one and reports success",
+      "file": "internal/cli/docs.go",
+      "find": "\ttargetChanged := updated != string(current)\n\tif targetChanged {",
+      "replace": "\ttargetChanged := updated != string(current)\n\tif targetChanged && false {",
+      "test": "TestARunThatChangesTwoSectionsOfTheREADMEKeepsBoth"
+    }
+  ]
+}

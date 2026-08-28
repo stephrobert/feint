@@ -1,0 +1,42 @@
+# The whole environment this example needs, declared once.
+#
+# `feint up` reads this file and does all of it: it checks the host, starts the
+# emulator, exports what the Outscale clients need, runs Terraform here, and
+# waits for the conditions below against the emulator's own API. `feint down`
+# takes it back down and stops the emulator.
+#
+# docs/environment.md is the field reference and says why each line is here.
+version: 1
+
+cloud:
+  provider: outscale
+
+emulator:
+  addr: 127.0.0.1:4599
+
+# Nothing here boots a machine, and that is the point of a first example: thirty
+# seconds means a control plane, an address, and a Vm the API describes. Real
+# machines are the ten-minute depth, and `examples/stacks/outscale` is the stack
+# written for it.
+runtime:
+  mode: off
+
+iac:
+  engine: terraform
+  directory: .
+  vars:
+    # main.tf declares `endpoint` with a default of 127.0.0.1:4599. Left to that
+    # default against an emulator on another port, Terraform blocks to its own
+    # ceiling and the message blames the provider. Written once, here.
+    endpoint: ${feint.endpoint}
+
+# Asserted against the emulator, never against Terraform's state file: the Vm
+# this example creates, and the public address linked to it.
+#
+# The Outscale API answers POST on /api/v1/<Action>, so the emulator's own
+# health is what an http condition can read here; the resource counts do the
+# rest, and they are read from the store rather than from the engine.
+ready:
+  - http:/_feint/health
+  - resource:vm:1
+  - resource:publicip:1

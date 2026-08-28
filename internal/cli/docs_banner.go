@@ -216,16 +216,22 @@ func renderSafety(facts safetyFacts, french bool) string {
 	return b.String()
 }
 
-// bannerPaths answers the documents carrying the banner and whether each is
-// French, sorted so two runs report the same order.
-func safetyPaths(root string) []struct {
+// frontPage is one of the two READMEs, and whether it is the translated one.
+//
+// One declaration for the three blocks that are now written per locale — the
+// safety banner, the promise (#592) and the quick start (#591's fourth finding)
+// — because "which pages are the front door, and which of them is French" is
+// one fact, and this repository has paid for expressing one fact twice often
+// enough.
+type frontPage struct {
 	Path   string
 	French bool
-} {
-	out := []struct {
-		Path   string
-		French bool
-	}{
+}
+
+// frontPages answers the documents carrying the per-locale blocks, sorted so
+// two runs report the same order.
+func frontPages(root string) []frontPage {
+	out := []frontPage{
 		{filepath.Join(root, "README.md"), false},
 		{filepath.Join(root, "README.fr.md"), true},
 	}
@@ -244,7 +250,7 @@ func spliceSafety(root string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	for _, doc := range safetyPaths(root) {
+	for _, doc := range frontPages(root) {
 		current, err := os.ReadFile(doc.Path) //nolint:gosec // a path this repository owns
 		if os.IsNotExist(err) {
 			continue
@@ -278,7 +284,7 @@ func writeSplicedSafety(root string) error {
 	if err != nil {
 		return err
 	}
-	for _, doc := range safetyPaths(root) {
+	for _, doc := range frontPages(root) {
 		current, err := os.ReadFile(doc.Path) //nolint:gosec // a path this repository owns
 		if os.IsNotExist(err) {
 			continue
@@ -310,7 +316,7 @@ func writeSplicedSafety(root string) error {
 // found.
 func safetyCarriers(root string) ([]string, error) {
 	var carriers []string
-	for _, doc := range safetyPaths(root) {
+	for _, doc := range frontPages(root) {
 		current, err := os.ReadFile(doc.Path) //nolint:gosec // a path this repository owns
 		if os.IsNotExist(err) {
 			continue

@@ -7,48 +7,89 @@ import (
 	"testing"
 )
 
-// stackPaths gives the four paths the stack checks read, rooted in the
-// repository.
-func stackPaths(t *testing.T) (workflow, root, stacks, script string) {
+// stackPaths gives the paths the stack checks read, rooted in the repository.
+//
+// The sources carry an absolute Root and Script — a test may hand either a copy
+// — and the repository-relative CIRef, because that is the string a workflow can
+// actually name.
+func stackPaths(t *testing.T) (workflow, root string, sources []exampleSource) {
 	t.Helper()
 	repo := repoRoot(t)
-	return filepath.Join(repo, conformanceWorkflow),
-		filepath.Join(repo, conformanceRoot),
-		filepath.Join(repo, stacksRoot),
-		filepath.Join(repo, stacksScript)
+	for _, source := range exampleSources() {
+		sources = append(sources, exampleSource{
+			Family: source.Family,
+			Root:   filepath.Join(repo, source.Root),
+			Script: filepath.Join(repo, source.Script),
+			CIRef:  source.CIRef,
+		})
+	}
+	return filepath.Join(repo, conformanceWorkflow), filepath.Join(repo, conformanceRoot), sources
+}
+
+// withRoot answers the source whose CIRef is the given repository-relative
+// script, so a test can name one family among the several.
+func withRoot(t *testing.T, sources []exampleSource, ciRef string) exampleSource {
+	t.Helper()
+	for _, source := range sources {
+		if source.CIRef == ciRef {
+			return source
+		}
+	}
+	t.Fatalf("no example source runs %s: this test is measuring a list it does not understand", ciRef)
+	return exampleSource{}
 }
 
 // The population both checks judge is not empty, and both halves of the
 // judgement run here.
 //
-// stackProofProblems answers nothing when examples/stacks is absent, because
+// stackProofProblems answers nothing when the example roots are absent, because
 // `feint docs` also regenerates the README of somebody who installed the binary
 // and has no such directory. That tolerance is exactly the shape of a check that
 // stops measuring when its subject moves, so the subject is asserted here rather
 // than assumed: this repository has stacks, CI applies some of them, and the
 // list of exceptions is smaller than the list of stacks.
 func TestTheStackChecksHaveASubjectToMeasure(t *testing.T) {
-	workflow, _, stacks, script := stackPaths(t)
+	workflow, _, sources := stackPaths(t)
 
-	dirs, err := stackDirs(stacks)
-	if err != nil {
-		t.Fatalf("list the stacks: %v", err)
+	total := 0
+	for _, source := range sources {
+		dirs, err := stackDirs(source.Root)
+		if err != nil {
+			t.Fatalf("list the examples under %s: %v", source.Root, err)
+		}
+		total += len(dirs)
 	}
-	if len(dirs) < 3 {
-		t.Fatalf("only %d stack(s) under %s: the listing is broken, not the stacks", len(dirs), stacksRoot)
+	if total < 4 {
+		t.Fatalf("only %d example director(ies) across %d roots: the listing is broken, not the "+
+			"examples", total, len(sources))
 	}
 
-	applied, err := stacksAppliedInCI(script, workflow)
+	applied, err := stacksAppliedInCI(sources, workflow)
 	if err != nil {
 		t.Fatalf("read which stacks CI applies: %v", err)
 	}
 	if len(applied) == 0 {
-		t.Fatal("no `run_stack` line is read from tools/conformance/stacks.sh: every stack would " +
+		t.Fatal("no `run_stack` line is read from any example suite: every stack would " +
 			"need a declaration, which is a check measuring its own reader")
 	}
-	if len(stacksRunByHand) >= len(dirs) {
-		t.Fatalf("%d of %d stacks are declared as run by hand: an exception list as long as the "+
-			"population is not an exception list", len(stacksRunByHand), len(dirs))
+	// Both families are really in the population. Adding the quickstart root and
+	// having nothing under it read would be the same check with a longer list.
+	for _, source := range sources {
+		found := false
+		for dir := range applied {
+			if strings.HasPrefix(dir, source.Family+"/") {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("%s is declared as an example root and CI applies nothing under it: the "+
+				"refusals below would judge a family nobody runs", source.Family)
+		}
+	}
+	if len(stacksRunByHand) >= total {
+		t.Fatalf("%d of %d examples are declared as run by hand: an exception list as long as the "+
+			"population is not an exception list", len(stacksRunByHand), total)
 	}
 }
 
@@ -60,13 +101,14 @@ func TestTheStackChecksHaveASubjectToMeasure(t *testing.T) {
 // tools/conformance/stacks.sh, and the generated table prints `no` for it as if
 // that were a decision.
 func TestAStackCIDoesNotApplyIsDeclaredWithAReason(t *testing.T) {
-	workflow, _, stacks, script := stackPaths(t)
+	workflow, _, sources := stackPaths(t)
 
-	if problems := undeclaredStacks(stacks, script, workflow); len(problems) != 0 {
+	if problems := undeclaredStacks(sources, workflow); len(problems) != 0 {
 		t.Fatalf("the repository does not satisfy its own rule:\n  %s", strings.Join(problems, "\n  "))
 	}
 
-	body, err := os.ReadFile(script)
+	stacks := withRoot(t, sources, stacksScript)
+	body, err := os.ReadFile(stacks.Script)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +123,13 @@ func TestAStackCIDoesNotApplyIsDeclaredWithAReason(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	problems := undeclaredStacks(stacks, copied, workflow)
+	loosened := append([]exampleSource{}, sources...)
+	for i := range loosened {
+		if loosened[i].CIRef == stacksScript {
+			loosened[i].Script = copied
+		}
+	}
+	problems := undeclaredStacks(loosened, workflow)
 	if len(problems) == 0 {
 		t.Fatal("a stack no `run_stack` line applies and nothing declares passed: the table " +
 			"would print `no` for it and read as a decision")
@@ -95,10 +143,52 @@ func TestAStackCIDoesNotApplyIsDeclaredWithAReason(t *testing.T) {
 	// applied because X" are different facts.
 	restore := stacksRunByHand
 	t.Cleanup(func() { stacksRunByHand = restore })
-	stacksRunByHand = []stackException{{Stack: "exoscale", Reason: "   "}}
-	problems = undeclaredStacks(stacks, script, workflow)
+	stacksRunByHand = []stackException{{Root: stacks.Family, Stack: "exoscale", Reason: "   "}}
+	problems = undeclaredStacks(sources, workflow)
 	if len(problems) == 0 {
 		t.Fatal("a declaration with an empty reason excused a stack anyway")
+	}
+}
+
+// The same rule reaches the quickstart family, which is the whole reason
+// exampleSources is a list (#593).
+//
+// A quickstart nobody applies is the README rotting, and it is the example most
+// readers run. The mutation is the one somebody will really make: a quickstart
+// directory added and never wired into its suite.
+func TestAQuickstartCIDoesNotApplyIsRefusedToo(t *testing.T) {
+	workflow, _, sources := stackPaths(t)
+	quickstart := withRoot(t, sources, quickstartScript)
+
+	body, err := os.ReadFile(quickstart.Script)
+	if err != nil {
+		t.Fatal(err)
+	}
+	trimmed := strings.Replace(string(body), "run_stack "+quickstartLead,
+		"true # run_stack "+quickstartLead, 1)
+	if trimmed == string(body) {
+		t.Fatalf("%s no longer applies the %s quickstart: either it was removed and a declaration "+
+			"must have appeared, or this test is measuring a file it does not understand",
+			quickstartScript, quickstartLead)
+	}
+	copied := filepath.Join(t.TempDir(), "quickstart.sh")
+	if err := os.WriteFile(copied, []byte(trimmed), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	loosened := append([]exampleSource{}, sources...)
+	for i := range loosened {
+		if loosened[i].CIRef == quickstartScript {
+			loosened[i].Script = copied
+		}
+	}
+	problems := undeclaredStacks(loosened, workflow)
+	if len(problems) == 0 {
+		t.Fatalf("the %s quickstart is applied by nothing and declared by nothing, and it passed: "+
+			"the first door of this project would rot with no gate saying so", quickstartLead)
+	}
+	if !strings.Contains(strings.Join(problems, "\n"), quickstartRoot+"/"+quickstartLead) {
+		t.Errorf("the refusal names neither the root nor the example:\n  %s",
+			strings.Join(problems, "\n  "))
 	}
 }
 
@@ -110,13 +200,14 @@ func TestAStackCIDoesNotApplyIsDeclaredWithAReason(t *testing.T) {
 // describes, which is the defect CLAUDE.md names as the most expensive one
 // measured on this repository.
 func TestADeclarationThatExcusesNothingIsStale(t *testing.T) {
-	workflow, _, stacks, script := stackPaths(t)
+	workflow, _, sources := stackPaths(t)
+	stacks := withRoot(t, sources, stacksScript)
 	restore := stacksRunByHand
 	t.Cleanup(func() { stacksRunByHand = restore })
 
 	stacksRunByHand = append(append([]stackException{}, restore...),
-		stackException{Stack: "kubernetes", Reason: "a stack that was never here"})
-	problems := undeclaredStacks(stacks, script, workflow)
+		stackException{Root: stacks.Family, Stack: "kubernetes", Reason: "a stack that was never here"})
+	problems := undeclaredStacks(sources, workflow)
 	if len(problems) == 0 || !strings.Contains(strings.Join(problems, "\n"), "kubernetes") {
 		t.Errorf("a declaration for a stack that does not exist was accepted:\n  %s",
 			strings.Join(problems, "\n  "))
@@ -125,10 +216,20 @@ func TestADeclarationThatExcusesNothingIsStale(t *testing.T) {
 	// The other direction, and the one that reads like evidence while being
 	// false: the stack is applied on every pull request and the list still says
 	// it is run by hand.
-	stacksRunByHand = []stackException{{Stack: "scaleway", Reason: "stale: CI applies it"}}
-	problems = undeclaredStacks(stacks, script, workflow)
+	stacksRunByHand = []stackException{{Root: stacks.Family, Stack: "scaleway", Reason: "stale: CI applies it"}}
+	problems = undeclaredStacks(sources, workflow)
 	if len(problems) == 0 || !strings.Contains(strings.Join(problems, "\n"), "scaleway") {
 		t.Errorf("a declaration survived CI starting to apply the stack it excuses:\n  %s",
+			strings.Join(problems, "\n  "))
+	}
+
+	// And the third way, which only exists because there are two roots: a
+	// declaration naming a family nothing walks. Keyed by name alone it would
+	// have silently excused the stack of the same name in the other root.
+	stacksRunByHand = []stackException{{Root: "examples/nowhere", Stack: "scaleway", Reason: "a root nothing reads"}}
+	problems = undeclaredStacks(sources, workflow)
+	if len(problems) == 0 || !strings.Contains(strings.Join(problems, "\n"), "examples/nowhere") {
+		t.Errorf("a declaration under a root no source names was accepted:\n  %s",
 			strings.Join(problems, "\n  "))
 	}
 }
@@ -143,9 +244,9 @@ func TestADeclarationThatExcusesNothingIsStale(t *testing.T) {
 // The constraint does not have to be exact — the page says plainly what a floor
 // is worth — it has to exist.
 func TestAStackAppliedInCIPinsTheProviderThatAnswered(t *testing.T) {
-	workflow, root, stacks, script := stackPaths(t)
+	workflow, root, sources := stackPaths(t)
 
-	pins, err := providerPinsOfRepository(workflow, root, stacks, script)
+	pins, err := providerPinsOfRepository(workflow, root, sources)
 	if err != nil {
 		t.Fatalf("read the provider constraints: %v", err)
 	}
@@ -166,6 +267,20 @@ func TestAStackAppliedInCIPinsTheProviderThatAnswered(t *testing.T) {
 	}
 	if problems := unconstrainedAppliedPins(pins); len(problems) != 0 {
 		t.Fatalf("a stack CI applies pins nothing:\n  %s", strings.Join(problems, "\n  "))
+	}
+
+	// The quickstart examples are in that population rather than beside it: the
+	// first thing a reader applies must pin the provider that answered as much
+	// as the qualification stack does.
+	quickstartPins := 0
+	for _, pin := range pins {
+		if strings.Contains(pin.Dir, quickstartRoot+"/") && pin.Driven {
+			quickstartPins++
+		}
+	}
+	if quickstartPins == 0 {
+		t.Errorf("no applied provider entry under %s: the quickstart is outside the population "+
+			"this check judges, which is the hole it exists to close", quickstartRoot)
 	}
 
 	// The refusing half, on the entry that really was like this until the
@@ -197,8 +312,8 @@ func TestAStackAppliedInCIPinsTheProviderThatAnswered(t *testing.T) {
 func TestThePageCarriesTheReasonAStackIsNotApplied(t *testing.T) {
 	rendered := provedPage(t)
 	for _, e := range stacksRunByHand {
-		if !strings.Contains(rendered, "`"+stacksRoot+"/"+e.Stack+"` —") {
-			t.Errorf("the page prints no reason for %s/%s:\n%s", stacksRoot, e.Stack, rendered)
+		if !strings.Contains(rendered, "`"+e.Root+"/"+e.Stack+"` —") {
+			t.Errorf("the page prints no reason for %s/%s:\n%s", e.Root, e.Stack, rendered)
 		}
 	}
 	// And the reason is the declared one rather than a second wording of it.

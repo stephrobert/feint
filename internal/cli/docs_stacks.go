@@ -51,7 +51,12 @@ import (
 // stackException is one example stack the conformance suite does not apply, and
 // why.
 type stackException struct {
-	// Stack is the directory name directly under examples/stacks.
+	// Root is the example family the stack belongs to, one of the roots
+	// exampleSources names. Written out since #593 put a second family beside
+	// the first: `scaleway` names a directory under each of them, and a
+	// declaration keyed by name alone would have excused both.
+	Root string
+	// Stack is the directory name directly under Root.
 	Stack string
 	// Reason says what stops CI applying it, and what is done instead. Empty is
 	// refused: "not run" and "not run because X, applied by hand on D" are
@@ -66,6 +71,7 @@ type stackException struct {
 // would be inconvenient.
 var stacksRunByHand = []stackException{
 	{
+		Root:  stacksRoot,
 		Stack: "exoscale",
 		Reason: "suspended — no Terraform for Exoscale until upstream " +
 			"exoscale/terraform-provider-exoscale#573 is fixed: the published provider honours " +
@@ -108,15 +114,21 @@ func stackDirs(root string) ([]string, error) {
 // because `feint docs` also regenerates a README outside it — see the note at
 // the top of this file, and TestTheStackChecksHaveASubjectToMeasure, which is
 // what keeps that from becoming a check nobody runs.
-func stackProofProblems(workflow, root, stacks, script string) []string {
-	if _, err := os.Stat(stacks); os.IsNotExist(err) {
+func stackProofProblems(workflow, root string, sources []exampleSource) []string {
+	present := sources[:0:0]
+	for _, source := range sources {
+		if _, err := os.Stat(source.Root); err == nil {
+			present = append(present, source)
+		}
+	}
+	if len(present) == 0 {
 		return nil
 	}
-	problems := undeclaredStacks(stacks, script, workflow)
-	pins, err := providerPinsOfRepository(workflow, root, stacks, script)
+	problems := undeclaredStacks(present, workflow)
+	pins, err := providerPinsOfRepository(workflow, root, present)
 	if err != nil {
 		return append(problems, fmt.Sprintf(
-			"cannot read the provider constraints under %s and %s: %v", root, stacks, err))
+			"cannot read the provider constraints under %s and the example roots: %v", root, err))
 	}
 	return append(problems, unconstrainedAppliedPins(pins)...)
 }
@@ -130,55 +142,72 @@ func stackProofProblems(workflow, root, stacks, script string) []string {
 //   - a stack CI does not apply and nobody declared;
 //   - a declaration naming a stack that does not exist;
 //   - a declaration for a stack CI does apply, or with no reason given.
-func undeclaredStacks(root, script, workflow string) []string {
-	stacks, err := stackDirs(root)
-	if err != nil {
-		return []string{err.Error()}
-	}
-	applied, err := stacksAppliedInCI(script, workflow)
+func undeclaredStacks(sources []exampleSource, workflow string) []string {
+	applied, err := stacksAppliedInCI(sources, workflow)
 	if err != nil {
 		return []string{fmt.Sprintf("cannot read which stacks CI applies: %v", err)}
 	}
 
+	// Keyed by directory rather than by name, because two roots hold a
+	// `scaleway`: a declaration excusing one of them must not excuse the other.
 	declared := map[string]string{}
+	scriptOf := map[string]string{}
 	var problems []string
 	for _, e := range stacksRunByHand {
+		key := e.Root + "/" + e.Stack
 		if strings.TrimSpace(e.Reason) == "" {
 			problems = append(problems, fmt.Sprintf(
-				"%s/%s is declared as run by hand with no reason: \"not applied\" and \"not applied "+
-					"because X\" are different facts, and only the second is a decision",
-				root, e.Stack))
+				"%s is declared as run by hand with no reason: \"not applied\" and \"not applied "+
+					"because X\" are different facts, and only the second is a decision", key))
 		}
-		declared[e.Stack] = e.Reason
+		declared[key] = e.Reason
 	}
 
 	existing := map[string]bool{}
-	for _, stack := range stacks {
-		existing[stack] = true
-		if applied[stack] {
+	for _, source := range sources {
+		scriptOf[source.Family] = source.CIRef
+		stacks, err := stackDirs(source.Root)
+		if err != nil {
+			problems = append(problems, err.Error())
 			continue
 		}
-		if _, ok := declared[stack]; !ok {
-			problems = append(problems, fmt.Sprintf(
-				"%s/%s is applied by no `run_stack` line in %s and stacksRunByHand in "+
-					"internal/cli/docs_stacks.go does not declare why: a stack nobody applies is not a "+
-					"proof, and the table would print `no` for it as if that were a decision",
-				root, stack, script))
+		for _, stack := range stacks {
+			key := source.Family + "/" + stack
+			existing[key] = true
+			if applied[key] {
+				continue
+			}
+			if _, ok := declared[key]; !ok {
+				problems = append(problems, fmt.Sprintf(
+					"%s is applied by no `run_stack` line in %s and stacksRunByHand in "+
+						"internal/cli/docs_stacks.go does not declare why: a stack nobody applies is not a "+
+						"proof, and the table would print `no` for it as if that were a decision",
+					key, source.CIRef))
+			}
 		}
 	}
 
 	for _, e := range stacksRunByHand {
-		if !existing[e.Stack] {
+		key := e.Root + "/" + e.Stack
+		// A declaration naming a root nothing walks excuses nothing either, and
+		// it is the shape a typo takes.
+		if _, walked := scriptOf[e.Root]; !walked {
 			problems = append(problems, fmt.Sprintf(
-				"stacksRunByHand declares %s/%s and no such stack exists: a declaration that "+
-					"excuses nothing is a reason nobody re-reads", root, e.Stack))
+				"stacksRunByHand declares %s and %s is not one of the example roots: a declaration "+
+					"nothing reads is a reason nobody re-reads", key, e.Root))
 			continue
 		}
-		if applied[e.Stack] {
+		if !existing[key] {
 			problems = append(problems, fmt.Sprintf(
-				"stacksRunByHand says %s/%s is run by hand and %s applies it: the reason is stale, "+
+				"stacksRunByHand declares %s and no such stack exists: a declaration that "+
+					"excuses nothing is a reason nobody re-reads", key))
+			continue
+		}
+		if applied[key] {
+			problems = append(problems, fmt.Sprintf(
+				"stacksRunByHand says %s is run by hand and %s applies it: the reason is stale, "+
 					"and it is the kind that survives for months because it reads like evidence",
-				root, e.Stack, script))
+				key, scriptOf[e.Root]))
 		}
 	}
 	sort.Strings(problems)
@@ -227,9 +256,14 @@ func renderStackExceptions() string {
 	b.WriteString("merely absent, so a `no` is a decision somebody wrote down and not a stack\n")
 	b.WriteString("nobody wired up:\n\n")
 	ordered := append([]stackException{}, stacksRunByHand...)
-	sort.Slice(ordered, func(i, j int) bool { return ordered[i].Stack < ordered[j].Stack })
+	sort.Slice(ordered, func(i, j int) bool {
+		if ordered[i].Root != ordered[j].Root {
+			return ordered[i].Root < ordered[j].Root
+		}
+		return ordered[i].Stack < ordered[j].Stack
+	})
 	for _, e := range ordered {
-		b.WriteString(wrapBullet(fmt.Sprintf("`%s/%s` — %s.", stacksRoot, e.Stack, e.Reason)))
+		b.WriteString(wrapBullet(fmt.Sprintf("`%s/%s` — %s.", e.Root, e.Stack, e.Reason)))
 	}
 	return b.String()
 }
@@ -237,26 +271,48 @@ func renderStackExceptions() string {
 // wrapBullet renders one list item wrapped the way the prose around it is, so a
 // declared reason does not land as a single 500-character line in a file every
 // other paragraph of which stops at the same column.
-func wrapBullet(text string) string {
+//
+// It never breaks inside an inline code span. Markdown renders `feint\nup` as
+// code either way, but a reader opening the file meets a command cut in half,
+// and every other paragraph in these documents keeps its commands whole. The
+// rule is the parity of the backticks seen so far: inside a span, the line runs
+// past the column rather than break.
+func wrapBullet(text string) string { return wrapAt(text, "- ", "  ") }
+
+// wrapParagraph is the same wrapping for prose that is not a list item, so a
+// generated sentence whose length depends on how many packs there are does not
+// land as one long line in a file every other paragraph of which stops at the
+// same column. A hand-placed newline in a format string cannot do this: the
+// names it separates are not a fixed width.
+func wrapParagraph(text string) string { return wrapAt(text, "", "") }
+
+// wrapAt wraps to the column these documents use, never breaking inside an
+// inline code span.
+func wrapAt(text, first, indent string) string {
 	const width = 76
 	var b strings.Builder
 	column := 0
-	prefix := "- "
+	prefix := first
+	inCode := false
 	for _, word := range strings.Fields(text) {
 		switch {
 		case column == 0:
 			b.WriteString(prefix)
 			b.WriteString(word)
 			column = len(prefix) + len(word)
-			prefix = "  "
-		case column+1+len(word) > width:
-			b.WriteString("\n  ")
+			prefix = indent
+		case !inCode && column+1+len(word) > width:
+			b.WriteString("\n")
+			b.WriteString(indent)
 			b.WriteString(word)
-			column = 2 + len(word)
+			column = len(indent) + len(word)
 		default:
 			b.WriteString(" ")
 			b.WriteString(word)
 			column += 1 + len(word)
+		}
+		if strings.Count(word, "`")%2 == 1 {
+			inCode = !inCode
 		}
 	}
 	b.WriteString("\n")
