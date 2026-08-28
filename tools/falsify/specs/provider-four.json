@@ -58,10 +58,10 @@
       "test": "TestTheFourthPacksSpreaderRecordsTheDeliveryAndNotTheIntent"
     },
     {
-      "label": "the fourth pack writes a segment address into the map the store still shares, outside the lock and outside the conditional write-back (#295, #517)",
+      "label": "the fourth pack writes a segment address into the map the store still shares, outside the lock and outside the conditional write-back (#295, #517). Planted at JoinSegment since #567: withAddress's own copy stopped being the thing that holds this, because addressesOf now decodes a map[string]any into a fresh map[string]string and the conversion IS the copy — mutating withAddress no longer reaches the store's map, and the replay reported STILL GREEN for a property that had simply moved",
       "file": "internal/cli/testdata/provider-four/intents.go",
-      "find": "\tout := make(map[string]string, len(addresses)+1)\n\tfor key, value := range addresses {\n\t\tout[key] = value\n\t}\n\tout[segmentID] = address\n\treturn out\n}",
-      "replace": "\tout := make(map[string]string, len(addresses)+1)\n\tfor key, value := range addresses {\n\t\tout[key] = value\n\t}\n\taddresses[segmentID] = address\n\treturn addresses\n}",
+      "find": "\tres.Attrs[\"segments\"] = stringsAttr(appendUnique(membershipsOf(res), segmentID))\n\tres.Attrs[\"addresses\"] = addressesAttr(withAddress(addressesOf(res), segmentID, address))",
+      "replace": "\tres.Attrs[\"segments\"] = stringsAttr(appendUnique(membershipsOf(res), segmentID))\n\tif shared, ok := res.Attrs[\"addresses\"].(map[string]any); ok {\n\t\tshared[segmentID] = address\n\t}\n\tres.Attrs[\"addresses\"] = addressesAttr(withAddress(addressesOf(res), segmentID, address))",
       "test": "TestTheFourthPacksNestedAttributesAreNeverWrittenThroughTheStore"
     },
     {

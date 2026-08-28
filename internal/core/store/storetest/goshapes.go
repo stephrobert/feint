@@ -38,6 +38,16 @@ import (
 // internal/cli's TestEveryPackRunsTheSharedBarrage is what makes a fourth pack
 // fail a control it never had to remember to write, which is the half of #567
 // that survives making the model pack correct.
+//
+// What it cannot see, stated rather than left to be discovered: it judges what
+// a barrage produced, so a write on a path no barrage drives is outside it —
+// Sweep's blind spot exactly, and this one has already been paid. The first
+// run of this control, on 2026-08-28, reported 82 Scaleway resources holding a
+// []string in Attrs["tags"] and said nothing about Exoscale, whose pools,
+// block volumes and load balancers stored a map[string]string on paths that
+// barrage does not reach. Those were found by reading the packs' sources for
+// the same gesture. A pack whose barrage grows inherits the coverage; one
+// whose barrage stays narrow inherits the silence.
 
 // jsonShape reports what a value is, in the vocabulary a JSON decoder answers
 // in, and whether that vocabulary contains it at all.
