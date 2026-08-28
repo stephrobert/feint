@@ -85,8 +85,8 @@ func TestARecorderReplaysTheLifecycleInCallOrder(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start: %v", err)
 	}
-	if m.IP != "10.230.0.7" {
-		t.Fatalf("the machine does not carry its attachment's address: %q", m.IP)
+	if len(m.Addresses) != 1 || m.Addresses[0] != "10.230.0.7" {
+		t.Fatalf("the machine does not carry its attachment's address: %v", m.Addresses)
 	}
 	if got, found, _ := r.Inspect(ctx, "feint-x-1"); !found || !got.Running {
 		t.Fatalf("a started machine inspects as %+v, found=%v", got, found)

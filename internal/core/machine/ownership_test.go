@@ -75,7 +75,7 @@ func TestAddressIgnoresAMachineNameTheEmulatorCouldNotHaveCreated(t *testing.T) 
 
 	// Read-only, but publishing another instance's address as the emulated
 	// server's is still wrong.
-	b.Address(context.Background(), "srv-1", "production-database")
+	b.Addresses(context.Background(), "srv-1", "production-database")
 
 	if mentions(f, "production-database") {
 		t.Fatalf("the driver inspected the operator's instance: %v", f.calls)

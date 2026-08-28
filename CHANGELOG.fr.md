@@ -19,6 +19,21 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Ajouté
 
+- **Un mot pour la forme que le vocabulaire ne savait pas décrire :
+  `capabilities.firewall_public_when_joined`, et `/_feint/health` passe au
+  schéma 7 (#548).** Un consommateur qui lisait `capabilities.firewall: true`,
+  `enforced.firewall` et `firewall_public_only: false` en concluait que le seul
+  cas non couvert était la machine sans réseau privé. C'était faux, et le
+  correctif ci-dessous est la raison d'être du champ : une machine qui rejoint
+  un réseau émulé se retrouve désormais avec son adresse publiée sur
+  l'interface qui porte ses jeux de règles, et c'est une affirmation
+  différente de celle que la version 5 avait ajoutée. Les deux sont vraies en
+  même temps et les deux sont nécessaires : l'ancien champ reste `false`, parce
+  qu'une machine dont la seule interface est routée n'a nulle part où déplacer
+  une adresse. Le nouveau parle du runtime et non de chaque pack : un pack qui
+  ne nomme aucun réseau émulé pour ses adresses publiques les garde sur une NIC
+  routée, ce que fait Exoscale à dessein.
+
 - **Les stacks d'exemple sont appliquées à de vraies machines chaque nuit, et
   la porte qui le fait dit combien de fois (#504).** `conformance:functional`
   est la seule chose ici qui applique `examples/stacks/` contre un runtime, et
@@ -37,6 +52,56 @@ change ni l'un ni l'autre a sa place dans `git log`.
   à 3 %, pour 295 s la passe.
 
 ### Corrigé
+
+- **Un serveur créé avec son IP publique ne garde plus une interface non
+  filtrée à côté de sa filtrée (#548).** Créé *avec* un `ip_id`, un serveur
+  Scaleway démarre en ne portant que cette adresse : le pilote lui donne donc
+  une NIC routée (#202), une interface sur laquelle Incus refuse toute option
+  de sécurité (#337). La NIC privée arrivait ensuite, prenait le jeu de règles,
+  et laissait l'adresse publiée sur l'interface nue. Mesuré le 2026-08-27 sur
+  `examples/stacks/scaleway`, puis reproduit depuis la seule API le 2026-08-28
+  dans **les deux** modes du pilote : un port que la politique `drop` du groupe
+  n'ouvre jamais répondait depuis la station, avec un écouteur prouvé à
+  l'intérieur de la machine et un port nu comme contrôle négatif.
+
+  L'adresse est déplacée désormais. `RouteAddress` la retire du device routé
+  sans retirer le device (les deux autres remèdes ont été essayés et refusés,
+  et `docs/limits.md` conserve les deux : l'uplink ne peut pas prendre le `/32`
+  tant que la NIC routée détient la route hôte, et retirer le device démasque
+  l'`eth0` du profil sur le pont de l'opérateur), puis la confie à l'interface
+  que le pack a nommée, celle qui porte les jeux de règles. Après le
+  déplacement, dans les deux modes : 443 ouvert parce qu'une règle l'ouvre, le
+  port qu'aucune règle ne nomme fermé alors que son écouteur tourne toujours,
+  et le port nu comme contrôle. Le device routé reste sur l'instance sans
+  adresse, et une NIC routée qui ne porte rien n'est plus signalée comme une
+  échappée.
+
+- **Ce sur quoi une machine répond se lit, ne se devine pas, et une machine
+  redémarrée retrouve son interface (#548).** `Inspect` répondait une adresse,
+  la première de l'interface au nom le plus bas, et la couche du dessus
+  décidait ensuite de quelle *espèce* elle était d'après le bloc public déclaré
+  par le pack. Les deux ne coïncidaient que tant qu'une NIC routée triait avant
+  une NIC managée, ce à quoi le déplacement ci-dessus met fin : après lui, le
+  runtime répond `{"eth0":[],"eth1":["10.199.0.2","203.0.113.2"]}`, et
+  l'ancienne lecture aurait publié l'adresse privée là où elle publiait la
+  publique, pour les trois packs d'un coup puisque `Binding` est la couche
+  partagée et que le pack Exoscale la lit. Le pilote rapporte toutes les
+  adresses qu'il a vues et ne tranche rien ; `Reconciler.PublicAddressOf` et
+  `PrivateAddressOf` choisissent dans cet ensemble d'après le bloc, qui est la
+  déclaration du pack. Rien ne change pour un client, et une entrée qu'un
+  snapshot restauré aurait posée là sans être une adresse est écartée au lieu
+  d'être publiée : seule la moitié publique passait jusqu'ici par un parseur.
+
+  La moitié « redémarrage » a été mesurée le même jour et devait être corrigée
+  pour que le déplacement survive à un reboot : une NIC attachée à une machine
+  qui tourne est configurée dans l'invité par le pilote, rien dans l'invité ne
+  s'en souvient au redémarrage, et la machine revenait sans aucune adresse sur
+  cette interface, l'attente de quatre-vingt-dix secondes du pilote abandonnant
+  sur un bail que personne n'offre, dans les deux modes. Tant que l'adresse
+  publiée voyageait sur sa propre NIC routée, cela ne coûtait que les routes
+  vers les sous-réseaux appairés (#549) ; dès qu'elle vit sur cette interface,
+  cela coûte l'adresse elle-même. Le chemin de démarrage restitue donc ce que
+  le device réserve avant d'attendre.
 
 - **Un arrêt propre rend toute la plomberie qu'aucun client ne peut supprimer,
   et l'exécution qui fuit est celle qui rougit (#521).** La jambe incus-ovn de

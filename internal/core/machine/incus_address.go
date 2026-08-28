@@ -46,39 +46,44 @@ func (d *Incus) RouteAddress(ctx context.Context, spec AddressSpec) error {
 		}
 		return d.routeOntoRoutedNIC(ctx, spec.Machine, device, spec.Address)
 	}
-	// The machine already answers on this address through a routed NIC, and
-	// there is nothing left to install: the launch put the address in the
-	// device's ipv4.address list and the runtime created the host route with
-	// the device.
+	// The machine answers on this address through a routed NIC, and the pack
+	// names a managed network for it: the address moves onto that interface
+	// (#548).
 	//
-	// Routing it a second time through the network the pack names is not a
-	// no-op, it is a collision. A Scaleway server is created before its private
-	// NIC exists, so its public address rides a routed NIC (#202); by the time
-	// the NIC is there, Plan.RouteVia names the private network, and the replay
-	// a poweron or a reboot runs sends the very same /32 at the OVN uplink —
-	// where the delegation meets the host route the routed NIC already owns.
-	// Measured on 2026-08-27, twice in one run, on a host that ended up
-	// perfectly correct:
+	// Why it must move. A routed NIC accepts no security option at all (#337),
+	// so a Scaleway server created *with* its flexible IP — created before its
+	// private NIC exists, hence a routed NIC (#202) — kept the published
+	// address on an interface no rule set could ever cover, beside a private
+	// NIC wearing the group. Measured 2026-08-27 and again 2026-08-28 in both
+	// driver modes: eth0 routed and bare carrying 203.0.113.2, eth1 on a
+	// managed network with security.acls, and a port the group's drop default
+	// never opened answering from the station.
 	//
-	//   ERROR could not route the public address to the machine address=203.0.113.4
-	//     error="set routes of uplink feint-uplink: incus network: Error: Failed
-	//     to add route {… Dst: 203.0.113.4/32 …}: file exists"
+	// Why this is where it happens. Until #548 this branch returned nil, and
+	// that was the right answer to a different question: routing the same /32
+	// at the OVN uplink while the routed NIC still owned the host route died
+	// on `Failed to add route {… Dst: 203.0.113.4/32 …}: file exists` — an
+	// ERROR over a perfectly correct host, twice in one run (#498). Releasing
+	// the address from the device first is what unblocks that same call, so
+	// the collision is resolved rather than avoided, and the replay stays
+	// idempotent: once migrated, no routed NIC carries the address and this
+	// branch is not taken again.
 	//
-	// An ERROR shouted over a correct host is exactly the noise that makes the
-	// next real one unreadable (#498). The replay is documented as idempotent;
-	// this is the door where it was not. The routed half already answered the
-	// same question for itself — routeOntoRoutedNIC returns nil for an address
-	// that rode the launch — and this is that answer, asked before the network
-	// the pack names decides which interface is edited.
+	// The device stays on the instance, and that is the whole trick: removing
+	// it unmasks the profile's own eth0 on incusbr0, the operator's default
+	// bridge, which this emulator must never put anything on (the second
+	// refused remedy in docs/limits.md).
 	//
-	// TestReRoutingAnAddressARoutedNICAlreadyCarriesTouchesNothing fails
-	// without this.
-	carried, err := d.routedNICCarries(ctx, spec.Machine, spec.Address)
+	// TestAPublicAddressMovesOntoTheFilteredNIC and its bridge-mode twin fail
+	// without this, and TestMigratingIsIdempotent holds the second call.
+	routed, err := d.routedNICCarrying(ctx, spec.Machine, spec.Address)
 	if err != nil {
 		return err
 	}
-	if carried {
-		return nil
+	if routed != "" {
+		if err := d.releaseFromRoutedNIC(ctx, spec.Machine, routed, spec.Address); err != nil {
+			return err
+		}
 	}
 	// OVN NICs take no live route edits, so the address travels as a network
 	// forward instead; see routeAddressOVN for the measurements behind it.
@@ -126,8 +131,8 @@ func addressAlreadyThere(err error) bool {
 		strings.Contains(said, "address already assigned")
 }
 
-// routedNICCarries reports whether one of the machine's own routed NICs already
-// delivers this address.
+// routedNICCarrying names the machine's own routed NIC that delivers this
+// address, empty when none does.
 //
 // ipv4.address and nothing else, because that is the key the launch writes and
 // the key the host route follows: routedDevice builds the device from the
@@ -139,20 +144,78 @@ func addressAlreadyThere(err error) bool {
 // Devices the instance owns, never the expanded set: a NIC inherited from a
 // profile belongs to the profile, and an address on it is not one this emulator
 // promised.
-func (d *Incus) routedNICCarries(ctx context.Context, machine, address string) (bool, error) {
+//
+// Sorted, so a machine with two routed NICs carrying one address — which
+// nothing produces today — names the same one on every read rather than
+// whichever the map handed over.
+func (d *Incus) routedNICCarrying(ctx context.Context, machine, address string) (string, error) {
 	devices, err := d.instanceDevices(ctx, machine)
 	if err != nil {
-		return false, fmt.Errorf("inspect %s: %w", machine, err)
+		return "", fmt.Errorf("inspect %s: %w", machine, err)
 	}
-	for _, cfg := range devices.own {
+	names := make([]string, 0, len(devices.own))
+	for name := range devices.own {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	for _, name := range names {
+		cfg := devices.own[name]
 		if cfg["type"] != "nic" || cfg["nictype"] != "routed" {
 			continue
 		}
 		if routeListContains(cfg["ipv4.address"], address) {
-			return true, nil
+			return name, nil
 		}
 	}
-	return false, nil
+	return "", nil
+}
+
+// releaseFromRoutedNIC takes one address off a routed NIC without taking the
+// NIC off the instance — step one of the migration RouteAddress performs, and
+// the only one of three attempted remedies that Incus 7.2 accepts on a running
+// instance (docs/limits.md carries the two refusals).
+//
+// What it costs and what it restores. Setting ipv4.address on a live routed
+// NIC re-plugs the device, exactly as an ipv4.routes edit does, so the guest
+// interface comes back down and bare; repairRoutedInterface puts back what the
+// device still declares, which is every address but the one being moved. The
+// explicit delete afterwards covers the case where the edit did *not* re-plug
+// — a stopped machine, a runtime that updates in place — because an address
+// left inside the guest on an interface the host no longer routes is a machine
+// answering ARP for something nothing delivers.
+//
+// Ownership before shape, and this call is why: safeName has said the name
+// could be a command argument, never that the instance is ours, and this
+// reconfigures an instance's devices from a name a restored snapshot controls.
+// RouteAddress's routed branch asks the same question for the same reason; the
+// managed branch below asks it of the network instead, which says nothing
+// about the instance whose device this edits.
+// TestMigrationRefusesAnInstanceTheEmulatorDidNotCreate fails without it.
+func (d *Incus) releaseFromRoutedNIC(ctx context.Context, machine, device, address string) error {
+	if err := d.mustOwnInstance(ctx, machine); err != nil {
+		return err
+	}
+	devices, err := d.instanceDevices(ctx, machine)
+	if err != nil {
+		return fmt.Errorf("inspect %s: %w", machine, err)
+	}
+	kept := make([]string, 0, 2)
+	for _, entry := range splitList(devices.own[device]["ipv4.address"]) {
+		if entry != address {
+			kept = append(kept, entry)
+		}
+	}
+	if _, err := d.run(ctx, "config", "device", "set", machine, device,
+		"ipv4.address="+strings.Join(kept, ",")); err != nil {
+		return fmt.Errorf("release %s from %s/%s: %w", address, machine, device, err)
+	}
+	if err := d.repairRoutedInterface(ctx, machine, device); err != nil {
+		return err
+	}
+	// Tolerant on purpose: the re-plug usually took it, a stopped machine
+	// holds no live address, and "cannot find" is the outcome asked for.
+	_, _ = d.run(ctx, "exec", machine, "--", "ip", "address", "del", address+"/32", "dev", device)
+	return nil
 }
 
 // mustOwn refuses to touch a network the emulator did not create. The label is

@@ -253,6 +253,19 @@ live_probe() { # machine address port
 	return 1
 }
 
+# station_probe is live_probe's shape from where the operator stands: same three
+# outcomes, same rule that the verdict is the exit code and never the text — a
+# connection the firewall drops is killed by `timeout` without a word, and its
+# output is exactly a successful one's.
+#
+# The console is not used, and the argument stays so this and live_probe are
+# interchangeable wherever a probe is passed by name (fnl_firewall_pair).
+station_probe() { # console address port
+	command -v timeout >/dev/null 2>&1 || return 2
+	timeout 6 bash -c "exec 3<>/dev/tcp/$2/$3" >/dev/null 2>&1 && return 0
+	return 1
+}
+
 # live_fetch prints the body one machine gets from another, or nothing.
 live_fetch() { # machine address port
 	incus exec "$1" -- timeout 6 python3 -c \
@@ -655,9 +668,18 @@ run_stack() { # name
 		unit="$(printf '%s' "$service" | jq -r '.unit')"
 		restart="$(printf '%s' "$service" | jq -r '.restart // ""')"
 		echo "- $name: the declared service listens inside, and answers over the published address"
-		if [ "$(printf '%s' "$health" | jq -r '.capabilities.firewall_public_only // false')" != "true" ]; then
-			skip "$name: this runtime declares capabilities.firewall_public_only false (#337), so an address published on a routed NIC carries no rule set (#548). The station leg below therefore proves the service is reachable and asserts nothing about the firewall; the firewall pair runs on the emulated network."
-		fi
+		# The public half of the firewall used to be skipped here, naming
+		# capabilities.firewall_public_only and #548 together. Both halves of
+		# that citation stopped being true at once: the driver moves a public
+		# address onto the filtered NIC when the machine joins an emulated
+		# network, so the group covers it, and the runtime declares that as
+		# capabilities.firewall_public_when_joined. What is asserted below is
+		# what the skip described as missing — the same pair as the firewall
+		# family, on the published address, from the station.
+		local closed
+		closed="$(printf '%s' "$service" | jq -c 'if has("closed_port") then .closed_port else "MISSING" end')"
+		[ "$closed" != '"MISSING"' ] \
+			|| fail "$name: the service family declares no closed_port; the public path needs a port the machines listen on and no rule opens, or the reason there is none"
 		for target in $(printf '%s' "$service" | jq -r '.machines[]'); do
 			need_machine "$target"
 			smachine="$MACHINE"
@@ -671,6 +693,25 @@ run_stack() { # name
 			fi
 			body="$(station_fetch "$address" "$port")"
 			fnl_service_answers "$name" "$target" "$smachine" "$address" "$port" "$body"
+
+			# The public pair, on the address a client dials (#548). The open
+			# half is the service port a rule opens, the closed half is a port
+			# the same machine is listening on that no rule names, and
+			# fnl_firewall_pair proves both listeners from inside before it
+			# reads either verdict — so a refusal cannot be a dead service.
+			reason="$(skip_reason "$closed")"
+			if [ -n "$reason" ]; then
+				skip "$name service.closed_port: $reason"
+			elif [ "$(printf '%s' "$health" | jq -r '.capabilities.firewall // false')" != "true" ]; then
+				skip "$name: this runtime does not declare capabilities.firewall; nothing was promised on the public path either"
+			elif [ "$(printf '%s' "$health" | jq -r '.capabilities.firewall_public_when_joined // false')" != "true" ]; then
+				skip "$name: this runtime does not declare capabilities.firewall_public_when_joined, so a published address may still live on a NIC no rule set can reach (#337, #548) — asserting a closure nobody promised is what this gate exists to avoid"
+			elif ! printf '%s' "$health" | witness_enforced "$provider" firewall; then
+				skip "$name: $provider does not declare enforced.firewall — a property it never promised is not demanded of it (#481)"
+			else
+				fnl_firewall_pair "$name (public path)" "the station" "" "$target" "$address" \
+					"$port" "$(printf '%s' "$closed" | jq -r '.')" "$LISTEN" station_probe
+			fi
 		done
 		# Handed to the end of the run rather than asserted here: see
 		# assert_restart above for why the order is a measurement (#549).

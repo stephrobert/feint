@@ -718,7 +718,7 @@ func (f *countingRuntime) Inspect(_ context.Context, n string) (machine.Machine,
 	if f.counts[n] > 0 {
 		// With an address, the way a real runtime answers once the machine is
 		// up. Without one, TestAStoppedVmKeepsItsPrivateAddress skipped itself.
-		return machine.Machine{Name: n, Running: true, IP: "10.99.0.7"}, true, nil
+		return machine.Machine{Name: n, Running: true, Addresses: []string{"10.99.0.7"}}, true, nil
 	}
 	return machine.Machine{}, false, nil
 }

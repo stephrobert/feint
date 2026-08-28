@@ -38,7 +38,7 @@ func (r *routedRuntime) Start(_ context.Context, spec machine.Spec) (machine.Mac
 	defer r.mu.Unlock()
 	r.specs = append(r.specs, spec)
 	r.machines[spec.Name] = true
-	return machine.Machine{Name: spec.Name, IP: "10.209.84.9", Running: true}, nil
+	return machine.Machine{Name: spec.Name, Addresses: []string{"10.209.84.9"}, Running: true}, nil
 }
 
 func (r *routedRuntime) Stop(_ context.Context, n string) error {
@@ -62,7 +62,7 @@ func (r *routedRuntime) Inspect(_ context.Context, n string) (machine.Machine, b
 	if !found {
 		return machine.Machine{}, false, nil
 	}
-	return machine.Machine{Name: n, IP: "10.209.84.9", Running: running}, true, nil
+	return machine.Machine{Name: n, Addresses: []string{"10.209.84.9"}, Running: running}, true, nil
 }
 
 func (r *routedRuntime) EnsureNetwork(context.Context, machine.NetworkSpec) error { return nil }

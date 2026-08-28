@@ -17,6 +17,20 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Added
 
+- **A word for the shape the vocabulary could not describe:
+  `capabilities.firewall_public_when_joined`, and `/_feint/health` moves to
+  schema 7 (#548).** A consumer holding `capabilities.firewall: true`,
+  `enforced.firewall` and `firewall_public_only: false` concluded that the one
+  uncovered case was the machine with no private network. It was not, and the
+  fix below is why the field exists: a machine that *does* join an emulated
+  network now ends up with its published address on the interface that wears
+  its rule sets, and that is a different claim from the one version 5 added.
+  Both are true at once, and both are needed: the older field is still `false`,
+  because a machine whose only interface is routed has nowhere to move an
+  address to. The new one is a claim about the runtime and not about every
+  pack — a pack that names no emulated network for its public addresses keeps
+  them on a routed NIC, which Exoscale does on purpose.
+
 - **The example stacks are applied to real machines every night, and the gate
   that does it says how many times (#504).** `conformance:functional` is the
   only thing here that applies `examples/stacks/` against a runtime, and
@@ -52,6 +66,54 @@ what this project is judged on: **a response shape a client can observe**, and
   the provider's own `FindExact`.
 
 ### Fixed
+
+- **A server created with its public IP no longer keeps an unfiltered
+  interface beside its filtered one (#548).** Created *with* an `ip_id`, a
+  Scaleway server boots carrying only that address, so the driver gives it a
+  routed NIC (#202) — an interface Incus accepts no security option on at all
+  (#337). The private NIC arrived afterwards, took the rule set, and left the
+  published address on the bare one: measured 2026-08-27 on
+  `examples/stacks/scaleway` and reproduced from the API alone on 2026-08-28 in
+  **both** driver modes, a port the group's `drop` default never opened
+  answered from the station, with a listener proved inside the machine and a
+  bare port as the negative control.
+
+  The address moves now. `RouteAddress` releases it from the routed device
+  without removing the device — the two other remedies were tried and refused,
+  and `docs/limits.md` keeps both: the uplink cannot take the `/32` while the
+  routed NIC owns the host route, and removing the device unmasks the
+  profile's `eth0` on the operator's own bridge — then hands it to the
+  interface the pack named, which wears the rule sets. After it, in both modes:
+  443 open because a rule opens it, the port no rule names closed with its
+  listener still running, and the bare port as the control. The routed device
+  stays on the instance with no address, and a routed NIC that carries nothing
+  is no longer reported as an escape.
+
+- **What a machine answers on is read, not guessed, and a restarted machine
+  gets its interface back (#548).** `Inspect` used to answer one address — the
+  first of the lowest-named interface — and the layer above then decided what
+  *kind* of address that was from the pack's declared public block. The two
+  agreed only while a routed NIC sorted before a managed one, which is exactly
+  what the move above ends: after it the runtime answers
+  `{"eth0":[],"eth1":["10.199.0.2","203.0.113.2"]}`, and the old reading would
+  have published the private address where it published the public one — for
+  three packs at once, since `Binding` is the shared layer and the Exoscale
+  pack reads it. The driver reports every address it saw and settles nothing;
+  `Reconciler.PublicAddressOf` and `PrivateAddressOf` pick out of that set by
+  the block, which is the pack's own declaration. Nothing a client sees
+  changes, and an entry a restored snapshot put there that is not an address is
+  now dropped rather than published — only the public half ever went through a
+  parser.
+
+  The restart half was measured the same day and had to be fixed for the move
+  to survive one: a NIC attached to a running machine is configured inside the
+  guest by the driver, nothing in the guest remembers that across a reboot, and
+  the machine came back with no address on that interface at all — the driver's
+  own ninety-second wait giving up on a lease nobody offers, in both modes.
+  While the published address rode a routed NIC of its own that cost only the
+  routes to the peered subnets (#549); once it lives on that interface it costs
+  the address itself. The start path restores what the device reserves before
+  it waits.
 
 - **A graceful exit gives back every piece of host plumbing no client can
   delete, and a run that leaks is the run that goes red (#521).** The incus-ovn

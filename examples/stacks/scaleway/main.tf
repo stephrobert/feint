@@ -399,6 +399,13 @@ resource "scaleway_instance_server" "web" {
   # the emulator recorded in `Runtime.machine`: an answer therefore says which
   # machine served it, which is what a balancer assertion needs and what a
   # fixed string cannot give.
+  # The second listener is the app tier's pair, moved onto the public path
+  # (#548): 443 is the port this tier's own group opens, 9090 is a metrics port
+  # no rule of `scaleway_instance_security_group.web` names. Both on the
+  # machine that carries a flexible IP, so the closed half can be probed on the
+  # address a client actually dials — which is the half tools/conformance/
+  # functional.sh skipped for as long as that address lived on a routed NIC
+  # nothing could filter.
   cloud_init = <<-EOT
     #cloud-config
     write_files:
@@ -413,11 +420,23 @@ resource "scaleway_instance_server" "web" {
           Restart=always
           [Install]
           WantedBy=multi-user.target
+      - path: /etc/systemd/system/platform-web-metrics.service
+        content: |
+          [Unit]
+          Description=platform web metrics, private to the tier
+          After=network-online.target
+          [Service]
+          WorkingDirectory=/var/www/html
+          ExecStart=/usr/bin/python3 -m http.server 9090
+          Restart=always
+          [Install]
+          WantedBy=multi-user.target
     runcmd:
       - [mkdir, -p, /var/www/html]
       - [sh, -c, "hostname > /var/www/html/index.html"]
       - [systemctl, daemon-reload]
       - [systemctl, enable, --now, platform-web.service]
+      - [systemctl, enable, --now, platform-web-metrics.service]
   EOT
 }
 

@@ -719,17 +719,17 @@ var mustStayOutside = []string{
 	// the surface on purpose: the plan's order — addresses, memberships,
 	// firewall last — is a property of the runtime, and a pack that starts a
 	// machine through the binding skips it.
-	"Binding.Start", "Binding.Stop", "Binding.Remove", "Binding.Address",
+	"Binding.Start", "Binding.Stop", "Binding.Remove", "Binding.Addresses",
 	"Binding.Name", "Binding.PowerOn", "Binding.Refresh", "Binding.ForgetPlacements",
-	// The unkinded address reader (#541). It was in the surface until an
-	// Exoscale instance with no public IP published its private-network
-	// address as `public-ip`: the binding records whatever the runtime
-	// answered and says nothing about what kind of address it is, so every
-	// pack republishing it under a field whose name asserts one was asserting
-	// what nobody had checked. Reconciler.PublicAddressOf and
+	// The unkinded address reader (#541, plural since #548). It was in the
+	// surface until an Exoscale instance with no public IP published its
+	// private-network address as `public-ip`: the binding records whatever
+	// the runtime answered and says nothing about what kind of address it is,
+	// so every pack republishing it under a field whose name asserts one was
+	// asserting what nobody had checked. Reconciler.PublicAddressOf and
 	// PrivateAddressOf are the doors, and this line is what stops the old one
 	// from being quietly reopened.
-	"Binding.AddressOf",
+	"Binding.AddressesOf",
 	"Binding.RouteAddress", "Binding.UnrouteAddress",
 	"Binding.SyncRuleSet", "Binding.ApplyRuleSets", "Binding.DropRuleSet",
 	"Binding.WithRuntime",

@@ -1006,8 +1006,9 @@ const (
 	guestRouteWait = 90 * time.Second
 )
 
-// restoreGuestRoutes puts back, inside a machine that has just been started
-// again, the routes towards the peered subnets that a boot does not restore.
+// restoreGuestNetwork puts back, inside a machine that has just been started
+// again, what a boot does not restore: the address its NIC device reserves,
+// and the routes towards the peered subnets.
 //
 // The measurement is #549, and it is the exact shape of "a machine the control
 // plane describes correctly and that does not work". A Scaleway server was
@@ -1027,14 +1028,19 @@ const (
 // would restore the wrong thing — or nothing, which is what a Scaleway server
 // whose NICs ride the launch would have got.
 //
-// TestARestartedMachineGetsItsPeeredRoutesBack fails without this.
-func (d *Incus) restoreGuestRoutes(ctx context.Context, machine string) error {
-	if !d.OVN {
-		// The aggregates exist because an OVN network's peers are only
-		// reachable through its router. A managed bridge has no router of its
-		// own and no peerings, so there is nothing here to put back.
-		return nil
-	}
+// The two halves differ by mode and the difference is the modes' own: the
+// address is owed back under a bridge exactly as under OVN — measured
+// 2026-08-28, a bridge-mode machine came back with 203.0.113.2 on two
+// interfaces and no address on its own subnet, and its published address
+// stopped answering — while the aggregates exist only because an OVN
+// network's peers are reachable through its router alone. A managed bridge
+// has no router of its own and no peerings, so there is nothing of that kind
+// to put back there.
+//
+// TestARestartedMachineGetsItsPeeredRoutesBack and
+// TestARestartedMachineGetsItsPinnedAddressBack fail without this, the second
+// in both modes.
+func (d *Incus) restoreGuestNetwork(ctx context.Context, machine string) error {
 	devices, err := d.instanceDevices(ctx, machine)
 	if err != nil {
 		return fmt.Errorf("inspect %s to restore its routes: %w", machine, err)
@@ -1059,16 +1065,66 @@ func (d *Incus) restoreGuestRoutes(ctx context.Context, machine string) error {
 	}
 	slices.Sort(names)
 	for _, device := range names {
+		// The address first, when the device pins one (#548). A NIC attached
+		// to a running machine is configured inside the guest by this driver,
+		// never by DHCP — the address is reserved on the device — and nothing
+		// inside the guest remembers it across a boot. Measured 2026-08-28
+		// under `--vm incus-ovn` on a Scaleway server whose private NIC
+		// arrived hot: after a reboot the guest carried nothing on eth1, this
+		// function's wait ran its full ninety seconds and gave up, and the
+		// machine came back with neither its private address nor the routes
+		// below.
+		//
+		// That was survivable while the public address rode a routed NIC of
+		// its own; it stops being survivable the moment the address lives on
+		// this interface, because the reply to a station that dialled it is
+		// routed by the aggregates the failed wait never laid. So the restart
+		// path restores what it reserved instead of waiting for a lease
+		// nobody offers.
+		// TestARestartedMachineGetsItsPinnedAddressBack fails without this.
+		if err := d.restorePinnedAddress(ctx, machine, device, devices.own[device]); err != nil {
+			return err
+		}
+		if !d.OVN {
+			continue
+		}
 		// The wait is the ordering, not politeness: `ip route add … via <gw>
 		// dev ethN` is refused while the interface carries no address of that
 		// subnet, and a route laid before DHCP finished is a route DHCP
-		// replaces.
+		// replaces. It still runs for a device that pins nothing, which is the
+		// DHCP case it was written for.
 		if err := d.waitForGuestInterface(ctx, machine, device); err != nil {
 			return err
 		}
 		if err := d.installGuestPrivateRoutes(ctx, machine, devices.own[device]["network"], device); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// restorePinnedAddress gives the guest back the address its NIC device
+// reserves, when the device reserves one. A device that pins nothing is left
+// to DHCP, which is what the wait beside this call exists for.
+//
+// The mask comes from the network rather than from the caller: the reservation
+// on the device carries no prefix length, and an address configured as a /32
+// inside the guest has no connected route to its own subnet.
+func (d *Incus) restorePinnedAddress(ctx context.Context, machine, device string, cfg map[string]string) error {
+	address := cfg["ipv4.address"]
+	if address == "" {
+		return nil
+	}
+	gateway, err := d.networkGateway(ctx, cfg["network"])
+	if err != nil {
+		return err
+	}
+	// Wrapped so the failure names the interface: the caller's own report is
+	// what an operator reads when a machine comes back unreachable, and
+	// "which one" is the first thing they need.
+	if err := d.configureGuestAddress(ctx, machine, device,
+		fmt.Sprintf("%s/%d", address, gateway.Bits())); err != nil {
+		return fmt.Errorf("restore the address of %s/%s: %w", machine, device, err)
 	}
 	return nil
 }

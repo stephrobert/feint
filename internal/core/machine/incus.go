@@ -97,7 +97,7 @@ type Incus struct {
 	busyPoll   time.Duration
 	busyBudget time.Duration
 
-	// routePoll and routeBudget override how restoreGuestRoutes waits for a
+	// routePoll and routeBudget override how restoreGuestNetwork waits for a
 	// restarted guest to have configured its interface again. Only a test sets
 	// them, for the same reason busyPoll exists; zero means the defaults in
 	// waitForGuestInterface.
@@ -441,20 +441,22 @@ func (d *Incus) Start(ctx context.Context, spec Spec) (Machine, error) {
 		}
 		// A machine that comes back from a stop has a brand new guest network:
 		// the kernel booted again, DHCP configured the interface again, and
-		// nothing inside it remembers the routes this driver laid by hand the
-		// first time. Restoring them belongs here rather than in any pack,
-		// because it is a property of what starting a machine does, and every
-		// pack's poweron arrives through this one door (#549).
+		// nothing inside it remembers what this driver configured by hand the
+		// first time — neither the address a hot-attached NIC reserves (#548)
+		// nor the routes towards the peered subnets (#549). Restoring them
+		// belongs here rather than in any pack, because it is a property of
+		// what starting a machine does, and every pack's poweron arrives
+		// through this one door.
 		//
 		// Not fatal: the machine is up, and reporting a failed start would
 		// publish FailedState for a machine the runtime is running — the lie
 		// in the other direction. The log names what the machine cannot do,
 		// and tools/conformance/functional.sh asserts the reachability this
 		// restores.
-		if err := d.restoreGuestRoutes(ctx, spec.Name); err != nil {
-			d.logger().Error("a restarted machine did not get back its routes to the peered subnets",
+		if err := d.restoreGuestNetwork(ctx, spec.Name); err != nil {
+			d.logger().Error("a restarted machine did not get its guest network back",
 				"machine", spec.Name, "error", err,
-				"consequence", "the machine is running and reaches its own subnet, but not the subnets its network is peered with (#549)")
+				"consequence", "the machine is running, and reaches neither the subnets its network is peered with (#549) nor — if the address it was given was reserved on a NIC attached while it ran — anything at all on its own interface (#548)")
 		}
 		return d.inspectOrFail(ctx, spec.Name)
 	}
@@ -1747,7 +1749,7 @@ func (d *Incus) WaitRunning(ctx context.Context, name string) (Machine, error) {
 		switch {
 		case err != nil:
 			return Machine{}, err
-		case ok && machine.Running && machine.IP != "":
+		case ok && machine.Running && len(machine.Addresses) > 0:
 			return machine, nil
 		}
 
@@ -1798,11 +1800,10 @@ func (d *Incus) Inspect(ctx context.Context, name string) (Machine, bool, error)
 		if in.Name != name {
 			continue
 		}
-		// Interfaces come back as a map, and a map has no order: publishing the
-		// first one Go happens to visit means publishing a different address
-		// between two reads of the same machine. Sorted, eth1 (the first private
-		// NIC) wins over eth0 only if named so; what matters is that the answer
-		// never changes on its own.
+		// Interfaces come back as a map, and a map has no order: reporting them
+		// in the order Go happens to visit means answering differently between
+		// two reads of the same machine. Sorted, so the list below never
+		// changes on its own.
 		names := make([]string, 0, len(in.State.Network))
 		for iface := range in.State.Network {
 			if iface != "lo" {
@@ -1811,23 +1812,37 @@ func (d *Incus) Inspect(ctx context.Context, name string) (Machine, bool, error)
 		}
 		slices.Sort(names)
 
-		ip := ""
+		// Every global IPv4 the machine carries, and no choice between them
+		// (#548). This used to answer one address — the first of the
+		// lowest-named interface — and that is a guess about *kind* the layer
+		// above had already settled: which address is public is the pack's
+		// declaration, held by Reconciler.PublicBlock since #541. The guess
+		// agreed with it only because a routed NIC sorts before a managed one,
+		// and it stops agreeing the moment an address moves: measured on
+		// 2026-08-28 under `--vm incus-ovn`, a server whose public address had
+		// been migrated onto its filtered NIC answered
+		// {"eth0":[],"eth1":["10.199.0.2","203.0.113.2"]}, so the old reading
+		// would have published the private address where it published the
+		// public one.
+		//
+		// So the driver reports what it saw and settles nothing. The one
+		// caller that never needed a kind — WaitRunning's readiness — asks
+		// whether the list is empty.
+		// TestInspectReportsEveryAddressTheMachineCarries fails without this.
+		addresses := make([]string, 0, 2)
 		for _, iface := range names {
 			for _, addr := range in.State.Network[iface].Addresses {
-				if addr.Family == "inet" && addr.Scope == "global" {
-					ip = addr.Address
-					break
+				if addr.Family == "inet" && addr.Scope == "global" &&
+					!slices.Contains(addresses, addr.Address) {
+					addresses = append(addresses, addr.Address)
 				}
-			}
-			if ip != "" {
-				break
 			}
 		}
 		return Machine{
-			Name:    in.Name,
-			ID:      in.Name,
-			IP:      ip,
-			Running: strings.EqualFold(in.Status, "Running"),
+			Name:      in.Name,
+			ID:        in.Name,
+			Addresses: addresses,
+			Running:   strings.EqualFold(in.Status, "Running"),
 		}, true, nil
 	}
 	return Machine{}, false, nil

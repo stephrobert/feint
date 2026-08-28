@@ -62,7 +62,7 @@ const routedPlusPrivate = `{
 }`
 
 // TestARestartedMachineGetsItsPeeredRoutesBack is the test #549 names: without
-// restoreGuestRoutes on the already-exists branch of Start, not one of these
+// restoreGuestNetwork on the already-exists branch of Start, not one of these
 // commands is emitted and the guest comes back reaching its own subnet alone.
 func TestARestartedMachineGetsItsPeeredRoutesBack(t *testing.T) {
 	f := &fakeRuntime{}
@@ -79,6 +79,72 @@ func TestARestartedMachineGetsItsPeeredRoutesBack(t *testing.T) {
 			t.Errorf("a restarted machine was not given back its route to %s:\n%s",
 				block, strings.Join(f.commands(), "\n"))
 		}
+	}
+}
+
+// TestARestartedMachineGetsItsPinnedAddressBack is the other half of the same
+// boot (#548). The address of a NIC attached to a running machine is configured
+// inside the guest by this driver — the device reserves it and no DHCP client
+// watches that interface — and nothing inside the guest remembers it across a
+// reboot.
+//
+// Measured 2026-08-28 under `--vm incus-ovn`, on a Scaleway server whose
+// private NIC arrived hot: after a reboot the guest carried nothing on eth1,
+// the wait beside this call ran its full ninety seconds and gave up with
+// `it carries no IPv4 address`, and the routes above were never laid. That was
+// survivable while the public address rode a routed NIC of its own; once the
+// address lives on this interface, the reply to a station that dialled it has
+// no route at all.
+func TestARestartedMachineGetsItsPinnedAddressBack(t *testing.T) {
+	f := &fakeRuntime{}
+	restartedInstance(f, routedPlusPrivate)
+	d := ovnDriver(f)
+
+	if _, err := d.Start(context.Background(), Spec{Name: "srv", Image: "ubuntu:22.04"}); err != nil {
+		t.Fatalf("start an existing machine: %v", err)
+	}
+
+	// The mask is the network's, read off the runtime: an address configured
+	// as a /32 inside the guest has no connected route to its own subnet.
+	if len(f.matching("exec srv -- ip address add 10.30.1.10/24 dev eth1")) == 0 {
+		t.Errorf("a restarted machine was not given back the address its device reserves:\n%s",
+			strings.Join(f.commands(), "\n"))
+	}
+	// And the routed NIC is not one of these: it has no network to read a mask
+	// from, its address is the launch's own, and the guest's boot-time config
+	// declares it.
+	if got := f.matching("ip address add 203.0.113.4"); len(got) != 0 {
+		t.Errorf("the restart path configured the routed NIC's address inside the guest:\n%s",
+			strings.Join(got, "\n"))
+	}
+}
+
+// TestARestartedMachineWaitsForAnAddressNobodyPinned is the accepting half of
+// the branch above: a device that reserves nothing is a device DHCP owns, and
+// the wait — not a made-up address — is what that case gets.
+func TestARestartedMachineWaitsForAnAddressNobodyPinned(t *testing.T) {
+	const leased = `{
+	  "devices": {
+	    "eth1": {"type": "nic", "network": "fnt-368798629f8"}
+	  },
+	  "expanded_devices": {
+	    "eth1": {"type": "nic", "network": "fnt-368798629f8"}
+	  }
+	}`
+	f := &fakeRuntime{}
+	restartedInstance(f, leased)
+	d := ovnDriver(f)
+
+	if _, err := d.Start(context.Background(), Spec{Name: "srv", Image: "ubuntu:22.04"}); err != nil {
+		t.Fatalf("start an existing machine: %v", err)
+	}
+	if got := f.matching("ip address add"); len(got) != 0 {
+		t.Errorf("the restart path invented an address for a NIC that pins none:\n%s",
+			strings.Join(got, "\n"))
+	}
+	// The routes still arrive: the wait saw the guest configured by its lease.
+	if len(f.matching("ip route add 10.0.0.0/8 via 10.30.1.1 dev eth1")) == 0 {
+		t.Errorf("a leased interface got no routes back:\n%s", strings.Join(f.commands(), "\n"))
 	}
 }
 
@@ -159,6 +225,12 @@ func TestAGuestThatNeverConfiguresItsInterfaceIsReported(t *testing.T) {
 			if strings.HasSuffix(args[len(args)-1], "/1.0/instances/srv") {
 				return []byte(routedPlusPrivate), nil, true
 			}
+		case "network":
+			// The block the pinned address is restored with, which this
+			// fixture needs since the restore runs before the wait (#548).
+			if len(args) > 3 && args[1] == "get" && args[3] == "ipv4.address" {
+				return []byte("10.30.1.1/24\n"), nil, true
+			}
 		case "exec":
 			return nil, errors.New("incus: Error: Command not found"), true
 		}
@@ -168,7 +240,7 @@ func TestAGuestThatNeverConfiguresItsInterfaceIsReported(t *testing.T) {
 	d.routePoll = time.Millisecond
 	d.routeBudget = 5 * time.Millisecond
 
-	err := d.restoreGuestRoutes(context.Background(), "srv")
+	err := d.restoreGuestNetwork(context.Background(), "srv")
 	if err == nil {
 		t.Fatal("a guest that never configured its interface was reported as repaired")
 	}

@@ -330,8 +330,17 @@ func (d *Incus) ApplyFirewall(ctx context.Context, machine string, binding Firew
 		// TestApplyFirewallDetachIgnoresARoutedNIC fail without this, and
 		// TestTheUnenforceableRefusalNamesTheAddressThatEscapes fails without
 		// the addresses.
+		//
+		// A routed NIC that carries nothing escapes nothing, and that half is
+		// #548's remedy landing here: once the public address has moved onto
+		// the filtered NIC, the device stays on the instance — removing it
+		// would unmask the profile's eth0 on the operator's own bridge — with
+		// no address and no host route. Refusing the whole binding for it
+		// would report an escape that no longer exists, and would keep the
+		// machine's other interfaces from ever being covered.
+		// TestARoutedNICThatCarriesNothingIsNotAnEscape fails without it.
 		if device.routed {
-			if attached != "" {
+			if attached != "" && len(device.addresses) > 0 {
 				escaped = append(escaped, device.describe())
 			}
 			continue

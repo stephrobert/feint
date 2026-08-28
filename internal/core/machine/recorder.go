@@ -182,7 +182,7 @@ func (r *Recorder) Start(_ context.Context, spec Spec) (Machine, error) {
 	r.machines[spec.Name] = recordedMachine{ip: ip, running: true}
 	r.mu.Unlock()
 	r.Record(Gesture{Kind: "Start", Resource: spec.Name, Args: spec})
-	return Machine{Name: spec.Name, IP: ip, Running: true}, nil
+	return Machine{Name: spec.Name, Addresses: []string{ip}, Running: true}, nil
 }
 
 // Stop implements driver.
@@ -215,7 +215,10 @@ func (r *Recorder) Inspect(_ context.Context, name string) (Machine, bool, error
 	if !found {
 		return Machine{}, false, nil
 	}
-	return Machine{Name: name, IP: m.ip, Running: m.running}, true, nil
+	// One address, which is every address this double knows about: it records
+	// what a pack asked for and runs nothing, so it has no second address to
+	// report and must not invent one.
+	return Machine{Name: name, Addresses: []string{m.ip}, Running: m.running}, true, nil
 }
 
 // EnsureNetwork implements driver.

@@ -60,6 +60,45 @@ func TestTheReplayRoutesThenJoinsThenAppliesTheFirewall(t *testing.T) {
 	}
 }
 
+// TestJoinReplaysTheAddressesBeforeTheFirewall is the hot half of the same
+// order (#548). A machine that gains its first managed interface is a machine
+// whose promised public addresses can stop living on an interface no rule set
+// covers — the Scaleway shape exactly: the server is created with its flexible
+// IP, so the address rides a routed NIC, and the private NIC arrives on a
+// running server through this door and no other.
+//
+// Attach, then the addresses, then the firewall. Before the attach there is no
+// interface to move onto; after the firewall the rule sets would have been
+// written over the shape they no longer describe.
+func TestJoinReplaysTheAddressesBeforeTheFirewall(t *testing.T) {
+	b := newGroupSyncBench()
+	b.group("g", "")
+	vm := b.machine("m", "", "g")
+	vm.Runtime["machine"] = "feint-bench-m"
+
+	r := reconcilerBench(b, Plan{Publics: []string{"203.0.113.9"}})
+	if err := r.Join(context.Background(), vm, Attachment{Network: "fnt-bench-net"}); err != nil {
+		t.Fatalf("join: %v", err)
+	}
+
+	position := map[string]int{}
+	for i, kind := range b.rec.Sequence() {
+		if _, seen := position[kind]; !seen {
+			position[kind] = i
+		}
+	}
+	for _, kind := range []string{"Attach", "RouteAddress", "ApplyFirewall"} {
+		if _, seen := position[kind]; !seen {
+			t.Fatalf("the hot attach never emitted %s; sequence: %v", kind, b.rec.Sequence())
+		}
+	}
+	ordered := position["Attach"] < position["RouteAddress"] &&
+		position["RouteAddress"] < position["ApplyFirewall"]
+	if !ordered {
+		t.Fatalf("the order is not attach, then the addresses, then the firewall: %v", b.rec.Sequence())
+	}
+}
+
 // TestAPoisonedStoredAddressIsNeverRoutedByTheLayer holds the authorisation
 // half once for the three packs: a stored address is untrusted input — a
 // restored snapshot carries it verbatim — and routing an arbitrary value would

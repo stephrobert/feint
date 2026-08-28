@@ -530,6 +530,56 @@ func TestApplyFirewallRefusesAGroupOnARoutedNIC(t *testing.T) {
 	}
 }
 
+// TestARoutedNICThatCarriesNothingIsNotAnEscape: the machine of #548 once its
+// public address has moved onto the filtered NIC. The routed device stays —
+// removing it unmasks the profile's eth0 on the operator's own bridge — with
+// no address and no host route, so it delivers nothing and there is nothing
+// for a rule set to fail to cover.
+//
+// Without this the refusal would outlive the escape it names: every apply on
+// every migrated machine would come back ErrFirewallUnenforceable, the pack
+// would log a warning naming an interface that carries nothing, and the
+// declared capability would go on describing a gap that had been closed.
+func TestARoutedNICThatCarriesNothingIsNotAnEscape(t *testing.T) {
+	// eth0 routed and addressless, eth1 carrying both the private address and
+	// the migrated public one.
+	const migrated = `{
+	  "expanded_devices": {
+	    "eth0": {"type": "nic", "nictype": "routed", "ipv4.host_address": "169.254.0.1"},
+	    "eth1": {"type": "nic", "network": "scw-abc", "ipv4.routes.external": "203.0.113.7/32"}
+	  },
+	  "devices": {
+	    "eth0": {"type": "nic", "nictype": "routed", "ipv4.host_address": "169.254.0.1"},
+	    "eth1": {"type": "nic", "network": "scw-abc", "ipv4.routes.external": "203.0.113.7/32"}
+	  }
+	}`
+	f := &fakeRuntime{answers: map[string]string{
+		"/1.0/instances/srv": migrated,
+		"/1.0/networks/":     `{"type": "bridge"}`,
+	}}
+	d := newFakeDriver(f)
+
+	if err := d.ApplyFirewall(context.Background(), "srv", FirewallBinding{
+		Names:          []string{"sg-one"},
+		DefaultIngress: "drop",
+		DefaultEgress:  "allow",
+	}); err != nil {
+		t.Fatalf("a routed NIC carrying no address escapes nothing, got %v", err)
+	}
+	if got := f.matching("config device set srv eth1 security.acls=sg-one"); len(got) != 1 {
+		t.Errorf("the interface that now carries the public address must wear the rule set:\n%s",
+			strings.Join(f.commands(), "\n"))
+	}
+	// And the refusal is still there for a routed NIC that does carry one,
+	// which TestApplyFirewallRefusesAGroupOnARoutedNIC holds: this test is the
+	// accepting half, not a licence.
+	for _, cmd := range f.matching("security.acls") {
+		if strings.Contains(cmd, " eth0 ") {
+			t.Errorf("a security option was sent to the routed NIC anyway: %q", cmd)
+		}
+	}
+}
+
 // TestApplyFirewallDetachIgnoresARoutedNIC holds the other direction: no rule
 // set has ever been attached to a routed NIC, so an empty binding — the
 // detach-all every permissive group now becomes — has nothing to take back

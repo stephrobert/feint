@@ -63,7 +63,20 @@ const (
 	// suite that wants to assert distribution keys on the conjunction of the
 	// two halves; a build that cannot answer the per-pack question is what the
 	// version bump makes visible.
-	HealthSchemaVersion = 6
+	//
+	// 7 since #548: `capabilities` gained `firewall_public_when_joined` — a
+	// public address is enforced once its machine also joins an emulated
+	// network, because the driver moves the address onto the filtered
+	// interface. Additive, and it closes a reading of version 5 that was
+	// measured wrong: a consumer holding `firewall_public_only: false` took
+	// the uncovered case to be the machine with no private network, and a
+	// Scaleway server created with its flexible IP is neither that machine nor
+	// covered — its address stayed on a routed NIC beside a filtered one, and
+	// a port its group never opened answered from the station in both driver
+	// modes on 2026-08-28. Two shapes, two words: this one is true, the older
+	// one is still false, and a build that cannot answer the second question
+	// is what the bump makes visible.
+	HealthSchemaVersion = 7
 	// RoutesSchemaVersion is the shape of GET /_feint/routes.
 	//
 	// This one is not on the wire: the endpoint answers a bare JSON array — the

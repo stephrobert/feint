@@ -43,7 +43,7 @@ func (d *gatedDriver) Start(_ context.Context, spec machine.Spec) (machine.Machi
 	d.mu.Lock()
 	d.specs = append(d.specs, spec)
 	d.mu.Unlock()
-	return machine.Machine{Name: spec.Name, IP: "10.42.0.9", Running: true}, nil
+	return machine.Machine{Name: spec.Name, Addresses: []string{"10.42.0.9"}, Running: true}, nil
 }
 func (d *gatedDriver) Stop(context.Context, string) error   { return nil }
 func (d *gatedDriver) Remove(context.Context, string) error { return nil }

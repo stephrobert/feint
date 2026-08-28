@@ -3,6 +3,7 @@ package machine
 import (
 	"context"
 	"log/slog"
+	"net/netip"
 	"strings"
 
 	"github.com/stephrobert/feint/internal/core/cloudinit"
@@ -60,7 +61,16 @@ type Binding struct {
 	// belongs in Runtime and never in Attrs, so it cannot leak into an API
 	// response, and the binding writes it rather than every pack remembering to.
 	RuntimeKey string
-	// AddressKey is where the machine's address is kept, in Runtime.
+	// AddressKey is where the addresses the machine answers on are kept, in
+	// Runtime — every one of them, comma-separated, read back through
+	// storedAddresses.
+	//
+	// All of them since #548, and the plural is the whole point: one recorded
+	// address forced somebody to choose which, and the driver was choosing by
+	// interface order while the pack's own declaration — its emulated public
+	// block — already settled the kind. A machine whose public and private
+	// addresses share an interface makes the two answers differ, which is
+	// exactly the shape the address migration produces.
 	//
 	// Runtime and not Attrs, which was a mistake worth stating. The binding used
 	// to write the address straight into an API field, which forced every pack
@@ -208,8 +218,10 @@ type Boot struct {
 type Started struct {
 	// Machine is the runtime name, for the pack to keep out of reach of the API.
 	Machine string
-	// Address is what the machine answers on, empty when nothing started.
-	Address string
+	// Addresses are what the machine answers on, empty when nothing started.
+	// Every one of them, with no kind attached: which is public is settled by
+	// the pack's declared block, one layer up (Reconciler.PublicAddressOf).
+	Addresses []string
 }
 
 // Start powers a machine on. It never fails the caller: with no runtime the
@@ -348,7 +360,7 @@ func (b Binding) Start(ctx context.Context, boot Boot) Started {
 			"machine", name, "image", boot.Image, "error", err)
 		return Started{}
 	}
-	return Started{Machine: name, Address: m.IP}
+	return Started{Machine: name, Addresses: m.Addresses}
 }
 
 // refuseUnknownImage is the actionable half of the boot refusal: it names the
@@ -465,14 +477,15 @@ func (b Binding) Remove(ctx context.Context, id, machine string) {
 	}
 }
 
-// Address asks the runtime what a machine answers on.
+// Addresses asks the runtime what a machine answers on — all of it, with no
+// kind attached.
 //
 // A container has its address immediately; a virtual machine gets one tens of
 // seconds later, once it has booted and DHCP has answered. Start therefore never
 // waits, and a pack calls this on the read a client is making anyway.
-func (b Binding) Address(ctx context.Context, id, machine string) (string, bool) {
+func (b Binding) Addresses(ctx context.Context, id, machine string) ([]string, bool) {
 	if b.driver == nil || machine == "" {
-		return "", false
+		return nil, false
 	}
 	// Read-only, but still checked: inspecting an arbitrary instance of the host
 	// would publish its address as if it were the emulated server's.
@@ -481,12 +494,12 @@ func (b Binding) Address(ctx context.Context, id, machine string) (string, bool)
 	if err != nil {
 		b.logger().Error("could not inspect the backing machine",
 			"provider", b.Provider, "resource", id, "machine", machine, "error", err)
-		return "", false
+		return nil, false
 	}
-	if !ok || m.IP == "" {
-		return "", false
+	if !ok || len(m.Addresses) == 0 {
+		return nil, false
 	}
-	return m.IP, true
+	return m.Addresses, true
 }
 
 func (b Binding) logger() *slog.Logger {
@@ -528,8 +541,8 @@ func (b Binding) PowerOn(ctx context.Context, res *resource.Resource, boot Boot)
 		res.Runtime = map[string]string{}
 	}
 	res.Runtime[b.RuntimeKey] = started.Machine
-	if started.Address != "" {
-		res.Runtime[b.AddressKey] = started.Address
+	if joined := joinAddresses(started.Addresses); joined != "" {
+		res.Runtime[b.AddressKey] = joined
 	}
 	res.State = b.RunningState
 	return true
@@ -562,14 +575,18 @@ func (b Binding) Refresh(ctx context.Context, res *resource.Resource) bool {
 	if res.Runtime[b.AddressKey] != "" {
 		return false
 	}
-	address, found := b.Address(ctx, res.ID, res.Runtime[b.RuntimeKey])
+	addresses, found := b.Addresses(ctx, res.ID, res.Runtime[b.RuntimeKey])
 	if !found {
+		return false
+	}
+	joined := joinAddresses(addresses)
+	if joined == "" {
 		return false
 	}
 	if res.Runtime == nil {
 		res.Runtime = map[string]string{}
 	}
-	res.Runtime[b.AddressKey] = address
+	res.Runtime[b.AddressKey] = joined
 	return true
 }
 
@@ -580,11 +597,52 @@ func (b Binding) RefreshIfRunning(ctx context.Context, res *resource.Resource) b
 	return res.State == b.RunningState && b.Refresh(ctx, res)
 }
 
-// AddressOf is what the machine answers on, empty when nothing is running. A
-// pack calls it to fill the field its own API declares for the address — or
-// does not call it at all, when its API declares none.
-func (b Binding) AddressOf(res *resource.Resource) string {
-	return res.Runtime[b.AddressKey]
+// AddressesOf is what the machine answers on, empty when nothing is running.
+// The layer above turns it into the field a pack's API declares, by kind
+// (Reconciler.PublicAddressOf and PrivateAddressOf); no pack reads this.
+//
+// Every entry is parsed, and one that is not an address is dropped. That is a
+// control and not tidiness: this value comes back from Resource.Runtime, which
+// `PUT /_feint/state` and `feint snapshot load` restore verbatim — the format
+// is documented as meant to outlive its instance and be loaded into another
+// one — and both readers above hand what they find to a client. Until this,
+// an entry no parser had ever looked at reached Outscale's PrivateIp field
+// unchanged, because only the *public* half went through netip.ParseAddr.
+// TestARestoredAddressThatIsNotAnAddressIsNotPublished fails without it.
+func (b Binding) AddressesOf(res *resource.Resource) []string {
+	return storedAddresses(res.Runtime[b.AddressKey])
+}
+
+// storedAddresses reads the recorded list back, keeping only what parses as an
+// IP address.
+func storedAddresses(stored string) []string {
+	if stored == "" {
+		return nil
+	}
+	out := make([]string, 0, 2)
+	for _, entry := range strings.Split(stored, ",") {
+		entry = strings.TrimSpace(entry)
+		addr, err := netip.ParseAddr(entry)
+		if err != nil {
+			continue
+		}
+		out = append(out, addr.String())
+	}
+	return out
+}
+
+// joinAddresses is the write half of storedAddresses: the same filter, so
+// nothing unparseable is ever recorded either.
+func joinAddresses(addresses []string) string {
+	kept := make([]string, 0, len(addresses))
+	for _, address := range addresses {
+		addr, err := netip.ParseAddr(strings.TrimSpace(address))
+		if err != nil {
+			continue
+		}
+		kept = append(kept, addr.String())
+	}
+	return strings.Join(kept, ",")
 }
 
 // declaresPackageStep reports whether a client's user data asks cloud-init for

@@ -21,6 +21,19 @@
     ],
     "unit": "platform-web.service",
     "port": 80,
+
+    "_closed_port": [
+      "The public path's closed half (#548), the same shape the Scaleway stack",
+      "declares: 80 is opened by outscale_security_group_rule.web_http, 9090 is",
+      "named by no rule, both listen on the machine whose PublicIp the station",
+      "dials.",
+      "",
+      "This cloud is the control population for that change: a Vm is born on its",
+      "Subnet, so its public address has ridden a managed NIC since the first",
+      "boot and no migration was ever needed here. If this half went red while",
+      "Scaleway's passed, the cause would be the assertion and not the remedy."
+    ],
+    "closed_port": 9090,
     "machines": ["platform-web-a", "platform-web-b"],
     "restart": "platform-web-a",
     "restart_reaches": {

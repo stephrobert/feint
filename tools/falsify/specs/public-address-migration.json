@@ -1,0 +1,56 @@
+{
+  "_comment": [
+    "#548: a public address is moved onto the filtered NIC, and every guard",
+    "that makes the move safe or honest is falsified here.",
+    "",
+    "The migration itself is falsified by lifecycle-tells-the-truth.json,",
+    "which owned #498's half of the same branch before it: releasing the",
+    "address from the routed NIC is what unblocks the uplink write that used",
+    "to fail with `file exists`, so one mutation answers for both."
+  ],
+  "package": "./internal/core/machine/",
+  "mutations": [
+    {
+      "label": "the migration reconfigures an instance without asking whether the emulator created it",
+      "file": "internal/core/machine/incus_address.go",
+      "find": "func (d *Incus) releaseFromRoutedNIC(ctx context.Context, machine, device, address string) error {\n\tif err := d.mustOwnInstance(ctx, machine); err != nil {\n\t\treturn err\n\t}",
+      "replace": "func (d *Incus) releaseFromRoutedNIC(ctx context.Context, machine, device, address string) error {\n\tif err := d.mustOwnInstance(ctx, machine); err != nil && false {\n\t\treturn err\n\t}",
+      "test": "TestMigrationRefusesAnInstanceTheEmulatorDidNotCreate"
+    },
+    {
+      "label": "a routed NIC that carries nothing is reported as an escape again, so every migrated machine fails its firewall apply",
+      "file": "internal/core/machine/incus_firewall.go",
+      "find": "\t\t\tif attached != \"\" && len(device.addresses) > 0 {",
+      "replace": "\t\t\tif attached != \"\" && (len(device.addresses) > 0 || true) {",
+      "test": "TestARoutedNICThatCarriesNothingIsNotAnEscape"
+    },
+    {
+      "label": "the hot attach stops replaying the addresses, so the interface that just arrived never takes the published address",
+      "file": "internal/core/machine/plan.go",
+      "find": "\terr := r.attach(ctx, res, att)\n\tr.ReplayAddresses(ctx, res)",
+      "replace": "\terr := r.attach(ctx, res, att)\n\tif false {\n\t\tr.ReplayAddresses(ctx, res)\n\t}",
+      "test": "TestJoinReplaysTheAddressesBeforeTheFirewall"
+    },
+    {
+      "label": "the driver goes back to answering one address, the first of the lowest-named interface",
+      "file": "internal/core/machine/incus.go",
+      "find": "\t\t\t\tif addr.Family == \"inet\" && addr.Scope == \"global\" &&\n\t\t\t\t\t!slices.Contains(addresses, addr.Address) {",
+      "replace": "\t\t\t\tif addr.Family == \"inet\" && addr.Scope == \"global\" &&\n\t\t\t\t\t!slices.Contains(addresses, addr.Address) && len(addresses) == 0 {",
+      "test": "TestInspectReportsEveryAddressTheMachineCarries"
+    },
+    {
+      "label": "a restored value that is not an address is published to a client anyway",
+      "file": "internal/core/machine/binding.go",
+      "find": "\t\taddr, err := netip.ParseAddr(entry)\n\t\tif err != nil {\n\t\t\tcontinue\n\t\t}",
+      "replace": "\t\taddr, err := netip.ParseAddr(entry)\n\t\tif err != nil {\n\t\t\tout = append(out, entry)\n\t\t\tcontinue\n\t\t}",
+      "test": "TestARestoredAddressThatIsNotAnAddressIsNotPublished"
+    },
+    {
+      "label": "a restarted machine is left waiting for a lease nobody offers, so it comes back with neither its private address nor its routes",
+      "file": "internal/core/machine/incus_ovn.go",
+      "find": "\t\tif err := d.restorePinnedAddress(ctx, machine, device, devices.own[device]); err != nil {\n\t\t\treturn err\n\t\t}",
+      "replace": "\t\tif false {\n\t\t\tif err := d.restorePinnedAddress(ctx, machine, device, devices.own[device]); err != nil {\n\t\t\t\treturn err\n\t\t\t}\n\t\t}",
+      "test": "TestARestartedMachineGetsItsPinnedAddressBack"
+    }
+  ]
+}

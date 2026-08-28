@@ -258,8 +258,7 @@ func (r Reconciler) Unroute(ctx context.Context, machine, address string) {
 // PublicAddressOf is what the machine answers on, when that address is one
 // this pack could have handed out as a public one — and nothing otherwise.
 //
-// The binding records one address per machine and gives it no kind: it is
-// whatever the runtime answered, read off the first interface in name order.
+// The binding records what the machine answers on and gives it no kind.
 // Each pack then republishes it under a field whose *name asserts a kind* —
 // Exoscale as `public-ip`, Outscale as `PrivateIp` — and neither asked whether
 // the recorded address was of that kind. Measured on 2026-08-27 under
@@ -275,8 +274,19 @@ func (r Reconciler) Unroute(ctx context.Context, machine, address string) {
 // address passes on its way to the driver. So the layer answers the question
 // too, once, instead of each pack writing half of it: a pack that publishes
 // an address as public asks here, and a pack that publishes one as private
-// asks PrivateAddressOf. Binding.AddressOf is out of PackSurface for that
+// asks PrivateAddressOf. Binding.AddressesOf is out of PackSurface for that
 // reason — the layer no longer hands a pack an address with no kind on it.
+//
+// It reads *every* address the machine carries since #548, and that is what
+// makes the answer a reading rather than a coincidence. The binding used to
+// record one — the driver's first-interface-in-name-order pick — so this
+// function was only ever asked about an address somebody else had already
+// chosen. It agreed with the block while the public address rode a routed
+// NIC, which sorts before a managed one, and a machine whose two addresses
+// share an interface breaks that agreement: measured 2026-08-28,
+// {"eth0":[],"eth1":["10.199.0.2","203.0.113.2"]}. Now the driver reports the
+// set and the block picks out of it, which is the same answer on every shape
+// measured before, and the right one on the shape that moved.
 //
 // A pack that declares no PublicBlock gets nothing here, which is the safe
 // direction: no block means nothing can be shown to be public.
@@ -285,11 +295,12 @@ func (r Reconciler) Unroute(ctx context.Context, machine, address string) {
 // fails without this, and its TestAnInstanceIsGivenAPublicAddressAtCreation
 // holds the accepting half.
 func (r Reconciler) PublicAddressOf(res *resource.Resource) string {
-	address := r.binding().AddressOf(res)
-	if !r.emulated(address) {
-		return ""
+	for _, address := range r.binding().AddressesOf(res) {
+		if r.emulated(address) {
+			return address
+		}
 	}
-	return address
+	return ""
 }
 
 // PrivateAddressOf is the mirror: what the machine answers on, when that
@@ -299,20 +310,26 @@ func (r Reconciler) PublicAddressOf(res *resource.Resource) string {
 // other half was live too. An Outscale Vm publishes the recorded address as
 // PrivateIp, and its plan carries promised public addresses onto the launch:
 // the guest then holds two global addresses on one interface, and Inspect
-// answers with whichever the runtime lists first. A restart that came back
-// with the public one would have published 198.51.100.x as PrivateIp and as
-// PublicIp at once. Nothing measured that happening — the pin in
+// used to answer with whichever the runtime listed first. A boot that came
+// back with the public one would have published 198.51.100.x as PrivateIp and
+// as PublicIp at once. Nothing measured that happening — the pin in
 // rememberAddress hides it after the first boot — which is exactly why the
 // control belongs in the layer rather than in a pack's memory.
+//
+// Since #548 that ordering cannot decide anything at all: the driver reports
+// every address, and the two halves here read the same set from opposite
+// ends. The Vm above publishes its subnet address as PrivateIp whichever
+// order the runtime listed the two in.
 //
 // internal/providers/outscale's TestAVmPublishesNoPublicAddressAsItsPrivateOne
 // fails without this.
 func (r Reconciler) PrivateAddressOf(res *resource.Resource) string {
-	address := r.binding().AddressOf(res)
-	if address == "" || r.emulated(address) {
-		return ""
+	for _, address := range r.binding().AddressesOf(res) {
+		if !r.emulated(address) {
+			return address
+		}
 	}
-	return address
+	return ""
 }
 
 // emulated reports whether an address is one this pack can have handed out:
@@ -338,8 +355,20 @@ func (r Reconciler) emulated(address string) bool {
 //
 // The attach error is returned for the pack that surfaces it on its resource;
 // degrading quietly stays the caller's choice, as everywhere.
+//
+// The addresses are replayed between the two, and that order is #548's other
+// half. A machine that gains its first managed interface is a machine whose
+// promised public addresses can stop living on an interface no rule set
+// covers: the replay is what moves them, the driver decides whether anything
+// has to move, and the firewall step then sees the interface that carries
+// them. Running it before the attach would find no interface to move onto;
+// running it after the firewall would leave the set written over the shape it
+// no longer describes. Idempotent for every machine that needs no move, which
+// is every machine of the two packs whose addresses never rode a routed NIC.
+// TestJoinReplaysTheAddressesBeforeTheFirewall fails without it.
 func (r Reconciler) Join(ctx context.Context, res *resource.Resource, att Attachment) error {
 	err := r.attach(ctx, res, att)
+	r.ReplayAddresses(ctx, res)
 	r.Groups.AfterBoot(ctx, res)
 	return err
 }

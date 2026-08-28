@@ -111,6 +111,12 @@ func (d *Incus) Verify(ctx context.Context) (Capabilities, []string) {
 	if declared.Firewall {
 		if ok, why := d.firewallAge(ctx); !ok {
 			verified.Firewall = false
+			// And the public half with it (#548): moving an address onto the
+			// filtered NIC covers it only if that NIC can wear a rule set at
+			// all, so a runtime too old for NIC-level ACLs delivers neither.
+			// A capability that outlived the one it rests on would be the
+			// declaration saying more than the host does.
+			verified.FirewallPublicWhenJoined = false
 			unmet = append(unmet, "firewall: "+why)
 		}
 	}

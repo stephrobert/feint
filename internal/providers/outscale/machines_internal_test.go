@@ -25,7 +25,7 @@ func (d *recordingDriver) Name() string                   { return "recording" }
 func (d *recordingDriver) Available(context.Context) bool { return true }
 func (d *recordingDriver) Start(_ context.Context, spec machine.Spec) (machine.Machine, error) {
 	d.specs = append(d.specs, spec)
-	return machine.Machine{Name: spec.Name, IP: "10.42.0.9", Running: true}, nil
+	return machine.Machine{Name: spec.Name, Addresses: []string{"10.42.0.9"}, Running: true}, nil
 }
 func (d *recordingDriver) Stop(context.Context, string) error   { return nil }
 func (d *recordingDriver) Remove(context.Context, string) error { return nil }

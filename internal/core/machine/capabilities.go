@@ -51,6 +51,44 @@ type Capabilities struct {
 	// address published over a routed NIC gates on this claim, never on
 	// capabilities.firewall.
 	FirewallPublicOnly bool `json:"firewall_public_only"`
+	// FirewallPublicWhenJoined: a public address is enforced when the machine
+	// also joins an emulated network, because the driver moves the address off
+	// the routed NIC and onto the filtered one (#548).
+	//
+	// It is the word the vocabulary was missing, and the gap was measured
+	// before it was named. A consumer holding capabilities.firewall (true),
+	// enforced.firewall (the pack) and firewall_public_only (false) concluded
+	// that the uncovered case was the machine with no private network. It was
+	// not: a Scaleway server created *with* its flexible IP keeps that address
+	// on a routed eth0 beside a filtered eth1, and on 2026-08-28 a port its
+	// group never opened answered from the station in both driver modes. The
+	// same family as #481, where the missing word was enforced.balancing.
+	//
+	// What it claims, exactly, and the bound is as load-bearing as the claim.
+	// When a pack routes a public address *through one of its emulated
+	// networks* — Plan.RouteVia — the machine ends up with that address on
+	// that network's interface, wearing the machine's rule sets, even though
+	// the address first arrived on a routed NIC. It claims nothing about a
+	// machine whose only interface is routed: that is FirewallPublicOnly,
+	// still false and still measured, and such a machine has nowhere to move
+	// the address to (the two refused remedies are in docs/limits.md).
+	//
+	// So it is a claim about the runtime, and reading it as a claim about
+	// every published address of every pack would be the over-reading #481 and
+	// this issue are both about. A pack that names no network for its public
+	// addresses keeps them on a routed NIC and is covered by the sentence
+	// above, not by this one — Exoscale is that pack today, deliberately: its
+	// `public-ip` is the primary interface's address, and its private
+	// networks are the one place its own upstream says security groups do not
+	// apply (#574), so moving the address there would put it on an interface
+	// that wears no rule set by design.
+	//
+	// True in both Incus modes, measured before and after in each: the bridge
+	// carries the address as ipv4.routes on the managed device, OVN as
+	// ipv4.routes.external with the /32 delegated on the uplink. It follows
+	// the firewall claim rather than the mode, and a firewall write the host
+	// refuses withdraws it with its parent below.
+	FirewallPublicWhenJoined bool `json:"firewall_public_when_joined"`
 	// Isolation: two networks of two different VPCs cannot reach each other.
 	//
 	// This is the one that separates the modes. Managed bridges on one host are
@@ -183,6 +221,11 @@ func (d *Incus) Capabilities() Capabilities {
 	if d.firewallDenied.Load() {
 		caps.Firewall = false
 		caps.FirewallPublicOnly = false
+		// The public half goes with it: it is the same rule sets on the same
+		// NICs, one interface over. A process that publishes "your address is
+		// covered" after the host refused a rule set is the lying 200 this
+		// project exists to refuse.
+		caps.FirewallPublicWhenJoined = false
 	}
 	// And the same rule for the balancer (#457). A load balancer the daemon
 	// rejected after this driver had accepted it is the host saying this process
@@ -214,9 +257,14 @@ func (d *Incus) declaredCapabilities() Capabilities {
 		// instead of pretending. The claim goes true the day a mechanism
 		// exists and is measured, not before.
 		FirewallPublicOnly: false,
-		Isolation:          d.OVN,
-		Balancing:          d.OVN,
-		OwnKernel:          d.VM,
-		PrivateFromHost:    !d.OVN,
+		// True in both modes since #548, and it is the mechanism the line
+		// above says does not exist for a machine with nowhere to move the
+		// address: RouteAddress releases the address from the routed NIC and
+		// hands it to the interface the pack named, which wears the rule sets.
+		FirewallPublicWhenJoined: true,
+		Isolation:                d.OVN,
+		Balancing:                d.OVN,
+		OwnKernel:                d.VM,
+		PrivateFromHost:          !d.OVN,
 	}
 }

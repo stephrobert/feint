@@ -88,7 +88,7 @@ func (b *barrageRuntime) Start(_ context.Context, spec machine.Spec) (machine.Ma
 		return machine.Machine{}, errors.New(`Failed creating instance record: Add instance info to the database: This "instances" entry already exists`)
 	}
 	b.machines[spec.Name] = true
-	return machine.Machine{Name: spec.Name, IP: "10.42.0.7", Running: true}, nil
+	return machine.Machine{Name: spec.Name, Addresses: []string{"10.42.0.7"}, Running: true}, nil
 }
 
 func (b *barrageRuntime) Stop(_ context.Context, n string) error {
@@ -112,7 +112,7 @@ func (b *barrageRuntime) Inspect(_ context.Context, n string) (machine.Machine, 
 	if !known {
 		return machine.Machine{}, false, nil
 	}
-	return machine.Machine{Name: n, IP: "10.42.0.7", Running: running}, true, nil
+	return machine.Machine{Name: n, Addresses: []string{"10.42.0.7"}, Running: running}, true, nil
 }
 
 func (b *barrageRuntime) EnsureNetwork(context.Context, machine.NetworkSpec) error { return nil }

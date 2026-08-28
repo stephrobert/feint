@@ -11,8 +11,8 @@
     {
       "label": "a hot join resyncs the firewall before the interface it must cover exists (#510)",
       "file": "internal/core/machine/plan.go",
-      "find": "\terr := r.attach(ctx, res, att)\n\tr.Groups.AfterBoot(ctx, res)\n\treturn err",
-      "replace": "\tr.Groups.AfterBoot(ctx, res)\n\terr := r.attach(ctx, res, att)\n\treturn err",
+      "find": "\terr := r.attach(ctx, res, att)\n\tr.ReplayAddresses(ctx, res)\n\tr.Groups.AfterBoot(ctx, res)\n\treturn err",
+      "replace": "\tr.Groups.AfterBoot(ctx, res)\n\terr := r.attach(ctx, res, att)\n\tr.ReplayAddresses(ctx, res)\n\treturn err",
       "test": "TestJoinRunsTheFirewallAfterTheAttach"
     },
     {

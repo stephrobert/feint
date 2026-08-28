@@ -1398,15 +1398,19 @@ to everything but the foreign subnets; the bridge-mode isolation set keeps its
 catch-all, because there the network ACL filters at the bridge-host boundary
 and would otherwise reject the station itself.
 
-**One leg of that pass does not hold, and it is the Scaleway one from the
-station (#548).** Re-measured on 2026-08-27, on the same stack under the same
-runtime: the `platform-web` group opens 443 and 22-from-10.40.1.0/24 and names
-no port 80, a service was proved listening on 80 inside the machine, and the
-station reached `203.0.113.3:80` and `203.0.113.2:80`. The negative control is
-in the same pass — the bastion, the same shape of machine, refuses 80 because
-nothing listens there — so those two are completed connections rather than a
-misread probe. The cause is #548's routed NIC, which carries the published
-address and no rule set.
+**One leg of that pass did not hold, and it is the Scaleway one from the
+station (#548). It holds since 2026-08-28.** Measured on 2026-08-27, on the
+same stack under the same runtime: the `platform-web` group opens 443 and
+22-from-10.40.1.0/24 and names no port 80, a service was proved listening on
+80 inside the machine, and the station reached `203.0.113.3:80` and
+`203.0.113.2:80`. The negative control is in the same pass — the bastion, the
+same shape of machine, refuses 80 because nothing listens there — so those two
+were completed connections rather than a misread probe. The cause was #548's
+routed NIC, which carried the published address and no rule set; the driver
+now moves that address onto the filtered NIC as soon as the machine has one,
+and the same probe refuses. The measurement of the remedy, in both driver
+modes, is under "Two migrations were tried and refused, and a third one
+works" below.
 
 Measured: the three probes and the device dump in #548. Deduced, and worth
 stating as a deduction: `9999` is a port nothing listens on, so its refusal
@@ -1467,19 +1471,15 @@ of "filters nothing" and why an ordinary `scw instance server create` raises
 no alarm at all.
 
 A server *with* a private network keeps the claim **on its emulated
-interfaces**, and whether its public address is covered depends on the order
-in which the two arrived. That sentence used to read "keeps the full claim …
-and a flexible IP, routed through the filtered NIC, stays covered", and a
-measurement on 2026-08-27 contradicted it for the order the example stack
-produces (#548):
+interfaces and on its public address**, whichever order the two arrived in.
+That took two corrections, and both are worth keeping in view.
 
-| order | what the machine carries | the public address |
-|---|---|---|
-| private NIC first, address attached afterwards | one managed NIC, the address on its `ipv4.routes` | **covered** — the paragraph below measures it, fifteen runs both ways |
-| address at creation, private NIC afterwards | `eth0` `nictype=routed` **and** `eth1` on a managed network | **not covered**: `eth0` accepts no security option at all (#337), so it carries no rule set |
-
-The second row is what `examples/stacks/scaleway` builds, since a server
-created with an `ip_id` boots carrying only its public address:
+The sentence used to read "keeps the full claim … and a flexible IP, routed
+through the filtered NIC, stays covered", and a measurement on 2026-08-27
+contradicted it for the order the example stack produces (#548): a server
+created with an `ip_id` boots carrying only its public address, so the driver
+gives it a routed NIC, and the private NIC that arrives afterwards did not
+take the address with it.
 
 ```console
 $ incus query /1.0/instances/feint-scw-936e816e-… | jq -c '.expanded_devices | with_entries(select(.value.type=="nic"))'
@@ -1492,11 +1492,20 @@ $ incus query /1.0/instances/feint-scw-936e816e-… | jq -c '.expanded_devices |
   platform-bastion 203.0.113.4:80 closed     # nothing listens: the negative control
 ```
 
-So `capabilities.firewall_public_only: false` is broader than the sentence it
-was written for: it is not only the server whose *only* interface is routed,
-it is any address living on a routed NIC. `tools/conformance/functional.sh`
-keys its skip on that capability for exactly this reason and probes the
-firewall pair on the emulated network instead.
+| order | what the machine carries | the public address |
+|---|---|---|
+| private NIC first, address attached afterwards | one managed NIC, the address on its `ipv4.routes` | **covered** — fifteen runs both ways, the paragraph below |
+| address at creation, private NIC afterwards | `eth0` `nictype=routed` addressless, `eth1` on a managed network carrying the address | **covered since 2026-08-28**: the driver moves the address onto the filtered NIC when the machine joins one (#548) |
+| address at creation, no private network ever | `eth0` `nictype=routed` carrying the address | **not covered**: a routed NIC accepts no security option at all (#337), and there is no other interface to move to |
+
+So the two capabilities say two different things, and a consumer needs both.
+`capabilities.firewall_public_only: false` is about the *interface*: an address
+living on a routed NIC is covered by nothing, and that is the third row.
+`capabilities.firewall_public_when_joined: true` is the second row — a machine
+that has an emulated interface ends up with its public address on it.
+`tools/conformance/functional.sh` keyed a skip on the first of those two for as
+long as the second was missing; it asserts the public pair now, on the address
+the API publishes, and gates it on the second capability.
 
 The group covers a **flexible IP**. The address is routed through the NIC
 device's `ipv4.routes` (`nic_bridged.go` at v7.2.0 lists it among the device's
@@ -3253,17 +3262,20 @@ mean the same thing to whoever is about to open a socket.
 **The two bounds, both measured.** First, an interface the runtime declares
 unenforceable stays unenforceable: a routed NIC accepts no security option
 (#337, `capabilities.firewall_public_only: false`), and that is the *primary*
-interface of every Exoscale instance, of every Scaleway server whose only
-address is public, **and of every Scaleway server created with its address,
-whose private NIC arrives afterwards and does not take the address with it**
-(#548, measured 2026-08-27 on `examples/stacks/scaleway`: `eth0` routed and
-bare beside `eth1` on a managed network carrying the rule set). The pack hands
-the set over, the driver refuses with the typed error, and the log names the
-declaring capability instead of crying wolf. The capability is therefore
-broader than the machine it was written for: it is about the *interface*, not
-about a machine with only one — and `machine.Capabilities.FirewallPublicOnly`
-says so in its own words since #548, because a declaration whose subject is
-wrong reads like proof.
+interface of every Exoscale instance and of every Scaleway server whose only
+address is public. The pack hands the set over, the driver refuses with the
+typed error, and the log names the declaring capability instead of crying
+wolf. The capability is about the *interface*, not about a machine with only
+one — and `machine.Capabilities.FirewallPublicOnly` says so in its own words
+since #548, because a declaration whose subject is wrong reads like proof.
+
+Until 2026-08-28 that list had a third member, and it is the one #548 was
+filed on: a Scaleway server created *with* its address, whose private NIC
+arrives afterwards and did not take the address with it (measured 2026-08-27
+on `examples/stacks/scaleway`: `eth0` routed and bare beside `eth1` on a
+managed network carrying the rule set). That machine is covered now — the
+driver moves the address onto the filtered NIC — and the paragraph after the
+next one carries the before-and-after in both driver modes.
 
 Reproduced from the API alone on 2026-08-27, without the stack, under
 `--vm incus-ovn`: a group whose inbound default is `drop` with one rule
@@ -3284,11 +3296,11 @@ $ incus query /1.0/instances/feint-scw-d3eaa40c-… | jq -c '.expanded_devices |
 packet reached the guest and was refused by it, where a covered interface
 would have dropped it.
 
-**Two migrations were tried and refused, and a third one works.** #548 left one
-thing untried — whether the driver could move the address onto the managed NIC
-once that one arrives, which is the shape the other creation order already
-produces and the one the rule set covers. Three attempts, and the third is the
-reason this paragraph changed on 2026-08-28.
+**Two migrations were tried and refused, and a third one works — and ships.**
+#548 left one thing untried — whether the driver could move the address onto
+the managed NIC once that one arrives, which is the shape the other creation
+order already produces and the one the rule set covers. Three attempts, and
+the third is what `RouteAddress` does today.
 
 The first two, by hand on 2026-08-27:
 
@@ -3304,76 +3316,100 @@ The uplink cannot be given the `/32` while the routed NIC still owns the host
 route for it — the collision #498 documents, met from the other side — and
 removing the routed device unmasks the profile's `eth0` on `incusbr0`, the
 operator's own default bridge, which this emulator refuses to put anything on.
+**Neither is a remedy, and neither should be proposed again.**
 
 Both come from one place: the host route. **The third attempt takes the address
 off the device without taking the device off the instance**, which is neither of
-the two, and Incus 7.2 accepts it on a running instance. Measured on 2026-08-28,
-under `--vm incus-ovn`, on a server created with its flexible IP whose private
-NIC arrived afterwards — the exact shape above:
+the two, and Incus 7.2 accepts it on a running instance:
 
 ```console
-$ ip route show | grep 203.0.113.2
-203.0.113.2 dev veth030d08f6 scope link
-$ incus config device set feint-scw-21c968ca-… eth0 ipv4.address=      # 1
-$ ip route show | grep 203.0.113.2                                     # gone
-$ incus network set feint-uplink ipv4.routes "10.199.0.0/24,203.0.113.2/32"   # 2, no longer refused
-$ incus config device set feint-scw-21c968ca-… eth1 \
-    ipv4.routes.external=203.0.113.2/32                                # 3
-$ incus query /1.0/instances/feint-scw-21c968ca-… | jq -c '…'
-{"eth0":{"ipv4.host_address":"169.254.0.1","nictype":"routed","type":"nic"},
- "eth1":{"ipv4.address":"10.199.0.2","ipv4.routes.external":"203.0.113.2/32",
-         "network":"fnt-0da7a7bda1e","security.acls":"scw-892dbc3d91e","type":"nic"}}
+$ incus config device set <machine> eth0 ipv4.address=          # 1, the host route goes
+$ incus network set feint-uplink ipv4.routes "…,203.0.113.2/32" # 2, no longer refused
+$ incus config device set <machine> eth1 \
+    ipv4.routes.external=203.0.113.2/32                        # 3, routeAddressOVN's own gesture
 ```
 
 Step 1 releases the address, step 2 is the first refusal now unblocked, step 3
-is `routeAddressOVN`'s own gesture, and the guest is then repaired the way that
-function already repairs one. The device stays, so `incusbr0` is never unmasked.
+is the address arriving on the interface that wears the rule sets. The device
+stays, so `incusbr0` is never unmasked. In the bridge mode the third step is
+`ipv4.routes` on the managed device instead, which is that mode's own way of
+carrying a public address, and the first two are unchanged.
 
-**The coverage is real, and the probe tells the two answers apart.** The group's
-inbound default is `drop` with one rule allowing 443, and a listener sits on both
-ports, so a refusal cannot be mistaken for an empty port:
+**Before and after, in both modes, read on the NIC and from the station.** The
+shape is #548's, reproduced from the API alone: a group whose inbound default
+is `drop` with one rule allowing 443, a server created with its flexible IP,
+its private NIC attached afterwards, a listener on 443 and one on 80, and 8080
+bare as the negative control. Measured 2026-08-28.
 
 ```console
-  203.0.113.2:443   connect_ex=0    OPEN       # a rule opens it, the listener answers
-  203.0.113.2:80    connect_ex=111  refused    # a listener is there, no rule is
-  203.0.113.2:8080  connect_ex=111  refused    # no listener: the negative control
+--vm incus-ovn, before                     --vm incus-ovn, after
+eth0 routed  ipv4.address=203.0.113.2      eth0 routed  (no address)
+     no security.acls                           no security.acls, and nothing to cover
+eth1 network=fnt-…                         eth1 network=fnt-…
+     ipv4.address=10.199.0.2                    ipv4.address=10.199.0.2
+     security.acls=scw-…                        ipv4.routes.external=203.0.113.2/32
+                                                security.acls=scw-…
+
+  203.0.113.2:443   OPEN                     203.0.113.2:443   OPEN      a rule opens it
+  203.0.113.2:80    OPEN   ← the escape      203.0.113.2:80    refused   a listener is there, no rule is
+  203.0.113.2:8080  refused                  203.0.113.2:8080  refused   no listener: the negative control
+
+--vm incus, before                         --vm incus, after
+eth0 routed  ipv4.address=203.0.113.2      eth0 routed  (no address)
+eth1 network=fnt-…  security.acls=scw-…    eth1 network=fnt-…  ipv4.routes=203.0.113.2/32
+                                                security.acls=scw-…
+
+  203.0.113.2:443   OPEN                     203.0.113.2:443   OPEN
+  203.0.113.2:80    OPEN   ← the escape      203.0.113.2:80    timed out (the bridge default is drop)
+  203.0.113.2:8080  refused                  203.0.113.2:8080  timed out
 ```
 
-Before the migration, on the same machine, 80 was **OPEN** — that is the escape
-this section describes. And the machine keeps its way out: `ipv4.nat=true` on the
-OVN network, `ping 1.1.1.1` answers from inside, with the station as the control.
+Two readings of that table are worth spelling out. The verdict is taken on the
+**NIC** and not only on the connection: `security.acls` is on the interface
+that carries the address in the "after" column, which is what tells this apart
+from a connection that happens to fail. And the bridge column's refusals are
+timeouts rather than resets, because a bridged NIC's default action drops where
+OVN's isolation set rejects — so on that mode the negative control cannot tell
+"no listener" from "dropped", and the pair that carries the verdict is 443 open
+beside 80 closed with **both** proved listening inside the machine.
 
-**So this is a remedy, not an impossibility — and it is still not shipped, for
-two reasons that are measurements rather than reluctance.**
+**What a restart costs, and what had to be fixed for the move to survive one.**
+The address now lives on the interface a hot attach created, and nothing inside
+a guest remembers what this driver configured on it: measured on 2026-08-28,
+a machine rebooted through the API came back with no address at all on `eth1`,
+the driver's own wait ran its ninety seconds and gave up with `it carries no
+IPv4 address`, and the published address stopped answering — 443 timed out
+where it had been open, in both modes. The cause was named by repairing it by
+hand, in three steps, until the symptom went: restoring the interface's private
+address alone did not bring 443 back, and a route towards the station's block
+did. So the restart path restores the address a NIC device reserves (both
+modes) before it waits for a lease nobody offers, and the routes towards the
+peered subnets follow as before (#549). Re-measured after that: 443 open, 80
+refused, 8080 refused, identical before and after the restart.
 
-- **What a machine "answers on" moves.** `Incus.Inspect` reports the first
-  global IPv4 of the lowest-named interface, and after the migration the public
-  and private addresses share `eth1`: the runtime answers
-  `{"eth0":[],"eth1":["10.199.0.2","203.0.113.2"]}`, stable across three reads,
-  so `Binding.Address` and `Started.Address` would report the private address
-  where they used to report the public one. The Scaleway API is unaffected —
-  it publishes the flexible IP from its own store, and it still answered
-  `public_ip: 203.0.113.2` throughout — but `Binding.Address` is the shared
-  layer, and the Exoscale pack reads it (`machines.go`, the membership
-  attachment). A fix has to say which of a machine's addresses is the one it
-  answers on, for three packs at once.
-- **Only OVN was measured.** The bridge mode delivers a public address through
-  `ipv4.routes` on the device rather than `ipv4.routes.external`, and nothing
-  above was run under `--vm incus`.
+**What is still not delivered on this shape.** The machine has no way out: a
+routed NIC has no NAT, its default route points at the link-local host address,
+and `ping 1.1.1.1` from inside answers nothing — before the migration and after
+it, with the station as the control in both passes, so the move neither gave
+nor took that away. A guest that needs outbound access wants a default route
+through its emulated network, which this driver deliberately does not invent
+(see `repairGuestInterface`: inventing one would route a machine the control
+plane declared isolated). The `#507` bound therefore stands unchanged.
 
-Until those two are settled the bound in the table stands, and
-`tools/conformance/functional.sh` goes on skipping the public half by naming
-`capabilities.firewall_public_only` and #548.
-
-What #548 delivered instead is the naming: the refusal now carries every
-routed interface that escapes *and the addresses it delivers*
+**What #548 delivered before the remedy, and keeps.** The refusal a routed NIC
+still earns names every escaping interface *and the addresses it delivers*
 (`eth0 (203.0.113.2)`), read from both `ipv4.address` and `ipv4.routes` so an
-address attached after the boot is named too, and the warning no longer calls
-the machine public-only.
-`TestTheUnenforceableRefusalNamesTheAddressThatEscapes`,
+address attached after the boot is named too, and the warning does not call the
+machine public-only. That is what an operator reads on the one shape the
+remedy cannot reach — a machine with no emulated network to move the address
+onto. `TestTheUnenforceableRefusalNamesTheAddressThatEscapes`,
 `TestTheUnenforceableRefusalNamesAnAddressRoutedAfterTheLaunch` and
 `TestTheUnenforceableWarningDoesNotCallTheMachinePublicOnly` fail without it,
-and `tools/falsify/specs/uncovered-interface.json` replays all three.
+and `tools/falsify/specs/uncovered-interface.json` replays all three. A routed
+NIC that carries *nothing* is not named at all, and that half is
+`TestARoutedNICThatCarriesNothingIsNotAnEscape`: after the move the device
+stays on the instance with no address, and reporting it would be describing an
+escape that had been closed.
 
 Second, between two machines of one subnet the sender's permissive
 egress still wins over the receiver's ingress default (the single-pipeline

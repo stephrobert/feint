@@ -57,6 +57,22 @@
     ],
     "unit": "platform-web.service",
     "port": 443,
+
+    "_closed_port": [
+      "The public path's other half (#548). 443 is opened by",
+      "scaleway_instance_security_group.web and 9090 is named by no rule of it,",
+      "both are listening on the same machine, and the probe is the station",
+      "dialling the flexible IP — so the only thing that differs between the two",
+      "verdicts is the rule.",
+      "",
+      "It could not be asserted while the address rode a routed NIC: that",
+      "interface takes no security option at all, so 9090 answered from the",
+      "station under a group whose inbound default is drop (measured 2026-08-27",
+      "and again 2026-08-28, in both driver modes). The driver moves the address",
+      "onto the filtered NIC now, and the harness gates this on the runtime",
+      "saying so — capabilities.firewall_public_when_joined."
+    ],
+    "closed_port": 9090,
     "machines": ["platform-web-0", "platform-web-1"],
     "restart": "platform-web-0",
     "restart_reaches": {

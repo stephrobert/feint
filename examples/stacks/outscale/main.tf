@@ -368,6 +368,13 @@ resource "outscale_vm" "web" {
   #
   # No `packages:`: the same #507 bound the Scaleway stack documents. python3
   # is guaranteed wherever cloud-init runs, since cloud-init is python.
+  # The second listener is the public path's closed half (#548): 80 is the port
+  # `outscale_security_group_rule.web_http` opens, 9090 is a metrics port no
+  # rule of this group names, and both live on the machine whose PublicIp the
+  # station dials. This cloud reaches the assertion by another road than
+  # Scaleway — a Vm is born on its Subnet, so its public address rides a
+  # managed NIC from the first boot and never needed moving — which is what
+  # makes it the control population for that change.
   user_data = base64encode(<<-EOT
     #cloud-config
     write_files:
@@ -382,11 +389,23 @@ resource "outscale_vm" "web" {
           Restart=always
           [Install]
           WantedBy=multi-user.target
+      - path: /etc/systemd/system/platform-web-metrics.service
+        content: |
+          [Unit]
+          Description=platform web metrics, private to the tier
+          After=network-online.target
+          [Service]
+          WorkingDirectory=/var/www/html
+          ExecStart=/usr/bin/python3 -m http.server 9090
+          Restart=always
+          [Install]
+          WantedBy=multi-user.target
     runcmd:
       - [mkdir, -p, /var/www/html]
       - [sh, -c, "hostname > /var/www/html/index.html"]
       - [systemctl, daemon-reload]
       - [systemctl, enable, --now, platform-web.service]
+      - [systemctl, enable, --now, platform-web-metrics.service]
   EOT
   )
 

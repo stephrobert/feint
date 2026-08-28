@@ -35,8 +35,8 @@
       "label": "a network attached after the boot leaves its interface without the instance's rule sets",
       "package": "./internal/providers/exoscale/",
       "file": "internal/core/machine/plan.go",
-      "find": "\terr := r.attach(ctx, res, att)\n\tr.Groups.AfterBoot(ctx, res)\n\treturn err",
-      "replace": "\terr := r.attach(ctx, res, att)\n\tif false {\n\t\tr.Groups.AfterBoot(ctx, res)\n\t}\n\treturn err",
+      "find": "\terr := r.attach(ctx, res, att)\n\tr.ReplayAddresses(ctx, res)\n\tr.Groups.AfterBoot(ctx, res)\n\treturn err",
+      "replace": "\terr := r.attach(ctx, res, att)\n\tr.ReplayAddresses(ctx, res)\n\tif false {\n\t\tr.Groups.AfterBoot(ctx, res)\n\t}\n\treturn err",
       "test": "TestALateNetworkAttachCarriesTheRuleSets"
     },
     {

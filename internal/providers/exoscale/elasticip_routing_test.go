@@ -27,7 +27,7 @@ type routedRuntime struct {
 func (r *routedRuntime) Inspect(_ context.Context, n string) (machine.Machine, bool, error) {
 	// Running, with an address: the packs replay routes on machines that
 	// exist, and the base recording runtime reports every machine absent.
-	return machine.Machine{Name: n, IP: "10.209.84.9", Running: true}, true, nil
+	return machine.Machine{Name: n, Addresses: []string{"10.209.84.9"}, Running: true}, true, nil
 }
 
 func (r *routedRuntime) RouteAddress(_ context.Context, spec machine.AddressSpec) error {

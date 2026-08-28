@@ -128,10 +128,24 @@ type Spec struct {
 
 // Machine is a running (or stopped) backing machine.
 type Machine struct {
-	ID      string
-	Name    string
-	IP      string
-	Running bool
+	ID   string
+	Name string
+	// Addresses is every global IPv4 the machine carries, in a deterministic
+	// order.
+	//
+	// The list, and no single address beside it, which is #548. This struct
+	// carried an IP field until then and a driver filling it had to decide
+	// *which* address that was; the only rules available to a driver are
+	// conventions — interface name order, the order the runtime happened to
+	// list. Which address is public is a fact the layer above already holds:
+	// the pack declares its emulated block, Reconciler.PublicBlock guards
+	// every address on its way to the driver since #541, and
+	// PublicAddressOf/PrivateAddressOf answer the kind from it. Two answers to
+	// one question agreed only while a routed NIC sorted before a managed one,
+	// and the field is gone rather than deprecated so no future reader can
+	// take the coincidence for an answer.
+	Addresses []string
+	Running   bool
 }
 
 // driver runs machines and the networks they sit on. Implementations must be
