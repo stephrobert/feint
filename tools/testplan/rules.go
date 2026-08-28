@@ -311,11 +311,37 @@ var rules = []rule{
 		Runs:     []string{"conformance:environment"},
 		Unproven: prepushIsTheWholeGate,
 	},
+	// The stack gate, by name, because the catch-all below sent a change to it
+	// to `conformance:leg -- fields` — a leg with no machine runtime, which is
+	// the one population this gate refuses to run in. Measured on this diff on
+	// 2026-08-28: the plan for a change to functional.sh named five falsify
+	// specs and two legs, and never the gate itself.
+	{
+		Path:     "tools/conformance/functional.sh",
+		Why:      "the stack gate — the only gate that applies the example stacks to real machines",
+		Runs:     []string{"FEINT_VM=incus-ovn mise run conformance:functional"},
+		Unproven: "three passes on one host prove what one host holds; the CI job of runtime-proof.yml is a second population and only the night plays it",
+	},
+	{
+		Path:     "tools/conformance/functionallib.sh",
+		Why:      "the stack gate's verdicts, held by functional_test.go against planted defects",
+		Runs:     []string{"FEINT_VM=incus-ovn mise run conformance:functional"},
+		Unproven: "the unit tests judge each verdict; only the gate judges them against machines that really boot",
+	},
 	{
 		Path:     "tools/conformance/",
 		Why:      "the shared harness: doorstep, score, faults, refusals, stacks, functional",
 		Runs:     []string{"conformance:leg -- fields"},
 		Unproven: "score.sh judges the field gate on the `fields` leg alone; on every other leg it prints and judges nothing",
+	},
+	// Both callers of the runtime resolver, named: `evidence:update` is twenty
+	// minutes and the stack gate is fifteen, so the cheap one is the run and the
+	// expensive one is the bound.
+	{
+		Path:     "tools/runtime-mode.sh",
+		Why:      "which runtime a task answers under, and the announcement that says so (#574)",
+		Runs:     []string{"FEINT_VM=incus-ovn mise run conformance:functional"},
+		Unproven: "`mise run evidence:update` is the other caller, and its twenty minutes are not in this plan; tools/evidence/mode_test.go is what holds its four outcomes offline",
 	},
 	{
 		Path:     "tools/falsify/",

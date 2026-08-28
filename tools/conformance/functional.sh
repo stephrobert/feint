@@ -91,9 +91,14 @@
 # ---------------------------------------------------------------------------
 # Where this runs. It boots machines, so it belongs on the same terms as
 # `conformance:ssh` and `conformance:witness`: `mise run conformance:functional`
-# by hand, and the incus-ovn leg of .github/workflows/runtime-proof.yml, which
-# #504 wires. It must never join a gate the CI runs without a runtime: there it
-# could not look, and a check that cannot look says so rather than passing.
+# by hand, and the `stacks` job of .github/workflows/runtime-proof.yml, which
+# #504 wired. A job of its own rather than a step on the incus-ovn leg, and the
+# reason is measured: that leg's ssh suites were red on four of the last seven
+# scheduled nights, and each of them leaves a rule set or a network `feint stop`
+# does not sweep, so a step there would queue behind a red and then meet a
+# doorstep it could not pass. It must never join a gate the CI runs without a
+# runtime: there it could not look, and a check that cannot look says so rather
+# than passing.
 #
 # It is written to be called: stack names as arguments, one verdict line per
 # assertion naming the stack and the object, exit 0 / 1, a doorstep that refuses
@@ -111,7 +116,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 ADDR="${FEINT_FUNCTIONAL_ADDR:-127.0.0.1:4595}"
 ENDPOINT="http://$ADDR"
-RUNTIME="${FEINT_FUNCTIONAL_RUNTIME:-incus-ovn}"
 ZONE="${FEINT_FUNCTIONAL_ZONE:-fr-par-1}"
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
@@ -125,7 +129,60 @@ skip() { echo "  SKIP: $*" >&2; }
 
 guard_local "$ENDPOINT"
 
-echo "conformance: what the example stacks must prove, on $ENDPOINT, runtime $RUNTIME"
+# ---- the intermittency budget, and why it is three --------------------------
+#
+# The defect class this gate exists for is intermittent by nature: the
+# isolation-detach race that cost three pull requests struck 9 times in 13 runs.
+# A gate that plays the suite once and reads a green as a proof is measuring
+# luck — at that rate a single pass calls the defect absent nearly one time in
+# three (0.31), which is not a verdict.
+#
+# Three passes, and the arithmetic is the argument rather than a preference:
+# 0.31^3 is a 3% chance of a green that means nothing, against 9.6% for two.
+# Five would buy
+# another factor of ten and cost the same again — measured at 295 s a pass on
+# the author's station on 2026-08-28, three passes are ~15 min locally and fit
+# inside runtime-proof.yml's 45-minute job with the runner being slower; five
+# would put that job on its own timeout, and a job that times out is a verdict
+# nobody wrote. The other bound is the one .pre-commit-config.yaml states about
+# `conformance`: a gate long enough to be worked around is worse than no gate.
+#
+# Sequential on one host, deliberately: pass k+1's doorstep is pass k's closing
+# verdict, so a run that leaks is the run that fails rather than the next one.
+PASSES="${FEINT_FUNCTIONAL_PASSES:-3}"
+if ! printf '%s' "$PASSES" | grep -Eq '^[1-9][0-9]*$'; then
+	fail "FEINT_FUNCTIONAL_PASSES is $PASSES, which is not a number of passes; a budget nobody can read is a budget nobody set"
+fi
+if [ -n "${FEINT_FUNCTIONAL_PASSES:-}" ]; then
+	echo "   the stack gate plays $PASSES pass(es) (FEINT_FUNCTIONAL_PASSES, exported by the caller)" >&2
+	if [ "$PASSES" -lt 3 ]; then
+		echo "   below the default of 3: an intermittent defect that misses once now reads as absent" >&2
+	fi
+else
+	echo "   the stack gate plays $PASSES pass(es) (this gate's default)" >&2
+fi
+
+# ---- the mode, before anything is spent -------------------------------------
+#
+# This file used to open with
+#
+#     RUNTIME="${FEINT_FUNCTIONAL_RUNTIME:-incus-ovn}"
+#
+# which is `mise run evidence:update`'s #574 line one directory over: an
+# exported FEINT_VM was ignored in silence, so `FEINT_VM=incus mise run
+# conformance:functional` measured OVN and said nothing. That is worse here than
+# it was there, because the mode is the one variable this gate's subject turns
+# on — isolation exists under OVN and not under a bridge — so the verdict would
+# name a mode nobody asked for on the very assertion the modes disagree about.
+#
+# tools/runtime-mode.sh holds the resolution for both callers.
+# TestTheStackGateResolvesAndAnnouncesItsMode fails without this line.
+RUNTIME="$("$ROOT/tools/runtime-mode.sh" "the stack gate" FEINT_FUNCTIONAL_RUNTIME incus-ovn \
+	"Its stacks boot machines and every assertion reads them off the host, so with no
+runtime there is nothing to look at and nothing to look with — and a gate that
+went on would report a green having measured nothing.")" || exit 1
+
+echo "conformance: what the example stacks must prove, on $ENDPOINT, runtime $RUNTIME, $PASSES pass(es)"
 
 # ---- doorstep: can anybody look? -------------------------------------------
 #
@@ -842,13 +899,33 @@ run_stack() { # name
 DEFAULT_STACKS=(scaleway outscale)
 STACKS=("$@")
 [ "${#STACKS[@]}" -gt 0 ] || STACKS=("${DEFAULT_STACKS[@]}")
-for stack in "${STACKS[@]}"; do
-	run_stack "$stack"
+
+pass=1
+while [ "$pass" -le "$PASSES" ]; do
+	echo "== pass $pass of $PASSES"
+	for stack in "${STACKS[@]}"; do
+		run_stack "$stack"
+	done
+
+	# The host this pass found is the host it leaves. A pass that measured every
+	# assertion and left a container or a network behind has broken the next one
+	# rather than this one (#493), so the doorstep question is asked again on the
+	# way out — of every pass, because the next pass is a run too.
+	#
+	# `doorstep` is the scope, and it is the whole of the check. This line used
+	# to read
+	#
+	#     guard_leftovers_for "$RUNTIME" "the end of the run"
+	#
+	# and guard_leftovers_for arms `--doorstep` on the literal `doorstep` alone,
+	# so the closing check asked about DHCP orphans and traps and never once
+	# asked what machines and networks were left standing — the exact question
+	# the comment above it claimed to ask. A green run that leaked a network
+	# exited 0 and the next run paid for it, which is the state #521 fixed in
+	# `mise run conformance` and this file described without doing.
+	# TestTheStackGateEndsOnItsOwnDoorstep fails without the scope.
+	guard_leftovers_for "$RUNTIME" doorstep
+	pass=$((pass + 1))
 done
 
-# The host this run found is the host it leaves. A run that measured every
-# assertion and left a container behind has broken the next run rather than this
-# one (#493), so the doorstep question is asked again on the way out.
-guard_leftovers_for "$RUNTIME" "the end of the run"
-
-echo "conformance: every stack proved what it declares, and every bound it cannot measure was named"
+echo "conformance: every stack proved what it declares over $PASSES pass(es), and every bound it cannot measure was named"

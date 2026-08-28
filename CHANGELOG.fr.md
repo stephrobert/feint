@@ -17,7 +17,57 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ## [Unreleased]
 
+### Ajouté
+
+- **Les stacks d'exemple sont appliquées à de vraies machines chaque nuit, et
+  la porte qui le fait dit combien de fois (#504).** `conformance:functional`
+  est la seule chose ici qui applique `examples/stacks/` contre un runtime, et
+  rien en CI ne la jouait : aucune jambe de `runtime-proof.yml` n'applique de
+  stack, et `mise run conformance` saute les suites de stack sans runtime.
+  C'est elle qui a fait apparaître la course détachement contre démarrage, au
+  prix de trois pull requests (#577, #578), sur un défaut plus vieux que toute
+  la plage bissectée. Elle tourne désormais dans un job à elle sur ce workflow.
+  Un job plutôt qu'une étape, parce que les suites ssh de la jambe incus-ovn
+  étaient rouges quatre des sept dernières nuits planifiées et que chacune
+  laisse des jeux de règles et des réseaux que `feint stop` ne balaie pas : une
+  étape y attendrait derrière un rouge, puis rencontrerait un portillon
+  qu'elle ne pourrait pas passer. **Trois passes**, et le nombre est un
+  arbitrage : cette classe de défaut a frappé 9 fois sur 13, donc une seule
+  passe la déclare absente 31 % du temps, là où trois passes ramènent ce risque
+  à 3 %, pour 295 s la passe.
+
 ### Corrigé
+
+- **Le portillon de sortie de la porte des stacks pose enfin la question que
+  son propre commentaire annonçait, et la porte cesse de choisir son runtime
+  en silence (#504).** Elle se terminait sur
+  `guard_leftovers_for "$RUNTIME" "the end of the run"`, sous un paragraphe
+  affirmant que la question du portillon était reposée à la sortie. Le garde
+  n'arme cette question que sur le littéral `doorstep` : une passe qui laissait
+  une machine ou un réseau sortait donc en 0, et c'est l'exécution suivante qui
+  rencontrait le refus. C'est l'état que #521 avait retiré de
+  `mise run conformance`, décrit ici et jamais fait. Elle ouvrait par ailleurs
+  sur `RUNTIME="${FEINT_FUNCTIONAL_RUNTIME:-incus-ovn}"`, donc un `FEINT_VM`
+  exporté était ignoré sans un mot : la ligne de #574, un répertoire plus loin,
+  sur la seule porte dont le sujet est justement l'assertion où les deux modes
+  divergent. La résolution est passée dans `tools/runtime-mode.sh`, partagée
+  avec `evidence:update`, dont les tests inchangés sont ce qui prouve que le
+  déplacement n'a rien changé.
+
+- **Les deux sorties nulles de la stack Exoscale ne viennent pas de cet
+  émulateur (#520).** Le constat déduisait, sans l'instrumenter, que le GET par
+  identifiant du pack courait contre sa propre complétion asynchrone. Mesuré le
+  2026-08-28 contre le pack directement : 100 lectures par identifiant à la
+  suite sur un répartiteur, 100 paires création puis lecture neuves, et 50 pour
+  le pool d'instances. **Zéro** nom, adresse ou taille vide. Il n'y a pas de
+  fenêtre : la création écrit `name` et `ip` dans le store *avant* d'émettre
+  une opération qui annonce déjà `state: success`. La troisième porte par
+  identifiant de la stack se relisait correctement dans le même apply, donc ce
+  qui a produit les valeurs nulles distingue les trois, et ce pack ne les
+  distingue pas. `docs/limits.md` porte la mesure et la réfutation. Ce qui
+  lèverait la limite est le correctif amont
+  `terraform-provider-exoscale#573` ; aucune modification de ce pack ne le
+  ferait.
 
 - **Un groupe de sécurité Exoscale s'arrête à l'interface publique, là où le
   vrai cloud l'arrête (#574).** Exoscale le dit en une phrase : « Security

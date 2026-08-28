@@ -3,30 +3,37 @@
   "mutations": [
     {
       "label": "an exported FEINT_VM is ignored again, so the leg answers under a mode nobody asked for (#574)",
-      "file": "tools/evidence/mode.sh",
-      "find": "if [ -n \"$vm\" ]; then\n  mode=\"$vm\"",
-      "replace": "if [ -n \"$vm\" ] && false; then\n  mode=\"$vm\"",
+      "file": "tools/runtime-mode.sh",
+      "find": "if [ -n \"$vm\" ]; then\n\tmode=\"$vm\"",
+      "replace": "if [ -n \"$vm\" ] && false; then\n\tmode=\"$vm\"",
       "test": "TestTheRuntimeLegResolvesAndAnnouncesItsMode"
     },
     {
       "label": "two variables naming two different runtimes are arbitrated instead of refused",
-      "file": "tools/evidence/mode.sh",
-      "find": "if [ -n \"$vm\" ] && [ -n \"$evidence_vm\" ] && [ \"$vm\" != \"$evidence_vm\" ]; then",
-      "replace": "if [ -n \"$vm\" ] && [ -n \"$evidence_vm\" ] && [ \"$vm\" != \"$evidence_vm\" ] && false; then",
+      "file": "tools/runtime-mode.sh",
+      "find": "if [ -n \"$vm\" ] && [ -n \"$knob_value\" ] && [ \"$vm\" != \"$knob_value\" ]; then",
+      "replace": "if [ -n \"$vm\" ] && [ -n \"$knob_value\" ] && [ \"$vm\" != \"$knob_value\" ] && false; then",
       "test": "TestTheRuntimeLegResolvesAndAnnouncesItsMode"
     },
     {
       "label": "machines off is accepted for the runtime leg, and the record narrows without anyone asking",
-      "file": "tools/evidence/mode.sh",
+      "file": "tools/runtime-mode.sh",
       "find": "if [ \"$mode\" = \"off\" ]; then",
       "replace": "if [ \"$mode\" = \"off\" ] && false; then",
       "test": "TestTheRuntimeLegResolvesAndAnnouncesItsMode"
     },
     {
       "label": "the leg stops naming the mode it runs, which is the half that was missing entirely",
+      "file": "tools/runtime-mode.sh",
+      "find": "echo \"   $subject runs under --vm $mode ($source)\" >&2",
+      "replace": "echo \"   $subject runs\" >&2",
+      "test": "TestTheRuntimeLegResolvesAndAnnouncesItsMode"
+    },
+    {
+      "label": "the leg's own facts stop deciding the answer: the default it passes is changed and the leg answers under a runtime nobody chose",
       "file": "tools/evidence/mode.sh",
-      "find": "echo \"   the runtime leg runs under --vm $mode ($source)\" >&2",
-      "replace": "echo \"   the runtime leg runs\" >&2",
+      "find": "\tFEINT_EVIDENCE_VM \\\n\tincus \\",
+      "replace": "\tFEINT_EVIDENCE_VM \\\n\tincus-vm \\",
       "test": "TestTheRuntimeLegResolvesAndAnnouncesItsMode"
     },
     {
@@ -43,5 +50,6 @@
       "replace": "echo \"== leg 1/2: machines off, probe on\"",
       "test": "TestTheEvidenceTaskAsksForItsModeRatherThanPinningIt"
     }
-  ]
+  ],
+  "note": "The subject is #574's second half, and the file it points at moved on 2026-08-28. The resolution itself now lives in tools/runtime-mode.sh, because tools/conformance/functional.sh was found carrying the same silent line one directory over (#504): `RUNTIME=\"${FEINT_FUNCTIONAL_RUNTIME:-incus-ovn}\"`. What varies between the two callers — the subject, the knob, the default, and what `off` would cost — is passed; what does not vary is shared. tools/evidence/mode.sh is now the four facts of the evidence leg and nothing else, which is why the fifth mutation below is on it: change one of those four facts and the leg answers under a runtime nobody chose, which is how a delegation that looks right resolves somebody else's question.\n\nThe tests did not move with the code, deliberately: tools/evidence/mode_test.go was written against the behaviour, so it is what proved the extraction changed none of it."
 }

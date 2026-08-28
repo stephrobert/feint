@@ -1,0 +1,70 @@
+{
+  "package": "./tools/conformance/",
+  "mutations": [
+    {
+      "label": "the closing check goes back to the scope that armed nothing, so a pass that leaked a machine or a network exits 0 under a comment claiming the doorstep was asked",
+      "file": "tools/conformance/functional.sh",
+      "find": "\tguard_leftovers_for \"$RUNTIME\" doorstep\n\tpass=$((pass + 1))",
+      "replace": "\tguard_leftovers_for \"$RUNTIME\" \"the end of the run\" # doorstep\n\tpass=$((pass + 1))",
+      "test": "TestTheStackGateEndsOnItsOwnDoorstep",
+      "package": "./tools/conformance/"
+    },
+    {
+      "label": "the budget goes back to one pass, so a defect that struck 9 times in 13 runs reads as absent nearly one time in three",
+      "file": "tools/conformance/functional.sh",
+      "find": "PASSES=\"${FEINT_FUNCTIONAL_PASSES:-3}\"",
+      "replace": "PASSES=\"${FEINT_FUNCTIONAL_PASSES:-1}\" # 3",
+      "test": "TestTheStackGatePlaysTheBudgetItAnnounces",
+      "package": "./tools/conformance/"
+    },
+    {
+      "label": "the loop stops at one whatever the gate announced, which is the lying instrument: the number in the log is what a reader takes the green to mean",
+      "file": "tools/conformance/functional.sh",
+      "find": "while [ \"$pass\" -le \"$PASSES\" ]; do",
+      "replace": "while [ \"$pass\" -le 1 ] && [ \"$pass\" -le \"$PASSES\" ]; do",
+      "test": "TestTheStackGatePlaysTheBudgetItAnnounces",
+      "package": "./tools/conformance/"
+    },
+    {
+      "label": "a budget that is not a number is accepted, so FEINT_FUNCTIONAL_PASSES=0 runs zero passes and exits 0 having measured nothing",
+      "file": "tools/conformance/functional.sh",
+      "find": "if ! printf '%s' \"$PASSES\" | grep -Eq '^[1-9][0-9]*$'; then",
+      "replace": "if false && ! printf '%s' \"$PASSES\" | grep -Eq '^[1-9][0-9]*$'; then",
+      "test": "TestTheStackGateResolvesAndAnnouncesItsMode",
+      "package": "./tools/conformance/"
+    },
+    {
+      "label": "the resolver stops announcing, which is exactly what #574 looked like: the right mode picked, nothing printed, and the reader believing the mode they exported",
+      "file": "tools/runtime-mode.sh",
+      "find": "echo \"   $subject runs under --vm $mode ($source)\" >&2",
+      "replace": "[ -n \"$subject$mode$source\" ] || echo \"   $subject runs under --vm $mode ($source)\" >&2",
+      "test": "TestTheStackGateAnnouncesTheModeItAccepts",
+      "package": "./tools/conformance/"
+    },
+    {
+      "label": "the scheduled job plays the witness gate instead of the stack gate, which is the state #504 was opened about with one more step in it",
+      "file": ".github/workflows/runtime-proof.yml",
+      "find": "        run: sudo env FEINT_VM=incus-ovn tools/conformance/functional.sh",
+      "replace": "        run: sudo env FEINT_VM=incus-ovn tools/conformance/witness.sh # functional.sh",
+      "test": "TestTheStackGateIsPlayedByAScheduledJob",
+      "package": "./tools/conformance/"
+    },
+    {
+      "label": "the night's summary and its issue stop waiting for the stack gate, so a red night is reported, and possibly closed, before anybody looked at it",
+      "file": ".github/workflows/runtime-proof.yml",
+      "find": "    needs: [runtime, stacks]\n    if: always() && github.event_name == 'schedule'\n    runs-on: ubuntu-24.04",
+      "replace": "    needs: [runtime]\n    if: always() && github.event_name == 'schedule' # stacks\n    runs-on: ubuntu-24.04",
+      "test": "TestTheStackGateIsPlayedByAScheduledJob",
+      "package": "./tools/conformance/"
+    },
+    {
+      "label": "the stack gate becomes a step of the incus-ovn leg again, where it queues behind suites red on four of the last seven nights and inherits what they leave on the host",
+      "file": ".github/workflows/runtime-proof.yml",
+      "find": "  stacks:\n    name: stacks (incus-ovn)",
+      "replace": "  runtime2:\n    name: stacks (incus-ovn)",
+      "test": "TestTheStackGateIsPlayedByAScheduledJob",
+      "package": "./tools/conformance/"
+    }
+  ],
+  "note": "The subject is #504. `conformance:functional` is the only gate in this repository that applies the example stacks to real machines, and until this change nothing in CI played it: no leg of runtime-proof.yml applies a stack, and `mise run conformance` skips the stack suites without a runtime. That gap is measured rather than argued — the isolation-detach race it would have caught on the day it landed (an ACL deleted while the daemon resolved it at `incus start`, machines dying behind a green apply) cost three pull requests, and the defect was older than the whole range bisected.\n\nFour properties came out of that day, and each has a mutation here.\n\nTHE DOORSTEP AT BOTH ENDS. Mutation 1 is the defect this change found rather than introduced: functional.sh closed with `guard_leftovers_for \"$RUNTIME\" \"the end of the run\"` under a comment saying the doorstep question was asked again on the way out. guard_leftovers_for arms `--doorstep` on the literal `doorstep` alone, so the closing call asked about DHCP orphans and trapped objects and never once asked what machines and networks were left standing. A green run that leaked a network exited 0 and the next run met the refusal — the state #521 removed from `mise run conformance`, described here in prose and never done. Its test reads the scope the file passes and then executes the guard with it, so it measures the effect and not the spelling.\n\nTHE MODE, ANNOUNCED WITH ITS PROVENANCE. Mutation 5 is #574 one directory over, and the resolver's own refusals are replayed by evidence-leg-mode.json, which owns that file. functional.sh opened with `RUNTIME=\"${FEINT_FUNCTIONAL_RUNTIME:-incus-ovn}\"`, so an exported FEINT_VM was ignored in silence; the same line in `mise run evidence:update` manufactured two successive false attributions during an Exoscale diagnosis, at three 1300-second passes to unmake. It is worse on this gate than it was there, because the one assertion the two modes disagree about — two networks nothing peers must not reach each other — is this gate's own subject. Mutation 5 is the one worth reading twice: the mode is still resolved correctly and simply not said, which is exactly what the defect looked like.\n\nTHE INTERMITTENCY BUDGET. Mutations 2, 3 and 4. The class of defect this gate exists for struck 9 times in 13 runs, so one pass calls it absent nearly one time in three; three passes make that one green in thirty-three, at 295 s a pass measured on the author's station on 2026-08-28. Mutation 3 is the instrument's own failure mode rather than the gate's: the gate announces three passes and plays one, and the number in the log is what a reader takes the green to mean.\n\nWHERE IT RUNS. Mutations 6 to 8. A gate nothing plays is the subject of the issue, so the wiring is held: the job runs the gate and not its neighbour, the night's summary and its issue wait for it, and it stays a job of its own. That last one is not a preference — a step on the incus-ovn leg queues behind six suites that were red on four of the last seven scheduled nights, and it would meet a host those suites leave dirty. Measured on 2026-08-28 by reproducing that leg locally: the three ssh suites each exit 0 and each leave something behind — `scw-…` and `exo-…` rule sets no client can delete, `fnt-default` and `feint-uplink` no resource owns — and `feint stop` sweeps none of them. That is why the witness gate failed at its own doorstep on the one night it has been reached since it landed (2026-08-27); the night after never got that far."
+}

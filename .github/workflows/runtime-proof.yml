@@ -39,6 +39,13 @@
 # the layer conformance.yml deliberately leaves out — the machine behind the
 # answer — so it runs the network and ssh suites, which are exactly the scripts
 # that skip themselves when no runtime is configured.
+#
+# A third job joined the two legs on 2026-08-28 (#504): `stacks`, which applies
+# the example stacks to real machines. That widens the promotion criterion above
+# rather than leaving it alone, and it is meant to: the streak is counted from
+# this workflow's own conclusion, so a night whose stack gate went red is a
+# night the runtime proof was red. Narrowing the criterion to exclude a gate
+# because it might redden is how a criterion becomes decoration.
 name: Runtime proof
 
 on:
@@ -402,6 +409,196 @@ jobs:
           MODE: ${{ matrix.mode }}
         run: sudo env FEINT_VM="${MODE}" tools/conformance/crash.sh
 
+  # The stack gate (#504): the only thing in this repository that applies the
+  # example stacks against real machines, and until now nothing in CI played it.
+  #
+  # WHY IT EARNED A JOB, on the day it was wired. `conformance:functional` is
+  # what surfaced the isolation-detach race — an ACL deleted while the daemon
+  # resolved it at `incus start`, killing machines behind a green apply. Finding
+  # it cost three pull requests (#577, #578 and the diagnosis before them) and
+  # the defect was older than the whole range bisected. No leg above plays the
+  # stacks, and `mise run conformance` skips the stack suites without a runtime,
+  # so a defect that only appears when a real apply races a real accept had no
+  # gate at all.
+  #
+  # WHY A PARALLEL JOB RATHER THAN A STEP ON THE incus-ovn LEG, which is the
+  # decision this issue asked to be argued rather than assumed:
+  #
+  #   - A step there queues behind six suites that were red on four of the last
+  #     seven scheduled nights (Scaleway ssh, 2026-08-22 to 08-25), and a step
+  #     that is never reached is a gate that never runs — which is #504's whole
+  #     complaint about `conformance:functional` itself.
+  #   - It would also inherit that leg's host. Measured on this station on
+  #     2026-08-28, reproducing the leg: the three ssh suites each exit 0 and
+  #     each leave something standing — `scw-…` and `exo-…` rule sets no client
+  #     can delete, `fnt-default` and `feint-uplink` no resource owns — and
+  #     `feint stop` sweeps none of them. That is why the witness gate below
+  #     failed at its own doorstep on the one night it has been reached since it
+  #     landed — 2026-08-27, "this host still holds what an earlier run left",
+  #     naming feint-uplink and fnt-default; the night after never got that far.
+  #     A job of its own starts on a runner nothing has touched.
+  #   - Three passes is half an hour. Added to that leg it would push a 45-minute
+  #     job onto its own timeout, and a job that times out is a verdict nobody
+  #     wrote.
+  #
+  # Its red is its own, and that is the point: "runtime-proof failed" is noise,
+  # "the stack gate failed on outscale, platform-web-a is stopped" is a finding.
+  #
+  # WHY incus-ovn ALONE. The gate's own default is incus-ovn and one of its
+  # families needs it: two networks nothing peers must not reach each other, and
+  # a bridge cannot deliver that (docs/limits.md). Under a bridge the gate would
+  # skip its own subject by name, which is honest and worth nothing nightly.
+  #
+  # The setup below repeats the incus-ovn leg's, deliberately and not silently:
+  # extracting it while that leg is red would make any new red ambiguous between
+  # the gate and the refactor. TestBothRuntimeJobsPinTheSameHost holds the two
+  # copies to the same pins, so a drift between them fails `mise run check`
+  # rather than a night three weeks later.
+  stacks:
+    name: stacks (incus-ovn)
+    runs-on: ubuntu-24.04
+    # Three passes of a gate measured at 295 s on the author's station, on a
+    # runner with a quarter of its cores: sized so a slow pass is still a
+    # verdict rather than a timeout, because a timeout measures the runner.
+    timeout-minutes: 75
+    permissions:
+      contents: read
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.26.6'
+          cache: false
+
+      - name: Install Incus (Zabbly stable, key fingerprint pinned)
+        env:
+          ZABBLY_FPR: '4EFC590696CB15B87C73A3AD82CC8797C838DCFD'
+        run: |
+          set -euo pipefail
+          workdir="$(mktemp -d)"
+          curl --retry 3 --retry-connrefused -fsSL https://pkgs.zabbly.com/key.asc -o "${workdir}/zabbly.asc"
+          fpr="$(gpg --show-keys --with-colons "${workdir}/zabbly.asc" | awk -F: '/^fpr/ {print $10; exit}')"
+          if [ "${fpr}" != "${ZABBLY_FPR}" ]; then
+            echo "unexpected Zabbly key fingerprint: ${fpr}" >&2
+            exit 1
+          fi
+          sudo install -D -m 0644 "${workdir}/zabbly.asc" /etc/apt/keyrings/zabbly.asc
+          # shellcheck disable=SC1091
+          codename="$(. /etc/os-release && echo "${VERSION_CODENAME}")"
+          arch="$(dpkg --print-architecture)"
+          sudo tee /etc/apt/sources.list.d/zabbly-incus.sources >/dev/null <<EOF
+          Enabled: yes
+          Types: deb
+          URIs: https://pkgs.zabbly.com/incus/stable
+          Suites: ${codename}
+          Components: main
+          Architectures: ${arch}
+          Signed-By: /etc/apt/keyrings/zabbly.asc
+          EOF
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends incus incus-client netcat-openbsd
+          sudo incus --version
+
+      - name: Install and wire OVN
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y --no-install-recommends ovn-central ovn-host openvswitch-switch
+          if ! sudo modprobe openvswitch; then
+            sudo apt-get install -y --no-install-recommends "linux-modules-extra-$(uname -r)"
+            sudo modprobe openvswitch
+          fi
+          sudo systemctl enable --now openvswitch-switch ovn-central ovn-host
+          # The units return before the databases listen (docs/install.md).
+          for _ in $(seq 1 30); do
+            [ -S /run/ovn/ovnnb_db.sock ] && break
+            sleep 1
+          done
+          if [ ! -S /run/ovn/ovnnb_db.sock ]; then
+            echo 'ovnnb_db.sock never appeared' >&2
+            sudo journalctl -u ovn-central --no-pager | tail -n 50 >&2
+            exit 1
+          fi
+          sudo ovs-vsctl set open_vswitch . \
+            external_ids:ovn-remote=unix:/run/ovn/ovnsb_db.sock \
+            external_ids:ovn-encap-type=geneve \
+            external_ids:ovn-encap-ip=127.0.0.1
+
+      - name: Initialise Incus
+        run: |
+          set -euo pipefail
+          sudo incus admin init --minimal
+          sudo incus config set network.ovn.northbound_connection unix:/run/ovn/ovnnb_db.sock
+
+      # The same reason as the leg above: the runner image's Docker sets the
+      # host FORWARD policy to DROP, and the stacks' machines are reached over
+      # routed addresses.
+      - name: Keep the runner's Docker firewall out of the verdict
+        run: sudo iptables -P FORWARD ACCEPT
+
+      - name: Build feint and diagnose the runtime
+        run: |
+          set -euo pipefail
+          go build -o feint ./cmd/feint
+          sudo ./feint doctor --vm incus-ovn
+
+      # The gate refuses without them rather than booting an upstream image with
+      # no ssh daemon, so this is the half that makes the refusal never fire.
+      - name: Build the machine images the stacks boot
+        run: sudo ./feint images --vm incus-ovn
+
+      # `feint up` drives Terraform, which is what applies both stacks. Same
+      # pinned version and upstream checksums as conformance.yml — one client,
+      # three workflows, one truth. No provider CLI is installed: this gate
+      # speaks curl and jq to the emulator and reads the machines with `incus`.
+      - name: Install Terraform
+        env:
+          TERRAFORM_VERSION: '1.13.3'
+        run: |
+          set -euo pipefail
+          workdir="$(mktemp -d)"
+          base="https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}"
+          asset="terraform_${TERRAFORM_VERSION}_linux_amd64.zip"
+          curl --retry 3 --retry-connrefused -fsSL -o "${workdir}/${asset}" "${base}/${asset}"
+          curl --retry 3 --retry-connrefused -fsSL -o "${workdir}/sums" "${base}/terraform_${TERRAFORM_VERSION}_SHA256SUMS"
+          (cd "${workdir}" && grep " ${asset}$" sums | sha256sum -c -)
+          sudo unzip -o "${workdir}/${asset}" terraform -d /usr/local/bin
+          terraform version
+
+      # The gate itself. FEINT_VM is exported rather than left to the default so
+      # the mode is announced with the provenance a reader can check against
+      # this job's own name — the property tools/runtime-mode.sh holds and #574
+      # paid three 1300-second passes to learn.
+      #
+      # The pass budget is the gate's own default (3) rather than a number set
+      # here: a CI budget that differs from the local one means the green an
+      # operator proves and the green this job publishes are two different
+      # measurements.
+      - name: The example stacks, applied and probed
+        run: sudo env FEINT_VM=incus-ovn tools/conformance/functional.sh
+
+      # On failure: what the host STILL holds, and this is thin by construction
+      # rather than by oversight. The gate tears its own stack down on the way
+      # out, so a red leaves almost nothing behind — the finding is the verdict
+      # line itself, which already names the stack, the machine, the address and
+      # the port. What this catches is the other shape: a red that left
+      # something standing, which is the doorstep's own subject.
+      - name: What the runtime still holds
+        if: failure()
+        run: |
+          sudo incus list || true
+          sudo incus network list || true
+          sudo incus network acl list || true
+
   # The criterion, counted rather than remembered.
   #
   # The header above states the rule: promotion to `pull_request` when 14
@@ -419,7 +616,7 @@ jobs:
   # of an opinion.
   streak:
     name: Consecutive green scheduled runs
-    needs: runtime
+    needs: [runtime, stacks]
     if: always() && github.event_name == 'schedule'
     runs-on: ubuntu-24.04
     permissions:
@@ -494,7 +691,7 @@ jobs:
   # with each decision neutralised.
   report:
     name: A red night opens the issue, a green one closes it
-    needs: runtime
+    needs: [runtime, stacks]
     if: always() && github.event_name == 'schedule'
     permissions:
       contents: read

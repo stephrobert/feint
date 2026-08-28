@@ -17,6 +17,21 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Added
 
+- **The example stacks are applied to real machines every night, and the gate
+  that does it says how many times (#504).** `conformance:functional` is the
+  only thing here that applies `examples/stacks/` against a runtime, and
+  nothing in CI played it: no leg of `runtime-proof.yml` applies a stack, and
+  `mise run conformance` skips the stack suites without one. It is what
+  surfaced the isolation-detach race that cost three pull requests (#577,
+  #578), on a defect older than the whole range bisected. It now runs as a job
+  of its own on that workflow — a job rather than a step, because the incus-ovn
+  leg's ssh suites were red on four of the last seven scheduled nights and each
+  of them leaves rule sets and networks `feint stop` does not sweep, so a step
+  there would queue behind a red and then meet a doorstep it could not pass.
+  **Three passes**, and the number is an arbitrage: the defect class struck 9
+  times in 13 runs, so one pass calls it absent 31% of the time, and three bring
+  that to 3%, at 295 s a pass.
+
 - **The Account product's projects, so a third-party VPC stack reaches a VPC
   path at all: `account/v3/ProjectAPI.ListProjects` and
   `account/v3/ProjectAPI.GetProject` (#372).** `data "scaleway_account_project"`
@@ -37,6 +52,33 @@ what this project is judged on: **a response shape a client can observe**, and
   the provider's own `FindExact`.
 
 ### Fixed
+
+- **The stack gate's closing doorstep asks the question its own comment
+  claimed, and the gate stops choosing its runtime in silence (#504).** It
+  closed with `guard_leftovers_for "$RUNTIME" "the end of the run"` under a
+  paragraph saying the doorstep was asked again on the way out; the guard arms
+  that question on the literal `doorstep` alone, so a pass that leaked a
+  machine or a network exited 0 and the next run met the refusal — the state
+  #521 removed from `mise run conformance`, described here and never done. And
+  it opened with `RUNTIME="${FEINT_FUNCTIONAL_RUNTIME:-incus-ovn}"`, so an
+  exported `FEINT_VM` was ignored without a word: #574's line one directory
+  over, on the one gate whose subject is the assertion the two modes disagree
+  about. The resolution moved to `tools/runtime-mode.sh`, shared with
+  `evidence:update`, whose unchanged tests are what prove the move changed
+  nothing.
+
+- **The Exoscale stack's two null outputs are not this emulator's (#520).** The
+  filing deduced, without instrumenting it, that the pack's by-id GET raced its
+  own async create-completion. Measured on 2026-08-28 against the pack
+  directly: 100 back-to-back by-id reads of one balancer, 100 fresh
+  create-then-read pairs, and 50 for the instance pool — **zero** empty names,
+  addresses or sizes. There is no window: the create puts `name` and `ip` in
+  the store *before* it writes an operation that already says `state: success`.
+  The stack's third by-id door read back correctly in the same apply, so
+  whatever produced the nulls tells the three apart and this pack does not.
+  `docs/limits.md` carries the measurement and the disproof; what would lift
+  the limit is upstream `terraform-provider-exoscale#573`, and no change to
+  this pack would.
 
 - **An Exoscale security group stops at the public interface, where the real
   cloud stops it (#574).** Exoscale states it in one sentence: "Security group
