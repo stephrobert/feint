@@ -2,7 +2,7 @@
   "package": "./internal/core/machine/",
   "mutations": [
     {
-      "label": "the family table stops being an authorization, so any family:version derives a build — plan9:4 included",
+      "label": "the family table stops being an authorization, so any family:version derives a build \u2014 plan9:4 included",
       "file": "internal/core/machine/images.go",
       "find": "\trecipe, known := imageFamilies()[family]\n\tif !known {\n\t\treturn ImageSpec{}, false\n\t}",
       "replace": "\trecipe, known := imageFamilies()[family]\n\tif false && !known {\n\t\treturn ImageSpec{}, false\n\t}",
@@ -37,5 +37,5 @@
       "test": "TestImageRemovalStaysInsideThePrefix"
     }
   ],
-  "note": "The guards of #465, each with the test its comment cites. The first is the line between deriving any version of a known family and building anything at all; the second is what keeps a withdrawn upstream version (debian:9 — a real witness, two surveyed stacks hardcode identifiers naming it) from reaching the runtime as a raw driver error; the third and fourth are the two halves of the actionable refusal — the door must exist, and the message must point at it. Every mutation still compiles: err and declared stay referenced, and the trailing arguments keep the call well formed."
+  "note": "The guards of #465, each with the test its comment cites. The first is the line between deriving any version of a known family and building anything at all; the second is what keeps a withdrawn upstream version (debian:9 \u2014 a real witness, two surveyed stacks hardcode identifiers naming it) from reaching the runtime as a raw driver error; the third and fourth are the two halves of the actionable refusal \u2014 the door must exist, and the message must point at it. Every mutation still compiles: err and declared stay referenced, and the trailing arguments keep the call well formed."
 }

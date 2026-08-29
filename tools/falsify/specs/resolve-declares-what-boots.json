@@ -1,0 +1,33 @@
+{
+  "package": "./internal/cli/",
+  "mutations": [
+    {
+      "label": "resolve goes back to printing a declaration whose boot it can already know fails: ubuntu:18.04 and debian:9 back in the line to paste, which bought 29 applied and 0 machines started on the surveyed stack (#476)",
+      "file": "internal/cli/images_resolve.go",
+      "find": "\t\t\tif !aliases[alias] {",
+      "replace": "\t\t\tif !aliases[alias] && false {",
+      "test": "TestResolveLeavesAWithdrawnVersionOutOfTheLine"
+    },
+    {
+      "label": "a run that produced nothing to paste exits 0, so a script pipes an empty declaration and calls it a success (#476, shape 3)",
+      "file": "internal/cli/images_resolve.go",
+      "find": "\tcase unbuildable && len(declarations) == 0:",
+      "replace": "\tcase unbuildable && len(declarations) == 0 && false:",
+      "test": "TestResolveExitsTwoWhenNothingItResolvedCanBoot"
+    },
+    {
+      "label": "an image server that could not be asked is read as an image server that withdrew everything, so a network failure turns a working declaration into a refusal — the three-outcomes rule this file states, turned against itself",
+      "file": "internal/cli/images_resolve.go",
+      "find": "\t\tif spec, ok := machine.SpecFor(res.ref); ok && aliases != nil {",
+      "replace": "\t\tif spec, ok := machine.SpecFor(res.ref); ok || aliases == nil {",
+      "test": "TestAnUnreadableImageIndexDoesNotWithdrawEverything"
+    },
+    {
+      "label": "the index reader keys on the product name instead of the aliases, so every version an operator can actually boot is reported withdrawn — the first thing this reader was measured against, and it failed it",
+      "file": "internal/cli/images_resolve.go",
+      "find": "\t\tfor _, alias := range strings.Split(product.Aliases, \",\") {",
+      "replace": "\t\tfor _, alias := range strings.Split(product.Release+product.Aliases[:0], \",\") {",
+      "test": "TestResolveLeavesAWithdrawnVersionOutOfTheLine"
+    }
+  ]
+}

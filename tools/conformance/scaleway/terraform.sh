@@ -225,6 +225,12 @@ ok "found by name, and the same"
 echo "- the account project resolves by name and reads back by id"
 [ "$("$TF" output -raw account_project_name)" = "default" ] \
   || fail "the data source resolved a project that is not the default one"
+[ "$("$TF" output -raw declared_project_name)" = "platform-prod" ] \
+  || fail "the provider did not resolve the declared project by name (#572)"
+[ -n "$("$TF" output -raw declared_project_id)" ] \
+  || fail "the declared project resolved to no identifier (#572)"
+[ "$("$TF" output -raw declared_project_id)" != "$("$TF" output -raw account_project_id)" ] \
+  || fail "the declared project and the default one share an identifier, so the catalogue holds one project under two names (#572)"
 [ -n "$("$TF" output -raw account_project_id)" ] \
   || fail "the data source resolved no project id"
 ok "resolved by name, read back by id"

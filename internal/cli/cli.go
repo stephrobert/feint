@@ -214,7 +214,7 @@ const (
 // TestTheFrozenSurfacesStillMatchTheirFixture, and a fixture regenerated
 // without bumping this constant fails TestASurfaceChangeDemandsItsVersionBump.
 // The procedure for a deliberate change is in RELEASING.md ("Frozen surfaces").
-const cliSurfaceVersion = 19
+const cliSurfaceVersion = 20
 
 // Run executes one command and returns the process exit code.
 func Run(args []string, stdout, stderr io.Writer) int {
@@ -313,6 +313,7 @@ Usage:
   feint serve      [--addr 127.0.0.1:4599] [--state <file>] [--vm off|incus|incus-vm|incus-ovn|auto]
                     [--cleanup] [--contracts <dir>] [--coverage <dir>] [--shapes <dir>]
                     [--log-level info|debug] [--expose-to-network]
+                    [--projects <name>[,<name>...]]
                     Serve the three emulated clouds on one port, in the
                     foreground. --expose-to-network is the only way off
                     loopback, and it disarms the anti-rebinding guard: this
@@ -339,6 +340,7 @@ Usage:
 
   feint start      [--addr :4599] [--state <file>] [--vm off|incus|incus-vm|incus-ovn|auto]
                     [--cleanup] [--contracts <dir>] [--log-level info|debug]
+                    [--projects <name>[,<name>...]]
                     [--timeout 30s] [--detach] [--foreground]
                     Same, detached: records the instance, waits until it
                     answers, prints where the log is. Refuses to adopt an
@@ -885,6 +887,7 @@ func serve(args []string, stdout io.Writer) error {
 	cleanup := fs.Bool("cleanup", false, "remove the machines and networks this run created before exiting")
 	logLevel := fs.String("log-level", "info", "log verbosity: error, warn, info, debug")
 	contracts := fs.String("contracts", "", "directory of API contracts; every response is checked against them and /_feint/conformance reports what failed")
+	projects := fs.String("projects", "", "comma-separated project names the emulated account holds, in order (default: the pack's own single project)")
 	shapesDir := fs.String("shapes", "shapes", "directory of observed real-cloud shapes; the evidence record's shape axis reads it (empty to disable)")
 	coverageDir := fs.String("coverage", "coverage", "directory holding the versioned coverage artefacts the page reads")
 	expose := fs.Bool("expose-to-network", false, "listen off loopback, which disarms the browser guard: read what it costs before setting it")
@@ -959,6 +962,21 @@ func serve(args []string, stdout io.Writer) error {
 	} else if declared != nil {
 		env.BootImages = declared
 		fmt.Fprintf(stdout, "boot images declared by the operator: %d\n", len(declared))
+	}
+	// The project catalogue (#572), refused here rather than at the first
+	// request: a stack that names its own project must fail at start with the
+	// declaration in hand, never on the provider's FindExact minutes later with
+	// nothing to read.
+	//
+	// A flag and not an environment variable, unlike FEINT_BOOT_IMAGES: this is
+	// something a feint.yaml states about the account it emulates, and
+	// startArgs' rule is that the file only says which values the CLI's own
+	// flags carry.
+	if declared, err := emulator.ParseProjects(*projects); err != nil {
+		return fmt.Errorf("--projects: %w", err)
+	} else if declared != nil {
+		env.Projects = declared
+		fmt.Fprintf(stdout, "projects declared by the operator: %s\n", strings.Join(declared, ", "))
 	}
 	// Set after newServer, which cannot know the flag. At debug the runtime's
 	// own lifecycle events come through, which is what makes a machine that

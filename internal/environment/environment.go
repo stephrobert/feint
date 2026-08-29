@@ -60,6 +60,10 @@ type File struct {
 		// running the engine. Validated against the packs the binary mounts,
 		// by the caller: which packs exist is not this package's knowledge.
 		Provider string
+		// Projects names the tenancies the emulated account holds. Empty means
+		// the pack's own single default, which is what every declaration
+		// written before #572 gets.
+		Projects []string
 	}
 
 	Emulator struct {
@@ -364,6 +368,22 @@ var fields = []Field{
 			"clients want. Refused when the binary mounts no such pack.",
 		ReadBy: []string{"up", "down"},
 		assign: func(f *File, n node) error { return scalarInto(n, &f.Cloud.Provider) },
+	},
+	{
+		Path: "cloud.projects", Takes: "a list of project names", Default: "",
+		Doc: "The projects the emulated account holds, in order: `serve --projects`. A stack whose " +
+			"`project_name` is its own production project names it here, and the emulator holds it " +
+			"rather than answering that it exists because somebody asked (#572). Omitted, the pack " +
+			"serves its own single default project.",
+		ReadBy: []string{"up"},
+		assign: func(f *File, n node) error {
+			list, err := scalarList(n)
+			if err != nil {
+				return err
+			}
+			f.Cloud.Projects = list
+			return nil
+		},
 	},
 	{
 		Path: "emulator.addr", Takes: "a listen address", Default: "127.0.0.1:4599",

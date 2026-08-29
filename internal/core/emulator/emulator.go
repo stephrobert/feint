@@ -54,6 +54,23 @@ type Env struct {
 	// are opaque strings the operator chose; nothing here knows any provider's
 	// vocabulary, which is what keeps this field in the neutral core.
 	BootImages map[string]machine.Image
+	// Projects names the tenancies the emulated account holds, in the order the
+	// operator declared them (--projects, parsed by ParseProjects). Empty means
+	// the pack's own single default, which is what every existing declaration
+	// and every existing test gets.
+	//
+	// Neutral for the same reason BootImages is: resource.Tenant already carries
+	// a Project, so a list of them names nothing any provider owns, and the
+	// strings are the operator's own. What a pack DOES with them is the pack's:
+	// Scaleway serves them through account/v3, and a pack whose cloud has no
+	// such concept ignores the field rather than inventing one.
+	//
+	// Why declared and not echoed. The cheap fix for #572 was to answer that a
+	// project exists because somebody asked for it, and that is the class #83
+	// measured and closed on all three packs: an identifier no catalogue held,
+	// silently substituted, and a green run that meant nothing. The inventory
+	// stays something the operator stated.
+	Projects []string
 	// Log is where packs report what they could not do. A machine runtime that
 	// fails must never break the control plane, which makes the log the only
 	// place the operator can learn why nothing started.
@@ -764,4 +781,44 @@ func (s *Server) handleRoutes(w http.ResponseWriter, _ *http.Request) {
 		out = append(out, routeView{Method: r.Method, Path: r.Path, Operation: r.Operation})
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// ParseProjects reads the operator's `--projects` declaration: a comma-separated
+// list of project names, in order.
+//
+// Validated at the door rather than at the point of use, which is the rule
+// cloudinit.go paid for: a name that reaches a response body or a template is
+// too late to check. Refused here are the empty name, the duplicate, and any
+// control character — the last one because these strings are rendered into JSON
+// bodies and read back by clients that key on them.
+//
+// An empty declaration answers nil, never an empty non-nil slice: the packs test
+// `len(env.Projects) == 0` to mean "the operator declared nothing", and a
+// zero-length slice that is not nil would read the same in Go and differently to
+// a reader.
+//
+// TestParseProjectsRefusesWhatAClientWouldReadBack fails without this.
+func ParseProjects(declared string) ([]string, error) {
+	declared = strings.TrimSpace(declared)
+	if declared == "" {
+		return nil, nil
+	}
+	seen := make(map[string]bool)
+	var out []string
+	for _, raw := range strings.Split(declared, ",") {
+		name := strings.TrimSpace(raw)
+		if name == "" {
+			return nil, fmt.Errorf("%q holds an empty project name; the form is a comma-separated list", declared)
+		}
+		if strings.ContainsFunc(name, func(r rune) bool { return r < 0x20 || r == 0x7f }) {
+			return nil, fmt.Errorf("project name %q carries a control character, and these names are "+
+				"rendered into response bodies clients read back", name)
+		}
+		if seen[name] {
+			return nil, fmt.Errorf("project %q is declared twice; each name identifies one tenancy", name)
+		}
+		seen[name] = true
+		out = append(out, name)
+	}
+	return out, nil
 }

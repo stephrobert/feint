@@ -103,7 +103,12 @@ tools/conformance/guard.sh leftovers "$vm"
 # --shapes is not passed: it is a `serve` flag whose default is already `shapes`,
 # and `start` spawns serve. Passing it here fails on an unknown flag, which is
 # how this line was found.
-./feint start --addr "$addr" --vm "$vm" --contracts contracts --timeout 60s
+# --projects declares a catalogue of two (#572). Every assertion written before
+# it filters by `name=default` and is unchanged by the second name; what the
+# second one buys is the case #572 is about, which no unit test can reach: `scw`
+# and the Terraform provider resolving a project whose name is not `default`.
+./feint start --addr "$addr" --vm "$vm" --contracts contracts \
+  --projects default,platform-prod --timeout 60s
 trap './feint stop --addr '"$addr"' >/dev/null 2>&1 || true' EXIT
 
 case "$leg" in

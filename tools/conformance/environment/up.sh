@@ -67,6 +67,21 @@ ok "every ready condition was said out loud and confirmed"
 curl -sf "http://$ADDR/_feint/health" >/dev/null || fail "the emulator up brought up does not answer"
 ok "the emulator answers"
 
+# The declared project catalogue reached the emulator (#572). Asserted against
+# the running emulator, never against `up`'s output: what is under test is that
+# a field of the declaration became a flag, became a serve, and changed an
+# answer a client reads — four hops, and only the last one is worth anything.
+org="99999999-9999-4999-8999-999999999999"
+declared="$(curl -sf "http://$ADDR/account/v3/projects?organization_id=$org&name=platform-prod")" \
+  || fail "the account's projects do not answer"
+printf '%s' "$declared" | jq -e '.total_count == 1 and .projects[0].name == "platform-prod"' >/dev/null \
+  || fail "the project this declaration names is not held by the emulator it started: $declared"
+undeclared="$(curl -sf "http://$ADDR/account/v3/projects?organization_id=$org&name=never-declared")" \
+  || fail "the account's projects do not answer"
+printf '%s' "$undeclared" | jq -e '.total_count == 0' >/dev/null \
+  || fail "a name nobody declared answered a project, which is the echo #572 refuses: $undeclared"
+ok "the declared project catalogue reached the emulator, and an undeclared name still answers nothing"
+
 # The instance is one the existing verbs know about: `up` composes `start`, and
 # a second lifecycle would show up exactly here.
 "$FEINT" status --addr "$ADDR" >/dev/null 2>&1 || fail "status does not know the instance up started"

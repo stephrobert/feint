@@ -718,6 +718,27 @@ scw account project get project-id="$project_id" -o json \
 if scw account project list name=a-project-this-emulator-never-named -o json | jq -e 'length > 0' >/dev/null; then
   fail "a name nothing carries answered a project"
 fi
+# The case #572 is about, and the reason the emulator this suite drives is
+# started with `--projects default,platform-prod`. Until 2026-08-29 the catalogue
+# held one project, so a stack whose `project_name` was its own production
+# project died on the provider's FindExact after that truthful empty list — the
+# obstacle for exactly the person #372 exists to serve. The operator declares the
+# catalogue now, and the declared name resolves the whole way: listed by name,
+# read back by the identifier the list answered, under its own name.
+echo "- a declared project that is not the default one resolves by name and by id"
+declared="$(scw account project list name=platform-prod -o json 2>&1)" \
+  || fail "listing the declared project rejected: $declared"
+printf '%s' "$declared" | jq -e 'length == 1 and .[0].name == "platform-prod"' >/dev/null \
+  || fail "the declared project did not list under its own name: $declared"
+declared_id="$(printf '%s' "$declared" | jq -r '.[0].id // empty')"
+[ -n "$declared_id" ] || fail "the declared project carries no id: $declared"
+[ "$declared_id" != "$project_id" ] \
+  || fail "the declared project shares the default project's identifier, so the catalogue holds one thing under two names"
+scw account project get project-id="$declared_id" -o json \
+  | jq -e --arg i "$declared_id" '.id == $i and .name == "platform-prod"' >/dev/null \
+  || fail "reading the declared project back answered another project's name"
+ok "the declared project resolves by name and reads back as itself"
+
 ok "listed by name, read by id, and a foreign name answers nothing"
 
 # User data, the three operations the YAML-injection work hardened and that no

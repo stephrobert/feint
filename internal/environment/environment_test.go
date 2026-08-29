@@ -15,6 +15,9 @@ const validDeclaration = `version: 1
 
 cloud:
   provider: scaleway
+  projects:
+    - default
+    - platform-prod
 
 emulator:
   addr: 127.0.0.1:4599
@@ -130,6 +133,9 @@ func TestEveryFieldOfTheSchemaIsAccepted(t *testing.T) {
 	src := `version: 1
 cloud:
   provider: scaleway
+  projects:
+    - default
+    - platform-prod
 emulator:
   addr: 127.0.0.1:4699
   state: state.json

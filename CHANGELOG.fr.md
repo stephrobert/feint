@@ -19,6 +19,32 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Ajouté
 
+- **L'opérateur déclare les projets que le compte émulé détient :
+  `cloud.projects` dans `feint.yaml`, `serve --projects`, et la surface CLI
+  passe à 20 (#572).** Jusqu'ici cet émulateur détenait un seul projet, nommé
+  `default`, et une stack dont le `project_name` était son propre projet de
+  production mourait sur le `FindExact` du provider Terraform après une liste
+  vide pourtant véridique — l'obstacle rencontré par exactement la personne que
+  #372 sert : une équipe plateforme qui pointe une stack existante vers
+  l'émulateur. `data "scaleway_account_project"` résout désormais un nom
+  déclaré, et `GetProject` le rend tel quel au lieu de répondre `default` pour
+  tout.
+
+  La liste continue de **filtrer**. Un nom que personne n'a déclaré donne une
+  liste vide, et c'est tout le design : le correctif bon marché consistait à
+  répondre qu'un projet existe parce que quelqu'un l'a demandé, ce qui est la
+  classe que #83 a mesurée et refermée sur les trois packs — un identifiant
+  qu'aucun catalogue ne détenait, substitué en silence, et une exécution verte
+  qui ne voulait rien dire. L'inventaire reste ce que l'opérateur a énoncé.
+
+  Les identifiants sont dérivés du nom et jamais frappés à chaque exécution,
+  pour la raison qui fige le `created_at` du projet : une valeur qui bouge entre
+  deux lectures est une divergence Terraform permanente. `default` garde
+  l'identifiant auquel tous les autres produits de ce pack rapportent déjà leurs
+  réponses, donc une déclaration qui omet le champ — toutes celles écrites avant
+  aujourd'hui — obtient exactement le compte qu'elle avait.
+
+
 - **Un mot pour la forme que le vocabulaire ne savait pas décrire :
   `capabilities.firewall_public_when_joined`, et `/_feint/health` passe au
   schéma 7 (#548).** Un consommateur qui lisait `capabilities.firewall: true`,

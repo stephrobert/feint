@@ -24,7 +24,7 @@
     "Placement is recorded, never enforced (#285)": "2026-08-27",
     "ReadTags does not list an internet service, because upstream names no type for one": "2026-08-27",
     "The Exoscale Terraform provider is refused, and why": "2026-08-27",
-    "The Exoscale stack's second plan is not empty: two per-id outputs read back null at apply time (#520)": "2026-08-28",
+    "The Exoscale stack's second plan is not empty: two per-id outputs read back null at apply time (#520)": "2026-08-29",
     "The catalogue is a whitelist, and its values are measured": "2026-08-27",
     "The contracts do not guarantee the same thing": "2026-08-27",
     "The cost of DNS/TLS interception, measured (#76)": "2026-08-27",

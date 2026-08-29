@@ -79,8 +79,12 @@ func TestResolveReadsTheOutscaleReferencePage(t *testing.T) {
 		// its name from the row it opens, not a date from the cell it fills.
 		"Ubuntu-22.04-2023.12.04-0",
 		"Debian-9-2019.11.29-0",
-		// A withdrawn version still resolves; making it bootable is the build's
-		// business, and its failure names the source.
+		// A withdrawn version still resolves and is still declared HERE, because
+		// this stub answers 404 for the image server's index: with no index to
+		// read, whether a version is published was not checked, and a network
+		// failure must never turn a working declaration into a refusal (#476).
+		// The checked path is TestResolveLeavesAWithdrawnVersionOutOfTheLine
+		// below; the note this path prints is asserted there too.
 		"debian:9",
 		// A family without a recipe is said, with the families that have one.
 		"rhel:9",
@@ -169,5 +173,107 @@ func TestCellTokensSurviveTheReferenceMarkup(t *testing.T) {
 	want := fmt.Sprintf("%v", []string{"ami-cd8d714e", "Ubuntu-22.04"})
 	if fmt.Sprintf("%v", got) != want {
 		t.Fatalf("tokens %v, want %s", got, want)
+	}
+}
+
+// #476: `resolve` stops printing a declaration whose boot it can already know
+// fails.
+//
+// Measured on main before this existed: the three identifiers the surveyed
+// stacks hardcode resolve to ubuntu:22.04, ubuntu:18.04 and debian:9, the image
+// server publishes only the first, and the pasted line bought "29 applied, 0
+// machines started" on michaelcourcy/kasten-on-outscale — the same figures as
+// declaring nothing at all.
+//
+// The index is keyed by CODENAME and carries the version aliases per product.
+// That is not a detail: a reader keyed on `ubuntu:22.04:amd64:cloud` finds
+// nothing and reports every working version as withdrawn, which is what the
+// first version of this reader did.
+const streamsFixture = `{"products":{
+  "ubuntu:jammy:amd64:cloud":  {"aliases":"ubuntu/jammy/cloud,ubuntu/22.04/cloud"},
+  "ubuntu:noble:amd64:cloud":  {"aliases":"ubuntu/noble/cloud,ubuntu/24.04/cloud"},
+  "debian:bookworm:amd64:cloud":{"aliases":"debian/bookworm/cloud,debian/12/cloud"}
+}}`
+
+func TestResolveLeavesAWithdrawnVersionOutOfTheLine(t *testing.T) {
+	withListings(t, map[string]string{
+		outscaleOMIsURL:   outscaleFixture,
+		imageStreamsIndex: streamsFixture,
+	})
+	var out, errOut bytes.Buffer
+
+	code := imagesResolve([]string{"ami-a3ca408c", "ami-47899c77"}, &out, &errOut)
+	if code != 0 {
+		t.Fatalf("exit %d, want 0 when one identifier still declares\n%s%s", code, out.String(), errOut.String())
+	}
+	got := out.String()
+
+	// The line to paste carries only what boots. This is the whole issue: the
+	// one command whose purpose is producing a working declaration was the one
+	// place that did not check whether the declaration works.
+	if !strings.Contains(got, "FEINT_BOOT_IMAGES='ami-a3ca408c=ubuntu:22.04'") {
+		t.Errorf("the declaration is not the one that boots:\n%s", got)
+	}
+	if strings.Contains(got, "ami-47899c77=debian:9") {
+		t.Errorf("a declaration that cannot boot is still in the line to paste:\n%s", got)
+	}
+
+	// And it is said, with the reason and with what the server does publish.
+	for _, needle := range []string{
+		"no longer publishes debian/9/cloud",
+		"left out of the line below",
+		"debian versions published today: 12, bookworm",
+		"your call, not this command's",
+	} {
+		if !strings.Contains(got, needle) {
+			t.Errorf("output does not carry %q\n%s", needle, got)
+		}
+	}
+
+	// The published versions are printed as a FACT, never applied. Substituting
+	// one is the silent replacement #83 measured and closed on all three packs.
+	if strings.Contains(got, "ami-47899c77=debian:12") {
+		t.Errorf("the command substituted a version the cloud never named:\n%s", got)
+	}
+}
+
+// Shape 3 of the three the issue offers: a run that produced nothing to paste
+// exits 2, the same "the world needs triage" an absent identifier uses. A zero
+// here would let a script pipe an empty declaration and call it a success.
+func TestResolveExitsTwoWhenNothingItResolvedCanBoot(t *testing.T) {
+	withListings(t, map[string]string{
+		outscaleOMIsURL:   outscaleFixture,
+		imageStreamsIndex: streamsFixture,
+	})
+	var out, errOut bytes.Buffer
+
+	if code := imagesResolve([]string{"ami-47899c77"}, &out, &errOut); code != 2 {
+		t.Fatalf("exit %d, want 2 when every identifier resolved to a withdrawn version\n%s", code, out.String())
+	}
+	if !strings.Contains(out.String(), "nothing to declare") {
+		t.Errorf("the run that produced no line does not say so:\n%s", out.String())
+	}
+	if strings.Contains(out.String(), "declare and restart") {
+		t.Errorf("an empty declaration was still offered for pasting:\n%s", out.String())
+	}
+}
+
+// The third outcome, and the one that must not become the first: an image server
+// that could not be asked is not an image server that withdrew everything. The
+// declaration is printed exactly as it was before this check existed, and the
+// run says what it could not check.
+func TestAnUnreadableImageIndexDoesNotWithdrawEverything(t *testing.T) {
+	withListings(t, map[string]string{outscaleOMIsURL: outscaleFixture})
+	var out, errOut bytes.Buffer
+
+	code := imagesResolve([]string{"ami-a3ca408c", "ami-47899c77"}, &out, &errOut)
+	if code != 0 {
+		t.Fatalf("exit %d, want 0: an unreachable index is not a withdrawal\n%s", code, out.String())
+	}
+	if !strings.Contains(out.String(), "ami-47899c77=debian:9") {
+		t.Errorf("a declaration was dropped on a check that could not run:\n%s", out.String())
+	}
+	if !strings.Contains(out.String(), "was not checked") {
+		t.Errorf("the run does not say what it could not check:\n%s", out.String())
 	}
 }

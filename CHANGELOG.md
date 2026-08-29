@@ -17,6 +17,31 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Added
 
+- **The operator declares which projects the emulated account holds:
+  `cloud.projects` in `feint.yaml`, `serve --projects`, and the CLI surface
+  moves to 20 (#572).** Until now this emulator held one project, named
+  `default`, and a stack whose `project_name` was its own production project
+  died on the Terraform provider's `FindExact` after a truthful empty list —
+  the obstacle for exactly the person #372 exists to serve, a platform team
+  pointing an existing stack at the emulator. `data "scaleway_account_project"`
+  now resolves a declared name, and `GetProject` reads it back as itself
+  instead of answering `default` for everything.
+
+  The list still **filters**. A name nobody declared answers an empty list, and
+  that is the whole design: the cheap fix was to answer that a project exists
+  because somebody asked for it, which is the class #83 measured and closed on
+  all three packs — an identifier no catalogue held, silently substituted, and
+  a green run that meant nothing. The inventory stays something the operator
+  stated.
+
+  Identifiers are derived from the name and never minted per run, for the
+  reason the project's `created_at` is fixed: a value that moved between two
+  reads is a permanent Terraform diff. `default` keeps the identifier every
+  other product of this pack already scopes its answers to, so a declaration
+  that omits the field — every declaration written before today — gets exactly
+  the account it had.
+
+
 - **A word for the shape the vocabulary could not describe:
   `capabilities.firewall_public_when_joined`, and `/_feint/health` moves to
   schema 7 (#548).** A consumer holding `capabilities.firewall: true`,

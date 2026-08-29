@@ -110,3 +110,44 @@ func TestNewUUIDFormat(t *testing.T) {
 		seen[id] = true
 	}
 }
+
+// The operator's project catalogue, refused at the door (#572).
+//
+// Validated where it enters rather than where it is used, which is the rule
+// cloudinit.go paid for: these names are rendered into JSON bodies and read back
+// by clients that key on them, so a control character is refused here and never
+// escaped later.
+func TestParseProjectsRefusesWhatAClientWouldReadBack(t *testing.T) {
+	for _, bad := range []string{
+		"a,,b",
+		",",
+		"a,a",
+		"prod,prod",
+		"line\nbreak",
+		"tab\tinside",
+		"bell\x07",
+	} {
+		t.Run(bad, func(t *testing.T) {
+			if _, err := emulator.ParseProjects(bad); err == nil {
+				t.Fatalf("accepted %q, which a client would read back verbatim", bad)
+			}
+		})
+	}
+
+	// The accepting half: a guard that refuses everything passes every planted
+	// defect and breaks the product.
+	got, err := emulator.ParseProjects(" default , platform-prod ")
+	if err != nil {
+		t.Fatalf("an ordinary declaration was refused: %v", err)
+	}
+	if len(got) != 2 || got[0] != "default" || got[1] != "platform-prod" {
+		t.Errorf("parsed as %q, want the two names in order with the spaces trimmed", got)
+	}
+
+	// An empty declaration answers nil and never an empty non-nil slice: the
+	// packs read `len(env.Projects) == 0` as "the operator declared nothing",
+	// and the two would read the same in Go and differently to a reader.
+	if got, err := emulator.ParseProjects("   "); err != nil || got != nil {
+		t.Errorf("an empty declaration answered %#v, %v; want nil, nil", got, err)
+	}
+}

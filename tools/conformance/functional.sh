@@ -470,11 +470,37 @@ run_stack() { # name
 		[ -n "$MACHINE" ] \
 			|| fail "$name: proof.json names the machine '$1' and no $kind resource carries that name — the declaration and the stack have drifted apart"
 	}
-	listen_of() { # machine
-		LISTEN="$WORK/listen-$1.txt"
-		[ -f "$LISTEN" ] && return 0
-		live_listeners "$1" "$LISTEN" \
-			|| fail "cannot look: reading /proc/net/tcp inside $1 failed; every 'not listening' this run would report is an instrument failure"
+	# listen_for replaced a `listen_of` that read a machine's listeners ONCE and
+	# cached the file. Five of this file's six verdicts drew their conclusion
+	# from that cache, and the scheduled night of 2026-08-29 died on one of them
+	# — so the caching form is gone rather than left beside its replacement for
+	# the next caller to reach for.
+	#
+	# listen_for is the capture for a caller that knows which port it is about to
+	# draw a verdict on: it waits for that port to appear rather than reading
+	# once, and leaves the fresh capture in $LISTEN.
+	#
+	# Why it exists, dated. #600 taught the service path to wait, and the
+	# scheduled night of 2026-08-29 failed further along on the isolation
+	# verdict: "platform-bastion does not listen on 22 inside the machine
+	# (listening: 53)". Same shape, different call site — the bastion is a
+	# TARGET here, and `listen_of` reads once and caches, so every verdict below
+	# was drawing conclusions from a capture taken before the workload existed.
+	#
+	# Several ports because the firewall pair needs two: the port a rule opens
+	# and the port no rule names are both asserted listening from inside before
+	# anything outside is measured, and either can be the late one.
+	#
+	# The budget is #600's 90 s, and the wait records itself in WAIT_TRACE, so
+	# what a first boot really costs on a runner can be re-derived rather than
+	# guessed.
+	listen_for() { # machine port [port...]
+		local machine="$1" port
+		shift
+		for port in "$@"; do
+			wait_until 90 fnl_port_appeared "$machine" "$port" "$WORK/listen-$machine.txt" || true
+		done
+		LISTEN="$WORK/listen-$machine.txt"
 	}
 	address_of() { # declared_name machine
 		ADDRESS="$(private_address "$2")" \
@@ -560,7 +586,7 @@ run_stack() { # name
 			rmachine_t="$MACHINE"
 			address_of "$rtarget" "$rmachine_t"
 			raddr="$ADDRESS"
-			listen_of "$rmachine_t"
+			listen_for "$rmachine_t" "$rport"
 			live_probe "$rmachine" "$raddr" "$rport"
 			rbefore=$?
 			if [ -n "$rcontrol" ]; then
@@ -635,7 +661,7 @@ run_stack() { # name
 		if [ -n "$rtarget" ]; then
 			echo "- $name: the restarted machine still reaches the subnet it reached before"
 			rm -f "$WORK/listen-$rmachine_t.txt"
-			listen_of "$rmachine_t"
+			listen_for "$rmachine_t" "$rport"
 			live_probe "$rmachine" "$raddr" "$rport"
 			rafter=$?
 			rcontrol_after=1
@@ -706,6 +732,10 @@ run_stack() { # name
 			elif ! printf '%s' "$health" | witness_enforced "$provider" firewall; then
 				skip "$name: $provider does not declare enforced.firewall — a property it never promised is not demanded of it (#481)"
 			else
+				# Both ports, and the closed one is the reason: the service wait
+				# above covered the open port only, and a closed port that is
+				# merely late reads exactly like a firewall that works.
+				listen_for "$smachine" "$port" "$(printf '%s' "$closed" | jq -r '.')"
 				fnl_firewall_pair "$name (public path)" "the station" "" "$target" "$address" \
 					"$port" "$(printf '%s' "$closed" | jq -r '.')" "$LISTEN" station_probe
 			fi
@@ -751,7 +781,7 @@ run_stack() { # name
 		tmachine="$MACHINE"
 		address_of "$target" "$tmachine"
 		taddr="$ADDRESS"
-		listen_of "$tmachine"
+		listen_for "$tmachine" "$open" "$closed"
 		fnl_firewall_pair "$name" "$source" "$smachine" "$target" "$taddr" "$open" "$closed" "$LISTEN" live_probe
 		reason="$(skip_reason "$control")"
 		if [ -n "$reason" ]; then
@@ -801,7 +831,7 @@ run_stack() { # name
 			rdm="$MACHINE"
 			address_of "$rdst" "$rdm"
 			raddr="$ADDRESS"
-			listen_of "$rdm"
+			listen_for "$rdm" "$rport"
 			fnl_reaches "$name" "$rsrc" "$rsm" "$rdst" "$raddr" "$rport" "$LISTEN" live_probe
 		fi
 
@@ -822,7 +852,7 @@ run_stack() { # name
 			idm="$MACHINE"
 			address_of "$idst" "$idm"
 			iaddr="$ADDRESS"
-			listen_of "$idm"
+			listen_for "$idm" "$iport"
 			fnl_isolated "$name" "$isrc" "$ism" "$idst" "$iaddr" "$iport" "$LISTEN" live_probe
 		fi
 	fi

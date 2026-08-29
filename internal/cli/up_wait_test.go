@@ -126,6 +126,49 @@ func TestAnUnreadableInventoryIsAnErrorAndNeverAZero(t *testing.T) {
 	}
 }
 
+// The declared project catalogue travels the whole way (#572).
+//
+// Two halves, and the second is the one that would have shipped broken. `up`
+// renders `--projects` into the `feint start` command line; `start` binds its
+// own flag set, and a flag it does not bind fails the entire path with "flag
+// provided but not defined" — on the one command this feature exists to serve.
+// So the rendering is asserted, and then the binding is asserted by parsing it.
+func TestStartRelaysTheDeclaredProjectsToServe(t *testing.T) {
+	decl, err := environment.Parse("version: 1\ncloud:\n  provider: scaleway\n" +
+		"  projects:\n    - default\n    - platform-prod\n")
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	rendered := startArgs(decl)
+	if got := strings.Join(rendered, " "); !strings.Contains(got, "--projects default,platform-prod") {
+		t.Fatalf("start would not receive the catalogue: %s", got)
+	}
+
+	// The half a rendering test alone cannot see: `start` parses what `up`
+	// wrote, and passes it on to `serve` unchanged.
+	fs := newFlagSet("start")
+	flags := bindServeFlags(fs)
+	if err := fs.Parse(rendered); err != nil {
+		t.Fatalf("start refuses the command line up renders for it: %v", err)
+	}
+	if flags.projects != "default,platform-prod" {
+		t.Errorf("start bound %q, want the two declared names", flags.projects)
+	}
+	if got := strings.Join(flags.args(), " "); !strings.Contains(got, "--projects default,platform-prod") {
+		t.Errorf("start does not hand the catalogue to serve: %s", got)
+	}
+
+	// A declaration that names none renders none: the pack's own default is not
+	// something this file spells.
+	bare, err := environment.Parse("version: 1\ncloud:\n  provider: scaleway\n")
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if got := strings.Join(startArgs(bare), " "); strings.Contains(got, "--projects") {
+		t.Errorf("an undeclared catalogue rendered a flag: %s", got)
+	}
+}
+
 // The declaration renders into the flags `start` already takes, one direction
 // only: a field that named no flag would be a second source for something the
 // binary already decides.

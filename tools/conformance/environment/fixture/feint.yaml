@@ -8,6 +8,14 @@ version: 1
 
 cloud:
   provider: scaleway
+  # The declared project catalogue (#572), here because this is the only
+  # declaration any suite drives through `feint up`: without it the flag would
+  # travel from the schema to `start` to `serve` with nothing ever reading the
+  # answer, which is what `mise run testplan` says about this diff in its own
+  # words — "a flag no declaration names is unexercised".
+  projects:
+    - default
+    - platform-prod
 
 emulator:
   addr: 127.0.0.1:4599

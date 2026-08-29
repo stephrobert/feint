@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 	"unicode"
@@ -66,6 +67,93 @@ var fetchListing = func(url string) (status int, body []byte, err error) {
 	return resp.StatusCode, body, nil
 }
 
+// # What the image server still publishes (#476)
+//
+// `resolve` exists to produce a declaration an operator pastes. Until 2026-08-29
+// it printed one whose boot it could already know would fail: two of the three
+// identifiers the surveyed stacks hardcode resolve to `ubuntu:18.04` and
+// `debian:9`, and `images:` publishes neither. Replayed with that exact
+// declaration on michaelcourcy/kasten-on-outscale: 29 applied, 0 machines
+// started — the same figures as with no declaration at all. The declaration was
+// honoured and bought nothing.
+//
+// The one command whose whole purpose is producing a working declaration was the
+// one place that did not check whether the declaration works.
+
+// imageStreamsIndex is the simplestreams product index the `images:` remote is
+// built from — the same server `machine.SpecFor` names in every ImageSpec's
+// Source, so this asks the thing that would refuse the build rather than a list
+// written down beside it.
+//
+// Read rather than assumed: the index keys products by CODENAME
+// (`ubuntu:jammy:amd64:cloud`) and carries the version aliases in each product's
+// `aliases` field (`ubuntu/jammy/cloud,ubuntu/22.04/cloud`). A check keyed on
+// `ubuntu:22.04:amd64:cloud` finds nothing and would report every working
+// version as withdrawn, which is the first thing this reader was measured
+// against.
+const imageStreamsIndex = "https://images.linuxcontainers.org/streams/v1/images.json"
+
+// publishedAliases answers the set of `family/version/variant` aliases the image
+// server publishes today, and the versions each family still has.
+//
+// An error is an error, never an empty set: a server that could not be asked
+// must not turn every declaration into "withdrawn", which is the three-outcomes
+// rule imagesResolve already states for the listings above.
+func publishedAliases(fetch func(string) (int, []byte, error)) (map[string]bool, map[string][]string, error) {
+	status, body, err := fetch(imageStreamsIndex)
+	if err != nil {
+		return nil, nil, err
+	}
+	if status != http.StatusOK {
+		return nil, nil, fmt.Errorf("the image server's index answered %d", status)
+	}
+	var doc struct {
+		Products map[string]struct {
+			Aliases string `json:"aliases"`
+			Release string `json:"release"`
+			Arch    string `json:"arch"`
+			Variant string `json:"variant"`
+		} `json:"products"`
+	}
+	if err := json.Unmarshal(body, &doc); err != nil {
+		return nil, nil, fmt.Errorf("reading the image server's index: %w", err)
+	}
+	aliases := map[string]bool{}
+	versions := map[string][]string{}
+	for _, product := range doc.Products {
+		for _, alias := range strings.Split(product.Aliases, ",") {
+			alias = strings.TrimSpace(alias)
+			if alias == "" {
+				continue
+			}
+			aliases[alias] = true
+			// family/version/variant — the shape SpecFor builds. Only the cloud
+			// variant is collected for the suggestion list, because that is the
+			// only one this emulator ever asks for.
+			parts := strings.Split(alias, "/")
+			if len(parts) == 3 && parts[2] == "cloud" {
+				versions[parts[0]] = appendUnique(versions[parts[0]], parts[1])
+			}
+		}
+	}
+	if len(aliases) == 0 {
+		return nil, nil, fmt.Errorf("the image server's index carries no aliases, so nothing here could be checked")
+	}
+	for family := range versions {
+		sort.Strings(versions[family])
+	}
+	return aliases, versions, nil
+}
+
+func appendUnique(list []string, value string) []string {
+	for _, held := range list {
+		if held == value {
+			return list
+		}
+	}
+	return append(list, value)
+}
+
 // resolvedImage is what one lookup learned.
 type resolvedImage struct {
 	id     string
@@ -103,7 +191,17 @@ func imagesResolve(args []string, stdout, stderr io.Writer) int {
 		return status, body, err
 	}
 
-	failed, absent := false, false
+	// Asked once, before the loop, and never fatal on its own: an image server
+	// that could not be reached leaves `withdrawn` nil, and the loop then prints
+	// exactly what it printed before this check existed. A network failure must
+	// not turn a working declaration into a refusal (#476).
+	aliases, families, streamsErr := publishedAliases(fetch)
+	if streamsErr != nil {
+		fmt.Fprintf(stdout, "note: the image server's index could not be read (%v),\n", streamsErr)
+		fmt.Fprintln(stdout, "      so whether each version below is still published was not checked")
+	}
+
+	failed, absent, unbuildable := false, false, false
 	var declarations []string
 	for _, id := range args {
 		res, found, err := resolveOne(id, fetch)
@@ -133,6 +231,29 @@ func imagesResolve(args []string, stdout, stderr io.Writer) int {
 				res.ref, strings.Join(machine.Families(), ", "))
 			continue
 		}
+		// The version the reference names may be one the image server has
+		// withdrawn, and then the declaration below cannot boot: the build fails
+		// on "The requested image couldn't be found" and the machine never
+		// starts (#476). Kept out of the paste line rather than printed with a
+		// warning beside it, because the line exists to be pasted.
+		if spec, ok := machine.SpecFor(res.ref); ok && aliases != nil {
+			alias := strings.TrimPrefix(spec.Source, "images:")
+			if !aliases[alias] {
+				unbuildable = true
+				fmt.Fprintf(stdout, "  → %s — the image server no longer publishes %s, so this declaration\n",
+					res.ref, alias)
+				fmt.Fprintln(stdout, "    would refuse to boot; it is left out of the line below.")
+				family, _, _ := strings.Cut(res.ref, ":")
+				if published := families[family]; len(published) > 0 {
+					fmt.Fprintf(stdout, "    %s versions published today: %s\n",
+						family, strings.Join(published, ", "))
+					fmt.Fprintln(stdout, "    naming one of them is your call, not this command's: the identifier")
+					fmt.Fprintln(stdout, "    means what the cloud says it means, and substituting a version here")
+					fmt.Fprintln(stdout, "    would be the silent replacement #83 closed.")
+				}
+				continue
+			}
+		}
 		entry := id + "=" + res.ref
 		if res.login != "" {
 			entry += "@" + res.login
@@ -149,6 +270,14 @@ func imagesResolve(args []string, stdout, stderr io.Writer) int {
 	case failed:
 		return 1
 	case absent:
+		return 2
+	case unbuildable && len(declarations) == 0:
+		// Every identifier resolved to a version nothing can build, so this run
+		// produced no line to paste. Exit 2, the same "the world needs triage"
+		// the absent case uses — a zero here would let a script pipe an empty
+		// declaration and call it a success (#476, shape 3).
+		fmt.Fprintln(stdout, "\nnothing to declare: every identifier resolved to a version the image server")
+		fmt.Fprintln(stdout, "no longer publishes.")
 		return 2
 	}
 	return 0

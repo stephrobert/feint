@@ -232,6 +232,7 @@ gate. The sentence a field carries lives on the field.
 |---|---|---|---|---|
 | `version` | a number | — | `feint up`, `feint down` | The schema version. Only 1 is read; another is refused naming both. |
 | `cloud.provider` | a provider name | — | `feint up`, `feint down` | The pack whose client environment `up` exports before running the engine — the same variables `feint env <provider>` prints, including the endpoint form that provider's clients want. Refused when the binary mounts no such pack. |
+| `cloud.projects` | a list of project names | — | `feint up` | The projects the emulated account holds, in order: `serve --projects`. A stack whose `project_name` is its own production project names it here, and the emulator holds it rather than answering that it exists because somebody asked (#572). Omitted, the pack serves its own single default project. |
 | `emulator.addr` | a listen address | `127.0.0.1:4599` | `feint up`, `feint down` | Where the emulator listens: `serve --addr`. |
 | `emulator.state` | a path | — | `feint up` | The JSON file the store is loaded from and persisted to: `serve --state`. Relative to the declaration's own directory. |
 | `emulator.contracts` | a directory | — | `feint up` | The API descriptions every response is checked against: `serve --contracts`. Relative to the declaration's own directory. |

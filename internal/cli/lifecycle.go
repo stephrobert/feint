@@ -35,6 +35,7 @@ type serveFlags struct {
 	cleanup   bool
 	logLevel  string
 	contracts string
+	projects  string
 }
 
 // args renders the flags back into a `serve` command line.
@@ -49,6 +50,9 @@ func (f serveFlags) args() []string {
 	if f.cleanup {
 		out = append(out, "--cleanup")
 	}
+	if f.projects != "" {
+		out = append(out, "--projects", f.projects)
+	}
 	return out
 }
 
@@ -60,6 +64,13 @@ func bindServeFlags(fs *flag.FlagSet) *serveFlags {
 	fs.BoolVar(&f.cleanup, "cleanup", false, "remove the machines and networks this run created before exiting")
 	fs.StringVar(&f.logLevel, "log-level", "info", "log verbosity: error, warn, info, debug")
 	fs.StringVar(&f.contracts, "contracts", "", "directory of API contracts; every response is checked against them")
+	// Bound here as well as on `serve`, because `up` renders it into the `start`
+	// command line: a flag `startArgs` writes and `start` does not bind fails
+	// the whole path with "flag provided but not defined", on the one command
+	// this feature exists to serve.
+	//
+	// TestStartRelaysTheDeclaredProjectsToServe fails without this.
+	fs.StringVar(&f.projects, "projects", "", "comma-separated project names the emulated account holds, in order")
 	return f
 }
 

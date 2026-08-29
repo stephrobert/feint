@@ -37,7 +37,7 @@
       "test": "TestAnAttachedAddressPublishesItsGatewayAndItsOwnTags"
     },
     {
-      "label": "tagValues hands back the stored slice itself, so a caller mutating a response reaches the store — the branch a restored snapshot takes (#368)",
+      "label": "tagValues hands back the stored slice itself, so a caller mutating a response reaches the store \u2014 the branch a restored snapshot takes (#368)",
       "file": "internal/providers/scaleway/servers.go",
       "find": "\t\treturn append([]any{}, tags...)",
       "replace": "\t\treturn append(tags[:len(tags)], tags[:0]...)",
@@ -72,10 +72,10 @@
       "test": "TestGetProjectAnswersAnIdentifierItNeverMinted"
     },
     {
-      "label": "the name filter stops filtering, so every name a client asks for answers the one project this emulator has (#372)",
+      "label": "the name filter stops filtering, so every name a client asks for answers a project this emulator does not hold \u2014 the echo #83 measured and closed on all three packs, one product over (#372, #572)",
       "file": "internal/providers/scaleway/projects.go",
-      "find": "\tif name := q.Get(\"name\"); name != \"\" && name != defaultProjectName {",
-      "replace": "\tif name := q.Get(\"name\"); name != \"\" && name != defaultProjectName && false {",
+      "find": "\t\tif wantName != \"\" && wantName != declared {",
+      "replace": "\t\tif wantName != \"\" && wantName != declared && false {",
       "test": "TestListProjectsFiltersRatherThanInvents"
     },
     {
@@ -91,6 +91,27 @@
       "find": "\tfor _, key := range []string{\"object_storage_private_access_enabled\", \"s3_integration_enabled\"} {",
       "replace": "\tfor _, key := range []string{\"object_storage_private_access_enabled\", \"s3_integration_enabled\"}[:1] {",
       "test": "TestBothSpellingsOfTheObjectStorageFilterNarrow"
+    },
+    {
+      "label": "the project_ids filter stops filtering, so a list narrowed to one identifier answers the whole catalogue",
+      "file": "internal/providers/scaleway/projects.go",
+      "find": "\t\tif len(wantIDs) > 0 && !contains(wantIDs, id) {",
+      "replace": "\t\tif len(wantIDs) > 0 && !contains(wantIDs, id) && false {",
+      "test": "TestListProjectsFiltersRatherThanInvents"
+    },
+    {
+      "label": "an operator who declared nothing stops getting the pack's own default project, so every declaration written before #572 loses its account",
+      "file": "internal/providers/scaleway/projects.go",
+      "find": "\tif len(p.env.Projects) == 0 {",
+      "replace": "\tif len(p.env.Projects) == 0 && false {",
+      "test": "TestAnUndeclaredCatalogueIsStillTheSingleDefaultProject"
+    },
+    {
+      "label": "a project the operator DID declare reads back under somebody else's name, so the data source resolves a name through the list and is handed a different project by the get that follows it",
+      "file": "internal/providers/scaleway/projects.go",
+      "find": "\tif name, ok := p.projectNamed(id); ok {",
+      "replace": "\tif name, ok := p.projectNamed(id); ok && false {",
+      "test": "TestGetProjectAnswersADeclaredProjectByItsOwnName"
     }
   ]
 }

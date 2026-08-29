@@ -75,6 +75,18 @@ data "scaleway_account_project" "conformance" {
   organization_id = "11111111-1111-1111-1111-111111111111"
 }
 
+# The same data source on a project that is NOT the default one (#572), which is
+# what the issue was about: the emulator held one project, so FindExact failed
+# for every platform team whose project name is their own. The emulator this
+# suite drives is started with `--projects default,platform-prod`, and this block
+# is the only thing that proves the provider's own resolution walks a declared
+# catalogue — the Go tests drive the routes, never the provider that filters
+# their answer.
+data "scaleway_account_project" "declared" {
+  name            = "platform-prod"
+  organization_id = "11111111-1111-1111-1111-111111111111"
+}
+
 # Inline rules are how the provider models a security group: it sends the whole list through
 # SetSecurityGroupRules on every change, so the emulator must answer with the resulting state and
 # not with what it was asked. A rule that comes back in another order, or without the id it was
@@ -425,6 +437,17 @@ output "account_project_id" {
 
 output "account_project_name" {
   value = data.scaleway_account_project.conformance.name
+}
+
+# The declared project the provider resolved by name (#572). Its id is asserted
+# to differ from the default one's: a catalogue answering the same identifier
+# under two names would pass a name-only check while holding one project.
+output "declared_project_id" {
+  value = data.scaleway_account_project.declared.project_id
+}
+
+output "declared_project_name" {
+  value = data.scaleway_account_project.declared.name
 }
 
 # The Load Balancer chain (#282), in the shape the surveyed stacks wrote it:

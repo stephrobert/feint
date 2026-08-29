@@ -518,6 +518,9 @@ func startArgs(decl *environment.File) []string {
 	if decl.Emulator.Cleanup {
 		args = append(args, "--cleanup")
 	}
+	if len(decl.Cloud.Projects) > 0 {
+		args = append(args, "--projects", strings.Join(decl.Cloud.Projects, ","))
+	}
 	return args
 }
 

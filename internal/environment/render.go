@@ -39,6 +39,7 @@ func Render(f *File) string {
 
 	block("cloud", func(w *strings.Builder) {
 		scalar(w, "cloud.provider", "provider", f.Cloud.Provider)
+		renderList(w, f.declared["cloud.projects"], "projects", f.Cloud.Projects)
 	})
 	block("emulator", func(w *strings.Builder) {
 		scalar(w, "emulator.addr", "addr", f.Emulator.Addr)
