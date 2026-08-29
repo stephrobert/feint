@@ -114,6 +114,26 @@ change ni l'un ni l'autre a sa place dans `git log`.
   passe la déclare absente 31 % du temps, là où trois passes ramènent ce risque
   à 3 %, pour 295 s la passe.
 
+- **Les projets du produit Account, pour qu'une stack VPC tierce atteigne un
+  chemin VPC tout court : `account/v3/ProjectAPI.ListProjects` et
+  `account/v3/ProjectAPI.GetProject` (#372).** `data "scaleway_account_project"`
+  est évaluée avant chaque ressource d'un graphe Terraform, et elle répondait
+  501 : deux modules publiés qui parcourent la surface VPC mouraient en deux
+  échanges chacun, avant qu'un seul VPC, ACL, réseau privé, passerelle ou
+  adresse IPAM ne soit tenté. Les deux routes sont montées parce que la lecture
+  du provider appelle les deux — ListProjects quand la configuration nomme le
+  projet, puis toujours GetProject sur l'identifiant qu'elle a résolu. Tout le
+  produit `account` a rejoint le gate de dérive avec elles : douze opérations,
+  deux servies, dix déclinées avec leur raison.
+
+  La liste répond un projet, nommé `default`, et filtre `name` et `project_ids`
+  honnêtement — un nom que cet émulateur ne détient pas donne une liste vide. La
+  lecture renvoie **n'importe quel** identifiant, ce qui est le « les
+  identifiants ne sont vérifiés contre rien » de [limits.md](docs/limits.md)
+  appliqué à la valeur qu'une stack reporte le plus souvent depuis la
+  production. Le coût y est écrit aussi : une stack dont le `project_name` n'est
+  pas `default` échoue sur le `FindExact` du provider lui-même.
+
 - **Une matrice de capacités possède chaque phrase qui revendique un client
   pour un provider, et `docs:check` relit les pages (#592).** `README.md:41`
   disait « Run your Terraform against Scaleway, Outscale or Exoscale » pendant
@@ -284,6 +304,26 @@ change ni l'un ni l'autre a sa place dans `git log`.
   lèverait la limite est le correctif amont
   `terraform-provider-exoscale#573` ; aucune modification de ce pack ne le
   ferait.
+
+- **Une réponse de serveur porte `bootscript` et `extra_networks` (#366), une
+  image de catalogue type `from_server` en chaîne (#367), et une adresse
+  publique attachée publie sa passerelle et ses propres étiquettes (#368).**
+  Quatre formes de réponse qu'un client peut observer, toutes quatre mesurées
+  contre un vrai compte fr-par le 2026-08-21 puis le 2026-08-24, et toutes
+  quatre inscrites dans `corpus/accepted.json` jusqu'ici : omettre une clé n'est
+  pas la même réponse que l'écrire à null, et `feint corpus --check` est passé
+  de 497 divergences sciemment acceptées à 425 avec les trente-sept exemptions
+  que celles-ci retirent.
+
+- **Un volume block revient à `available` quand le serveur qui le tenait s'en
+  va, de sorte que `scw instance server delete` rend la main (#365).**
+  Atteignable depuis que `sbs_volume` est honoré : la CLI interroge le volume
+  que la réponse du serveur a nommé jusqu'à ce qu'il se stabilise, et rien ne
+  remettait jamais le statut — mesuré à rc=124, sans jamais revenir, avec cinq
+  interrogations identiques dans la trace du client. #365 reste ouverte : faire
+  de ce volume le **défaut** du DEV1-S, ce que fait le vrai cloud, déplace tout
+  disque racine hors d'`instance/v1` où toute la relation serveur-volume est
+  implémentée, et cela relève d'une décision plutôt que d'une ligne.
 
 - **Un groupe de sécurité Exoscale s'arrête à l'interface publique, là où le
   vrai cloud l'arrête (#574).** Exoscale le dit en une phrase : « Security
