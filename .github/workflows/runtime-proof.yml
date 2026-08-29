@@ -549,7 +549,7 @@ jobs:
   # copies to the same pins, so a drift between them fails `mise run check`
   # rather than a night three weeks later.
   stacks:
-    name: stacks (incus-ovn)
+    name: stacks (incus-ovn${{ matrix.control && ', last release' || '' }})
     runs-on: ubuntu-24.04
     # Three passes of a gate measured at 295 s on the author's station, on a
     # runner with a quarter of its cores: sized so a slow pass is still a
@@ -557,6 +557,14 @@ jobs:
     timeout-minutes: 75
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        # Two legs, one setup. The second is a POSITIVE CONTROL: the same gate,
+        # at the last release tag, so a red night can be told apart from a red
+        # world. See the header of this job's control steps for the four-quadrant
+        # reading, and for why the control never fails this job.
+        control: [false, true]
     steps:
       - name: Harden the runner
         uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
@@ -567,6 +575,35 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          # The control leg needs the tags, and `git describe` needs the history
+          # they hang off. Fetched for BOTH legs rather than only the one that
+          # needs it, and the reason is a measurement: the conditional form
+          # `${{ matrix.control && 0 || 1 }}` always yields 1, because 0 is falsy
+          # in a GitHub expression and the `||` therefore always wins. zizmor
+          # named it (unsound-ternary) before it ever ran, and the control would
+          # have died on `git describe` with no tags. A constant costs one clone
+          # and cannot be wrong.
+          fetch-depth: 0
+
+      # The control's whole subject, resolved here so the log says which tag it
+      # is about. A control that did not name its own subject would be a second
+      # green nobody can interpret.
+      #
+      # It moves the working tree to the tag, SUITES INCLUDED, and that is
+      # deliberate: the question is "does the thing we shipped still work in
+      # today's world", and a harness fix that only exists on main is not part of
+      # what we shipped. The consequence has to be said out loud, because it is
+      # the one that would otherwise teach "the control is always red": a defect
+      # already fixed on main can still redden the control until the next
+      # release carries the fix.
+      - name: Move to the last release, and say which
+        if: matrix.control
+        run: |
+          set -euo pipefail
+          tag="$(git describe --tags --abbrev=0 --match 'v*')"
+          echo "control: the same gate at ${tag}, suites included" >> "$GITHUB_STEP_SUMMARY"
+          echo "CONTROL_TAG=${tag}" >> "$GITHUB_ENV"
+          git checkout --detach "${tag}"
 
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -750,7 +787,33 @@ jobs:
       # operator proves and the green this job publishes are two different
       # measurements.
       - name: The example stacks, applied and probed
+        id: gate
+        # `continue-on-error` on the CONTROL leg only, and it is the property
+        # that keeps the two subjects apart. `report` and `streak` need this job
+        # and judge MAIN: a red control failing it would open "the night is red"
+        # about a tag nobody can fix, and the issue would name the wrong thing.
+        #
+        # This is the shape drift.yml uses for its limits tripwire, WITH the
+        # consumer #604 says that one lacks: the verdict job below reads this
+        # step's real conclusion through the API and publishes the four-quadrant
+        # reading. A conclusion nobody consumes is what #604 is about.
+        continue-on-error: ${{ matrix.control }}
         run: sudo env FEINT_VM=incus-ovn tools/conformance/functional.sh
+
+      # Written where a reader of the run summary finds it, per leg, so the
+      # quadrant below is legible even to somebody who opens one job.
+      - name: What this leg measured
+        if: always()
+        env:
+          CONTROL: ${{ matrix.control }}
+          OUTCOME: ${{ steps.gate.outcome }}
+        run: |
+          set -euo pipefail
+          if [ "${CONTROL}" = "true" ]; then
+            echo "control (${CONTROL_TAG:-unknown tag}): ${OUTCOME}" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "main: ${OUTCOME}" >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       # On failure: what the host STILL holds, and this is thin by construction
       # rather than by oversight. The gate tears its own stack down on the way
@@ -780,6 +843,88 @@ jobs:
   # advisory. What it does is remove the excuse — when the streak reaches the
   # target, the summary says so in as many words, and #125 has an answer instead
   # of an opinion.
+  # Us, or the world? (the maintainer's question, 2026-08-29)
+  #
+  # Nine red nights this month, and at least three were the environment rather
+  # than the code: an upstream image whose DHCP client changed behaviour, a CDN a
+  # container could not reach, leftovers from a leg. Nothing said which, and
+  # untangling it took a day by hand.
+  #
+  # So the last release runs beside main as a POSITIVE CONTROL, and this job
+  # publishes the reading rather than leaving it to whoever opens the run:
+  #
+  #     main red   · control green  →  it is us. A fix goes in main.
+  #     main red   · control red    →  it is the world. An issue about the
+  #                                    environment, not about the code.
+  #     main green · control red    →  already fixed without knowing, and the
+  #                                    release still carries it. Worth writing
+  #                                    down: it is a reason to cut one.
+  #
+  # NOT in `report`'s needs, deliberately: that job opens the issue about main,
+  # and this one is about telling two populations apart. Folding them would give
+  # the issue two subjects, which is exactly what #538 was — nine nights, five
+  # causes, one title, and none of the five advancing.
+  verdict:
+    name: Us, or the world?
+    needs: [stacks]
+    if: always() && github.event_name == 'schedule'
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+        with:
+          egress-policy: audit
+
+      - name: Read both legs and say which population moved
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.run_id }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          jobs="$(gh api "repos/${REPO}/actions/runs/${RUN_ID}/jobs" --paginate \
+            --jq '.jobs[] | select(.name | startswith("stacks (")) | "\(.name)\t\(.conclusion)\t\(.steps[]? | select(.name == "The example stacks, applied and probed") | .conclusion)"')"
+          echo "${jobs}"
+
+          main_gate="$(printf '%s\n' "${jobs}" | grep -v 'last release' | cut -f3 | head -1)"
+          ctrl_gate="$(printf '%s\n' "${jobs}" | grep 'last release' | cut -f3 | head -1)"
+
+          # A conclusion this job could not read is said out loud, never scored:
+          # a verdict computed from a missing input is the shape this repository
+          # refuses everywhere else.
+          if [ -z "${main_gate}" ] || [ -z "${ctrl_gate}" ]; then
+            {
+              echo "## Us, or the world? — not answered"
+              echo "One of the two legs published no conclusion (main: '${main_gate:-none}', control: '${ctrl_gate:-none}'), so the comparison was not made."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          {
+            echo "## Us, or the world?"
+            echo ""
+            echo "| leg | gate |"
+            echo "|---|---|"
+            echo "| main | ${main_gate} |"
+            echo "| last release | ${ctrl_gate} |"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "${main_gate}" = "success" ] && [ "${ctrl_gate}" = "success" ]; then
+            echo "Both green: nothing to tell apart." >> "$GITHUB_STEP_SUMMARY"
+          elif [ "${main_gate}" != "success" ] && [ "${ctrl_gate}" = "success" ]; then
+            echo "**It is us.** The release still passes in today's world and main does not, so the cause is in what changed since. The fix goes in main." >> "$GITHUB_STEP_SUMMARY"
+          elif [ "${main_gate}" != "success" ] && [ "${ctrl_gate}" != "success" ]; then
+            echo "**It is the world.** A thing we shipped and knew good no longer passes either, so the cause is outside this repository — an upstream image, a runner, a registry. That is an issue about the environment, not about the code." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "**Already fixed without knowing.** main passes and the last release does not, so a defect was repaired since it was cut and the release still carries it. Worth writing down — it is a reason to cut one." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          echo "_The control runs the tag's own suites: a harness fix that only exists on main is not part of what was shipped, so the control can stay red on a defect main already repaired._" >> "$GITHUB_STEP_SUMMARY"
+
   streak:
     name: Consecutive green scheduled runs
     needs: [runtime, stacks]
