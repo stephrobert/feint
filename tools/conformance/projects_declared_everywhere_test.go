@@ -27,8 +27,16 @@ import (
 // asserted here is the property: whatever the catalogue is, all three name it.
 
 // projectStarters are the three files that start an emulator a conformance suite
-// then drives. A fourth entry point adds itself here rather than being
-// discovered by a red matrix.
+// then drives WITH FLAGS. A fourth entry point adds itself here rather than
+// being discovered by a red matrix.
+//
+// The `image` job of conformance.yml is deliberately absent, and adding it would
+// be the mistake: it runs the shipped container with no override on purpose —
+// "a proof that quietly passes different flags proves a different image". That
+// leg is served by the suite asking the emulator what catalogue it holds before
+// asserting on it (tools/conformance/scaleway/scw-cli.sh), which is the same
+// rule the network suites follow for `capabilities.isolation`: branch on a
+// declaration, never on a name you expect.
 var projectStarters = []string{
 	"leg.sh",
 	"../../mise.toml",

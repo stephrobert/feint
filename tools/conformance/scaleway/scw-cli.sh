@@ -725,7 +725,18 @@ fi
 # obstacle for exactly the person #372 exists to serve. The operator declares the
 # catalogue now, and the declared name resolves the whole way: listed by name,
 # read back by the identifier the list answered, under its own name.
+# Asked of the emulator rather than assumed, because one leg of the conformance
+# matrix starts the shipped container with NO flags on purpose — passing
+# `--projects` there would prove a different image. The catalogue is read
+# unfiltered: an emulator nobody gave one holds a single project and this block
+# skips by name; a broken filter cannot shrink an unfiltered list to one, so the
+# skip cannot hide the defect the assertion exists for.
 echo "- a declared project that is not the default one resolves by name and by id"
+catalogue="$(scw account project list -o json 2>&1)" \
+  || fail "listing the account's projects rejected: $catalogue"
+if [ "$(printf '%s' "$catalogue" | jq -r 'length')" -lt 2 ]; then
+  echo "  SKIP: this emulator declares no project catalogue (serve --projects), so a name that is not the default one has nothing to resolve to (#572)"
+else
 declared="$(scw account project list name=platform-prod -o json 2>&1)" \
   || fail "listing the declared project rejected: $declared"
 printf '%s' "$declared" | jq -e 'length == 1 and .[0].name == "platform-prod"' >/dev/null \
@@ -738,6 +749,7 @@ scw account project get project-id="$declared_id" -o json \
   | jq -e --arg i "$declared_id" '.id == $i and .name == "platform-prod"' >/dev/null \
   || fail "reading the declared project back answered another project's name"
 ok "the declared project resolves by name and reads back as itself"
+fi
 
 ok "listed by name, read by id, and a foreign name answers nothing"
 
