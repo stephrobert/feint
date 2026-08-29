@@ -71,10 +71,6 @@ issues would become the core of the next release. A release that never ships
 proves nothing to anybody. Taking that cut is a decision, not a slip, and it
 belongs to the maintainer.
 
-> **The rest of this page is out of date and #403 rewrites it.** It still
-> presents `feint replay`, `coverage --observed` and fault injection as work to
-> come; all three shipped. Read the milestones for what is true.
-
 ## How to read this
 
 Every item states its **evidence**: the thing that will be true when it is done,
@@ -293,10 +289,11 @@ the archived documents explain how each batch was cut.
    is merged too: block storage, thirteen operations a real client drives,
    aligned with the relation rules Scaleway settled — stored on one side,
    computed on the other, deletion rules tested by the fixture's destroy.
-6. **Load balancing and gateways** — **open**, one batch short: EXO-5 landed
-   with #345. SW-5 (#17), SW-6 (#18), OSC-5 (#16) and EXO-6 (#15) remain. Last because nothing else depends on them
-   and everything they depend on (IPAM, networks, the waiter discipline) is
-   above; each is control plane first, capability-gated backing later.
+6. **Load balancing and gateways** — **landed**, on all three packs: EXO-5 with
+   #345, then SW-5, SW-6, OSC-5 and EXO-6. It was ranked last because nothing
+   else depended on it and everything it depended on (IPAM, networks, the waiter
+   discipline) is above; each arrived control plane first, with
+   capability-gated backing after.
 
 The waves are an order, not a schedule: a wave can start before the previous
 one is fully green when its dependencies are, and an issue where an official
@@ -319,19 +316,19 @@ the table carries the state as an issue reference rather than a claim.
 | **SW-2** | 3 | snapshots, images, volume attach | done (#7) |
 | **SW-3** | 3 | `block/v1` and the `sbs_volume` root volume | done (#8) |
 | **OSC-3** | 4 | routable networking — `examples/net_vm` applies | done (#10) |
-| **SW-4** | 4 | IPAM lifecycle and the rest of vpc | open (#11) |
+| **SW-4** | 4 | IPAM lifecycle and the rest of vpc | done (#11) |
 | **EXO-3** | 4 | private networks and instance attachment | done (#9) |
 | **OSC-4** | 5 | volumes, snapshots, images | done (#13) |
 | **EXO-4** | 5 | block storage | done (#12) |
-| **SW-5** | 6 | `lb/v1` ZonedAPI | open (#17) |
-| **SW-6** | 6 | `vpcgw/v2` | open (#18) |
-| **OSC-5** | 6 | load balancing | open (#16) |
+| **SW-5** | 6 | `lb/v1` ZonedAPI | done (#17) |
+| **SW-6** | 6 | `vpcgw/v2` | done (#18) |
+| **OSC-5** | 6 | load balancing | done (#16) |
 | **EXO-5** | 6 | NLB | done (#345) |
-| **EXO-6** | 6 | VPC and routes | open (#15) |
+| **EXO-6** | 6 | VPC and routes | done (#15) |
 
 Sizes and operation lists stay with the issues and the archived documents,
 where they can be argued against the measurements that justified them. The one
-thing worth knowing here: SW-5 is the largest single batch remaining.
+thing worth knowing here: SW-5 was the largest single batch of the sixteen.
 
 ### Start here
 
@@ -389,7 +386,7 @@ is **which of them lower the cost of coverage**, since coverage is what the
 sequence above spends its time on. Three answered yes, and the first has since
 landed.
 
-### 1. Record what a real client and a real cloud say to each other — #72 done; #73, #74 remain
+### 1. Record what a real client and a real cloud say to each other — landed
 
 The recording half **landed**: `feint proxy` records a redacted transcript of a
 real client against a real cloud, `feint transcript --shape` reduces it to a
@@ -402,13 +399,15 @@ built"* — is settled, and the tool earned its keep on its first day wired: the
 gate went red on a real divergence (`images[].default_bootscript`) in the same
 branch that made the route comparable (#131).
 
-What remains of the family, each usable without the other: **`feint replay`**
-(#73) compares the emulator's answer with the one the real cloud gave, exchange
-by exchange; **`feint coverage --observed`** (#74) orders the untriaged column
-by what a client was actually seen calling — which is what turns every wave
-above from a bet into a count. And one measured trap governs both: a client
-that follows in-band endpoints walks away from the proxy mid-session (#92), so
-a recording is only as complete as the dialect allows.
+The rest of the family landed with it, in 0.10.0. **`feint replay`** compares
+the emulator's answer with the one the real cloud gave, exchange by exchange;
+**`feint coverage --observed`** orders the untriaged column by what a client was
+actually seen calling — which is what turned every wave above from a bet into a
+count. Both are shipped, documented and gated.
+
+And one measured trap governs both, which is why it stays written here: a client
+that follows in-band endpoints walks away from the proxy mid-session, so a
+recording is only as complete as the dialect allows.
 
 **Evidence:** as each issue states. The rule that governs the family held and
 keeps holding: a transcript contains neither a credential nor a secret from the
@@ -440,19 +439,20 @@ module defines a `Pack` of its own, importing nothing under `internal/`. The
 second is the first real evidence for an architecture claim this page has been
 making from the beginning.
 
-### 3. Fault injection — #26
+### 3. Fault injection — landed
 
-Already open, and it stays third. It does not lower the cost of coverage, so it
-earns its place on a different argument: it is middleware over the `ServeMux`,
-it costs little, and what it produces is measurements about the behaviour of
-official clients — whether the Scaleway Terraform provider really retries a 429,
-whether `exo`'s waiter converges on a slow asynchronous operation — which is
-this project's raw material. Nobody can test that today without degrading a real
+Landed in 0.11.0: `emulator.Faulter` and `/_feint/faults`. It was ranked third
+here on an argument worth keeping, because it is the argument that got it built:
+it does not lower the cost of coverage, so it earned its place elsewhere — it is
+middleware over the `ServeMux`, it costs little, and what it produces is
+measurements about the behaviour of official clients. Whether the Scaleway
+Terraform provider really retries a 429, whether `exo`'s waiter converges on a
+slow asynchronous operation. Nobody could test that without degrading a real
 account.
 
-It also composes with the first item: a recorded transcript carries a real 429
-with the body the cloud actually sent, which answers by measurement the question
-that issue leaves open about what an injected error must look like.
+It composes with the first item, and that is how the shape of an injected error
+was settled rather than invented: a recorded transcript carries a real 429 with
+the body the cloud actually sent.
 
 ### The arbitration to reopen: DNS interception and TLS termination — #76
 
@@ -876,7 +876,7 @@ here, and filing them here would be the first step in merging the two again.
 | 1.1 | portable environments — #189 to #192 |
 | 1.2 | one more runtime backend, speaking an HTTP contract — #195 |
 | 1.3 | that contract has a cloud behind it, in its own repository |
-| 1.4 | drift, network assertions, injected failures — #193, #194, #26, #124 |
+| 1.4 | drift and network assertions — #193, #194 |
 
 Written as an order rather than a schedule. None of it has a date, and the one
 thing this page has learned to avoid is a promise whose condition somebody else
@@ -957,7 +957,7 @@ empty and destroying (OSC-3), and the storage chain (OSC-4). The parity bar
 this item named — that `net_vm` apply — is met, and [limits.md](limits.md)
 records what the served topology does and does not move.
 
-What remains is load balancing (OSC-5, #16). The warning this paragraph used
+Load balancing (OSC-5) landed after it. The warning this paragraph used
 to carry — that a rule sourced by *group* rather than by CIDR needs an OVN
 selector before any batch promises Outscale group **enforcement** — was
 answered by #475 the way the driver's own contract suggests: the runtime has

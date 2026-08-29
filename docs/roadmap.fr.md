@@ -14,7 +14,6 @@ ce qui est intéressant à construire.
 Ce qui est *mesuré* plutôt que planifié vit dans [limits.md](limits.md) ; la
 façon dont les pièces s'assemblent, dans [architecture.md](architecture.md).
 
-
 ## L'ordre dans lequel la 0.11.0 est traitée
 
 Figé le 2026-08-22. Treize issues restent, et elles ne sont pas indépendantes :
@@ -77,10 +76,6 @@ mesure, sa fiabilité et la chaîne du catalogue, et les six issues de parité
 deviendraient le cœur de la release suivante. Une release qui ne sort jamais ne
 prouve rien à personne. Prendre cette coupe est une décision, pas un renoncement,
 et elle appartient au mainteneur.
-
-> **Le reste de cette page est périmé et #403 la réécrit.** Elle présente encore
-> `feint replay`, `coverage --observed` et l'injection de fautes comme du travail
-> à venir ; les trois sont livrés. Lire les jalons pour ce qui est vrai.
 
 ## Comment lire cette page
 
@@ -342,15 +337,15 @@ comme affirmation.
 | **SW-2** | 3 | snapshots, images, attachement de volume | fait (#7) |
 | **SW-3** | 3 | `block/v1` et le volume racine `sbs_volume` | faite (#8) |
 | **OSC-3** | 4 | réseau routable : `examples/net_vm` applique | fait (#10) |
-| **SW-4** | 4 | cycle de vie IPAM et le reste de vpc | ouvert (#11) |
+| **SW-4** | 4 | cycle de vie IPAM et le reste de vpc | fait (#11) |
 | **EXO-3** | 4 | réseaux privés et attachement d'instance | faite (#9) |
 | **OSC-4** | 5 | volumes, snapshots, images | fait (#13) |
 | **EXO-4** | 5 | stockage bloc | fait (#12) |
-| **SW-5** | 6 | `lb/v1` ZonedAPI | ouvert (#17) |
-| **SW-6** | 6 | `vpcgw/v2` | ouvert (#18) |
-| **OSC-5** | 6 | load balancing | ouvert (#16) |
+| **SW-5** | 6 | `lb/v1` ZonedAPI | fait (#17) |
+| **SW-6** | 6 | `vpcgw/v2` | fait (#18) |
+| **OSC-5** | 6 | load balancing | fait (#16) |
 | **EXO-5** | 6 | NLB | faite (#345) |
-| **EXO-6** | 6 | VPC et routes | ouvert (#15) |
+| **EXO-6** | 6 | VPC et routes | fait (#15) |
 
 Les tailles et les listes d'opérations restent avec les issues et les
 documents archivés, où on peut les discuter contre les mesures qui les
@@ -416,7 +411,7 @@ manquent ici*. C'est **lesquelles abaissent le coût de la couverture**,
 puisque la couverture est ce à quoi la séquence ci-dessus passe son temps.
 Trois répondaient oui, et la première a depuis été livrée.
 
-### 1. Enregistrer ce que se disent un vrai client et un vrai cloud : #72 fait ; #73 et #74 restent
+### 1. Enregistrer ce que se disent un vrai client et un vrai cloud : livré
 
 La moitié enregistrement est **livrée** : `feint proxy` enregistre une
 transcription expurgée d'un vrai client contre un vrai cloud,
@@ -430,9 +425,9 @@ a gagné sa place dès son premier jour branché : le gate est passé au rouge s
 une vraie divergence (`images[].default_bootscript`) dans la branche même qui
 rendait la route comparable (#131).
 
-Ce qui reste de la famille, chacun utilisable sans l'autre : **`feint replay`**
-(#73) compare la réponse de l'émulateur à celle que le vrai cloud a donnée,
-échange par échange ; **`feint coverage --observed`** (#74) ordonne la colonne
+Le reste de la famille est arrivé avec elle, en 0.10.0. **`feint replay`**
+compare la réponse de l'émulateur à celle que le vrai cloud a donnée,
+échange par échange ; **`feint coverage --observed`** ordonne la colonne
 non triée par ce qu'un client a réellement été vu appeler, ce qui transforme
 chaque vague ci-dessus d'un pari en un comptage. Et un piège mesuré gouverne
 les deux : un client qui suit des endpoints donnés dans la réponse quitte le
@@ -472,21 +467,20 @@ module définit un `Pack` à lui, sans rien importer sous `internal/`. La
 seconde moitié est la première vraie preuve d'une affirmation d'architecture
 que cette page fait depuis le début.
 
-### 3. Injection de fautes : #26
+### 3. Injection de fautes : livrée
 
-Déjà ouverte, et elle reste troisième. Elle n'abaisse pas le coût de la
-couverture, donc elle gagne sa place sur un autre argument : c'est un
-middleware au-dessus du `ServeMux`, cela coûte peu, et ce que cela produit,
-ce sont des mesures sur le comportement des clients officiels (le provider
-Terraform Scaleway réessaie-t-il vraiment un 429, le waiter d'`exo`
-converge-t-il sur une opération asynchrone lente), c'est-à-dire la matière
-première de ce projet. Personne ne peut tester cela aujourd'hui sans dégrader
-un vrai compte.
+Livrée en 0.11.0 : `emulator.Faulter` et `/_feint/faults`. Elle était classée
+troisième sur un argument qui mérite d'être gardé, parce que c'est lui qui l'a
+fait construire : elle n'abaisse pas le coût de la couverture, donc elle a gagné
+sa place ailleurs — c'est un middleware au-dessus du `ServeMux`, cela coûte peu,
+et ce que cela produit, ce sont des mesures sur le comportement des clients
+officiels : le provider Terraform Scaleway réessaie-t-il vraiment un 429, le
+waiter d'`exo` converge-t-il sur une opération asynchrone lente. Personne ne
+pouvait tester cela sans dégrader un vrai compte.
 
-Elle se compose aussi avec le premier élément : une transcription enregistrée
-porte un vrai 429 avec le corps que le cloud a réellement envoyé, ce qui
-répond par la mesure à la question que cette issue laisse ouverte sur la
-forme d'une erreur injectée.
+Elle se compose avec le premier élément, et c'est ainsi que la forme d'une
+erreur injectée a été tranchée plutôt qu'inventée : une transcription
+enregistrée porte un vrai 429 avec le corps que le cloud a réellement envoyé.
 
 ### L'arbitrage à rouvrir : interception DNS et terminaison TLS : #76
 
@@ -866,7 +860,7 @@ dit ce qui est prouvé.
 |---|---|---|
 | #193 | simulation de dérive | modifier le cloud **derrière** Terraform est la seule situation qu'aucun test ici n'a jamais produite |
 | #194 | assertions réseau | OVN sait répondre à « la base est-elle joignable » plutôt qu'à « la règle est-elle déclarée » |
-| #26 | injection de fautes | déjà déposée ; les retries, le backoff et l'idempotence n'ont jamais été testés contre un refus |
+
 | #124 | cohérence éventuelle | déjà déposée ; un waiter que personne n'attend est un waiter que personne n'a testé |
 | #73 | enregistrer et rejouer | déjà déposée ; un transcript attaché à une issue est un bug que n'importe qui reproduit |
 
