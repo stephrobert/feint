@@ -29,6 +29,22 @@ const (
 	// Count resources of a kind. Provider-neutral by construction: the store
 	// holds resource.Resource, whose kind is a value rather than a type.
 	ResourceCondition ConditionKind = "resource"
+	// ServiceCondition waits for the machine a named resource backs to accept a
+	// connection on a port, at an address the emulator itself recorded.
+	//
+	// The three forms above are all control plane: a route that answers, a
+	// socket the caller already knows the address of, a count in the inventory.
+	// None of them can say that the workload is up, and that gap has a date. On
+	// the scheduled night of 2026-08-29 the Scaleway stack's four conditions
+	// were all confirmed, `feint up` returned, and 310 ms later its web machine
+	// was listening on 53 and not on 443 — cloud-init had not reached the runcmd
+	// that starts the declared unit. `up` did not lie; it confirmed exactly what
+	// it had been asked to confirm.
+	//
+	// A stack that declares one of these cannot return before its workload
+	// answers, so no suite downstream has to guess afterwards — which is what
+	// every suite was doing, each at its own moment and its own budget.
+	ServiceCondition ConditionKind = "service"
 )
 
 // ConditionKinds names every form, for the refusal. A name that is not one of
@@ -37,6 +53,7 @@ var ConditionKinds = []string{
 	"http:<path>",
 	"tcp:<host>:<port>",
 	"resource:<kind>[:<count>]",
+	"service:<resource name>:<port>",
 }
 
 // Condition is one parsed ready condition.
@@ -52,6 +69,12 @@ type Condition struct {
 	// Resource and Count are set for ResourceCondition.
 	Resource string
 	Count    int
+	// Name and Port are set for ServiceCondition. Name is the name the client
+	// gave the resource, as the stack wrote it, never the runtime object behind
+	// it: a declaration that named a container would be a declaration coupled to
+	// the runtime that happens to be configured.
+	Name string
+	Port int
 }
 
 // ParseCondition reads one condition and refuses everything else by name.
@@ -92,6 +115,17 @@ func ParseCondition(raw string) (Condition, error) {
 			want = n
 		}
 		return Condition{Kind: ResourceCondition, Raw: raw, Resource: name, Count: want}, nil
+	case ServiceCondition:
+		name, port, split := strings.Cut(rest, ":")
+		if !split || name == "" || port == "" {
+			return Condition{}, fmt.Errorf("%q: a service condition takes the name the stack gave "+
+				"the resource and the port its workload listens on, as `name:port`", raw)
+		}
+		n, err := strconv.Atoi(port)
+		if err != nil || n < 1 || n > 65535 {
+			return Condition{}, fmt.Errorf("%q: %q is not a port number", raw, port)
+		}
+		return Condition{Kind: ServiceCondition, Raw: raw, Name: name, Port: n}, nil
 	default:
 		return Condition{}, fmt.Errorf("%q: %q is not a ready condition; the forms are %s",
 			raw, kind, strings.Join(ConditionKinds, ", "))
@@ -126,6 +160,8 @@ func (c Condition) Describe() string {
 			return "the emulator holds a " + c.Resource
 		}
 		return fmt.Sprintf("the emulator holds %d %s resources", c.Count, c.Resource)
+	case ServiceCondition:
+		return fmt.Sprintf("%s answers on port %d", c.Name, c.Port)
 	default:
 		return c.Raw
 	}

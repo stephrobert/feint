@@ -260,6 +260,7 @@ gate. The sentence a field carries lives on the field.
 - `http:<path>`
 - `tcp:<host>:<port>`
 - `resource:<kind>[:<count>]`
+- `service:<resource name>:<port>`
 
 A condition that is not one of those forms is refused at load, with the list.
 <!-- environment:end -->

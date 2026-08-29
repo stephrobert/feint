@@ -51,7 +51,7 @@
       "test": "TestAVersionThisBinaryDoesNotReadIsRefusedNamingBoth"
     },
     {
-      "label": "an unreadable inventory is read as a count of zero, so a broken emulator is indistinguishable from one nobody has used",
+      "label": "an unreadable inventory is read as an empty one, so a broken emulator is indistinguishable from one nobody has used \u2014 now on the single reader both `resource:` and `service:` go through",
       "file": "internal/cli/up.go",
       "find": "\tif err := decoder.Decode(&body); err != nil {",
       "replace": "\tif err := decoder.Decode(&body); err != nil && false {",
@@ -91,10 +91,10 @@
       "package": "./internal/cli/"
     },
     {
-      "label": "the summary lists ready conditions nothing evaluated as what proved the environment",
+      "label": "the summary credits every condition the file DECLARES instead of the ones that held, so a `service:` nothing asked under `runtime.mode: off` is listed as proof \u2014 measured on examples/stacks/scaleway, which announced \"not asked\" and credited it in the same breath",
       "file": "internal/cli/up.go",
-      "find": "\tdefault:\n\t\tfmt.Fprintf(stdout, \"  proved:   nothing — the ready conditions were skipped with the engine\\n\")\n\t}",
-      "replace": "\tdefault:\n\t\tfmt.Fprintf(stdout, \"  proved:   %s\\n\", strings.Join(decl.Ready, \", \"))\n\t}",
+      "find": "\t\tfmt.Fprintf(stdout, \"  proved:   %s\\n\", strings.Join(proved, \", \"))",
+      "replace": "\t\tfmt.Fprintf(stdout, \"  proved:   %s\\n\", strings.Join(append(proved[:0:0], decl.Ready...), \", \"))",
       "test": "TestTheSummaryClaimsNothingItDidNotProve",
       "package": "./internal/cli/"
     }

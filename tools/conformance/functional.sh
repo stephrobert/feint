@@ -619,18 +619,11 @@ run_stack() { # name
 		[ "$state" = "$running" ] \
 			|| fail "$name: $restart came back '$state' ${waited}s after the API was asked to start it — a stack whose machine does not restart is not a stack that works"
 		# The unit needs its own boot to come up, so the wait is on the port
-		# rather than on a fixed sleep, and the verdict below names how long
-		# it waited.
-		rm -f "$WORK/listen-$rmachine.txt"
-		waited=0
-		while [ "$waited" -lt 90 ]; do
-			live_listeners "$rmachine" "$WORK/listen-$rmachine.txt" \
-				|| fail "cannot look: reading /proc/net/tcp inside $rmachine failed after its restart"
-			fnl_listens "$port" "$WORK/listen-$rmachine.txt" && break
-			sleep 5
-			waited=$((waited + 5))
-		done
-		fnl_service_listens "$name" "$restart ($unit, ${waited}s after a restart through the API)" "$rmachine" "$port" "$WORK/listen-$rmachine.txt"
+		# rather than on a fixed sleep, and the verdict below names how long it
+		# waited. Shared with the first-boot path since #600: this loop lived here
+		# and nowhere else, and the first boot is the one that needed it most.
+		fnl_service_came_up "$name" "$restart" "$unit" "$rmachine" "$port" \
+			"$WORK/listen-$rmachine.txt" "after a restart through the API"
 		address="$(published_address "$provider" "$restart")" \
 			|| fail "cannot look: $provider's API did not answer when asked for $restart's published address"
 		if [ -n "$address" ]; then
@@ -683,8 +676,12 @@ run_stack() { # name
 		for target in $(printf '%s' "$service" | jq -r '.machines[]'); do
 			need_machine "$target"
 			smachine="$MACHINE"
-			listen_of "$smachine"
-			fnl_service_listens "$name" "$target ($unit)" "$smachine" "$port" "$LISTEN"
+			# The unit is waited for rather than asked once (#600). LISTEN is set
+			# from the same capture, because the firewall pair below reads it and
+			# must read the list this verdict was reached on.
+			LISTEN="$WORK/listen-$smachine.txt"
+			fnl_service_came_up "$name" "$target" "$unit" "$smachine" "$port" \
+				"$LISTEN" "after up returned"
 			address="$(published_address "$provider" "$target")" \
 				|| fail "cannot look: $provider's API did not answer when asked for $target's published address"
 			if [ -z "$address" ]; then

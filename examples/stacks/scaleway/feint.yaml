@@ -38,9 +38,23 @@ iac:
 
 # Asserted against the emulator, never against Terraform's state file: six
 # machines, two VPCs and the load balancer the stack puts in front of the web
-# tier.
+# tier — and, when a runtime is configured, the web tier's own workload.
+#
+# The last one is dated, and it is why `service:` exists (#600). On the scheduled
+# night of 2026-08-29 (run 33229486194) the four conditions above were every
+# condition this file carried; `feint up` confirmed all four and returned, and
+# 310 ms later the suite read platform-web-0 and found port 53 open and 443 not —
+# cloud-init had not reached the runcmd that starts the unit. `up` had not lied.
+# It confirmed exactly what it had been asked to confirm, and nothing here could
+# ask about the inside of a machine.
+#
+# Under `runtime.mode: off` above, nothing boots and `up` prints that the
+# condition was not asked, naming it, rather than passing it in silence — which
+# is what lets this stack keep running in both modes, as main.tf says an example
+# has to.
 ready:
   - http:/instance/v1/zones/fr-par-1/servers
   - resource:instance/server:6
   - resource:vpc/vpc:2
   - resource:lb/lb:1
+  - service:platform-web-0:443

@@ -58,7 +58,7 @@ func TestAReadyConditionThatIsMetIsSaidOutLoudBothWays(t *testing.T) {
 	decl := declFor(t, strings.TrimPrefix(srv.URL, "http://"),
 		"http:/instance/v1/zones/fr-par-1/servers", "resource:instance/server:2")
 	var out bytes.Buffer
-	if err := waitReady(decl, 5*time.Second, &out); err != nil {
+	if _, err := waitReady(decl, 5*time.Second, &out); err != nil {
 		t.Fatalf("conditions the server satisfies were not met: %v\n%s", err, out.String())
 	}
 	for _, want := range []string{"waiting:", "ok: http:/instance", "ok: resource:instance/server:2"} {
@@ -85,7 +85,7 @@ func TestAReadyConditionThatCannotBeMetFailsWithinItsDeadlineNamingIt(t *testing
 	decl := declFor(t, strings.TrimPrefix(srv.URL, "http://"), "resource:instance/server:1")
 	var out bytes.Buffer
 	started := time.Now()
-	err := waitReady(decl, 300*time.Millisecond, &out)
+	_, err := waitReady(decl, 300*time.Millisecond, &out)
 	if err == nil {
 		t.Fatal("a condition nothing satisfies was reported met")
 	}
@@ -443,7 +443,7 @@ func TestTheSummaryClaimsNothingItDidNotProve(t *testing.T) {
 	}
 
 	var skipped bytes.Buffer
-	printEndpoints(decl, false, &skipped)
+	printEndpoints(decl, nil, &skipped)
 	if strings.Contains(skipped.String(), "resource:instance/server:6") {
 		t.Errorf("a condition nothing evaluated is listed as what proved the environment:\n%s", skipped.String())
 	}
@@ -454,8 +454,27 @@ func TestTheSummaryClaimsNothingItDidNotProve(t *testing.T) {
 	// The accepting half: when the wait did run, its conditions are exactly what
 	// the summary credits.
 	var proved bytes.Buffer
-	printEndpoints(decl, true, &proved)
+	printEndpoints(decl, []string{"resource:instance/server:6"}, &proved)
 	if !strings.Contains(proved.String(), "resource:instance/server:6") {
 		t.Errorf("a condition that was met is not credited:\n%s", proved.String())
+	}
+
+	// The third case, and the reason this argument stopped being a boolean
+	// (#600). Some conditions held and one was not asked — a `service:` under
+	// `runtime.mode: off`. Measured on examples/stacks/scaleway with
+	// `--runtime off`: the summary announced "not asked" and then listed the
+	// same condition among what proved the environment.
+	partial, err := environment.Parse("version: 1\nemulator:\n  addr: 127.0.0.1:4599\n" +
+		"ready:\n  - resource:instance/server:6\n  - service:platform-web-0:443\n")
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	var mixed bytes.Buffer
+	printEndpoints(partial, []string{"resource:instance/server:6"}, &mixed)
+	if strings.Contains(mixed.String(), "service:platform-web-0:443") {
+		t.Errorf("a condition nothing asked is credited as proof:\n%s", mixed.String())
+	}
+	if !strings.Contains(mixed.String(), "not asked: 1 of 2") {
+		t.Errorf("the summary does not say how much of the declaration went unasked:\n%s", mixed.String())
 	}
 }

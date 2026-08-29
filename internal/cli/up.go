@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -124,17 +125,18 @@ func up(args []string, stdout, stderr io.Writer) int {
 	// fail every time, and a flag whose only outcome is a failure is a flag
 	// nobody uses. Said rather than silent — that is the whole difference
 	// between a skip and a lie.
-	proved := true
+	var proved []string
 	switch {
 	case *skipIaC && decl.IaC.Engine != "" && len(decl.Ready) > 0:
-		proved = false
 		fmt.Fprintf(stdout, "- not waiting: --no-iac skipped %s, and the ready conditions describe what it builds (%s)\n",
 			decl.IaC.Engine, strings.Join(decl.Ready, ", "))
 	default:
-		if err := waitReady(decl, *timeout, stdout); err != nil {
+		held, err := waitReady(decl, *timeout, stdout)
+		if err != nil {
 			fmt.Fprintf(stderr, "feint: %v\n", err)
 			return exitError
 		}
+		proved = held
 	}
 
 	// Step 6.
@@ -607,20 +609,40 @@ func engineEnvironment(decl *environment.File) ([]string, error) {
 // waitReady is step 5. Every condition is announced before it is waited on and
 // named when its deadline passes: a hang with no output is indistinguishable
 // from a broken emulator, and this repository has already paid for that.
-func waitReady(decl *environment.File, timeout time.Duration, stdout io.Writer) error {
+func waitReady(decl *environment.File, timeout time.Duration, stdout io.Writer) ([]string, error) {
 	conditions := decl.Conditions()
 	if len(conditions) == 0 {
-		return nil
+		return nil, nil
 	}
+	// What held, in the order it was asked. Returned rather than counted,
+	// because the summary must name what proved the environment and a count
+	// cannot tell a condition that held from one nothing asked.
+	held := make([]string, 0, len(conditions))
 	deadline := time.Now().Add(timeout)
 	for _, condition := range conditions {
+		// A service condition asks about the inside of a machine, and under
+		// `runtime.mode: off` there is no machine: the question does not apply
+		// rather than fails. Said out loud and never returned in silence — the
+		// rule `guard_leftovers_for` states for the same case in
+		// tools/conformance/guard.sh: a precondition that passes quietly on the
+		// very case it exists for reads as green when it never ran.
+		//
+		// This is also what lets a stack declare one and still run in both
+		// modes, which examples/stacks/scaleway/main.tf says an example has to
+		// do. The mode read here is the resolved one, so `--runtime` counts.
+		if condition.Kind == environment.ServiceCondition && decl.Runtime.Mode == "off" {
+			fmt.Fprintf(stdout, "  not asked: %s — this environment starts no machines\n",
+				condition.Raw)
+			continue
+		}
 		fmt.Fprintf(stdout, "- waiting: %s\n", condition.Describe())
 		if err := awaitCondition(decl, condition, deadline); err != nil {
-			return err
+			return held, err
 		}
 		fmt.Fprintf(stdout, "  ok: %s\n", condition.Raw)
+		held = append(held, condition.Raw)
 	}
-	return nil
+	return held, nil
 }
 
 func awaitCondition(decl *environment.File, condition environment.Condition, deadline time.Time) error {
@@ -674,38 +696,81 @@ func conditionMet(decl *environment.File, condition environment.Condition) (bool
 			return false, fmt.Sprintf("the emulator holds %d", held)
 		}
 		return true, ""
+	case environment.ServiceCondition:
+		addresses, err := addressesOfNamed(decl.Endpoint(), condition.Name)
+		if err != nil {
+			return false, err.Error()
+		}
+		if len(addresses) == 0 {
+			return false, fmt.Sprintf("no resource named %q carries an address yet", condition.Name)
+		}
+		for _, address := range addresses {
+			conn, dialErr := net.DialTimeout("tcp",
+				net.JoinHostPort(address, strconv.Itoa(condition.Port)), 3*time.Second)
+			if dialErr == nil {
+				_ = conn.Close()
+				return true, ""
+			}
+		}
+		return false, fmt.Sprintf("%s does not accept a connection on %d yet",
+			strings.Join(addresses, ", "), condition.Port)
 	default:
 		return false, "no reader for this condition"
 	}
 }
 
-// countKindInInventory reads the emulator's own inventory, which is
-// provider-neutral by construction: the store holds resources whose kind is a
-// value, so this counts a pack nobody has written yet.
-func countKindInInventory(endpoint, kind string) (int, error) {
+// inventoryResource is what a ready condition needs of the emulator's own
+// inventory. The shape is the emulator's, never a provider's: the store holds
+// resources whose kind is a value rather than a type, so a pack nobody has
+// written yet is read here without a line changing.
+type inventoryResource struct {
+	Kind    string            `json:"kind"`
+	Attrs   map[string]any    `json:"attrs"`
+	Runtime map[string]string `json:"runtime"`
+}
+
+// readInventory fetches and decodes /_feint/resources, once, for every
+// condition that needs it.
+//
+// Written once because the falsification harness refused it written twice.
+// `service:` (#600) arrived with a second fetch-and-decode of the same body, and
+// `mise run falsify -- tools/falsify/specs/environment-declaration.json`
+// answered that the fragment for "an unreadable inventory is read as a count of
+// zero" now matched two places and only the first was rewritten. A verdict
+// written twice is a verdict fixed in one of them, and here the harness said so
+// before anybody had to notice.
+//
+// The decode is strict: a body this does not understand is an error rather than
+// an empty list, because a silent empty list reads exactly like an emulator
+// nobody has used yet — three outcomes, never two.
+func readInventory(endpoint string) ([]inventoryResource, error) {
 	client := &http.Client{Timeout: 5 * time.Second}
 	res, err := client.Get(endpoint + "/_feint/resources")
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	defer func() { _ = res.Body.Close() }()
 	if res.StatusCode != http.StatusOK {
-		return 0, fmt.Errorf("the inventory answered %d", res.StatusCode)
+		return nil, fmt.Errorf("the inventory answered %d", res.StatusCode)
 	}
-	// The shape is the emulator's own, and it is decoded strictly: a body this
-	// does not understand is an error rather than a zero, because a silent zero
-	// reads exactly like an emulator nobody has used yet.
 	var body struct {
-		Resources []struct {
-			Kind string `json:"kind"`
-		} `json:"resources"`
+		Resources []inventoryResource `json:"resources"`
 	}
 	decoder := json.NewDecoder(io.LimitReader(res.Body, maxStateBody))
 	if err := decoder.Decode(&body); err != nil {
-		return 0, fmt.Errorf("reading the inventory: %w", err)
+		return nil, fmt.Errorf("reading the inventory: %w", err)
+	}
+	return body.Resources, nil
+}
+
+// countKindInInventory answers how many resources of a kind the emulator holds.
+func countKindInInventory(endpoint, kind string) (int, error) {
+	resources, err := readInventory(endpoint)
+	if err != nil {
+		return 0, err
 	}
 	count := 0
-	for _, r := range body.Resources {
+	for _, r := range resources {
 		if r.Kind == kind {
 			count++
 		}
@@ -713,8 +778,78 @@ func countKindInInventory(endpoint, kind string) (int, error) {
 	return count, nil
 }
 
+// addressesOfNamed answers every address the emulator recorded for the resource
+// the stack named, and it is the one provider-shaped half of `service:`.
+//
+// The name lives in two places, because the packs put it in two places:
+// Scaleway writes `attrs.name`, Outscale a `Name` tag. A fourth pack adds its
+// clause here rather than getting a reader of its own — what varies is a field,
+// what does not is shared. The same two clauses, for the same reason, are in
+// `fnl_machine_named` in tools/conformance/functionallib.sh.
+//
+// The addresses come from the resource's runtime record, and they are taken by
+// TYPE rather than by key: every value that parses as an IP. The packs agree on
+// "address" today, but that agreement is a Binding field (machine.Binding's
+// AddressKey), which means it is allowed to differ — and a reader keyed on the
+// spelling would be a convention written into the CLI that the core deliberately
+// left to each pack.
+//
+// An empty answer is not an error. A machine that has not published an address
+// yet is the normal early state of the very wait this feeds, and returning an
+// error there would turn "not ready yet" into "the emulator is broken" — the
+// three-outcomes rule conditionMet states above.
+func addressesOfNamed(endpoint, name string) ([]string, error) {
+	resources, err := readInventory(endpoint)
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	for _, r := range resources {
+		if nameOfResource(r.Attrs) != name {
+			continue
+		}
+		for _, value := range r.Runtime {
+			// A record can hold several, comma-joined, exactly as
+			// machine.Binding writes them.
+			for _, candidate := range strings.Split(value, ",") {
+				candidate = strings.TrimSpace(candidate)
+				if net.ParseIP(candidate) != nil {
+					out = append(out, candidate)
+				}
+			}
+		}
+	}
+	sort.Strings(out)
+	return out, nil
+}
+
+// nameOfResource reads the two shapes the packs write. See addressesOfNamed for
+// why both live here rather than one reader per pack.
+func nameOfResource(attrs map[string]any) string {
+	if name, ok := attrs["name"].(string); ok && name != "" {
+		return name
+	}
+	tags, ok := attrs["Tags"].([]any)
+	if !ok {
+		return ""
+	}
+	for _, raw := range tags {
+		tag, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		if key, _ := tag["Key"].(string); key != "Name" {
+			continue
+		}
+		if value, ok := tag["Value"].(string); ok {
+			return value
+		}
+	}
+	return ""
+}
+
 // printEndpoints is step 6: where the environment is, and what proved it.
-func printEndpoints(decl *environment.File, proved bool, stdout io.Writer) {
+func printEndpoints(decl *environment.File, proved []string, stdout io.Writer) {
 	fmt.Fprintf(stdout, "\nup: %s\n", decl.Endpoint())
 	if decl.Cloud.Provider != "" {
 		fmt.Fprintf(stdout, "  clients:  eval \"$(feint env %s)\"\n", decl.Cloud.Provider)
@@ -725,12 +860,23 @@ func printEndpoints(decl *environment.File, proved bool, stdout io.Writer) {
 	// What proved it, and never what would have. A summary that lists a
 	// condition nothing evaluated is the shape of every green verdict this
 	// project exists to distrust.
+	//
+	// The argument is the list that HELD, not the list that was declared, and
+	// that distinction was a boolean until #600. It stopped being one the moment
+	// a third case existed: a `service:` condition under `runtime.mode: off` is
+	// neither proved nor skipped-with-the-engine, and the boolean printed it as
+	// proved. Measured on examples/stacks/scaleway with `--runtime off`, which
+	// announced "not asked" and then listed the same condition as proof.
 	switch {
 	case len(decl.Ready) == 0:
-	case proved:
-		fmt.Fprintf(stdout, "  proved:   %s\n", strings.Join(decl.Ready, ", "))
-	default:
+	case len(proved) == 0:
 		fmt.Fprintf(stdout, "  proved:   nothing — the ready conditions were skipped with the engine\n")
+	default:
+		fmt.Fprintf(stdout, "  proved:   %s\n", strings.Join(proved, ", "))
+		if len(proved) < len(decl.Ready) {
+			fmt.Fprintf(stdout, "  not asked: %d of %d, named above\n",
+				len(decl.Ready)-len(proved), len(decl.Ready))
+		}
 	}
 	fmt.Fprintf(stdout, "  down:     feint down\n")
 }

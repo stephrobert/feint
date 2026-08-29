@@ -76,6 +76,13 @@
 # shellcheck source=/dev/null
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/witnesslib.sh"
 
+# shared/waiting.sh carries `wait_until`, and fnl_service_came_up below polls
+# with it rather than with a loop of its own: a bespoke loop is invisible to
+# WAIT_TRACE, and the budgets this repository keeps are only re-derivable
+# because every wait records itself (#587).
+# shellcheck source=/dev/null
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/shared/waiting.sh"
+
 # ---- readers: filters over stdin, no side effects ---------------------------
 
 # fnl_listening_ports reads /proc/net/tcp and /proc/net/tcp6 concatenated on
@@ -235,6 +242,61 @@ fnl_every_machine_started() { # stack machines_file instances_json floor running
 		fi
 	done <"$machines"
 	ok "$stack: $count machine(s), each '$running' and each Running on the host"
+}
+
+# fnl_port_appeared re-reads a machine's listeners and answers whether the port
+# is among them. It is the predicate `wait_until` polls below.
+#
+# It refreshes the file on every call, because a cached capture cannot become
+# true and `listen_of` in functional.sh caches by design.
+#
+# Three outcomes, not two, and this is the half worth reading. A read that fails
+# is not "the port is not open yet" — it is nobody being able to look. Collapsed
+# into one, a broken `incus exec` would spend the whole budget and then report
+# the unit dead, which is this file's own rule 2 turned against itself. So the
+# look failing exits here, with the message the single-read path already used.
+#
+# `live_listeners` is the caller's, never this file's: it runs `incus exec`, and
+# functional_test.go replaces it with a stub so the wait below can be driven
+# with no host.
+fnl_port_appeared() { # machine port listen_file
+	rm -f "$3"
+	live_listeners "$1" "$3" \
+		|| fail "cannot look: reading /proc/net/tcp inside $1 failed; every 'not listening' this run would report is an instrument failure"
+	fnl_listens "$2" "$3"
+}
+
+# fnl_service_came_up waits for a declared unit to answer inside its machine,
+# then hands the verdict to fnl_service_listens — which still decides, and still
+# names the port list it read.
+#
+# Why it exists, dated. The restart path in functional.sh has waited 90 s since
+# it was written, and its comment says why: "The unit needs its own boot to come
+# up". The first-boot path asked once and decided. On the scheduled night of
+# 2026-08-29 (run 33229486194) that cost the run — platform-web-0 was read
+# 310 ms after `feint up` returned and answered "listening: 53": systemd-resolved
+# up, the declared unit not yet, on a machine whose cloud-init had not reached
+# its runcmd. The first boot has *more* to do than a restart, not less. The wait
+# was written twice and lived on the wrong one of the two, so both callers share
+# this one now.
+#
+# The budget is the sibling path's 90 s, deliberately not raised. #587 measured
+# that a longer ceiling makes a broken wait *more* certain to look green, not
+# less, and nothing here has measured how long a first boot actually takes.
+# `wait_until` records every call in WAIT_TRACE, so that number can be re-derived
+# from a distribution rather than chosen by taste.
+#
+# The verdict names how long it waited, so a slow boot and a dead unit do not
+# read the same.
+#
+# The test that fails without this wait: TestAServiceThatComesUpLateIsWaitedFor
+# in functional_test.go plants a port that appears on the third read and
+# requires a pass; with the single read it reported the unit dead.
+fnl_service_came_up() { # stack declared unit machine port listen_file moment
+	local started="$SECONDS" waited
+	wait_until 90 fnl_port_appeared "$4" "$5" "$6" || true
+	waited=$((SECONDS - started))
+	fnl_service_listens "$1" "$2 ($3, ${waited}s $7)" "$4" "$5" "$6"
 }
 
 # fnl_service_listens is step 1 of the two-legged trip, and the precondition of

@@ -32,6 +32,98 @@ import (
 // no host and no emulator: the functions read files and injected commands
 // precisely so that this file can hold them.
 
+// ---- a unit that comes up late is waited for, not called dead --------------
+
+// The night this exists for: 2026-08-29, run 33229486194, job `stacks
+// (incus-ovn)`. `feint up` returned with every declared ready condition
+// confirmed — four of them, all control plane — and 310 ms later the suite read
+// platform-web-0 and found port 53 open and 443 not. systemd-resolved was up;
+// cloud-init had not reached the runcmd that starts the declared unit. The night
+// died on pass 1 of 3, and nothing about the emulator was wrong.
+//
+// The stub counts its calls, so this asserts the wait *polled* rather than that
+// it slept: a fixed sleep would pass this test for the wrong reason, and this
+// repository has paid for a control that passes for the wrong reason.
+func TestAServiceThatComesUpLateIsWaitedFor(t *testing.T) {
+	// live_listeners is functional.sh's real transport (`incus exec`). Here it
+	// is a stub that reports only systemd-resolved for two reads and the
+	// declared port on the third — the shape the night measured.
+	const lateBoot = `
+counter="$DIR/reads"
+echo 0 >"$counter"
+live_listeners() { # machine out_file
+	n=$(( $(cat "$counter") + 1 ))
+	echo "$n" >"$counter"
+	if [ "$n" -ge 3 ]; then
+		printf '53\n443\n' >"$2"
+	else
+		printf '53\n' >"$2"
+	fi
+}
+WAIT_POLL=0.05
+fnl_service_came_up stack platform-web-0 platform-web.service m1 443 "$DIR/listen.txt" "after up returned"
+echo "READS $(cat "$counter")"
+`
+	code, output := runFunctional(t, nil, lateBoot)
+	if code != 0 {
+		t.Fatalf("a unit that came up on the third read was reported dead:\n%s", output)
+	}
+	if !strings.Contains(output, "READS 3") {
+		t.Errorf("the wait did not poll three times, so it is not polling on the port:\n%s", output)
+	}
+	// The verdict names how long it waited, so a slow boot and a dead unit do
+	// not read the same in a journal six weeks later.
+	if !strings.Contains(output, "after up returned") {
+		t.Errorf("the verdict does not name the moment it waited from:\n%s", output)
+	}
+}
+
+// The other half, and it is not ceremony: a wait that accepted everything would
+// pass every planted defect in this file. A unit that never comes up must still
+// go red, and must still name the ports it did find.
+func TestAServiceThatNeverComesUpIsStillCalledDead(t *testing.T) {
+	const neverUp = `
+live_listeners() { printf '53\n' >"$2"; }
+WAIT_POLL=0.05
+WAIT_SCALE=0
+fnl_service_came_up stack platform-web-0 platform-web.service m1 443 "$DIR/listen.txt" "after up returned"
+`
+	code, output := runFunctional(t, nil, neverUp)
+	if code == 0 {
+		t.Fatalf("a unit that never listened was accepted:\n%s", output)
+	}
+	if !strings.Contains(output, "listening: 53") {
+		t.Errorf("the refusal does not name what it did find:\n%s", output)
+	}
+}
+
+// The third outcome, which the single-read path had and a careless wait loses.
+// A read that fails is nobody being able to look, and it must not be spent as
+// budget and then reported as a dead unit.
+func TestAReadThatFailsIsNotSpentAsBudget(t *testing.T) {
+	const cannotLook = `
+counter="$DIR/reads"
+echo 0 >"$counter"
+live_listeners() {
+	n=$(( $(cat "$counter") + 1 ))
+	echo "$n" >"$counter"
+	return 1
+}
+WAIT_POLL=0.05
+# WAIT_SCALE=0 so the mutated run — where the read failure is swallowed and the
+# wait runs to its end — costs a second rather than ninety.
+WAIT_SCALE=0
+fnl_service_came_up stack platform-web-0 platform-web.service m1 443 "$DIR/listen.txt" "after up returned"
+`
+	code, output := runFunctional(t, nil, cannotLook)
+	if code == 0 {
+		t.Fatalf("an unreadable machine was accepted:\n%s", output)
+	}
+	if !strings.Contains(output, "cannot look") {
+		t.Errorf("an unreadable machine was reported as a dead unit:\n%s", output)
+	}
+}
+
 // ---- the readers prove they can find --------------------------------------
 
 func TestTheListenReaderReadsProcNetTcp(t *testing.T) {
