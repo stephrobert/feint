@@ -230,7 +230,14 @@ jobs:
       - name: Build and start the emulator
         run: |
           go build -o /tmp/feint ./cmd/feint
-          /tmp/feint start --addr 127.0.0.1:4599 --contracts contracts --timeout 60s
+          # --projects declares the same catalogue tools/conformance/leg.sh and the
+          # `conformance` mise task declare (#572). Named here as well because
+          # this workflow starts its OWN emulator, one per matrix leg: the first
+          # version of #572 taught the two of them and left this one, and five
+          # jobs went red at 44 s with "the declared project did not list under
+          # its own name: []". Held by TestEveryConformanceEmulatorDeclaresTheSameProjects.
+          /tmp/feint start --addr 127.0.0.1:4599 --contracts contracts \
+            --projects default,platform-prod --timeout 60s
           # The doorway step of the Outscale Terraform suite evals the real
           # output of `feint env` rather than restating it, so the script needs
           # the binary this job just built — the repo-root default it falls
