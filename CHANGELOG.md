@@ -15,6 +15,27 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-08-29
+
+The release where three runtime paths became one contract, and the whole of
+feint was replayed to check the simplification was not paid for in fidelity.
+
+Two packs of three had quietly forgotten to hand their security groups to the
+host, and it survived for months because every test was green (#475). So the
+refactor was the means and the proof was the point: an acceptance gate that adds
+no product code and cannot close until the API, Terraform, the real clients, real
+machines, networks, firewalls and balancers have all been driven again (#545).
+
+They were. 220 verdicts under `incus-ovn` with one skip — named, pointing at
+where its proof lives instead — 988 falsification mutations of which none
+survived, and **no axis of evidence fell against 0.11.0**.
+
+That last sentence is the one this release had no way to check. The invariant was
+written in the milestone and verified by hand, so the machinery for it was
+brought forward from 0.15.0: a downstream project can now pin the level of proof
+it depends on and have its own CI fail when feint stops delivering it (#488).
+The instrument was built rather than the claim asserted.
+
 ### Added
 
 - **A downstream project can pin the level of proof it depends on, and its own

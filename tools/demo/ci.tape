@@ -70,7 +70,7 @@ Sleep 1200ms
 # worked, and no viewer could copy the line. A hard-coded version in a recording
 # is the kind of figure this repository refuses, so tools/demo/ci.sh fails when
 # this line and the CHANGELOG disagree.
-Type "docker run -d --rm --name feint -p 4599:4599 ghcr.io/stephrobert/feint:v0.11.0"
+Type "docker run -d --rm --name feint -p 4599:4599 ghcr.io/stephrobert/feint:v0.12.0"
 Enter
 Sleep 4s
 

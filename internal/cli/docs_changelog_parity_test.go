@@ -29,32 +29,43 @@ import (
 const changelogEntry = "- **"
 
 func TestBothChangelogsCarryTheSameUnreleasedEntries(t *testing.T) {
-	count := func(name string) int {
+	// Two counts per file: what `## [Unreleased]` holds, which is legitimately
+	// zero the minute a release is cut, and what the whole file holds, which is
+	// how the reader proves it can find at all.
+	count := func(name string) (unreleased, total int) {
 		path := filepath.Join("..", "..", name)
 		source, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatalf("read %s: %v", name, err)
 		}
-		n, inside := 0, false
+		inside := false
 		for _, line := range strings.Split(string(source), "\n") {
 			switch {
 			case strings.HasPrefix(line, "## [Unreleased]"):
 				inside = true
-			case inside && strings.HasPrefix(line, "## ["):
+			case strings.HasPrefix(line, "## ["):
 				inside = false
-			case inside && strings.HasPrefix(line, changelogEntry):
-				n++
+			case strings.HasPrefix(line, changelogEntry):
+				total++
+				if inside {
+					unreleased++
+				}
 			}
 		}
-		return n
+		return unreleased, total
 	}
 
-	en, fr := count("CHANGELOG.md"), count("CHANGELOG.fr.md")
+	en, enTotal := count("CHANGELOG.md")
+	fr, frTotal := count("CHANGELOG.fr.md")
 
 	// The reader proves it can find before it judges. A prefix that matched
-	// nothing would report 0 == 0 and pass over two empty files.
-	if en == 0 {
-		t.Fatal("no entry was found in CHANGELOG.md, so this test measured nothing")
+	// nothing would report 0 == 0 and pass over two empty files — and asserting
+	// on the Unreleased count alone would do the same on the day of a release,
+	// which is the day this test was written and the day it would have been
+	// most useless.
+	if enTotal == 0 || frTotal == 0 {
+		t.Fatalf("entries found: %d in CHANGELOG.md, %d in CHANGELOG.fr.md — this test measured nothing",
+			enTotal, frTotal)
 	}
 
 	if en != fr {

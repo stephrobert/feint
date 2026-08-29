@@ -17,6 +17,29 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-08-29
+
+La release où trois chemins de runtime sont devenus un contrat, et où tout feint
+a été rejoué pour vérifier que la simplification n'avait pas été payée en
+fidélité.
+
+Deux packs sur trois avaient discrètement oublié de remettre leurs groupes de
+sécurité à l'hôte, et cela a survécu des mois parce que chaque test était vert
+(#475). Le refactor était donc le moyen et la preuve était le but : un gate
+d'acceptation qui n'ajoute aucun code produit et qui ne peut pas se fermer tant
+que l'API, Terraform, les vrais clients, de vraies machines, des réseaux, des
+pare-feu et des balanciers n'ont pas été repilotés (#545).
+
+Ils l'ont été. 220 verdicts sous `incus-ovn` avec un seul saut — nommé, indiquant
+où sa preuve se trouve à la place — 988 mutations de falsification dont aucune
+n'a survécu, et **aucun axe de preuve n'est tombé face à 0.11.0**.
+
+Cette dernière phrase, cette release n'avait aucun moyen de la vérifier.
+L'invariant était écrit dans le jalon et contrôlé à la main, donc sa machinerie a
+été avancée depuis 0.15.0 : un projet en aval peut désormais épingler le niveau
+de preuve dont il dépend et faire échouer sa propre CI quand feint cesse de le
+livrer (#488). L'instrument a été construit plutôt que la revendication affirmée.
+
 ### Ajouté
 
 - **Un projet en aval peut épingler le niveau de preuve dont il dépend, et sa

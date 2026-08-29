@@ -15,7 +15,7 @@
 # fact. Change it when you upgrade, on purpose.
 
 variables:
-  FEINT_IMAGE: ghcr.io/stephrobert/feint:v0.11.0
+  FEINT_IMAGE: ghcr.io/stephrobert/feint:v0.12.0
   # The service is reachable by its alias inside the job's network, and the
   # emulator's own port is the same one it uses everywhere else.
   FEINT_ENDPOINT: http://feint:4599

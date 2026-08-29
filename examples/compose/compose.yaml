@@ -14,7 +14,7 @@
 
 services:
   feint:
-    image: ghcr.io/stephrobert/feint:v0.11.0
+    image: ghcr.io/stephrobert/feint:v0.12.0
     # Published on the loopback rather than on every interface. The emulator
     # accepts any credential and holds its state in memory — SECURITY.md is
     # explicit that it must not be exposed to a network you do not control.
