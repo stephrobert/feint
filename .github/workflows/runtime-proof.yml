@@ -555,6 +555,18 @@ jobs:
     # runner with a quarter of its cores: sized so a slow pass is still a
     # verdict rather than a timeout, because a timeout measures the runner.
     timeout-minutes: 75
+    # The CONTROL leg cannot fail this job, and it has to be HERE rather than on
+    # the gate step alone. Measured on run 33249879475, the first that played it:
+    # the control died at `Build the machine images the stacks boot`, BEFORE the
+    # gate — v0.11.0 has no waitForBuilderAddress (#583/#585), so `apk add
+    # openssh` fetched the Alpine CDN from a build instance with no address. The
+    # job failed, and tools/ci/night-report.sh reads every completed job of the
+    # run: on a scheduled night it would have opened "the night is red" about a
+    # tag nobody can fix. That is #538 exactly, and it is the thing this design
+    # claimed to prevent.
+    #
+    # TestTheNightlyControlCannotOpenTheIssueAboutMain fails without this.
+    continue-on-error: ${{ matrix.control }}
     permissions:
       contents: read
     strategy:
@@ -893,20 +905,29 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
+          # "Did any step fail?", not "what did the gate step conclude". The
+          # control died at the image build on run 33249879475, before the gate
+          # ever ran, and a reader keyed on that one step would have seen nothing
+          # and said "not answered" about a leg that failed loudly. The job's own
+          # conclusion cannot be used either: it is `success` by construction on
+          # the control leg, which is the whole point of the continue-on-error
+          # above.
           jobs="$(gh api "repos/${REPO}/actions/runs/${RUN_ID}/jobs" --paginate \
-            --jq '.jobs[] | select(.name | startswith("stacks (")) | "\(.name)\t\(.conclusion)\t\(.steps[]? | select(.name == "The example stacks, applied and probed") | .conclusion)"')"
+            --jq '.jobs[] | select(.name | startswith("stacks (")) | "\(.name)\t\([.steps[]? | select(.conclusion == "failure")] | length)"')"
           echo "${jobs}"
 
-          main_gate="$(printf '%s\n' "${jobs}" | grep -v 'last release' | cut -f3 | head -1)"
-          ctrl_gate="$(printf '%s\n' "${jobs}" | grep 'last release' | cut -f3 | head -1)"
+          main_failed="$(printf '%s\n' "${jobs}" | grep -v 'last release' | cut -f2 | head -1)"
+          ctrl_failed="$(printf '%s\n' "${jobs}" | grep 'last release' | cut -f2 | head -1)"
+          main_gate="$([ "${main_failed:-x}" = "0" ] && echo success || echo failure)"
+          ctrl_gate="$([ "${ctrl_failed:-x}" = "0" ] && echo success || echo failure)"
 
           # A conclusion this job could not read is said out loud, never scored:
           # a verdict computed from a missing input is the shape this repository
           # refuses everywhere else.
-          if [ -z "${main_gate}" ] || [ -z "${ctrl_gate}" ]; then
+          if [ -z "${main_failed}" ] || [ -z "${ctrl_failed}" ]; then
             {
               echo "## Us, or the world? — not answered"
-              echo "One of the two legs published no conclusion (main: '${main_gate:-none}', control: '${ctrl_gate:-none}'), so the comparison was not made."
+              echo "One of the two legs published no step conclusions (main: '${main_failed:-none}', control: '${ctrl_failed:-none}'), so the comparison was not made."
             } >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi

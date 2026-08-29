@@ -38,9 +38,21 @@ func TestTheNightlyControlCannotOpenTheIssueAboutMain(t *testing.T) {
 	// 1. The gate is non-blocking on the control leg alone. A bare
 	// `continue-on-error: true` would silence main's own red, which is the
 	// opposite defect and just as easy to write.
-	if !strings.Contains(workflow, "continue-on-error: ${{ matrix.control }}") {
-		t.Error("the stacks gate is not conditionally non-blocking, so either the control can " +
-			"open the issue about main, or main's own red is silenced")
+	// It must be on the JOB, not on the gate step alone. Measured on run
+	// 33249879475, the first that played the control: it died at `Build the
+	// machine images the stacks boot`, BEFORE the gate — so the job failed, and
+	// tools/ci/night-report.sh reads every completed job of the run. On a
+	// scheduled night that would have opened "the night is red" about a tag
+	// nobody can fix, which is the poisoning this whole design claimed to
+	// prevent.
+	jobHead, _, _ := strings.Cut(workflow[strings.Index(workflow, "\n  stacks:\n"):], "steps:")
+	if !strings.Contains(jobHead, "continue-on-error: ${{ matrix.control }}") {
+		t.Error("the control leg can fail the stacks JOB, so a red control opens the issue about " +
+			"main: a step-level continue-on-error covers nothing that happens before the gate")
+	}
+	if strings.Contains(jobHead, "continue-on-error: true") {
+		t.Error("the stacks job is non-blocking for main too, which silences the very red the " +
+			"nightly exists to report")
 	}
 
 	// 2. Somebody reads it. A conclusion no job consumes is the shape #604 names:
