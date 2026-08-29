@@ -8,6 +8,17 @@ which one to open, which is the whole job here.
 The English pages are the source. Where a French translation exists it is named
 beside its original, and the English one prevails if the two disagree.
 
+**The handbook lives outside this repository**, in both languages, and it is what
+the repository's own homepage field points at:
+[English](https://blog.stephane-robert.info/en/docs/cloud/outils/feint/) ·
+[Français](https://blog.stephane-robert.info/docs/cloud/outils/feint/).
+It carries screenshots and a maturity table per provider — a thing this directory
+does not do, and the reason it is named here rather than left to be found.
+
+What it cannot be is checked. Nothing offline can tell you whether an external
+page still says what it said, so it is listed as a known surface rather than
+gated — the same problem as #599, one field over.
+
 ## I want to run something
 
 Start at the [quick start](../README.md#quick-start): four commands, a stack
