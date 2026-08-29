@@ -1,0 +1,47 @@
+{
+  "package": "./internal/cli/",
+  "mutations": [
+    {
+      "label": "a level the baseline pins is no longer delivered and verify says nothing, so a consumer discovers from the outside three releases later that feint stopped proving what it relied on — which is what #325 and #326 were",
+      "file": "internal/cli/evidence_baseline.go",
+      "find": "\t\t\tif f.reason != \"\" {",
+      "replace": "\t\t\tif f.reason != \"\" || true {",
+      "test": "TestVerifyFailsWhenAPinnedLevelIsNoLongerDelivered"
+    },
+    {
+      "label": "an operation that vanished entirely reads as no verdict to compare rather than as the strongest fall there is",
+      "file": "internal/cli/evidence_baseline.go",
+      "find": "\t\t\tnow := \"absent\"",
+      "replace": "\t\t\tnow := \"absent\"\n\t\t\tif !present {\n\t\t\t\tcontinue\n\t\t\t}",
+      "test": "TestVerifyCallsAVanishedOperationARegression"
+    },
+    {
+      "label": "a withdrawal is accepted with no reason at all, so the file stops being a record of why a claim went and becomes a silencer",
+      "file": "internal/cli/evidence_baseline.go",
+      "find": "\t\t\tif strings.TrimSpace(entry.Reason) == \"\" {",
+      "replace": "\t\t\tif strings.TrimSpace(entry.Reason) == \"\" && false {",
+      "test": "TestAWithdrawalPassesWithItsReasonAndFailsWithout"
+    },
+    {
+      "label": "a baseline is captured from a run that started no machine, pinning dataplane false everywhere: the consumer is then told nothing regressed on the day it did — a baseline from a partial run is worse than none",
+      "file": "internal/cli/evidence_baseline.go",
+      "find": "\tif !reachesARuntime(art.Machines) {",
+      "replace": "\tif !reachesARuntime(art.Machines) && false {",
+      "test": "TestABaselineIsRefusedWhenTheArtefactReachedNoRuntime"
+    },
+    {
+      "label": "response and refusal are ranked against each other, so a suite that starts demanding a refusal where it used to read a response fails every consumer — #156 took this axis from 181 arrivals to 83 verdicts and that was a fix",
+      "file": "internal/cli/evidence_baseline.go",
+      "find": "\t\tif verdict(p) {\n\t\t\treturn verdict(c)\n\t\t}",
+      "replace": "\t\tif verdict(p) && false {\n\t\t\treturn verdict(c)\n\t\t}",
+      "test": "TestAProbeVerdictIsDeliveredByEitherVerdict"
+    },
+    {
+      "label": "an axis whose verdict is the absence of proof is pinned, so every later improvement is reported as a regression — measured against v0.11.0, which answered `osc/Client.AcceptNetPeering behaviour: false → true` as a fall",
+      "file": "internal/cli/evidence_baseline.go",
+      "find": "\t\t\tif wanted[axis] && provesSomething(values[axis]) {",
+      "replace": "\t\t\tif wanted[axis] && (provesSomething(values[axis]) || true) {",
+      "test": "TestAnAxisThatProvesNothingIsNotPinned"
+    }
+  ]
+}

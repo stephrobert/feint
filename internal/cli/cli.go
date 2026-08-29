@@ -214,7 +214,7 @@ const (
 // TestTheFrozenSurfacesStillMatchTheirFixture, and a fixture regenerated
 // without bumping this constant fails TestASurfaceChangeDemandsItsVersionBump.
 // The procedure for a deliberate change is in RELEASING.md ("Frozen surfaces").
-const cliSurfaceVersion = 20
+const cliSurfaceVersion = 21
 
 // Run executes one command and returns the process exit code.
 func Run(args []string, stdout, stderr io.Writer) int {
@@ -552,6 +552,25 @@ Usage:
                     axis of the record at --out from the catalogues in --shapes,
                     offline, and refuses a record whose contracts or suites have
                     moved since it was written.
+
+  feint evidence baseline [--evidence coverage/evidence.json] [--out <file>]
+                   [--axes driven,probed,contract,dataplane,shape,behaviour,negative]
+                    Pin the level of proof a downstream project depends on, as a
+                    file it commits. Only what is proven is pinned: an axis whose
+                    verdict is the absence of proof would turn every later
+                    improvement into a regression. Refuses a record earned with
+                    no machine runtime, because that one pins dataplane false
+                    everywhere and would report nothing on the day it broke.
+
+  feint evidence verify [--baseline .feint-evidence.json]
+                   [--evidence coverage/evidence.json] [--accepted <file>]
+                    Has what I trusted moved? Exits 2 naming every level the
+                    baseline pins that is no longer delivered. A claim withdrawn
+                    on purpose passes when --accepted carries it WITH a reason —
+                    claims are meant to be withdrawn here, and a baseline that
+                    only grows is a ratchet nobody can lower.
+                    Not drift:check: that one watches the upstream SDK surface,
+                    this one watches this emulator's own level of evidence.
 
   feint docs       [--file README.md] [--coverage <dir>] [--contracts <dir>] [--check]
                     [--limits <file>] [--routes <file>] [--confidence <file>]

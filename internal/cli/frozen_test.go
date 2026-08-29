@@ -425,6 +425,11 @@ func flagsTheBinaryAccepts(t *testing.T) map[string][]string {
 	drive("snapshot", "load", "a-name", "-h")
 	drive("snapshot", "list", "-h")
 	drive("snapshot", "rm", "a-name", "-h")
+	// `evidence` dispatches again too since #488: `evidence baseline` and
+	// `evidence verify` take flags the record-writing verb does not, and a union
+	// under `evidence` would claim all three take all three.
+	drive("evidence", "baseline", "-h")
+	drive("evidence", "verify", "-h")
 
 	// Assert the subject rather than skip on its absence. A verb whose set was
 	// never observed would otherwise leave the fixture quietly smaller, and a

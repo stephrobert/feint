@@ -19,6 +19,43 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Ajouté
 
+- **Un projet en aval peut épingler le niveau de preuve dont il dépend, et sa
+  propre CI échoue quand feint cesse de le livrer : `feint evidence baseline` et
+  `feint evidence verify`, surface CLI 21 (#488).** Pas « feint a changé de
+  version » — **« feint a cessé de prouver ce sur quoi ce projet s'appuyait »**.
+  #325 et #326 existent parce qu'un consommateur a découvert un changement de
+  l'extérieur, après coup.
+
+  Ce n'est **pas** `drift:check`, et la frontière est le design : celui-là
+  surveille la surface du SDK amont — *le cloud a-t-il bougé ?* — celui-ci
+  surveille le niveau de preuve de cet émulateur, du point de vue de quelqu'un
+  qui n'est pas dans ce dépôt — *ce à quoi je me fiais a-t-il bougé ?* Un design
+  qui fond l'un dans l'autre répond deux fois à une question et jamais à l'autre.
+
+  **Seul ce qui est prouvé s'épingle.** Un axe dont le verdict est l'absence de
+  preuve — `false`, `none`, `unchecked`, `unobserved` — est écarté à la capture,
+  parce que l'épingler transforme tout progrès ultérieur en régression. Mesuré :
+  la première version les épinglait, et jouée contre `v0.11.0` elle rapportait
+  `osc/Client.AcceptNetPeering behaviour: false → true` comme une chute.
+
+  **Les revendications sont faites pour être retirées ici.** #475, #481 et #483
+  sont chacune « ceci a été revendiqué et n'aurait pas dû l'être », et un socle
+  qui ne fait que croître les aurait toutes trois empêchées. `--accepted` porte
+  un retrait **avec sa raison**, sur le modèle de `corpus/accepted.json` ; une
+  entrée sans raison est refusée plutôt qu'honorée, parce que toute la valeur du
+  fichier est qu'un retrait porte son pourquoi.
+
+  **Un socle pris sur une exécution partielle est pire que rien**, donc un
+  enregistrement obtenu sans runtime de machines est refusé à la capture : il
+  épingle `dataplane: false` sur toute opération qui l'aurait gagné, et le
+  consommateur s'entend alors dire que rien n'a régressé le jour où si.
+
+  `mise run evidence:verify` tient l'arbre contre la release précédente. Joué
+  aujourd'hui contre `v0.11.0` : 364 opérations épinglées sur sept axes,
+  **chaque niveau toujours livré** — l'invariant de release de 0.12.0 mesuré par
+  un instrument plutôt qu'à la main.
+
+
 - **L'opérateur déclare les projets que le compte émulé détient :
   `cloud.projects` dans `feint.yaml`, `serve --projects`, et la surface CLI
   passe à 20 (#572).** Jusqu'ici cet émulateur détenait un seul projet, nommé

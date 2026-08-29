@@ -815,6 +815,33 @@ tools/conformance/scaleway/scw-cli.sh "http://$addr"
 ./dist/feint-linux-amd64 probe --endpoint "http://$addr" --contracts contracts
 """
 
+[tasks."evidence:verify"]
+description = "Has what a consumer trusted moved? Hold coverage/evidence.json against a pinned baseline (#488)"
+# NOT drift:check, and the boundary is the whole design: that one watches the
+# UPSTREAM SDK surface — has the cloud moved — and this one watches this
+# emulator's own level of evidence, from the point of view of somebody who is
+# not in this repository. A design that folded one into the other would answer
+# one question twice and the other never.
+#
+# The baseline this holds against is the previous release's record, which is
+# what #545's release invariant asks for in as many words: no axis of evidence
+# regresses between two releases without a written explanation. `--accepted` is
+# where the explanation goes, on the model corpus/accepted.json already uses.
+run = """
+set -e
+# `set -euo pipefail` is what every script in tools/ carries; mise runs this
+# with /bin/sh, which has no `pipefail`, and the task then dies on its own
+# first line. The neighbour above says `set -e` for the same reason.
+tag="${FEINT_EVIDENCE_BASELINE_TAG:-$(git describe --tags --abbrev=0 --match 'v*' HEAD^ 2>/dev/null || git describe --tags --abbrev=0 --match 'v*')}"
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+git show "$tag:coverage/evidence.json" > "$work/previous.json"
+./feint evidence baseline --evidence "$work/previous.json" --out "$work/pinned.json"
+echo "held against $tag"
+./feint evidence verify --baseline "$work/pinned.json" --accepted coverage/evidence-accepted.json
+"""
+depends = ["build"]
+
 [tasks."evidence:update"]
 description = "Regenerate coverage/evidence.json from two fresh conformance runs, then refresh the docs that print it"
 depends = ["build"]

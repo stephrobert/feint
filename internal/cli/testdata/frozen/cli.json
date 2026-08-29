@@ -3380,6 +3380,218 @@
           ]
         }
       }
+    },
+    {
+      "schema_version": 21,
+      "content": {
+        "exit_codes": {
+          "drift": 2,
+          "error": 1,
+          "ok": 0
+        },
+        "verbs": {
+          "catalog": [
+            "--format"
+          ],
+          "clean": [
+            "--check",
+            "--closing",
+            "--doorstep",
+            "--force",
+            "--format",
+            "--vm"
+          ],
+          "corpus": [
+            "--accepted",
+            "--against-cloud",
+            "--bind",
+            "--check",
+            "--credential",
+            "--dir",
+            "--dry-run",
+            "--endpoint",
+            "--file",
+            "--format",
+            "--mark-stale",
+            "--timeout"
+          ],
+          "coverage": [
+            "--artefact",
+            "--axis",
+            "--baseline",
+            "--contract",
+            "--evidence",
+            "--fail-on-unknown",
+            "--format",
+            "--gaps",
+            "--observed",
+            "--products",
+            "--provider",
+            "--sdk",
+            "--write-baseline"
+          ],
+          "docs": [
+            "--check",
+            "--client-pins",
+            "--confidence",
+            "--contracts",
+            "--coverage",
+            "--file",
+            "--install",
+            "--limits",
+            "--proved",
+            "--routes",
+            "--screenshots",
+            "--ui-manifest",
+            "--workflow"
+          ],
+          "doctor": [
+            "--addr",
+            "--vm"
+          ],
+          "down": [
+            "--file",
+            "--keep-emulator"
+          ],
+          "env": [
+            "--client",
+            "--endpoint",
+            "--shell",
+            "--unset"
+          ],
+          "evidence": [
+            "--allow-narrowing",
+            "--contracts",
+            "--endpoint",
+            "--join",
+            "--out",
+            "--reshape",
+            "--shapes",
+            "--suites"
+          ],
+          "evidence baseline": [
+            "--axes",
+            "--evidence",
+            "--out"
+          ],
+          "evidence verify": [
+            "--accepted",
+            "--baseline",
+            "--evidence"
+          ],
+          "images": [
+            "--check",
+            "--only",
+            "--vm"
+          ],
+          "logs": [
+            "--addr",
+            "-f",
+            "-n"
+          ],
+          "probe": [
+            "--contracts",
+            "--endpoint",
+            "--provider"
+          ],
+          "proxy": [
+            "--addr",
+            "--expose-to-network",
+            "--forward",
+            "--intercept",
+            "--max-body",
+            "--provider",
+            "--queue",
+            "--record",
+            "--upstream"
+          ],
+          "replay": [
+            "--endpoint",
+            "--format",
+            "--refusals-only",
+            "--timeout"
+          ],
+          "restart": [
+            "--addr",
+            "--timeout"
+          ],
+          "serve": [
+            "--addr",
+            "--cleanup",
+            "--contracts",
+            "--coverage",
+            "--expose-to-network",
+            "--log-level",
+            "--projects",
+            "--shapes",
+            "--state",
+            "--vm"
+          ],
+          "shapes": [
+            "--check",
+            "--dir",
+            "--dry-run",
+            "--profile",
+            "--provider",
+            "--record"
+          ],
+          "snapshot list": [
+            "--format"
+          ],
+          "snapshot load": [
+            "--addr"
+          ],
+          "snapshot save": [
+            "--addr",
+            "--force"
+          ],
+          "start": [
+            "--addr",
+            "--cleanup",
+            "--contracts",
+            "--detach",
+            "--foreground",
+            "--log-level",
+            "--projects",
+            "--state",
+            "--timeout",
+            "--vm"
+          ],
+          "status": [
+            "--addr",
+            "--coverage",
+            "--format"
+          ],
+          "stop": [
+            "--addr",
+            "--timeout"
+          ],
+          "transcript": [
+            "--against",
+            "--contract",
+            "--format",
+            "--sanitise",
+            "--shape"
+          ],
+          "ui": [
+            "--addr",
+            "--print"
+          ],
+          "up": [
+            "--file",
+            "--no-iac",
+            "--runtime",
+            "--timeout"
+          ],
+          "version": [
+            "--check"
+          ],
+          "wait": [
+            "--addr",
+            "--timeout"
+          ]
+        }
+      }
     }
   ]
 }

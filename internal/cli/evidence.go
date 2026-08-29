@@ -162,6 +162,20 @@ func reportAxesLost(w io.Writer, path string, next *evidenceArtefact) {
 }
 
 func evidence(args []string, stdout, stderr io.Writer) int {
+	// The two subcommands of #488, dispatched before the flag set: they pin and
+	// check a LEVEL OF PROOF for somebody outside this repository, which is a
+	// different question from writing the record and takes different flags.
+	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
+		switch args[0] {
+		case "baseline":
+			return evidenceCapture(args[1:], stdout, stderr)
+		case "verify":
+			return evidenceVerify(args[1:], stdout, stderr)
+		default:
+			fmt.Fprintf(stderr, "feint: unknown evidence subcommand %q; expected baseline or verify\n", args[0])
+			return exitError
+		}
+	}
 	fs := newFlagSet("evidence")
 	endpoint := fs.String("endpoint", "http://"+DefaultAddr, "the running emulator to read /_feint/conformance from")
 	shapesDir := fs.String("shapes", "shapes", "directory of observed real-cloud shapes; the shape axis is resolved from it (empty to leave the run's answer)")

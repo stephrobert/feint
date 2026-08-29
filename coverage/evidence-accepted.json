@@ -1,0 +1,4 @@
+{
+  "_comment": "Levels this repository stopped delivering ON PURPOSE, each with the reason it was withdrawn. Read by `mise run evidence:verify` (#488). Claims are meant to be withdrawn here — #475, #481 and #483 are each 'this was claimed and should not have been' — and a baseline that only grows is a ratchet nobody can lower. An entry with no reason is refused rather than honoured.",
+  "accepted": []
+}

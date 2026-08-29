@@ -17,6 +17,43 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Added
 
+- **A downstream project can pin the level of proof it depends on, and its own
+  CI fails when feint stops delivering it: `feint evidence baseline` and
+  `feint evidence verify`, CLI surface 21 (#488).** Not *"feint changed
+  version"* — **"feint stopped proving what this project was relying on"**.
+  #325 and #326 exist because a consumer discovered a change from the outside,
+  after the fact.
+
+  This is **not** `drift:check`, and the boundary is the design: that one
+  watches the upstream SDK surface — *has the cloud moved?* — and this one
+  watches this emulator's own level of evidence, from the point of view of
+  somebody who is not in this repository — *has what I trusted moved?* A design
+  folding one into the other answers one question twice and the other never.
+
+  **Only what is proven is pinned.** An axis whose verdict is the absence of
+  proof — `false`, `none`, `unchecked`, `unobserved` — is dropped at capture,
+  because pinning it turns every later improvement into a regression. Measured:
+  the first version of this pinned them, and run against `v0.11.0` it reported
+  `osc/Client.AcceptNetPeering behaviour: false → true` as a fall.
+
+  **Claims are meant to be withdrawn here.** #475, #481 and #483 are each *"this
+  was claimed and should not have been"*, and a baseline that only grows would
+  have stopped all three. `--accepted` carries a withdrawal **with its reason**,
+  on the model `corpus/accepted.json` already uses; an entry with no reason is
+  refused rather than honoured, because the whole value of the file is that a
+  withdrawal carries why.
+
+  **A baseline from a partial run is worse than none**, so a record earned with
+  no machine runtime is refused at capture: it pins `dataplane: false` on every
+  operation that would have earned it, and the consumer is then told nothing
+  regressed on the day it did.
+
+  `mise run evidence:verify` holds the tree against the previous release. Run
+  today against `v0.11.0`: 364 operations pinned on seven axes, **every level
+  still delivered**, which is 0.12.0's release invariant measured by an
+  instrument rather than by hand.
+
+
 - **The operator declares which projects the emulated account holds:
   `cloud.projects` in `feint.yaml`, `serve --projects`, and the CLI surface
   moves to 20 (#572).** Until now this emulator held one project, named
