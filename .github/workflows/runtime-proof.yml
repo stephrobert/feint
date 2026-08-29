@@ -867,7 +867,15 @@ jobs:
   verdict:
     name: Us, or the world?
     needs: [stacks]
-    if: always() && github.event_name == 'schedule'
+    # Not schedule-only, unlike `report` and `streak` beside it, and the
+    # distinction is what those two do rather than what they read: they open an
+    # issue and count a streak, which are facts about the NIGHTLY series. This
+    # one only publishes a reading of the run it belongs to, and the first
+    # workflow_dispatch after it landed — 33249879475, triggered to see the
+    # control before waiting for 02:31 — would have run the control leg and then
+    # printed nothing about it. A control whose reading is withheld from the one
+    # person who asked for it is the shape #604 names.
+    if: always()
     runs-on: ubuntu-24.04
     permissions:
       actions: read

@@ -57,6 +57,20 @@ func TestTheNightlyControlCannotOpenTheIssueAboutMain(t *testing.T) {
 		t.Error("the verdict job does not depend on the legs it reads, so it can publish before " +
 			"either of them has a conclusion")
 	}
+	// And it publishes on a dispatch too. `report` and `streak` are schedule-only
+	// because they open an issue and count a streak — facts about the nightly
+	// SERIES — while this one reads the run it belongs to. Measured: the first
+	// workflow_dispatch after the control landed (33249879475) ran the control
+	// leg and would have printed nothing about it, which is a reading withheld
+	// from the one person who asked for it.
+	if i := strings.Index(workflow, "\n  verdict:\n"); i >= 0 {
+		window := workflow[i:min(i+1200, len(workflow))]
+		head, _, _ := strings.Cut(window, "steps:")
+		if strings.Contains(head, "github.event_name == 'schedule'") {
+			t.Error("the verdict job is schedule-only, so a dispatched run measures the control " +
+				"and then says nothing about it")
+		}
+	}
 	if !strings.Contains(workflow, `select(.name | startswith("stacks ("))`) {
 		t.Error("the verdict job does not read the legs' real conclusions from the API, so it " +
 			"cannot see a leg whose failure was made non-blocking")
