@@ -822,6 +822,47 @@ Scaleway's Key Manager, which this emulator does not serve, so a create carrying
 one is rejected. Accepting it would let a client read its own key back from a
 volume nothing encrypts.
 
+## CreateKeypair does not generate a keypair, and a published course teaches that it does
+
+`CreateKeypair` on the real Outscale, given a name and nothing else, **generates**
+the pair and returns the private key in the response. This emulator refuses:
+
+```
+4001  PublicKey is required: this emulator does not generate keypairs,
+      because it would have to hand out a private key that only looks usable
+```
+
+The decision is deliberate and was reaffirmed on 2026-08-30. A generated private
+key here would be a real, usable key that unlocks nothing — the emulator boots
+machines whose authorised keys it controls, so the pair would be theatre. Worse,
+it is the kind of theatre somebody stores: a reader told to "save it, it is shown
+only once" saves a secret that is not one, and may reuse it.
+
+**What this costs, measured.** The Outscale course at
+`blog.stephane-robert.info` opens its first hands-on page with exactly this call:
+
+```bash
+octl iaas api CreateKeypair --KeypairName ma-cle-test
+```
+
+and says, in as many words, *"La commande retourne la clé privée dans la réponse
+JSON, à sauvegarder immédiatement, elle n'est affichée qu'une fois."* Against this
+emulator that command fails, and it is the first thing a reader types.
+
+**The way through is one flag**, and it is the shape the emulator wants anyway:
+
+```bash
+ssh-keygen -t ed25519 -f ./ma-cle-test -N ''
+octl iaas api CreateKeypair --KeypairName ma-cle-test --PublicKey "$(cat ./ma-cle-test.pub)"
+```
+
+The key is then one the reader really holds, and `conformance:ssh` proves a login
+with exactly that arrangement on all three packs.
+
+Not revisited unless somebody shows a use where a fabricated private key is
+better than an absent one. "The course says so" is not that argument: the course
+can carry the two lines above, and the emulator cannot un-hand a secret.
+
 ## Lifecycle transitions are immediate
 
 A server goes from `stopped` to `running` within the action call. Real hardware
@@ -3850,44 +3891,47 @@ found fourteen lines about a documented behaviour and nothing about the run
 that really failed, which is precisely how a team learns to skip a log's
 errors.
 
-## `feint images resolve` can print a `FEINT_BOOT_IMAGES` line that cannot boot (#476)
+## `feint images resolve` prints only what boots, and names what it left out (#476)
 
-The command exists to turn an opaque identifier into the line an operator
-pastes ("Identifiers are not checked against anything" describes it). For two
-of the three identifiers the surveyed stacks hardcode, the line it prints
-names a version the upstream image server withdrew, and it says so nowhere
-(measured at `main@72d861d`):
+**Lifted 2026-08-29 by #605.** What follows is the measurement that produced the
+limit, kept because the fact underneath it has not moved: `images:` still
+publishes neither `ubuntu/18.04` nor `debian/9`, and two of the three identifiers
+the surveyed stacks hardcode still resolve to them.
+
+What changed is that the command no longer hands you a line that cannot boot. It
+reads the image server's own simplestreams index, leaves an unbuildable version
+out of the declaration, and says why:
 
 ```console
 $ ./feint images resolve ami-a3ca408c ami-538af795 ami-47899c77 ; echo "rc=$?"
-…
+ami-538af795
+  Outscale official OMIs reference: Ubuntu-18.04-2021.02.04-0
+  → ubuntu:18.04 — the image server no longer publishes ubuntu/18.04/cloud, so this declaration
+    would refuse to boot; it is left out of the line below.
+    ubuntu versions published today: 22.04, 24.04, 26.04, jammy, noble, resolute
+    naming one of them is your call, not this command's
+
 declare and restart:
-  FEINT_BOOT_IMAGES='ami-a3ca408c=ubuntu:22.04,ami-538af795=ubuntu:18.04,ami-47899c77=debian:9' feint serve ...
+  FEINT_BOOT_IMAGES='ami-a3ca408c=ubuntu:22.04' feint serve ...
 rc=0
 ```
 
-`images:` no longer publishes ubuntu/18.04 or debian/9 — this file already
-names them as withdrawn — so pasting that line buys nothing: the declaration
-is honoured, the build fails ("The requested image couldn't be found"), and
-the boot is refused. Replayed on `michaelcourcy/kasten-on-outscale @f1fcc87`
-with exactly that declaration: **29 applied, 0 machines started**, five Vms
-tainted — the same figures as with no declaration at all. The absence was
-measured with a control so that "absent" is not "looked nowhere": the
-`images:` listing read as JSON holds 726 aliases, `ubuntu/18.04` and
-`debian/9` absent, `ubuntu/22.04` and `debian/12` present as controls. Read it
-as JSON deliberately — `incus image list -c l` prints one alias and
-`(7 more)`, and grepping that column reports present aliases as absent too.
+A run whose every identifier resolved to a withdrawn version exits **2**, the way
+an identifier in no listing already does.
 
-What to do with it: before pasting the printed line, check each version
-against the `images:` listing, and substitute a version it publishes yourself
-(the boot refusal's own fix line says as much: "name one it does") — a
-substitution the operator signs, rather than a fact about the identifier. What would lift it: `resolve`
-checking buildability before printing — a warning line on an unbuildable ref,
-a clearly-labelled nearest-buildable suggestion, or a non-zero exit; #476
-leaves the shape to the author. Not measured: whether the Scaleway and
-Exoscale resolve paths can produce the same unbuildable output — only the
-Outscale listing was exercised, because it is the one the surveyed stacks
-reach for.
+**What it deliberately does not do is substitute.** The published versions are
+printed as a fact; choosing among them stays the operator's act, because naming
+the nearest buildable version for them is the silent replacement #83 measured and
+closed on all three packs.
+
+**The cost the limit used to carry, for the record.** Pasting the old line bought
+nothing: replayed on `michaelcourcy/kasten-on-outscale @f1fcc87`, **29 applied, 0
+machines started**, five Vms tainted — the same figures as with no declaration at
+all. The absence was measured with a control so that "absent" is not "looked
+nowhere": the `images:` listing read as JSON held 726 aliases, `ubuntu/18.04` and
+`debian/9` absent, `ubuntu/22.04` and `debian/12` present as controls. Read as
+JSON deliberately — `incus image list -c l` prints one alias and `(7 more)`, and
+grepping that column reports present aliases as absent too.
 
 ## `scw` 2.56.3 prints a recovered panic on every successful `lb acl delete`, and the defect is upstream (#505)
 
