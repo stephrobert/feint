@@ -1,0 +1,49 @@
+{
+  "package": "./internal/cli/",
+  "mutations": [
+    {
+      "label": "an operation nobody decided about passes the gate",
+      "file": "internal/cli/contract_only.go",
+      "find": "\t\tif _, ok := declared[op]; !ok {",
+      "replace": "\t\tif _, ok := declared[op]; !ok && false {",
+      "test": "TestContractOnlyOperationsAreTriaged"
+    },
+    {
+      "label": "a stale entry keeps covering an operation the SDK now wraps",
+      "file": "internal/cli/contract_only.go",
+      "find": "\t\tif !found[op] {",
+      "replace": "\t\tif !found[op] && false {",
+      "test": "TestContractOnlyOperationsAreTriaged"
+    },
+    {
+      "label": "any status is accepted, so out of scope and not done yet read the same",
+      "file": "internal/cli/contract_only.go",
+      "find": "\t\tcase !contractOnlyStatuses[entry.Status]:",
+      "replace": "\t\tcase !contractOnlyStatuses[entry.Status] && false:",
+      "test": "TestAContractOnlyEntryStatesAStatusAndAReason"
+    },
+    {
+      "label": "a reason nobody can weigh is accepted",
+      "file": "internal/cli/contract_only.go",
+      "find": "\t\tcase len(strings.Fields(entry.Reason)) < 5:",
+      "replace": "\t\tcase len(strings.Fields(entry.Reason)) < 0:",
+      "test": "TestAContractOnlyEntryStatesAStatusAndAReason"
+    },
+    {
+      "label": "the two naming conventions stop being folded, so the gate cries wolf",
+      "package": "./internal/drift/",
+      "file": "internal/drift/contract_only.go",
+      "find": "\t\tif scoped[scope+\".\"+method] || methods[method] {",
+      "replace": "\t\tif scoped[scope+\".\"+method] || (methods[method] && false) {",
+      "test": "TestContractOnlyMatchesADocumentThatNamesNoProduct"
+    },
+    {
+      "label": "everything is folded, so nothing is ever reported",
+      "package": "./internal/drift/",
+      "file": "internal/drift/contract_only.go",
+      "find": "\t\tif scoped[scope+\".\"+method] || methods[method] {",
+      "replace": "\t\tif scoped[scope+\".\"+method] || methods[method] || true {",
+      "test": "TestContractOnlyReportsWhatTheScanDoesNotHave"
+    }
+  ]
+}

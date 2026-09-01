@@ -210,11 +210,19 @@ const (
 // addition to one existing verb; nothing was removed, no exit code moved, and a
 // pipeline keyed on version 18 keeps working.
 //
+// Version 22 adds `coverage --document` and `coverage --contract-only` (#622):
+// the second witness over the inventory. The surface scan reads a provider's Go
+// SDK and is right about its own source, but Scaleway's portal publishes five
+// PUT routes and an iam check that scaleway-sdk-go never wrapped, so those six
+// were outside `total` and a zero unknown was exact over a set that did not
+// contain them. Two additions to one existing verb; nothing was removed, no exit
+// code moved, and a pipeline keyed on version 21 keeps working.
+//
 // The surface itself is frozen in testdata/frozen/cli.json, compared by
 // TestTheFrozenSurfacesStillMatchTheirFixture, and a fixture regenerated
 // without bumping this constant fails TestASurfaceChangeDemandsItsVersionBump.
 // The procedure for a deliberate change is in RELEASING.md ("Frozen surfaces").
-const cliSurfaceVersion = 21
+const cliSurfaceVersion = 22
 
 // Run executes one command and returns the process exit code.
 func Run(args []string, stdout, stderr io.Writer) int {
@@ -410,9 +418,16 @@ Usage:
                     [--products <a,b,c>] [--format text|json|triage|list]
                     [--baseline <file> [--write-baseline]] [--fail-on-unknown]
                     [--artefact <file>] [--observed <recording.jsonl|dir>]
+                    [--document <file> --contract-only <file>]
                     [--axis driven|probed|contract|dataplane|shape|behaviour|negative]
                     [--gaps]
                     Compare the upstream API surface with what the packs serve.
+                    --document cross-checks the scan against the provider's own
+                    published document and --contract-only names the record that
+                    triages what only the document declares: an operation the
+                    portal publishes and their SDK never wrapped is outside the
+                    count, so a zero unknown was exact over a set that did not
+                    contain it. Exits 2 on one nobody decided about.
                     --artefact compares the committed coverage artefact against
                     what the pack declares today — statuses and decline reasons —
                     and exits 2 on any skew, so an edited reason cannot outlive
@@ -1162,6 +1177,8 @@ func coverage(args []string, stdout, stderr io.Writer) int {
 	baseline := fs.String("baseline", "", "compare the unknown operations against this baseline file and exit 2 on new ones")
 	writeBaseline := fs.Bool("write-baseline", false, "rewrite the baseline file from the current upstream surface")
 	artefact := fs.String("artefact", "", "compare this committed coverage artefact against what the pack declares and exit 2 on any skew")
+	document := fs.String("document", "", "the provider's published document to cross-check the scanned surface against, with --contract-only")
+	contractOnly := fs.String("contract-only", "", "the triage record for operations --document declares and the SDK never wrapped; exit 2 on one nobody decided about")
 	observed := fs.String("observed", "", "a proxy recording, or a directory of them: rank what the packs decline by how often a real client called it")
 	evidenceRecord := fs.String("evidence", "", "the committed evidence record: report its seven axes per provider, offline, instead of the upstream comparison")
 	axis := fs.String("axis", "", "with --evidence, name an axis and list the operations at zero on it")
@@ -1353,6 +1370,55 @@ func coverage(args []string, stdout, stderr io.Writer) int {
 				fmt.Fprintf(stderr, "  %s\n", line)
 			}
 			fmt.Fprintln(stderr, "feint: the artefact follows the code; regenerate it: mise run drift:update")
+			return exitDrift
+		}
+	}
+
+	// The second witness (#622). The baseline watches the upstream side and
+	// --artefact watches the copy; both read the *scan*, so neither can see an
+	// operation the provider's document declares and their Go SDK never wrapped.
+	// Six of those existed on Scaleway, and `unknown: 0` was exact over a set
+	// that did not contain them: the count was right and the denominator was
+	// short.
+	//
+	// They cannot go in Declined() — drift.Compare reports a decline the scan
+	// does not know as an orphan, the one signal this gate exists to keep
+	// reliable — so they are triaged in a record of their own, and this is what
+	// makes forgetting one a failure rather than a silence.
+	//
+	// TestContractOnlyOperationsAreTriaged fails without this.
+	//
+	// It reads --document rather than --contract, and the difference is not
+	// cosmetic: --contract also regroups the report onto the document's own tags,
+	// which Outscale wants (oapi-codegen flattens 50 tags onto one Client) and
+	// Scaleway must not have — its artefact groups by SDK product, and reusing
+	// one flag for both jobs would move every published table as a side effect of
+	// adding a check. A control that changes the numbers it checks is not a
+	// control.
+	if *contractOnly != "" {
+		crossDoc := doc
+		if *document != "" {
+			if crossDoc, err = contract.Load(*document); err != nil {
+				fmt.Fprintf(stderr, "feint: %v\n", err)
+				return exitError
+			}
+		}
+		if crossDoc == nil {
+			fmt.Fprintln(stderr, "feint: --contract-only needs --document, the published document it cross-checks against")
+			return exitError
+		}
+		problems, err := contractOnlyGaps(*contractOnly, *provider, drift.ContractOnly(upstream, crossDoc))
+		if err != nil {
+			fmt.Fprintf(stderr, "feint: %v\n", err)
+			return exitError
+		}
+		if len(problems) > 0 {
+			fmt.Fprintf(stderr, "feint: %s does not account for the document's surface, %d operation(s):\n",
+				*contractOnly, len(problems))
+			for _, line := range problems {
+				fmt.Fprintf(stderr, "  %s\n", line)
+			}
+			fmt.Fprintln(stderr, "feint: decide each one — out of scope, or not done yet — and say why")
 			return exitDrift
 		}
 	}

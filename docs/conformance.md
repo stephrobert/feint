@@ -67,8 +67,39 @@ follows that from memory.
   are not the same thing, and a decline that says neither is an untriaged
   operation wearing a decision's clothes.
 
+- **The second witness** (`coverage/contract-only.json`) closes the gap the
+  first three cannot see. All of them read the *scan*, so an operation the
+  provider publishes and their Go SDK never wrapped is outside `total` — and
+  `unknown: 0` is then exact over a set that does not contain it. `feint
+  coverage --document ... --contract-only ...` cross-checks the two inventories
+  and exits 2 on an operation nobody decided about.
+
 Weekly, `.github/workflows/drift.yml` scans and opens a pull request when
 something moved. The human work is triage.
+
+### What `total` counts, and why a document can declare more
+
+`total` is the **SDK surface**, deliberately, and that is a decision rather than
+an accident (#622). The official clients this project exists to satisfy — `scw`,
+the Terraform provider, the SDK itself — are built on that SDK, so an operation
+it never wrapped is one none of them can reach.
+
+The two inventories agree by construction for two of the three providers:
+Exoscale's coverage *is* its document, and Outscale's SDK is generated from
+theirs. Scaleway is where they part, because its contract comes from the portal's
+`schema.yml` per product while its coverage comes from a Go SDK scan. Six
+operations sit in that gap: five `PUT` whole-object siblings in `instance/v1`
+and `iam/v1alpha1.CheckPermissions`.
+
+Nothing is wrong at runtime — an unserved route answers 501 and points at
+`/_feint/routes`. What was wrong is that those six had been offered to no
+triage, and *not done yet* and *out of scope* are different answers. They are in
+`coverage/contract-only.json` now, each with a status and a reason, and a seventh
+appearing there fails the gate rather than passing unseen.
+
+They stay out of `total` because the denominator would otherwise mean two things
+at once. A client generated from the document rather than from the SDK — which is
+where #622 came from — reads that file to know where it stands.
 
 ## Link 2 — the contract, and what a green run does not prove
 

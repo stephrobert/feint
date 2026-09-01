@@ -1,0 +1,37 @@
+{
+  "_comment": "Operations a provider's published document declares and its Go SDK never wrapped, so the surface scan cannot see them and `unknown: 0` is exact over a set that does not contain them (#622). Each entry states whether it is out of scope or not done yet, because this repository holds those to be different answers. Read by `feint coverage --contract-only`; an entry with no reason, or an operation missing from this file, exits 2 the way an upstream addition does.",
+  "providers": {
+    "scaleway": [
+      {
+        "operation": "iam/v1alpha1.CheckPermissions",
+        "status": "declined",
+        "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces — the same reason the pack already declines the rest of iam/v1alpha1, and this is the read side of it"
+      },
+      {
+        "operation": "instance/v1.SetImage",
+        "status": "backlog",
+        "reason": "the PUT whole-object sibling of UpdateImage, which this pack serves. No client built on scaleway-sdk-go can reach it, because the SDK never wrapped it, but a client generated from the portal document can and #622 came from one"
+      },
+      {
+        "operation": "instance/v1.SetSecurityGroup",
+        "status": "backlog",
+        "reason": "the PUT whole-object sibling of UpdateSecurityGroup, which this pack serves. Reachable only by a client generated from the portal document, never by scaleway-sdk-go"
+      },
+      {
+        "operation": "instance/v1.SetSecurityGroupRule",
+        "status": "backlog",
+        "reason": "the PUT whole-object sibling of UpdateSecurityGroupRule, which this pack serves. Reachable only by a client generated from the portal document, never by scaleway-sdk-go"
+      },
+      {
+        "operation": "instance/v1.SetSnapshot",
+        "status": "backlog",
+        "reason": "the PUT whole-object sibling of UpdateSnapshot, which this pack serves. Reachable only by a client generated from the portal document, never by scaleway-sdk-go"
+      },
+      {
+        "operation": "instance/v1.SetVolume",
+        "status": "backlog",
+        "reason": "the PUT whole-object sibling of UpdateVolume, which this pack serves. Reachable only by a client generated from the portal document, never by scaleway-sdk-go"
+      }
+    ]
+  }
+}

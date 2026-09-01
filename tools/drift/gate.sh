@@ -52,9 +52,21 @@ case "$MODE" in
     # skew; TestTheCommittedArtefactCarriesWhatThePacksDeclare fails on the
     # same skew, and tools/falsify/specs/artefact-reasons.json proves it bites.
     status=0
+    # --document on top of --sdk, and it is not --contract: the second witness
+    # (#622). The baseline watches upstream and --artefact watches the copy, but
+    # both read the *scan*, so neither can see an operation the portal publishes
+    # and scaleway-sdk-go never wrapped. Six of those existed, and `unknown: 0`
+    # was exact over a set that did not contain them.
+    #
+    # --document rather than --contract because --contract also regroups the
+    # report onto the document's tags, which would move every published table as
+    # a side effect of adding a check. Outscale below does want that regrouping;
+    # Scaleway must not have it.
     "$FEINT" coverage --sdk "$SCALEWAY_SDK" --products "$SCALEWAY_PRODUCTS" \
       --baseline coverage/scaleway-baseline.json \
-      --artefact coverage/scaleway-coverage.json || status=$?
+      --artefact coverage/scaleway-coverage.json \
+      --document contracts/scaleway.json \
+      --contract-only coverage/contract-only.json || status=$?
     # --contract on top of --sdk: the SDK lists the operations, the contract
     # carries the tags their document files them under, which oapi-codegen
     # flattens away. Without it every artefact row collapses back into `osc`.
