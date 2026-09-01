@@ -182,8 +182,17 @@ func (p *Pack) listIPAMIPs(w http.ResponseWriter, r *http.Request) {
 			})
 		}
 	}
-	if attached := q.Get("attached"); attached != "" {
-		want := attached == "true"
+	// The filter #630 was filed about. It compared against "true" alone, so the
+	// spelling the official Python SDK sends — `True`, because requests renders
+	// a Python bool that way — matched nothing and answered an empty inventory
+	// rather than an error. Measured on fr-par, 2026-09-01: the real API accepts
+	// true, True and 1, and refuses an unparseable value with 400.
+	want, present, err := queryBool(q, "attached")
+	if err != nil {
+		writeParseFailure(w, "attached", err)
+		return
+	}
+	if present {
 		all = filterResources(all, func(res *resource.Resource) bool {
 			return ipamAttached(res) == want
 		})
@@ -242,7 +251,12 @@ func (p *Pack) listIPAMIPs(w http.ResponseWriter, r *http.Request) {
 	// Every address served here is IPv4 and regional: a zonal filter matches
 	// nothing, an is_ipv6=true filter matches nothing, and their opposites keep
 	// everything.
-	if q.Get("is_ipv6") == "true" || q.Get("zonal") != "" {
+	wantIPv6, _, err := queryBool(q, "is_ipv6")
+	if err != nil {
+		writeParseFailure(w, "is_ipv6", err)
+		return
+	}
+	if wantIPv6 || q.Get("zonal") != "" {
 		all = all[:0]
 	}
 

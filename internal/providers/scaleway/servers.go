@@ -301,7 +301,13 @@ func (p *Pack) listServers(w http.ResponseWriter, r *http.Request) {
 
 	q := r.URL.Query()
 	all := filterServers(p.env.Store.List(kindServer, p.scopeOf(r, zone)), q)
-	all = p.filterServersByLinks(all, q)
+	all, err := p.filterServersByLinks(all, q)
+	if err != nil {
+		writeInvalidArguments(w, ArgumentError{
+			ArgumentName: "without_ip", Reason: "format", HelpMessage: "expected boolean",
+		})
+		return
+	}
 	// creation_date_desc when the client names no order — not this pack's
 	// habit but the SDK's own default ("Default value: creation_date_desc"),
 	// and the empty value every instance/v1 list sends: the request's Order is
@@ -1414,7 +1420,7 @@ func filterServers(all []*resource.Resource, q url.Values) []*resource.Resource 
 // `without_ip=false` keeps everything: the SDK documents only the true
 // direction ("list Instances that are not attached to a public IP"), and
 // serving an undocumented complement would be an invented semantic.
-func (p *Pack) filterServersByLinks(all []*resource.Resource, q url.Values) []*resource.Resource {
+func (p *Pack) filterServersByLinks(all []*resource.Resource, q url.Values) ([]*resource.Resource, error) {
 	ids := idSet(q, "servers")
 	mac := q.Get("private_nic_mac_address")
 	networks := csvValues(q, "private_networks")
@@ -1423,9 +1429,13 @@ func (p *Pack) filterServersByLinks(all []*resource.Resource, q url.Values) []*r
 	}
 	withIP := q.Get("with_ip")
 	privateIP := q.Get("private_ip")
-	withoutIP, _ := queryBool(q, "without_ip")
+	// Returned rather than written: this helper holds no ResponseWriter.
+	withoutIP, _, err := queryBool(q, "without_ip")
+	if err != nil {
+		return nil, err
+	}
 	if ids == nil && mac == "" && len(networks) == 0 && withIP == "" && privateIP == "" && !withoutIP {
-		return all
+		return all, nil
 	}
 
 	kept := make([]*resource.Resource, 0, len(all))
@@ -1451,7 +1461,7 @@ func (p *Pack) filterServersByLinks(all []*resource.Resource, q url.Values) []*r
 		}
 		kept = append(kept, res)
 	}
-	return kept
+	return kept, nil
 }
 
 func nicWithMAC(nics []*resource.Resource, mac string) bool {

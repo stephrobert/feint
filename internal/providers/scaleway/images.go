@@ -336,7 +336,15 @@ func (p *Pack) listImages(w http.ResponseWriter, r *http.Request) {
 	// image populations answer them from different places: a client image
 	// carries what its create stored, a catalogue image is public, x86_64 and
 	// untagged by construction (#277).
-	out = filterImageViews(out, q)
+	out, err := filterImageViews(out, q)
+	if err != nil {
+		// instance/v1 is the one product that answers a typed error here; the
+		// rest surface strconv's own text. Measured on fr-par, 2026-09-01.
+		writeInvalidArguments(w, ArgumentError{
+			ArgumentName: "public", Reason: "format", HelpMessage: "expected boolean",
+		})
+		return
+	}
 	// Paged like every other list of this pack. This was the one that ignored
 	// per_page — five images whatever the client asked — found the day the
 	// probe started holding paged answers to the size they asked, which is the
@@ -354,7 +362,7 @@ func (p *Pack) listImages(w http.ResponseWriter, r *http.Request) {
 // arch, public, organization, project and tags. The views carry every one of
 // those fields for both image populations, so the filter reads what the client
 // would.
-func filterImageViews(views []map[string]any, q url.Values) []map[string]any {
+func filterImageViews(views []map[string]any, q url.Values) ([]map[string]any, error) {
 	arch := q.Get("arch")
 	// organization scopes to the whole account rather than comparing the
 	// identifier — one organization lives here (scopeOf's rule), so a named
@@ -363,10 +371,15 @@ func filterImageViews(views []map[string]any, q url.Values) []map[string]any {
 	// cloud filtering by yours excludes the public catalogue the same way.
 	_ = q.Get("organization")
 	project := q.Get("project")
-	wantPublic, publicSet := queryBool(q, "public")
+	// Returned rather than written: this helper holds no ResponseWriter, and the
+	// handler is where instance/v1's typed dialect belongs.
+	wantPublic, publicSet, err := queryBool(q, "public")
+	if err != nil {
+		return nil, err
+	}
 	tags := csvValues(q, "tags")
 	if arch == "" && project == "" && !publicSet && len(tags) == 0 {
-		return views
+		return views, nil
 	}
 	kept := views[:0]
 	for _, view := range views {
@@ -387,7 +400,7 @@ func filterImageViews(views []map[string]any, q url.Values) []map[string]any {
 		}
 		kept = append(kept, view)
 	}
-	return kept
+	return kept, nil
 }
 
 // viewHasEveryTag is hasEveryTag for a rendered view, whose tags are []string

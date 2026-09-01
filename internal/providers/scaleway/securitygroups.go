@@ -166,7 +166,12 @@ func (p *Pack) listSecurityGroups(w http.ResponseWriter, r *http.Request) {
 			return hasEveryTag(res, tags)
 		})
 	}
-	if wantDefault, present := queryBool(q, "project_default"); present {
+	wantDefault, present, err := queryBool(q, "project_default")
+	if err != nil {
+		writeInvalidArguments(w, ArgumentError{ArgumentName: "project_default", Reason: "format", HelpMessage: "expected boolean"})
+		return
+	}
+	if present {
 		all = filterResources(all, func(res *resource.Resource) bool {
 			isDefault, _ := res.Attrs["project_default"].(bool)
 			return isDefault == wantDefault

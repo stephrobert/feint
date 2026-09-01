@@ -367,7 +367,12 @@ func (p *Pack) listBlockVolumes(w http.ResponseWriter, r *http.Request) {
 	// the store never holds one and the flag widens the answer by nothing. It
 	// is still read — the state filter is real — and docs/limits.md says why
 	// both values answer alike.
-	if includeDeleted, _ := queryBool(q, "include_deleted"); !includeDeleted {
+	includeDeleted, _, err := queryBool(q, "include_deleted")
+	if err != nil {
+		writeParseFailure(w, "include_deleted", err)
+		return
+	}
+	if !includeDeleted {
 		all = filterResources(all, func(res *resource.Resource) bool {
 			return res.State != "deleted"
 		})
@@ -628,7 +633,12 @@ func (p *Pack) listBlockSnapshots(w http.ResponseWriter, r *http.Request) {
 	}
 	// Same reading as listBlockVolumes: deletion is immediate, the filter is
 	// real, docs/limits.md carries the consequence.
-	if includeDeleted, _ := queryBool(q, "include_deleted"); !includeDeleted {
+	includeDeleted, _, err := queryBool(q, "include_deleted")
+	if err != nil {
+		writeParseFailure(w, "include_deleted", err)
+		return
+	}
+	if !includeDeleted {
 		all = filterResources(all, func(res *resource.Resource) bool {
 			return res.State != "deleted"
 		})

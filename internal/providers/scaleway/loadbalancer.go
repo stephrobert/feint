@@ -468,6 +468,14 @@ func (p *Pack) updateLB(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Pack) deleteLB(w http.ResponseWriter, r *http.Request) {
+	// Before the lookup, which is the order fr-par answers in: a bogus id with a
+	// bad boolean answered 400 there, not 404. The difference is where a client
+	// then looks — at the resource, or at its own request.
+	release, _, err := queryBool(r.URL.Query(), "release_ip")
+	if err != nil {
+		writeParseFailure(w, "release_ip", err)
+		return
+	}
 	res, ok := p.zonalResourceOf(w, r, kindLB, "lbID", "lb")
 	if !ok {
 		return
@@ -494,7 +502,6 @@ func (p *Pack) deleteLB(w http.ResponseWriter, r *http.Request) {
 			p.releaseHeldIPAMIPs(at.ID)
 		}
 	}
-	release := r.URL.Query().Get("release_ip") == "true"
 	for _, ipID := range stringsOf(res.Attrs["ip_ids"]) {
 		if release {
 			p.env.Store.Delete(Name, kindLBIP, ipID)

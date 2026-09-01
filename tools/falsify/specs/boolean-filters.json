@@ -1,0 +1,33 @@
+{
+  "package": "./internal/providers/scaleway/",
+  "mutations": [
+    {
+      "label": "the filter compares against \"true\" again, so the Python SDK's spelling matches nothing",
+      "file": "internal/providers/scaleway/listquery.go",
+      "find": "\tparsed, err := strconv.ParseBool(raw)\n\tif err != nil {\n\t\treturn false, true, err\n\t}\n\treturn parsed, true, nil",
+      "replace": "\tparsed, err := strconv.ParseBool(raw)\n\tif err != nil {\n\t\treturn false, true, err\n\t}\n\t_ = parsed\n\treturn raw == \"true\", true, nil",
+      "test": "TestABooleanFilterReadsEverySpellingTheCloudReads"
+    },
+    {
+      "label": "an unparseable value is swallowed and answers an empty page",
+      "file": "internal/providers/scaleway/listquery.go",
+      "find": "\tif err != nil {\n\t\treturn false, true, err\n\t}",
+      "replace": "\tif err != nil {\n\t\treturn false, true, nil\n\t}",
+      "test": "TestAnUnparseableBooleanIsRefusedInEachProductsOwnDialect"
+    },
+    {
+      "label": "the refusal carries a type key, which is a shape the cloud never answers",
+      "file": "internal/providers/scaleway/errors.go",
+      "find": "\temulator.WriteJSON(w, http.StatusBadRequest, map[string]any{\n\t\t\"message\": fmt.Sprintf(\"parsing field %q: %s\", field, err),\n\t})",
+      "replace": "\temulator.WriteJSON(w, http.StatusBadRequest, APIError{\n\t\tType:    \"invalid_arguments\",\n\t\tMessage: fmt.Sprintf(\"parsing field %q: %s\", field, err),\n\t})",
+      "test": "TestAnUnparseableBooleanIsRefusedInEachProductsOwnDialect"
+    },
+    {
+      "label": "the action flag is read after the lookup, so a bad value answers 404 instead of 400",
+      "file": "internal/providers/scaleway/loadbalancer.go",
+      "find": "\trelease, _, err := queryBool(r.URL.Query(), \"release_ip\")\n\tif err != nil {\n\t\twriteParseFailure(w, \"release_ip\", err)\n\t\treturn\n\t}\n\tres, ok := p.zonalResourceOf(w, r, kindLB, \"lbID\", \"lb\")\n\tif !ok {\n\t\treturn\n\t}",
+      "replace": "\tres, ok := p.zonalResourceOf(w, r, kindLB, \"lbID\", \"lb\")\n\tif !ok {\n\t\treturn\n\t}\n\trelease, _, err := queryBool(r.URL.Query(), \"release_ip\")\n\tif err != nil {\n\t\twriteParseFailure(w, \"release_ip\", err)\n\t\treturn\n\t}",
+      "test": "TestAnActionFlagRefusesAnUnparseableValueRatherThanIgnoringIt"
+    }
+  ]
+}

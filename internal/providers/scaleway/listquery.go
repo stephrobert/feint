@@ -1,9 +1,11 @@
 package scaleway
 
 import (
+	"fmt"
 	"net/http"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/stephrobert/feint/internal/core/resource"
@@ -102,14 +104,33 @@ func orderSpelling(value string) (field string, descending bool) {
 	return value, false
 }
 
-// queryBool reads a boolean filter: present only when the client sent a
-// value, true only on the spelling the SDK writes (fmt.Sprint on a bool).
-func queryBool(q url.Values, key string) (value, present bool) {
+// queryBool reads a boolean filter the way the real API reads one.
+//
+// It used to compare against "true" alone, on the ground that this is the
+// spelling the Go SDK writes. It is not the spelling every client writes: the
+// official Python SDK renders a Python True as `True`, and `requests` puts that
+// on the wire — so `list_i_ps_all(attached=True)`, the documented way to ask the
+// question from Python, matched nothing here and returned an empty inventory
+// (#630).
+//
+// Worse than wrong: silent. An unparseable value was read as false and answered
+// a well-shaped empty page, which says the fleet is empty rather than that the
+// question was malformed.
+//
+// Measured on fr-par, 2026-09-01: the real API accepts true, True and 1, and
+// refuses `banana` with 400 and strconv's own error text. It is a Go service
+// using strconv.ParseBool, so this parses with the same function and the caller
+// answers the error rather than swallowing it.
+func queryBool(q url.Values, key string) (value, present bool, err error) {
 	raw := q.Get(key)
 	if raw == "" {
-		return false, false
+		return false, false, nil
 	}
-	return raw == "true", true
+	parsed, err := strconv.ParseBool(raw)
+	if err != nil {
+		return false, true, err
+	}
+	return parsed, true, nil
 }
 
 // objectStorageFilter reads the "only VPCs (or Private Networks) whose Object
@@ -128,13 +149,19 @@ func queryBool(q url.Values, key string) (value, present bool) {
 // answers a filtered list with everything.
 //
 // TestBothSpellingsOfTheObjectStorageFilterNarrow fails without this.
-func objectStorageFilter(q url.Values) (value, present bool) {
+func objectStorageFilter(q url.Values) (value, present bool, err error) {
 	for _, key := range []string{"object_storage_private_access_enabled", "s3_integration_enabled"} {
-		if v, ok := queryBool(q, key); ok {
-			return v, true
+		v, ok, parseErr := queryBool(q, key)
+		if parseErr != nil {
+			// The key that failed is named, never the pair: a client that sent
+			// one spelling must not be told about the other.
+			return false, true, fmt.Errorf("%s: %w", key, parseErr)
+		}
+		if ok {
+			return v, true, nil
 		}
 	}
-	return false, false
+	return false, false, nil
 }
 
 // idSet turns the repeated values of an identifier filter into a lookup —

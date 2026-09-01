@@ -15,6 +15,37 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ## [Unreleased]
 
+### Fixed
+
+- **A boolean query filter read one spelling and silently emptied the listing for
+  the others** (#630). `attached=true` filtered correctly; `attached=True` — what
+  the official Python SDK sends, because `requests` renders a Python bool that
+  way — matched nothing and answered a well-shaped empty page. So
+  `IpamV1API.list_i_ps_all(attached=True)`, the documented way to ask that
+  question from Python, returned an empty inventory against this emulator and the
+  attached addresses against the real API.
+
+  Measured on fr-par, 2026-09-01: the real API accepts `true`, `True`, `1` and
+  the rest of what `strconv.ParseBool` takes, because it is a Go service using
+  that function. This pack now parses with the same one.
+
+  **And an unparseable value is refused rather than swallowed.** It used to be
+  read as false, which says the fleet is empty — a different and wrong statement
+  from *the question was malformed*. The two error dialects are the cloud's own
+  and are not one: `instance/v1` answers its typed `invalid_arguments`, while
+  `ipam/v1`, `vpc/v2`, `vpc-gw/v2`, `lb/v1`, `block/v1` and `iam/v1alpha1` answer
+  strconv's error verbatim. Copying one onto the other would have been inventing
+  a format.
+
+  The fix covers every boolean the pack reads from a query, not only the one
+  reported: eleven filters and, more seriously, two **action flags**. A client
+  sending `release_ip=True` or `delete_ip=True` kept its address and was told
+  nothing. Those two are also parsed *before* the object is looked up, which is
+  the order fr-par answers in — a 400 sends a client to its own request, a 404
+  sends it hunting for a resource.
+
+  Reported by a consumer building a dynamic Ansible inventory for Scaleway.
+
 ### Added
 
 - **`instance/v1/API.UpdatePrivateNIC` is served**, and the refusal it replaces is

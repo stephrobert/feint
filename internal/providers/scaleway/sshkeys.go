@@ -75,7 +75,12 @@ func (p *Pack) listSSHKeys(w http.ResponseWriter, r *http.Request) {
 	// widener over a default exclusion, but that default would be invented —
 	// nothing upstream states one, and this pack has always answered a bare
 	// list with every key.
-	if wantDisabled, present := queryBool(q, "disabled"); present {
+	wantDisabled, present, err := queryBool(q, "disabled")
+	if err != nil {
+		writeParseFailure(w, "disabled", err)
+		return
+	}
+	if present {
 		all = filterResources(all, func(res *resource.Resource) bool {
 			disabled, _ := res.Attrs["disabled"].(bool)
 			return disabled == wantDisabled

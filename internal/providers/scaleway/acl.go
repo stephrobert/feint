@@ -138,7 +138,11 @@ func (p *Pack) getACL(w http.ResponseWriter, r *http.Request) {
 	// The SDK sends is_ipv6 as a query parameter on the GET (the contract
 	// declares it there too). Absent means IPv4, which is the SDK's own zero
 	// for a non-pointer bool and what `scw` sends when the flag is false.
-	ipv6 := r.URL.Query().Get("is_ipv6") == "true"
+	ipv6, _, err := queryBool(r.URL.Query(), "is_ipv6")
+	if err != nil {
+		writeParseFailure(w, "is_ipv6", err)
+		return
+	}
 	emulator.WriteJSON(w, http.StatusOK, p.aclView(vpc.ID, ipv6))
 }
 

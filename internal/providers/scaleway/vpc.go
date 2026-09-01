@@ -154,13 +154,23 @@ func (p *Pack) listVPCs(w http.ResponseWriter, r *http.Request) {
 			return hasAnyTag(res, tags)
 		})
 	}
-	if wantDefault, present := queryBool(q, "is_default"); present {
+	wantDefault, present, err := queryBool(q, "is_default")
+	if err != nil {
+		writeParseFailure(w, "is_default", err)
+		return
+	}
+	if present {
 		all = filterResources(all, func(res *resource.Resource) bool {
 			isDefault, _ := res.Attrs["is_default"].(bool)
 			return isDefault == wantDefault
 		})
 	}
-	if wantRouting, present := queryBool(q, "routing_enabled"); present {
+	wantRouting, present, err := queryBool(q, "routing_enabled")
+	if err != nil {
+		writeParseFailure(w, "routing_enabled", err)
+		return
+	}
+	if present {
 		all = filterResources(all, func(res *resource.Resource) bool {
 			enabled, _ := res.Attrs["routing_enabled"].(bool)
 			return enabled == wantRouting
@@ -168,7 +178,12 @@ func (p *Pack) listVPCs(w http.ResponseWriter, r *http.Request) {
 	}
 	// No VPC here integrates with Object Storage — the product is not emulated
 	// (docs/limits.md) — so true truthfully matches nothing.
-	if wantS3, present := objectStorageFilter(q); present && wantS3 {
+	wantS3, present, err := objectStorageFilter(q)
+	if err != nil {
+		writeParseFailure(w, "object_storage_private_access_enabled", err)
+		return
+	}
+	if present && wantS3 {
 		all = all[:0]
 	}
 	if !orderResources(w, r, "order_by", "created_at_asc", map[string]resourceCmp{
@@ -336,14 +351,24 @@ func (p *Pack) listPrivateNetworks(w http.ResponseWriter, r *http.Request) {
 	// Every network here runs managed DHCP — createPrivateNetwork writes the
 	// field and a legacy one is upgraded on read — so the filter is an
 	// equality against that stored truth.
-	if wantDHCP, present := queryBool(q, "dhcp_enabled"); present {
+	wantDHCP, present, err := queryBool(q, "dhcp_enabled")
+	if err != nil {
+		writeParseFailure(w, "dhcp_enabled", err)
+		return
+	}
+	if present {
 		all = filterResources(all, func(res *resource.Resource) bool {
 			enabled, _ := res.Attrs["dhcp_enabled"].(bool)
 			return enabled == wantDHCP
 		})
 	}
 	// Same answer as ListVPCs: no Object Storage integration exists here.
-	if wantS3, present := objectStorageFilter(q); present && wantS3 {
+	wantS3, present, err := objectStorageFilter(q)
+	if err != nil {
+		writeParseFailure(w, "object_storage_private_access_enabled", err)
+		return
+	}
+	if present && wantS3 {
 		all = all[:0]
 	}
 	if !orderResources(w, r, "order_by", "created_at_asc", map[string]resourceCmp{

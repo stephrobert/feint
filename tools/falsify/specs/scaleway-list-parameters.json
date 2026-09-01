@@ -39,15 +39,15 @@
     {
       "label": "the ssh-key disabled filter goes inert and disabled=true answers the enabled keys",
       "file": "internal/providers/scaleway/sshkeys.go",
-      "find": "\tif wantDisabled, present := queryBool(q, \"disabled\"); present {",
-      "replace": "\tif wantDisabled, present := queryBool(q, \"disabled-never\"); present {",
+      "find": "\twantDisabled, present, err := queryBool(q, \"disabled\")\n\tif err != nil {\n\t\twriteParseFailure(w, \"disabled\", err)\n\t\treturn\n\t}\n\tif present {",
+      "replace": "\twantDisabled, present, err := queryBool(q, \"disabled\")\n\tif err != nil {\n\t\twriteParseFailure(w, \"disabled\", err)\n\t\treturn\n\t}\n\tif present && false {",
       "test": "TestSSHKeysHonourTheDeclaredParameters"
     },
     {
       "label": "a handler that still reads its query drops one declared parameter — the half #271's gate cannot see, and the per-operation gate must",
       "file": "internal/providers/scaleway/vpc.go",
-      "find": "\tif wantDHCP, present := queryBool(q, \"dhcp_enabled\"); present {",
-      "replace": "\tif wantDHCP, present := queryBool(q, \"dhcp_enabled-never\"); present {",
+      "find": "\twantDHCP, present, err := queryBool(q, \"dhcp_enabled\")",
+      "replace": "\twantDHCP, present, err := queryBool(q, \"dhcp_enabled_no_longer_read\")",
       "test": "TestNoDeclaredQueryParameterIsDroppedByItsHandler",
       "package": "./internal/core/emulator/"
     }

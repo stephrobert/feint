@@ -17,6 +17,39 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ## [Unreleased]
 
+### Corrigé
+
+- **Un filtre booléen de requête ne lisait qu'une graphie et vidait
+  silencieusement la liste pour les autres** (#630). `attached=true` filtrait
+  correctement ; `attached=True`, ce qu'envoie le SDK Python officiel parce que
+  `requests` rend ainsi un booléen Python, ne correspondait à rien et répondait
+  une page vide bien formée. Autrement dit
+  `IpamV1API.list_i_ps_all(attached=True)`, la façon documentée de poser cette
+  question depuis Python, rendait un inventaire vide contre cet émulateur et les
+  adresses attachées contre la vraie API.
+
+  Mesuré sur fr-par le 2026-09-01 : la vraie API accepte `true`, `True`, `1` et
+  tout ce que prend `strconv.ParseBool`, parce qu'elle est un service Go qui
+  utilise cette fonction. Ce pack analyse désormais avec la même.
+
+  **Et une valeur illisible est refusée au lieu d'être avalée.** Elle était lue
+  comme fausse, ce qui affirme que la flotte est vide, affirmation différente et
+  fausse par rapport à « la question était mal formée ». Les deux dialectes
+  d'erreur sont ceux du cloud et ne sont pas identiques : `instance/v1` rend son
+  `invalid_arguments` typé, tandis que `ipam/v1`, `vpc/v2`, `vpc-gw/v2`, `lb/v1`,
+  `block/v1` et `iam/v1alpha1` rendent l'erreur de strconv telle quelle. Recopier
+  l'une sur l'autre aurait été inventer un format.
+
+  Le correctif couvre tous les booléens que le pack lit dans une requête, pas
+  seulement celui signalé : onze filtres et, plus grave, deux **drapeaux
+  d'action**. Un client envoyant `release_ip=True` ou `delete_ip=True` gardait
+  son adresse sans en être averti. Ces deux-là sont aussi analysés *avant* la
+  recherche de l'objet, ordre dans lequel fr-par répond : un 400 renvoie le
+  client à sa requête, un 404 l'envoie chercher une ressource.
+
+  Signalé par un consommateur qui construit un inventaire Ansible dynamique pour
+  Scaleway.
+
 ### Ajouté
 
 - **`instance/v1/API.UpdatePrivateNIC` est servie**, et le refus qu'elle remplace est

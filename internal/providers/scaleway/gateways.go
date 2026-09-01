@@ -166,7 +166,12 @@ func (p *Pack) listGatewayIPs(w http.ResponseWriter, r *http.Request) {
 			return hasAllTags(res, tags)
 		})
 	}
-	if isFree, present := queryBool(q, "is_free"); present {
+	isFree, present, err := queryBool(q, "is_free")
+	if err != nil {
+		writeParseFailure(w, "is_free", err)
+		return
+	}
+	if present {
 		all = filterResources(all, func(res *resource.Resource) bool {
 			gw, _ := res.Attrs["gateway_id"].(string)
 			return (gw == "") == isFree
@@ -538,6 +543,13 @@ func (p *Pack) updateGateway(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Pack) deleteGateway(w http.ResponseWriter, r *http.Request) {
+	// Before the lookup, the order fr-par answers in: a bogus id with a bad
+	// boolean answered 400 there rather than 404.
+	deleteIP, _, err := queryBool(r.URL.Query(), "delete_ip")
+	if err != nil {
+		writeParseFailure(w, "delete_ip", err)
+		return
+	}
 	res, ok := p.zonalResourceOf(w, r, kindGateway, "gatewayID", "gateway")
 	if !ok {
 		return
@@ -558,7 +570,7 @@ func (p *Pack) deleteGateway(w http.ResponseWriter, r *http.Request) {
 	p.env.Store.Delete(Name, kindGateway, res.ID)
 
 	ipID, _ := res.Attrs["ip_id"].(string)
-	if r.URL.Query().Get("delete_ip") == "true" {
+	if deleteIP {
 		p.env.Store.Delete(Name, kindGatewayIP, ipID)
 	} else if ipID != "" {
 		_ = p.env.Store.Update(Name, kindGatewayIP, ipID, func(stored *resource.Resource) error {
@@ -641,7 +653,12 @@ func (p *Pack) listGatewayNetworks(w http.ResponseWriter, r *http.Request) {
 			return ids[textOf(res.Attrs["private_network_id"])]
 		})
 	}
-	if masquerade, present := queryBool(q, "masquerade_enabled"); present {
+	masquerade, present, err := queryBool(q, "masquerade_enabled")
+	if err != nil {
+		writeParseFailure(w, "masquerade_enabled", err)
+		return
+	}
+	if present {
 		all = filterResources(all, func(res *resource.Resource) bool {
 			enabled, _ := res.Attrs["masquerade_enabled"].(bool)
 			return enabled == masquerade

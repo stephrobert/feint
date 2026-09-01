@@ -1,6 +1,7 @@
 package scaleway
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/stephrobert/feint/internal/core/emulator"
@@ -96,5 +97,32 @@ func writePreconditionFailed(w http.ResponseWriter, precondition, help string) {
 		Message:      "precondition is not respected",
 		Precondition: precondition,
 		HelpMessage:  help,
+	})
+}
+
+// writeParseFailure answers a query value the route could not read, in the
+// dialect the newer products use for it (#630).
+//
+// Measured against fr-par on 2026-09-01, because the two shapes are not one and
+// choosing between them by taste would be inventing a format:
+//
+//	ipam/v1, vpc/v2, vpc-gw/v2, lb/v1
+//	  400 {"message":"parsing field \"attached\": strconv.ParseBool: parsing
+//	       \"banana\": invalid syntax"}
+//	instance/v1
+//	  400 {"type":"invalid_arguments", …, "details":[{"argument_name":"public",
+//	       "reason":"format","help_message":"expected boolean"}]}
+//
+// So instance/v1 keeps writeInvalidArguments and everything else comes here. The
+// message is not copied: the real API is a Go service surfacing strconv's own
+// error, and this pack parses with the same function, so passing err through
+// reproduces it exactly — including the day Go rewords it.
+//
+// No "type" key at all, which is why this does not go through APIError: the
+// field has no omitempty and an empty one would be a shape the cloud never
+// answers.
+func writeParseFailure(w http.ResponseWriter, field string, err error) {
+	emulator.WriteJSON(w, http.StatusBadRequest, map[string]any{
+		"message": fmt.Sprintf("parsing field %q: %s", field, err),
 	})
 }
