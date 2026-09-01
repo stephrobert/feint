@@ -557,14 +557,15 @@ func (p *Pack) privateNICView(res *resource.Resource) map[string]any {
 		// read and the list).
 		//
 		// res.Updated rather than res.Created, and NO TEST HOLDS THAT HALF,
-		// deliberately said out loud: this pack mounts no route that modifies a
-		// NIC — the recording's own PATCH on one is `mounted: false`, which is
-		// #74's queue — so the two fields carry the same instant on every
-		// answer a client can obtain, and an assertion that they differ would
-		// be one no state of this code could fail. It is written this way so
-		// that the day an update lands the field is already right; until then
-		// the test holds only what can be observed, which is the key and its
-		// type on all three doors.
+		// This used to say that no route modifies a NIC, so the two fields
+		// carried the same instant on every answer and an assertion that they
+		// differ would be one no state of this code could fail. That day came:
+		// UpdatePrivateNIC is served since #624, and the assertion is now real —
+		// TestUpdatingAPrivateNICCarriesItsTagsAndItsDate drives the update
+		// against a clock that advances and requires the two to differ.
+		//
+		// The pinned clock of the shared test Env was the other half of why it
+		// could not be asserted, and it is why that test builds its own.
 		//
 		// TestAPrivateNICAnswersTheDateItLastChanged fails without this.
 		"modification_date": res.Updated.Format(time.RFC3339),
@@ -579,6 +580,79 @@ func (p *Pack) privateNICView(res *resource.Resource) map[string]any {
 	}
 	out["ipam_ip_ids"] = ids
 	return out
+}
+
+// updatePrivateNIC writes the one field the request carries (#624).
+//
+// It was declined, and the reason said two things that are both false today:
+// "the pack stores no tag on a private NIC" — createPrivateNIC has stored
+// orEmpty(req.Tags) all along, and listPrivateNICs filters on it — and "a field
+// nothing reads back", when privateNICView copies it onto all three doors.
+//
+// A decline is a decision and may be revisited; a decline's *reason* is a claim
+// about the code and stops being one the day the code moves. This one described
+// a past state, and a consumer generating a client from the portal document is
+// what surfaced it.
+//
+// The other half is already waiting: privateNICView serves modification_date
+// from res.Updated and says out loud that no route modifies a NIC, so the two
+// dates carry the same instant on every answer a client can obtain. This is the
+// route that makes them differ, which turns an assertion nothing could fail into
+// one that can.
+//
+// TestUpdatingAPrivateNICCarriesItsTagsAndItsDate fails without this.
+func (p *Pack) updatePrivateNIC(w http.ResponseWriter, r *http.Request) {
+	res, ok := p.privateNICOf(w, r)
+	if !ok {
+		return
+	}
+
+	var req struct {
+		Tags *[]string `json:"tags"`
+	}
+	if err := emulator.DecodeJSON(r, &req); err != nil {
+		writeInvalidArguments(w, ArgumentError{ArgumentName: "body", Reason: "format", HelpMessage: err.Error()})
+		return
+	}
+
+	// Held for the read and the write-back, like every other mutation on a
+	// resource this pack backs with a machine: the NIC's server is the target,
+	// and a delete of it landing here must win.
+	unlock := p.binding().Serialise(res.Runtime[runtimeServerKey])
+	defer unlock()
+
+	// The base is what the read handed back, so Commit writes the one field this
+	// request changed and leaves anything a concurrent writer touched alone.
+	base := res.Clone()
+	if req.Tags != nil {
+		res.Attrs["tags"] = orEmpty(*req.Tags)
+	}
+	if !p.env.Store.Commit(base, res, p.env.Now()) {
+		writeNotFound(w, "private_nic", res.ID)
+		return
+	}
+	// The {"private_nic": …} envelope, and three witnesses disagree about it.
+	//
+	// The Go SDK decodes this body into PrivateNIC directly
+	// (instance_sdk.go:6751, `var resp PrivateNIC`), and the portal document
+	// declares the same bare shape. A recording of a real fr-par account does
+	// not: corpus/scaleway/scw-billed-shapes.jsonl seq 24 is a PATCH on a
+	// private NIC answered 200 with the wrapper.
+	//
+	// The recording wins. Rule 4 says to read the SDK rather than the web
+	// documentation, and a recording of the cloud itself outranks both — which is
+	// what corpus/ is for. The consequence is that `scw instance private-nic
+	// update` cannot read this answer *against the real Scaleway either*: it
+	// prints an id of "" and null tags there as it does here. Reproducing that is
+	// fidelity; answering the bare object would be an emulator quietly fixing a
+	// client bug and hiding it from whoever runs into it in production.
+	//
+	// The first version of this route wrapped it, a reading of the SDK talked me
+	// out of it, and the corpus gate put it back — the exchange had been
+	// `mounted: false` until this route existed, so nothing had ever compared it.
+	//
+	// TestUpdatingAPrivateNICAnswersTheEnvelopeTheCloudAnswers fails without this.
+	emulator.WriteJSON(w, http.StatusOK, map[string]any{"private_nic": p.privateNICView(res)})
 }
 
 // Owns is this pack's half of the shared orphan sweep: which of its resources

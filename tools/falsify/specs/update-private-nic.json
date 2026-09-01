@@ -1,0 +1,19 @@
+{
+  "package": "./internal/providers/scaleway/",
+  "mutations": [
+    {
+      "label": "the update accepts the request and writes no tag",
+      "file": "internal/providers/scaleway/privatenics.go",
+      "find": "\tif req.Tags != nil {\n\t\tres.Attrs[\"tags\"] = orEmpty(*req.Tags)\n\t}",
+      "replace": "\tif req.Tags != nil && false {\n\t\tres.Attrs[\"tags\"] = orEmpty(*req.Tags)\n\t}",
+      "test": "TestUpdatingAPrivateNICCarriesItsTagsAndItsDate"
+    },
+    {
+      "label": "a request naming no tag clears them, so a second run is never idempotent",
+      "file": "internal/providers/scaleway/privatenics.go",
+      "find": "\tif req.Tags != nil {\n\t\tres.Attrs[\"tags\"] = orEmpty(*req.Tags)\n\t}",
+      "replace": "\tif req.Tags != nil {\n\t\tres.Attrs[\"tags\"] = orEmpty(*req.Tags)\n\t} else {\n\t\tres.Attrs[\"tags\"] = orEmpty(nil)\n\t}",
+      "test": "TestUpdatingAPrivateNICWithoutTagsLeavesThemAlone"
+    }
+  ]
+}

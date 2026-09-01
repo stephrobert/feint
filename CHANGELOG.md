@@ -15,6 +15,30 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ## [Unreleased]
 
+### Added
+
+- **`instance/v1/API.UpdatePrivateNIC` is served**, and the refusal it replaces is
+  named here because a withdrawn refusal is the change a consumer builds around
+  (#624). `PATCH /instance/v1/zones/{zone}/servers/{server_id}/private_nics/{id}`
+  writes the tags a NIC carries; a request naming none changes nothing, which is
+  what makes a read-compare-write module idempotent.
+
+  The decline had said the pack "stores no tag on a private NIC, so it would
+  answer success over a field nothing reads back". Both halves had stopped being
+  true: `createPrivateNIC` has stored the tags all along, `listPrivateNICs`
+  filters on them, and the read carries them on all three doors. A decline is a
+  decision and may be revisited; a decline's *reason* is a claim about the code,
+  and this one described a past state.
+
+  It also makes an assertion real that the code had been waiting for.
+  `modification_date` is served from the resource's own updated time, and the
+  comment beside it said no route modified a NIC, so the two dates carried one
+  instant and a test requiring them to differ could not have failed. This route
+  is what makes them differ.
+
+  Reported by a consumer generating an Ansible Day-2 collection from the Scaleway
+  OpenAPI documents.
+
 ## [0.12.1] - 2026-08-30
 
 A patch about the denominator. Nothing a client can observe moved: an unserved

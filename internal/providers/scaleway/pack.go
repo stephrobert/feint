@@ -133,6 +133,7 @@ func (p *Pack) Routes() []emulator.Route {
 		{Method: "POST", Path: zones + "/servers/{id}/private_nics", Operation: "instance/v1/API.CreatePrivateNIC", Handler: p.createPrivateNIC},
 		{Method: "GET", Path: zones + "/servers/{id}/private_nics/{nicID}", Operation: "instance/v1/API.GetPrivateNIC", Handler: p.getPrivateNIC},
 		{Method: "DELETE", Path: zones + "/servers/{id}/private_nics/{nicID}", Operation: "instance/v1/API.DeletePrivateNIC", Handler: p.deletePrivateNIC},
+		{Method: "PATCH", Path: zones + "/servers/{id}/private_nics/{nicID}", Operation: "instance/v1/API.UpdatePrivateNIC", Handler: p.updatePrivateNIC},
 
 		// The same interfaces, read through instance/v2alpha1, where they are a
 		// top-level resource rather than a sub-resource of the server. Terraform
@@ -652,9 +653,6 @@ func (p *Pack) Declined() []emulator.Decline {
 
 		emulator.Because("the server already publishes allowed_actions, derived from its state, so a second listing would be a second place to keep in step with the first",
 			"instance/v1/API.ListServerActions"),
-
-		emulator.Because("its request carries tags and nothing else, and the pack stores no tag on a private NIC, so it would answer success over a field nothing reads back",
-			"instance/v1/API.UpdatePrivateNIC"),
 
 		// The one member of the IPAM family still declined. The lifecycle
 		// itself — BookIP, ReleaseIP, ReleaseIPSet, UpdateIP, AttachIP,

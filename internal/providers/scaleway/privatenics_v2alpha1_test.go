@@ -176,13 +176,11 @@ func TestTheV2alpha1PageTokenWalksTheWholeList(t *testing.T) {
 // doors that answer one — the create, the read and the list
 // (corpus/scaleway/scw-billed-shapes.jsonl seq 21-23).
 //
-// What this does NOT assert, and the omission is deliberate: that the date
-// moves. No route mounted here modifies a NIC — the recording's own PATCH on
-// one is `mounted: false` — so creation and modification carry the same instant
-// on every answer a client can get, and a test that required them to differ
-// would be a test no state of this code could fail. The field reads res.Updated
-// so that it is already right when an update lands; privatenics.go says so
-// where the line is.
+// What this does not assert is that the date *moves*, and that is no longer an
+// omission for want of a route: UpdatePrivateNIC is served since #624, and
+// TestUpdatingAPrivateNICCarriesItsTagsAndItsDate holds that half against a
+// clock that advances. This one keeps holding what it always held — the key and
+// its type on all three doors — which is the part a create alone can show.
 func TestAPrivateNICAnswersTheDateItLastChanged(t *testing.T) {
 	ts := newTestServer(t)
 	serverID, _, nic := attachedNIC(t, ts, "app", "172.16.0.0/22")

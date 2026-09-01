@@ -1295,4 +1295,56 @@ refuse_scw "ipam ip list"              ipam ip list region="$NOWHERE_REGION" -o 
 refuse_scw "ipam ip set release"       ipam ip-set release region="$NOWHERE_REGION" -o json
 ok "every one of them refused by name"
 
+# UpdatePrivateNIC, served since #624 because the decline's reason had stopped
+# describing the code. Driven by the CLI rather than by curl, because the whole
+# argument for serving it was that a client reaches it: `scw instance private-nic
+# update` is that client, and a route no client drives is a route this project
+# counts as unproven.
+echo "- a private NIC is retagged, and a second identical update changes nothing"
+span="$(prove_begin behaviour)"
+nic_pn2="$(scw vpc private-network create name=conformance-nic-tags subnets.0=10.186.0.0/24 \
+             region=fr-par -o json)" || fail "private network create rejected: $nic_pn2"
+nic_pn2_id="$(printf '%s' "$nic_pn2" | jq -r '.id')"
+tag_server="$(scw instance server create name=conformance-nic-tags type=DEV1-S zone="$ZONE" -o json 2>&1)" \
+  || fail "create rejected by the CLI: $tag_server"
+tag_server_id="$(printf '%s' "$tag_server" | jq -r '.id // empty')"
+[ -n "$tag_server_id" ] || fail "no id in the create response: $tag_server"
+
+tag_nic="$(scw instance private-nic create server-id="$tag_server_id" \
+             private-network-id="$nic_pn2_id" tags.0=before zone="$ZONE" -o json 2>&1)" \
+  || fail "private nic create rejected: $tag_nic"
+tag_nic_id="$(printf '%s' "$tag_nic" | jq -r '.id // .private_nic.id // empty')"
+[ -n "$tag_nic_id" ] || fail "no id in the private nic response: $tag_nic"
+
+# The update is driven by the CLI and verified by the read, deliberately.
+#
+# `scw instance private-nic update` cannot decode this answer — and it cannot
+# decode it against the real Scaleway either. The Go SDK reads the body into
+# PrivateNIC directly while the cloud answers a {"private_nic": …} envelope
+# (corpus/scaleway/scw-billed-shapes.jsonl seq 24), so the CLI prints an empty
+# object in both places. The emulator reproduces the cloud rather than repairing
+# the client, so the assertion goes through `get`, which both agree on.
+scw instance private-nic update server-id="$tag_server_id" private-nic-id="$tag_nic_id" \
+  tags.0=after zone="$ZONE" -o json >/dev/null \
+  || fail "the update was refused"
+scw instance private-nic get server-id="$tag_server_id" private-nic-id="$tag_nic_id" \
+  zone="$ZONE" -o json | jq -e '(.tags // .private_nic.tags) == ["after"]' >/dev/null \
+  || fail "the update did not carry the tag back"
+
+# The property a Day-2 module is built on: read, compare, write only on a
+# difference, and a second identical run reports no change. Here that means the
+# same request twice leaves the same tags rather than accumulating or clearing.
+scw instance private-nic update server-id="$tag_server_id" private-nic-id="$tag_nic_id" \
+  tags.0=after zone="$ZONE" -o json >/dev/null || fail "the second update was refused"
+scw instance private-nic get server-id="$tag_server_id" private-nic-id="$tag_nic_id" \
+  zone="$ZONE" -o json | jq -e '(.tags // .private_nic.tags) == ["after"]' >/dev/null \
+  || fail "a second identical update changed the tags"
+
+scw instance server stop "$tag_server_id" zone="$ZONE" >/dev/null || fail "cleanup: poweroff rejected"
+scw instance server delete "$tag_server_id" zone="$ZONE" >/dev/null || fail "cleanup: delete rejected"
+scw vpc private-network delete "$nic_pn2_id" region=fr-par >/dev/null \
+  || fail "cleanup: private network delete rejected"
+prove_end "$span"
+ok "retagged, and idempotent on a second run"
+
 echo "conformance: scw CLI passed"

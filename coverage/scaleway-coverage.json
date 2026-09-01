@@ -1,8 +1,8 @@
 {
   "provider": "scaleway",
   "total": 498,
-  "implemented": 176,
-  "declined": 322,
+  "implemented": 177,
+  "declined": 321,
   "unknown": 0,
   "orphans": null,
   "products": [
@@ -64,15 +64,15 @@
     {
       "product": "instance",
       "total": 150,
-      "implemented": 68,
-      "declined": 82,
+      "implemented": 69,
+      "declined": 81,
       "unknown": 0,
       "versions": [
         {
           "version": "v1",
           "total": 78,
-          "implemented": 58,
-          "declined": 20,
+          "implemented": 59,
+          "declined": 19,
           "unknown": 0
         },
         {
@@ -204,8 +204,8 @@
     {
       "group": "instance",
       "total": 150,
-      "implemented": 68,
-      "declined": 82,
+      "implemented": 69,
+      "declined": 81,
       "unknown": 0
     },
     {
@@ -1489,9 +1489,8 @@
     {
       "operation": "instance/v1/API.UpdatePrivateNIC",
       "product": "instance",
-      "reason": "its request carries tags and nothing else, and the pack stores no tag on a private NIC, so it would answer success over a field nothing reads back",
       "version": "v1",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "instance/v1/API.UpdateSecurityGroup",

@@ -17,6 +17,32 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ## [Unreleased]
 
+### Ajouté
+
+- **`instance/v1/API.UpdatePrivateNIC` est servie**, et le refus qu'elle remplace est
+  nommé ici parce qu'un refus retiré est le changement sur lequel un consommateur
+  a bâti (#624).
+  `PATCH /instance/v1/zones/{zone}/servers/{server_id}/private_nics/{id}` écrit
+  les étiquettes que porte une NIC ; une requête qui n'en nomme aucune ne change
+  rien, ce qui rend idempotent un module qui lit, compare et n'écrit que sur une
+  différence.
+
+  Le refus disait que le pack « ne stocke aucune étiquette sur une NIC privée, si
+  bien qu'il répondrait succès sur un champ que rien ne relit ». Les deux moitiés
+  avaient cessé d'être vraies : `createPrivateNIC` stocke les étiquettes depuis
+  toujours, `listPrivateNICs` filtre dessus, et la lecture les rend sur les trois
+  portes. Un refus est une décision et peut être rediscuté ; la *raison* d'un
+  refus est une affirmation sur le code, et celle-ci décrivait un état passé.
+
+  Cela rend aussi réelle une assertion que le code attendait.
+  `modification_date` est servi depuis la date de mise à jour de la ressource, et
+  le commentaire voisin disait qu'aucune route ne modifiait une NIC : les deux
+  dates portaient donc le même instant, et un test exigeant qu'elles diffèrent
+  n'aurait pas pu échouer. C'est cette route qui les sépare.
+
+  Signalé par un consommateur qui génère une collection Ansible Day-2 depuis les
+  documents OpenAPI de Scaleway.
+
 ## [0.12.1] - 2026-08-30
 
 Un correctif de dénominateur. Rien de ce qu'un client observe n'a bougé : une

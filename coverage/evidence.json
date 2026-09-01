@@ -8,7 +8,7 @@
   "generated_from": {
     "contracts": "b1c322d461683911",
     "shapes": "cac046c206cc9fc8",
-    "suites": "7173c18ec5d565d9"
+    "suites": "90ef23421713ac04"
   },
   "operations": {
     "account/v3/ProjectAPI.GetProject": {
@@ -179,7 +179,7 @@
       "contract": "clean",
       "dataplane": true,
       "shape": "observed",
-      "behaviour": false,
+      "behaviour": true,
       "negative": true
     },
     "block/v1alpha1/API.ListSnapshots": {
@@ -1684,6 +1684,15 @@
       "shape": "unobserved",
       "behaviour": true,
       "negative": true
+    },
+    "instance/v1/API.UpdatePrivateNIC": {
+      "driven": true,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "observed",
+      "behaviour": true,
+      "negative": false
     },
     "instance/v1/API.UpdateSecurityGroup": {
       "driven": true,
