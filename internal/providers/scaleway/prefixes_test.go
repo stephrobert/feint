@@ -118,10 +118,14 @@ func TestAnUnservedProductAnswersInScalewaysDialect(t *testing.T) {
 func TestAnUnservedOperationIsReadableByTheSDK(t *testing.T) {
 	ts := newTestServer(t)
 
-	// The dashboard exists upstream and is declined (its counters span
-	// products this pack does not serve), so this is the answer a real caller
-	// meets today. Placement groups played this role until #285 served them.
-	status, body := do(t, ts, "GET", "/instance/v1/zones/fr-par-1/dashboard", "")
+	// Server-type availability exists upstream and is declined: fr-par-1 answered
+	// `shortage` for every type on 2026-09-01, so any value here would be a claim
+	// about Scaleway's fleet. That is the answer a real caller meets today.
+	//
+	// This example keeps moving because the pack keeps serving: placement groups
+	// played the role until #285, the dashboard until #626 measured that its
+	// counters name only families this pack serves.
+	status, body := do(t, ts, "GET", "/instance/v1/zones/fr-par-1/products/servers/availability", "")
 
 	if status != http.StatusNotImplemented {
 		t.Errorf("status = %d, want 501: the operation exists upstream, it is not served here", status)
@@ -135,7 +139,7 @@ func TestAnUnservedOperationIsReadableByTheSDK(t *testing.T) {
 	if body["type"] != "not_emulated" {
 		t.Errorf("type = %v, want not_emulated", body["type"])
 	}
-	if msg, _ := body["message"].(string); !strings.Contains(msg, "dashboard") {
+	if msg, _ := body["message"].(string); !strings.Contains(msg, "products/servers/availability") {
 		t.Errorf("message = %q, want it to name the path", msg)
 	}
 }

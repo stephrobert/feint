@@ -351,6 +351,14 @@ func (p *Pack) Routes() []emulator.Route {
 		// the client's images beside it, which is why it sits with the reads
 		// rather than with the block above.
 		{Method: "GET", Path: zones + "/products/servers", Operation: "instance/v1/API.ListServersTypes", Handler: p.listServerTypes},
+		// Two declines #626 asked to be arbitrated, and the measurement withdrew
+		// them: compatible-types answers a list of names and no headroom, and the
+		// dashboard's counters name families this pack serves, with the two
+		// volume types it never makes truly zero rather than short.
+		{Method: "GET", Path: zones + "/servers/{id}/compatible-types", Operation: "instance/v1/API.GetServerCompatibleTypes", Handler: p.serverCompatibleTypes,
+			Undriven: "`scw` exposes no command for it — its `instance server-type` verbs are the catalogue and the availability read — so the client that asked for it is the one generating its own from the portal document (#626)"},
+		{Method: "GET", Path: zones + "/dashboard", Operation: "instance/v1/API.GetDashboard", Handler: p.dashboard,
+			Undriven: "no `scw` verb reads it and no Terraform resource maps to a counter, so the client that asked for it is the one generating its own from the portal document (#626)"},
 		{Method: "GET", Path: zones + "/images", Operation: "instance/v1/API.ListImages", Handler: p.listImages},
 		{Method: "GET", Path: zones + "/images/{id}", Operation: "instance/v1/API.GetImage", Handler: p.getImage},
 		{Method: "GET", Path: "/marketplace/v2/local-images", Operation: "marketplace/v2/API.ListLocalImages", Handler: p.listLocalImages},
@@ -741,34 +749,44 @@ func (p *Pack) Declined() []emulator.Decline {
 		// and cannot invent headroom without telling a client something false
 		// about capacity. The dashboard used to be listed here and is not, for a
 		// reason the next block gives.
+		// GetServerCompatibleTypes left this block on measurement (#626): its
+		// answer is a list of type names with no headroom in it, so it is a
+		// property of the catalogue rather than of the fleet, and it is served.
+		// What stays is what the sentence is actually about — fr-par-1 answered
+		// `shortage` for every type on 2026-09-01, and any value this emulator
+		// returned would be a claim about Scaleway's fleet.
 		emulator.Because("capacity and quotas are the provider's fleet, and a local emulator that answered would be inventing headroom a client could plan against",
 			"instance/v1/API.GetServerTypesAvailability",
-			"instance/v1/API.GetServerCompatibleTypes",
 			"instance/v1/API.CheckBlockMigrationOrganizationQuotas"),
 
-		// GetDashboard is separated from the group above, because "no inventory"
-		// was false about it. The thirteen counters it returns — servers,
-		// volumes, images, snapshots, IPs, security groups, placement groups —
-		// are the tenant's own resources, and the store holds several of them.
-		// An audit checked the SDK struct and was right. The reason it is
-		// declined is the other half: it also counts products this pack does not
-		// serve, so every total would be short by the unemulated remainder with
-		// nothing in the answer saying which.
+		// GetDashboard used to be declined here, on the ground that its counters
+		// "also count products this pack does not serve, so every total would be
+		// short by the unemulated remainder". A live read of fr-par-1 on
+		// 2026-09-01 settled it (#626): every key it answers names a family this
+		// pack serves, and the remainder is empty. It is served.
 		// ListVolumesTypes is not in the block above, and an audit was right to
 		// say so: it returns a catalogue of volume types with their constraints,
 		// which is the same nature as ListServersTypes — served. It is declined
 		// for the reason that actually applies to it.
-		// The reason it names has to stay true, and #365 moved the fact under
-		// it: a server's root disk is an sbs_volume now, like the cloud's, and
-		// b_ssd is what `scw instance volume create` makes when a client asks
-		// for a disk of its own. Two types, both of them the same single
-		// capability — a size, recorded and answered, with nothing written
-		// anywhere — so the decline stands and its sentence does not.
-		emulator.Because("the instance volumes this emulator makes are b_ssd, its servers' root disks are sbs_volume in the block product, and neither is backed by storage: a type list would describe capabilities and constraints nothing here can honour",
+		// #625 asked whether this decline survives its own sibling, and the
+		// question was fair: ListServersTypes is served and answers capabilities,
+		// constraints AND prices, so "would describe capabilities and constraints"
+		// could not be what separates them. It is not.
+		//
+		// What separates them is measured. The served catalogue names types this
+		// emulator creates — a client picking DEV1-S gets a DEV1-S, and its
+		// values come from a recording (corpus/scaleway/scw-instance.jsonl seq
+		// 2-4). A live read of /products/volumes on fr-par-1, 2026-09-01, answers
+		// exactly two types: l_ssd (Local SSD) and scratch. This emulator makes
+		// neither. Serving it faithfully would hand a client a menu on which
+		// every item is one the create refuses, which is a worse answer than a
+		// refusal that points at the route list.
+		//
+		// The day a recording of it exists beside a pack that makes those types,
+		// this becomes a serve. Until then the decline stands, on a sentence that
+		// says what is actually true.
+		emulator.Because("a live read of /products/volumes on fr-par-1 answers l_ssd and scratch, and this emulator makes neither — its instance volumes are b_ssd and its root disks sbs_volume — so serving it would offer a client two types every create then refuses",
 			"instance/v1/API.ListVolumesTypes"),
-
-		emulator.Because("its thirteen counters span resources this pack does not serve, so every total would be short by the unemulated remainder with nothing saying which",
-			"instance/v1/API.GetDashboard"),
 
 		// Migrating a legacy local volume, or a snapshot of one, to Scaleway
 		// Block Storage. Every volume served here is already of the current

@@ -1397,6 +1397,15 @@
       "behaviour": true,
       "negative": true
     },
+    "instance/v1/API.GetDashboard": {
+      "driven": false,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": false,
+      "shape": "unobserved",
+      "behaviour": false,
+      "negative": false
+    },
     "instance/v1/API.GetIP": {
       "driven": true,
       "probed": "response",
@@ -1468,6 +1477,15 @@
       "shape": "observed",
       "behaviour": true,
       "negative": true
+    },
+    "instance/v1/API.GetServerCompatibleTypes": {
+      "driven": false,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": false,
+      "shape": "unobserved",
+      "behaviour": false,
+      "negative": false
     },
     "instance/v1/API.GetServerUserData": {
       "driven": true,

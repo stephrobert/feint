@@ -43,6 +43,48 @@ change ni l'un ni l'autre a sa place dans `git log`.
   Signalé par un consommateur qui génère une collection Ansible Day-2 depuis les
   documents OpenAPI de Scaleway.
 
+- **`instance/v1/API.GetDashboard` et `instance/v1/API.GetServerCompatibleTypes` sont
+  servies**, et les refus qu'elles remplacent sont nommés ici parce qu'un refus
+  retiré est le changement sur lequel un consommateur a bâti (#626).
+
+  Les deux étaient refusées au motif que « la capacité et les quotas sont la
+  flotte du fournisseur, et un émulateur local qui répondrait inventerait une
+  marge sur laquelle un client pourrait planifier ». Une lecture réelle de
+  fr-par-1 le 2026-09-01 a retiré cette phrase des deux : `compatible-types` rend
+  une simple liste de noms de types, sans aucune revendication de marge, donc
+  c'est une propriété du catalogue et non de la flotte ; et chaque clé du tableau
+  de bord nomme une famille que ce pack sert, si bien que le « reste non émulé »
+  qu'invoquait le refus est vide. Les deux compteurs de types de volumes que cet
+  émulateur ne remplit jamais valent zéro parce qu'il n'en fabrique aucun, ce qui
+  est vrai de lui plutôt que tronqué.
+
+  `GetServerTypesAvailability` garde la phrase, et à juste titre : fr-par-1 a
+  répondu `shortage` pour tous les types, et toute valeur servie ici serait une
+  affirmation sur la flotte de Scaleway.
+
+  Aucune des deux n'a de verbe `scw`, donc chacune déclare pourquoi aucun client
+  ne la pilote plutôt que de faire croire que l'un le fait.
+
+### Modifié
+
+- **`instance/v1/API.ListVolumesTypes` reste refusée et sa raison est remplacée**
+  (#625). L'ancienne disait qu'une liste de types « décrirait des capacités et
+  des contraintes que rien ici ne peut honorer », ce qui ne pouvait pas être ce
+  qui la sépare de `ListServersTypes` : cette jumelle est servie et rend des
+  capacités, des contraintes **et** des prix.
+
+  Ce qui les sépare est mesuré. Le catalogue servi nomme des types que cet
+  émulateur crée, et ses valeurs viennent d'un enregistrement d'un vrai compte.
+  Une lecture réelle de `/products/volumes` sur fr-par-1 rend exactement deux
+  types, `l_ssd` et `scratch`, et cet émulateur n'en fabrique aucun. La servir
+  fidèlement offrirait au client un menu dont chaque entrée est refusée à la
+  création.
+
+- **`instance/v1/API.ExportSnapshot` reste refusée** (#627). Répondre un accusé en
+  202 sans écrire d'objet nulle part reviendrait à dire que quelque chose a
+  démarré alors que non, ce que cet émulateur existe précisément pour ne pas
+  faire. La raison est infrastructurelle et mesurée dans `docs/limits.md`.
+
 ## [0.12.1] - 2026-08-30
 
 Un correctif de dénominateur. Rien de ce qu'un client observe n'a bougé : une

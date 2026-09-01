@@ -39,6 +39,47 @@ what this project is judged on: **a response shape a client can observe**, and
   Reported by a consumer generating an Ansible Day-2 collection from the Scaleway
   OpenAPI documents.
 
+- **`instance/v1/API.GetDashboard` and `instance/v1/API.GetServerCompatibleTypes` are
+  served**, and the refusals they replace are named here because a withdrawn
+  refusal is the change a consumer builds around (#626).
+
+  Both had been declined under *"capacity and quotas are the provider's fleet,
+  and a local emulator that answered would be inventing headroom a client could
+  plan against"*. A live read of fr-par-1 on 2026-09-01 withdrew that sentence
+  from both: `compatible-types` answers a plain list of type names with no
+  headroom in it, so it is a property of the catalogue rather than of the fleet;
+  and every key the dashboard returns names a family this pack serves, so the
+  "unemulated remainder" the decline invoked is empty. The two volume-type
+  counters this emulator never fills are zero because it makes none, which is
+  true of it rather than short of anything.
+
+  `GetServerTypesAvailability` keeps the sentence, and keeps it rightly: fr-par-1
+  answered `shortage` for every type, and any value served here would be a claim
+  about Scaleway's fleet.
+
+  Neither has a `scw` verb, so both declare why no client drives them rather than
+  pretending one does.
+
+### Changed
+
+- **`instance/v1/API.ListVolumesTypes` stays declined and its reason is replaced**
+  (#625). The old one said a type list "would describe capabilities and
+  constraints nothing here can honour", which could not be what separates it from
+  `ListServersTypes` — that sibling is served and answers capabilities,
+  constraints *and* prices.
+
+  What separates them is measured. The served catalogue names types this emulator
+  creates, and its values come from a recording of a real account. A live read of
+  `/products/volumes` on fr-par-1 answers exactly two types, `l_ssd` and
+  `scratch`, and this emulator makes neither. Serving it faithfully would hand a
+  client a menu on which every item is one the create then refuses.
+
+- **`instance/v1/API.ExportSnapshot` stays declined** (#627). Answering a
+  202-shaped acknowledgement without writing an object anywhere would be the
+  emulator saying something started that did not, which is the one thing it
+  exists not to do. The reason is infrastructural and measured in
+  `docs/limits.md`.
+
 ## [0.12.1] - 2026-08-30
 
 A patch about the denominator. Nothing a client can observe moved: an unserved
