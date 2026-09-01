@@ -106,18 +106,18 @@ terraform apply                  # le vrai provider Scaleway
 ```yaml
 services:
   feint:
-    image: ghcr.io/stephrobert/feint:v0.12.0
+    image: ghcr.io/stephrobert/feint:v0.12.1
     ports: ["4599:4599"]
 ```
 
-L'image ne sert que le plan de contrôle et ne porte aucun tag `latest` ; [docs/install.md](docs/install.md) donne la forme GitLab, la forme compose et la vérification de signature. Pour la tirer directement : `docker run --rm -p 127.0.0.1:4599:4599 ghcr.io/stephrobert/feint:v0.12.0`.
+L'image ne sert que le plan de contrôle et ne porte aucun tag `latest` ; [docs/install.md](docs/install.md) donne la forme GitLab, la forme compose et la vérification de signature. Pour la tirer directement : `docker run --rm -p 127.0.0.1:4599:4599 ghcr.io/stephrobert/feint:v0.12.1`.
 
 **Dans GitHub Actions, sans conteneur**, l'action du Marketplace :
 
 ```yaml
 - uses: stephrobert/setup-feint@v1
   with:
-    version: 0.12.0
+    version: 0.12.1
     provider: scaleway   # exporte ce dont le client officiel a besoin
 ```
 

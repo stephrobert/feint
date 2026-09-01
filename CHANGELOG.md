@@ -15,6 +15,49 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ## [Unreleased]
 
+## [0.12.1] - 2026-08-30
+
+A patch about the denominator. Nothing a client can observe moved: an unserved
+route answered 501 before this release and answers 501 after it.
+
+### Fixed
+
+- **The coverage inventory had a second witness and never consulted it** (#622).
+  Two inventories are committed here — the contract, extracted from each
+  provider's published document, and the coverage report, produced by scanning
+  their Go SDK — and for Scaleway they disagreed. The portal publishes five `PUT`
+  whole-object routes in `instance/v1` (`SetImage`, `SetSecurityGroup`,
+  `SetSecurityGroupRule`, `SetSnapshot`, `SetVolume`) and
+  `iam/v1alpha1.CheckPermissions`; `scaleway-sdk-go` never wrapped any of them.
+  So all six were outside `total`, and `unknown: 0` was exact over a set that did
+  not contain them.
+
+  Measured on all three packs: six for Scaleway, zero for Outscale and Exoscale,
+  whose SDKs are generated from the same documents their contracts come from. The
+  gap exists exactly where a document and an SDK have different provenance.
+
+  The six are triaged now, in `coverage/contract-only.json`, each with a status —
+  `declined` or `backlog` — and a reason. They could not go in `Declined()`,
+  because a decline the scan does not know is reported as an orphan, and orphans
+  are the one signal the drift gate exists to keep reliable.
+
+  Reported by a consumer generating an Ansible collection from the Scaleway
+  OpenAPI documents and using feint as its integration backend — which is exactly
+  the client that reaches those five routes, and the reason they are `backlog`
+  rather than `declined`.
+
+### Added
+
+- `feint coverage --document <file> --contract-only <file>` cross-checks the
+  scanned surface against the provider's own document and exits 2 on an operation
+  nobody decided about, the way an upstream addition already does. It is a
+  separate flag from `--contract` on purpose: `--contract` also regroups the
+  report onto the document's tags, and reusing it would have moved every
+  published table as a side effect of adding a check.
+
+  **CLI surface version 22.** Two additions to one existing verb; nothing was
+  removed and no exit code moved, so a pipeline keyed on 21 keeps working.
+
 ## [0.12.0] - 2026-08-29
 
 The release where three runtime paths became one contract, and the whole of
@@ -4854,6 +4897,8 @@ against the providers' own SDKs rather than followed by hand.
   `unread_request_fields` run after run while Terraform looped. An introspection
   nobody gates on is a confession nobody hears.
 
+[0.12.1]: https://github.com/stephrobert/feint/releases/tag/v0.12.1
+[0.12.0]: https://github.com/stephrobert/feint/releases/tag/v0.12.0
 [0.11.0]: https://github.com/stephrobert/feint/releases/tag/v0.11.0
 [0.10.0]: https://github.com/stephrobert/feint/releases/tag/v0.10.0
 [0.9.0]: https://github.com/stephrobert/feint/releases/tag/v0.9.0

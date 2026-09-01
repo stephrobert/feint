@@ -17,6 +17,52 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ## [Unreleased]
 
+## [0.12.1] - 2026-08-30
+
+Un correctif de dénominateur. Rien de ce qu'un client observe n'a bougé : une
+route non servie répondait 501 avant cette version, elle répond 501 après.
+
+### Corrigé
+
+- **L'inventaire de couverture avait un second témoin et ne le consultait
+  jamais** (#622). Deux inventaires sont versionnés ici : le contrat, extrait du
+  document publié par chaque fournisseur, et le rapport de couverture, produit en
+  scannant leur SDK Go. Pour Scaleway, ils divergeaient. Le portail publie cinq
+  routes `PUT` de remplacement complet dans `instance/v1` (`SetImage`,
+  `SetSecurityGroup`, `SetSecurityGroupRule`, `SetSnapshot`, `SetVolume`) ainsi
+  que `iam/v1alpha1.CheckPermissions` ; `scaleway-sdk-go` n'en a jamais enveloppé
+  aucune. Ces six opérations étaient donc hors de `total`, et `unknown: 0` était
+  exact sur un ensemble qui ne les contenait pas.
+
+  Mesuré sur les trois packs : six pour Scaleway, zéro pour Outscale et Exoscale,
+  dont les SDK sont générés depuis les documents mêmes d'où viennent leurs
+  contrats. L'écart existe exactement là où un document et un SDK ont des
+  provenances différentes.
+
+  Les six sont désormais triées, dans `coverage/contract-only.json`, chacune avec
+  un statut (`declined` ou `backlog`) et une raison. Elles ne pouvaient pas
+  rejoindre `Declined()` : un refus que le scan ignore est rapporté comme
+  orphelin, et les orphelins sont le seul signal que la porte de dérive existe
+  pour garder fiable.
+
+  Signalé par un consommateur qui génère une collection Ansible depuis les
+  documents OpenAPI de Scaleway et se sert de feint comme backend d'intégration.
+  C'est précisément le client qui atteint ces cinq routes, et la raison pour
+  laquelle elles sont en `backlog` plutôt qu'en `declined`.
+
+### Ajouté
+
+- `feint coverage --document <fichier> --contract-only <fichier>` confronte la
+  surface scannée au document du fournisseur et sort en 2 sur une opération que
+  personne n'a tranchée, comme le fait déjà un ajout amont. C'est un drapeau
+  distinct de `--contract`, et volontairement : `--contract` regroupe aussi le
+  rapport sur les étiquettes du document, et le réutiliser aurait déplacé toutes
+  les tables publiées comme effet de bord d'un contrôle ajouté.
+
+  **Surface CLI en version 22.** Deux ajouts à un verbe existant ; rien n'a été
+  retiré, aucun code de sortie n'a bougé, et un pipeline calé sur la 21 continue
+  de fonctionner.
+
 ## [0.12.0] - 2026-08-29
 
 La release où trois chemins de runtime sont devenus un contrat, et où tout feint
@@ -5205,6 +5251,8 @@ contre les SDK des providers eux-mêmes plutôt que suivie à la main.
   que Terraform bouclait. Une introspection sur laquelle personne ne fait gate est
   un aveu que personne n'entend.
 
+[0.12.1]: https://github.com/stephrobert/feint/releases/tag/v0.12.1
+[0.12.0]: https://github.com/stephrobert/feint/releases/tag/v0.12.0
 [0.11.0]: https://github.com/stephrobert/feint/releases/tag/v0.11.0
 [0.10.0]: https://github.com/stephrobert/feint/releases/tag/v0.10.0
 [0.9.0]: https://github.com/stephrobert/feint/releases/tag/v0.9.0
