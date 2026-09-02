@@ -153,19 +153,47 @@ func (p *Pack) tenant(zone string) resource.Tenant {
 //
 // A project is an isolation boundary, not a label: two projects of the same
 // organization do not see each other, and a client that names one must never be
-// shown another one's resources. The rules follow the API. A `project` filter
-// scopes to it. An `organization` filter alone scopes to the whole account,
-// which here means every project, since the emulator hosts a single
-// organization. Neither means the token's default project.
+// shown another one's resources. A `project` filter scopes to it. An
+// `organization` filter alone scopes to the whole account, which here means
+// every project, since the emulator hosts a single organization.
+//
+// And an unfiltered list means the account too, not the default project. That
+// last line used to answer defaultProject under a comment that already said it
+// should not — "Neither means the token's default project" — which is the
+// repository's own defect: a sentence describing the fix, three lines above the
+// code that does the opposite.
+//
+// Measured on fr-par, 2026-09-02 (#369), with a second project created for the
+// occasion and deleted after:
+//
+//	GET /volumes                          the other project's volume: VISIBLE
+//	GET /volumes?project=<the default>    HIDDEN
+//	GET /volumes?organization=<the org>   VISIBLE
+//
+// So the create is authoritative — a create that honours a named project makes
+// that project real, and the list that follows answers it. The alternative the
+// issue offered, refusing a foreign project at creation, is the one the cloud
+// does not take: it accepted the create and then listed what it had made.
+//
+// What this is NOT: a client that names a project still sees only that project.
+// The isolation the previous behaviour was defending is the filtered read, and
+// it is untouched.
+//
+// TestAnUnfilteredListAnswersEveryProjectLikeTheCloud fails without this.
 func (p *Pack) scopeOf(r *http.Request, zone string) resource.Tenant {
 	q := r.URL.Query()
 	if project := q.Get("project"); project != "" {
 		return resource.Tenant{Provider: Name, Project: project, Zone: zone}
 	}
+	// The organization branch answers the same tenant as the fall-through, and
+	// it stays because the parameter has to be READ. #277's gate refuses a
+	// declared query parameter a handler never names: dropping this branch made
+	// four operations fail it at once, which is the gate doing exactly its job —
+	// an emulator that ignores a filter answers a superset and calls it a match.
 	if q.Get("organization") != "" {
 		return p.tenant(zone)
 	}
-	return resource.Tenant{Provider: Name, Project: defaultProject, Zone: zone}
+	return p.tenant(zone)
 }
 
 // projectOf resolves the project a create request belongs to, and the

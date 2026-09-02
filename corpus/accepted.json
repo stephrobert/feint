@@ -1190,14 +1190,6 @@
       "issue": "https://github.com/stephrobert/feint/issues/570"
     },
     {
-      "file": "scaleway/scw-instance.jsonl",
-      "operation": "instance/v1/API.ListServers",
-      "kind": "absent",
-      "path": "servers[]",
-      "reason": "the create honours the project the request named and the unfiltered list is scoped to the default project, so the server the cloud listed is invisible to the list that follows it here",
-      "issue": "#369"
-    },
-    {
       "file": "scaleway/scw-refusals.jsonl",
       "operation": "instance/v1/API.CreateIP",
       "kind": "absent",

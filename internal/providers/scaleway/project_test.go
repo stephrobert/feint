@@ -10,9 +10,14 @@ import (
 // stay invisible from the default project.
 const otherProject = "22222222-2222-4222-8222-222222222222"
 
-// A project is an isolation boundary, not a label. Every list must be scoped to
-// the project the caller named, or a client reads resources it does not own and
-// Terraform plans a destroy for something another project created.
+// A project is an isolation boundary, not a label. A list that NAMES a project
+// must answer that project alone, or a client reads resources it does not own
+// and Terraform plans a destroy for something another project created.
+//
+// This test used to assert one thing more, and that thing was wrong: that an
+// unfiltered list answers the default project only. It answers the whole
+// account, measured (#369), and TestAnUnfilteredListAnswersEveryProjectLikeTheCloud
+// now carries that half. What is left here is the half the cloud agrees with.
 func TestListsAreScopedToTheProject(t *testing.T) {
 	ts := newTestServer(t)
 
@@ -40,13 +45,13 @@ func TestListsAreScopedToTheProject(t *testing.T) {
 				t.Fatalf("no id in the create response: %v", created)
 			}
 
-			// The default project must not see it. It may legitimately own
-			// resources of its own, so the assertion is on this id, not on an
-			// empty list.
-			_, listed := do(t, ts, "GET", zoneURL+k.path, "")
+			// A list naming the default project must not see it. It may
+			// legitimately own resources of its own, so the assertion is on
+			// this id, not on an empty list.
+			_, listed := do(t, ts, "GET", zoneURL+k.path+"?project="+defaultProjectID, "")
 			for _, item := range listed[k.field].([]any) {
 				if m, _ := item.(map[string]any); m["id"] == id {
-					t.Errorf("the default project sees %s of another project", id)
+					t.Errorf("a list naming the default project sees %s of another project", id)
 				}
 			}
 
@@ -125,3 +130,65 @@ func firstID(body map[string]any) (string, bool) {
 	}
 	return "", false
 }
+
+// defaultProjectID is the project a create with no project lands in. Spelled out
+// here rather than imported: this is the external test package, and the value is
+// part of what a client sees.
+const defaultProjectID = "11111111-1111-1111-1111-111111111111"
+
+// An unfiltered list answers every project of the account, which is what the
+// cloud answers and what this emulator used to get backwards.
+//
+// Measured on fr-par, 2026-09-02 (#369), with a second project made for the
+// occasion and deleted after: a volume created in it came back from
+// GET /volumes with no filter, stayed hidden from
+// GET /volumes?project=<the default>, and came back again from
+// GET /volumes?organization=<the org>.
+//
+// Why it matters beyond a filter: `createServer` honours the project a request
+// names, so a server created under a named project was invisible to the very
+// next unfiltered list. The create and the list disagreed, and a client that
+// creates then lists — which is every client — read an empty fleet.
+//
+// The emulator has no credential, so "the caller's project" had to come from
+// somewhere. The cloud settled which of the two coherent answers it takes: the
+// create is authoritative. It accepted a create naming another project and then
+// listed what it had made.
+func TestAnUnfilteredListAnswersEveryProjectLikeTheCloud(t *testing.T) {
+	ts := newTestServer(t)
+
+	status, created := do(t, ts, "POST", zoneURL+"/servers",
+		`{"name":"elsewhere","commercial_type":"DEV1-S","project":"`+otherProject+`"}`)
+	if status != http.StatusCreated {
+		t.Fatalf("create in %s: expected 201, got %d (%v)", otherProject, status, created)
+	}
+	id, _ := firstID(created)
+	if id == "" {
+		t.Fatalf("no id in the create response: %v", created)
+	}
+
+	seen := func(query string) bool {
+		t.Helper()
+		_, listed := do(t, ts, "GET", zoneURL+"/servers"+query, "")
+		for _, item := range listed["servers"].([]any) {
+			if m, _ := item.(map[string]any); m["id"] == id {
+				return true
+			}
+		}
+		return false
+	}
+
+	if !seen("") {
+		t.Error("an unfiltered list hides a server the same emulator just created: " +
+			"the create honoured the project and the list did not")
+	}
+	if seen("?project=" + defaultProjectID) {
+		t.Error("a list naming the default project answers another project's server")
+	}
+	if !seen("?organization=" + defaultOrganizationID) {
+		t.Error("an organization filter hides a project of that same organization")
+	}
+}
+
+// defaultOrganizationID is the one organization this emulator hosts.
+const defaultOrganizationID = "99999999-9999-4999-8999-999999999999"

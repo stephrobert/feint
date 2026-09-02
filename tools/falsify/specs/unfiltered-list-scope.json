@@ -1,0 +1,26 @@
+{
+  "package": "./internal/providers/scaleway/",
+  "mutations": [
+    {
+      "label": "an unfiltered list goes back to the default project, so a server created under a named project is invisible to the list that follows it",
+      "file": "internal/providers/scaleway/servers.go",
+      "find": "\tif q.Get(\"organization\") != \"\" {\n\t\treturn p.tenant(zone)\n\t}\n\treturn p.tenant(zone)\n}",
+      "replace": "\tif q.Get(\"organization\") != \"\" {\n\t\treturn p.tenant(zone)\n\t}\n\treturn resource.Tenant{Provider: Name, Project: defaultProject, Zone: zone}\n}",
+      "test": "TestAnUnfilteredListAnswersEveryProjectLikeTheCloud"
+    },
+    {
+      "label": "a project filter is ignored, so the isolation the previous behaviour was defending is gone with it",
+      "file": "internal/providers/scaleway/servers.go",
+      "find": "\tif project := q.Get(\"project\"); project != \"\" {\n\t\treturn resource.Tenant{Provider: Name, Project: project, Zone: zone}\n\t}",
+      "replace": "\tif project := q.Get(\"project\"); project != \"\" && false {\n\t\treturn resource.Tenant{Provider: Name, Project: project, Zone: zone}\n\t}",
+      "test": "TestListsAreScopedToTheProject"
+    },
+    {
+      "label": "the create stops honouring the project it was given, which is the other half of the disagreement #369 named",
+      "file": "internal/providers/scaleway/servers.go",
+      "find": "func projectOf(requested string) (project, organization string) {\n\treturn orDefault(requested, defaultProject), defaultOrganization\n}",
+      "replace": "func projectOf(requested string) (project, organization string) {\n\treturn orDefault(requested[:0], defaultProject), defaultOrganization\n}",
+      "test": "TestListsAreScopedToTheProject"
+    }
+  ]
+}

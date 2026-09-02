@@ -19,6 +19,33 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Corrigé
 
+- **Un serveur créé sous un projet nommé était invisible de la liste qui
+  suivait** (#369). `createServer` honorait le `project` que la requête nommait,
+  et toute liste sans filtre se limitait au projet par défaut : la création et la
+  liste se contredisaient, et un client qui crée puis liste, c'est-à-dire tous
+  les clients, lisait une flotte vide. Le commentaire au-dessus de `scopeOf`
+  disait déjà la bonne chose, « Neither means the token's default project », trois
+  lignes au-dessus du code qui faisait l'inverse.
+
+  L'issue proposait deux réponses cohérentes, et le cloud a tranché laquelle il
+  prend. Mesuré sur fr-par le 2026-09-02, avec un second projet créé pour
+  l'occasion et supprimé après :
+
+  | requête | le volume de l'autre projet |
+  |---|---|
+  | `GET /volumes` (sans filtre) | **visible** |
+  | `GET /volumes?project=<le défaut>` | caché |
+  | `GET /volumes?organization=<l'organisation>` | visible |
+
+  La création fait donc foi : nommer un projet le rend réel, et une liste sans
+  filtre répond le compte entier. L'isolation que l'ancien comportement défendait
+  est celle de la lecture **filtrée**, et elle est intacte : une liste qui nomme
+  un projet répond toujours ce projet seul.
+
+  L'entrée d'acceptation sur `instance/v1/API.ListServers` est supprimée, et le
+  gate l'a réclamée dans ces termes : « excused nothing this run: either it is
+  fixed and the entry goes, or the corpus no longer carries it ».
+
 - **Le cloud a retiré `b_ssd` à la création et cet émulateur en fabriquait
   encore** (#393). Toutes les routes qui créaient un volume écrivaient ce type :
   `POST /volumes` s'y repliait quand la requête n'en nommait aucun, le

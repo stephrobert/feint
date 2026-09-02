@@ -17,6 +17,33 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Fixed
 
+- **A server created under a named project was invisible to the list that
+  followed it** (#369). `createServer` honoured the `project` a request named,
+  and every unfiltered list scoped itself to the default project, so the create
+  and the list disagreed: a client that creates then lists — which is every
+  client — read an empty fleet. The comment above `scopeOf` already said the
+  right thing, *"Neither means the token's default project"*, three lines above
+  the code doing the opposite.
+
+  The issue offered two coherent answers and the cloud settled which one it
+  takes. Measured on fr-par, 2026-09-02, with a second project made for the
+  occasion and deleted after:
+
+  | request | the other project's volume |
+  |---|---|
+  | `GET /volumes` (no filter) | **visible** |
+  | `GET /volumes?project=<the default>` | hidden |
+  | `GET /volumes?organization=<the org>` | visible |
+
+  So the create is authoritative: naming a project makes it real, and an
+  unfiltered list answers the account. The isolation the old behaviour was
+  defending is the *filtered* read, and it is untouched — a list naming a
+  project still answers that project alone.
+
+  The acceptance entry on `instance/v1/API.ListServers` is deleted, and the gate
+  asked for it in those words: *"excused nothing this run: either it is fixed and
+  the entry goes, or the corpus no longer carries it"*.
+
 - **The cloud retired `b_ssd` at creation and this emulator was still minting
   it** (#393). Every route that made a volume wrote that type: `POST /volumes`
   defaulted to it when the request named none, a server's `root_volume` was
