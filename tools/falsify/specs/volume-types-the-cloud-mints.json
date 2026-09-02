@@ -1,0 +1,54 @@
+{
+  "package": "./internal/providers/scaleway/",
+  "mutations": [
+    {
+      "label": "b_ssd falls through to the generic refusal, so the create is still refused and the client is told nothing about the migration",
+      "file": "internal/providers/scaleway/volumetypes.go",
+      "find": "\tcase volumeType == \"b_ssd\":\n\t\treturn &ArgumentError{\n\t\t\tArgumentName: \"volume_type\",",
+      "replace": "\tcase volumeType == \"b_ssd\" && false:\n\t\treturn &ArgumentError{\n\t\t\tArgumentName: \"volume_type\",",
+      "test": "TestCreateVolumeRefusesTheTypesTheCloudRefuses"
+    },
+    {
+      "label": "an absent volume_type is defaulted again instead of refused, which is how this pack came to stand on a retired type",
+      "file": "internal/providers/scaleway/volumetypes.go",
+      "find": "\tcase volumeType == \"\":\n\t\treturn &ArgumentError{\n\t\t\tArgumentName: \"volume_type\",\n\t\t\tReason:       \"required\",",
+      "replace": "\tcase volumeType == \"\" && false:\n\t\treturn &ArgumentError{\n\t\t\tArgumentName: \"volume_type\",\n\t\t\tReason:       \"required\",",
+      "test": "TestCreateVolumeRefusesTheTypesTheCloudRefuses"
+    },
+    {
+      "label": "the server create stops reading its volumes map, so a template naming b_ssd builds a server the cloud refuses",
+      "file": "internal/providers/scaleway/volumetypes.go",
+      "find": "\t\tif err := serverVolumeTypeError(key, volumes[key].VolumeType, withImage); err != nil {",
+      "replace": "\t\tif err := serverVolumeTypeError(key, volumes[key].VolumeType, withImage); err != nil && false {",
+      "test": "TestCreateServerRefusesTheVolumeTypesTheCloudRefuses"
+    },
+    {
+      "label": "both routes answer CreateVolume's wording, so a client reading the server refusal is pointed at a migration page instead of at sbs_volume",
+      "file": "internal/providers/scaleway/volumetypes.go",
+      "find": "\t\t\tHelpMessage: \"b_ssd volumes are no longer supported. Create volumes with \" +\n\t\t\t\t\"volume_type=sbs_volume instead. More details at \" +\n\t\t\t\t\"https://www.scaleway.com/en/developers/api/instance/#technical-information\",",
+      "replace": "\t\t\tHelpMessage: \"b_ssd volumes are no longer supported. Use Scaleway Block Storage (SBS) \" +\n\t\t\t\t\"volumes instead. More details on \" +\n\t\t\t\t\"https://www.scaleway.com/en/developers/api/instance/#path-volumes-migrate-a-volume-andor-snapshots-to-sbs-scaleway-block-storage\",",
+      "test": "TestCreateServerRefusesTheVolumeTypesTheCloudRefuses"
+    },
+    {
+      "label": "scratch is refused on the type rather than on the image, so a client is told to change the input the cloud does not name",
+      "file": "internal/providers/scaleway/volumetypes.go",
+      "find": "\tcase volumeType == \"scratch\" && withImage:\n\t\treturn &ArgumentError{\n\t\t\tArgumentName: \"image\",",
+      "replace": "\tcase volumeType == \"scratch\" && withImage:\n\t\treturn &ArgumentError{\n\t\t\tArgumentName: field,",
+      "test": "TestCreateServerRefusesTheVolumeTypesTheCloudRefuses"
+    },
+    {
+      "label": "the root volume is forced back to b_ssd whatever the client asked for, which is the answer this pack gave for a year",
+      "file": "internal/providers/scaleway/servers.go",
+      "find": "\tvol := p.newVolume(server.Tenant.Zone, project, organization, volumeName, wanted.VolumeType, size)",
+      "replace": "\tvol := p.newVolume(server.Tenant.Zone, project, organization, volumeName, orDefault(\"b_ssd\", wanted.VolumeType), size)",
+      "test": "TestCreateServerRefusesTheVolumeTypesTheCloudRefuses"
+    },
+    {
+      "label": "the volumes map is read after the server is built, so a refused create leaves a phantom server behind",
+      "file": "internal/providers/scaleway/servers.go",
+      "find": "\tif refuseServerVolumeTypes(w, req.Volumes, true) {\n\t\treturn\n\t}\n\n\tresolvedImageID, imageDisplay, imageLabel := resolveImage(req.Image)",
+      "replace": "\tresolvedImageID, imageDisplay, imageLabel := resolveImage(req.Image)\n\tdefer func() {\n\t\tif refuseServerVolumeTypes(w, req.Volumes, true) {\n\t\t\treturn\n\t\t}\n\t}()",
+      "test": "TestCreateServerRefusesTheVolumeTypesTheCloudRefuses"
+    }
+  ]
+}

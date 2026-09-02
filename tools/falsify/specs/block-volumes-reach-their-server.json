@@ -56,7 +56,7 @@
       "file": "internal/providers/scaleway/snapshots.go",
       "find": "\t\tif volumeType == \"\" && volume.Kind == kindBlockVolume {\n\t\t\tvolumeType = \"unified\"\n\t\t}",
       "replace": "\t\tif volumeType == \"\" && volume.Kind == kindBlockVolume && false {\n\t\t\tvolumeType = \"unified\"\n\t\t}",
-      "expect": "the snapshot falls through to the b_ssd default, naming a product it was not taken from",
+      "expect": "the snapshot falls through to the instance default, naming a product it was not taken from (l_ssd since #393, b_ssd before it)",
       "test": "TestAnInstanceSnapshotOfABlockVolumeDoesNotPromiseTheBlockProduct"
     },
     {

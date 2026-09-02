@@ -807,10 +807,22 @@ Measured by @vde-dis on #8, with OpenTofu 1.12.5 and `scaleway/scaleway` 2.80.0:
   disk is created in `block/v1`, and the provider reads it back through the
   fallback it always used — `instance.GetVolume` first, then `block.GetVolume`
   on a typed 404.
-- **The local types (`l_ssd`, `scratch`) are still overridden**, and that has its
-  own reason, unchanged: the emulated catalogue declares
-  `volumes_constraint.min_size` at 0 and the CLI sums local volumes against it,
-  so attaching one would make the CLI refuse the very creation it just asked for.
+- **The local types are honoured too, since #393**, and the override that used to
+  stand here is gone. `l_ssd` was answered as `b_ssd` whatever the client asked,
+  which is a type `instance/v1` has stopped minting at all: a create naming
+  `l_ssd` on `fr-par` answers `201` and the volume comes back `l_ssd`, measured
+  2026-09-02. `scratch` is refused, and on the argument the cloud names — `image`,
+  not the type: *"Cannot use an image with a scratch volume"*. The reason the
+  override existed is unchanged and still holds the catalogue in place: the
+  emulated `volumes_constraint.min_size` is 0 and the CLI sums local volumes
+  against it, so a value above zero would make the CLI refuse the very creation
+  it just asked for (`TestCatalogueKeepsTheLocalVolumeTrapDisarmed`).
+- **`b_ssd` is refused by this emulator now, the way `fr-par` refuses it**, and
+  the two routes do not share a wording: `POST /volumes` points at the SBS
+  migration page under `argument_name: volume_type`, `POST /servers` says
+  *"Create volumes with volume_type=sbs_volume instead"* under
+  `volumes.<key>.volume_type`. Both are transcribed in
+  `internal/providers/scaleway/volumetypes.go`.
 
 What is still not emulated behind an SBS volume is the storage itself: the size,
 the class and the IO/s are recorded and answered, and nothing is written

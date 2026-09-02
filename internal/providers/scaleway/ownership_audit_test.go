@@ -22,7 +22,7 @@ const zone = "/instance/v1/zones/fr-par-1"
 func aVolume(t *testing.T, ts *httptest.Server, name string) string {
 	t.Helper()
 	_, out := do(t, ts, "POST", zone+"/volumes",
-		`{"name":"`+name+`","volume_type":"b_ssd","size":10000000000}`)
+		`{"name":"`+name+`","volume_type":"l_ssd","size":10000000000}`)
 	vol, _ := out["volume"].(map[string]any)
 	id, _ := vol["id"].(string)
 	if id == "" {

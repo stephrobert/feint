@@ -99,11 +99,16 @@ func (p *Pack) imageView(zone, id, label string) map[string]any {
 		//
 		// TestTheCatalogueImageTypesFromServerLikeTheCloudDoes fails without this.
 		"from_server": "",
+		// l_ssd, measured rather than assumed: a server created on fr-par with
+		// image=ubuntu_jammy came back carrying
+		// image.root_volume.volume_type = "l_ssd" (2026-09-02, #393). It read
+		// b_ssd here, which is the type instance/v1 has stopped minting — an
+		// image no client could reproduce from this API.
 		"root_volume": map[string]any{
 			"id":          catalogueImageSnapshot,
 			"name":        label + "-root",
-			"size":        20_000_000_000,
-			"volume_type": "b_ssd",
+			"size":        rootVolumeSize,
+			"volume_type": "l_ssd",
 		},
 	}
 }

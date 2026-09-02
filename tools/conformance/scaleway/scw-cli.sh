@@ -316,7 +316,7 @@ ok "membership walked, and the spread policy told the truth"
 # saw none of it. The fixture is the thing that had to grow.
 echo "- a volume is attached, refuses to be deleted under its server, and comes back"
 span="$(prove_begin behaviour)"
-vol="$(scw instance volume create name=conformance-vol volume-type=b_ssd size=10G zone="$ZONE" -o json)" \
+vol="$(scw instance volume create name=conformance-vol volume-type=l_ssd size=10G zone="$ZONE" -o json)" \
   || fail "volume create rejected: $vol"
 vol_id="$(printf '%s' "$vol" | jq -r '(.volume // .).id')"
 [ -n "$vol_id" ] && [ "$vol_id" != null ] || fail "no id in the volume create response: $vol"
@@ -414,7 +414,7 @@ scw block snapshot delete "$root_snap_id" zone="$ZONE" >/dev/null \
 # An instance volume for the instance snapshot, created by the client the way a
 # client does. It used to be the server's root disk, which was an instance
 # volume until #365 moved it where the cloud keeps it.
-img_vol="$(scw instance volume create name=conformance-golden-vol volume-type=b_ssd size=10G \
+img_vol="$(scw instance volume create name=conformance-golden-vol volume-type=l_ssd size=10G \
             zone="$ZONE" -o json)" || fail "volume create for the image test rejected: $img_vol"
 img_vol_id="$(printf '%s' "$img_vol" | jq -r '(.volume // .).id')"
 [ -n "$img_vol_id" ] && [ "$img_vol_id" != null ] || fail "no id in the volume create response: $img_vol"
@@ -939,7 +939,7 @@ scw instance ip list zone="$ZONE" -o json >/dev/null || fail "instance ip list r
 scw instance volume list zone="$ZONE" -o json >/dev/null || fail "instance volume list rejected"
 scw instance snapshot list zone="$ZONE" -o json >/dev/null || fail "instance snapshot list rejected"
 
-ivol="$(scw instance volume create name=conformance-iv size=10GB volume-type=b_ssd \
+ivol="$(scw instance volume create name=conformance-iv size=10GB volume-type=l_ssd \
          zone="$ZONE" -o json 2>&1)" || fail "instance volume create rejected: $ivol"
 ivol_id="$(printf '%s' "$ivol" | jq -r '.volume.id // .id // empty')"
 [ -n "$ivol_id" ] || fail "no id in the instance volume response: $ivol"

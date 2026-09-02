@@ -114,6 +114,13 @@ func (p *Pack) dashboard(w http.ResponseWriter, r *http.Request) {
 	}
 
 	volumes := p.env.Store.List(kindVolume, scope)
+	byVolumeType := map[string]int{}
+	sizeByType := map[string]int64{}
+	for _, v := range volumes {
+		t, _ := v.Attrs["volume_type"].(string)
+		byVolumeType[t]++
+		sizeByType[t] += resource.Int64(v, "size")
+	}
 	bssd, bssdSize := 0, int64(0)
 	for _, v := range volumes {
 		if t, _ := v.Attrs["volume_type"].(string); t == "b_ssd" {
@@ -144,12 +151,14 @@ func (p *Pack) dashboard(w http.ResponseWriter, r *http.Request) {
 		"volumes_count":            len(volumes),
 		"volumes_b_ssd_count":      bssd,
 		"volumes_b_ssd_total_size": bssdSize,
-		// Zero because this emulator makes neither, which is true of it rather
-		// than short of anything: /products/volumes on fr-par-1 lists l_ssd and
-		// scratch, and nothing here creates one.
-		"volumes_l_ssd_count":      0,
-		"volumes_l_ssd_total_size": 0,
-		"volumes_scratch_count":    0,
+		// Counted, not assumed. These three were zero on the ground that this
+		// emulator makes neither type, which was true while CreateVolume minted
+		// b_ssd alone. Since #393 it mints exactly what fr-par mints — l_ssd and
+		// scratch — so a constant here would answer none while the store held
+		// them.
+		"volumes_l_ssd_count":      byVolumeType["l_ssd"],
+		"volumes_l_ssd_total_size": sizeByType["l_ssd"],
+		"volumes_scratch_count":    byVolumeType["scratch"],
 		"snapshots_count":          len(p.env.Store.List(kindSnapshot, scope)),
 		"images_count":             len(p.env.Store.List(kindImage, scope)),
 		"ips_count":                len(ips),

@@ -19,6 +19,62 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Corrigé
 
+- **Le cloud a retiré `b_ssd` à la création et cet émulateur en fabriquait
+  encore** (#393). Toutes les routes qui créaient un volume écrivaient ce type :
+  `POST /volumes` s'y repliait quand la requête n'en nommait aucun, le
+  `root_volume` d'un serveur y était forcé quel que soit le type local demandé,
+  un update ajoutant un disque s'y repliait, les images du catalogue
+  l'annonçaient, et un snapshot sans type lisible y retombait. `fr-par` le refuse
+  sur les deux routes de création.
+
+  Mesuré contre un vrai compte le 2026-09-02, et les deux routes ne partagent pas
+  leur formulation, ce qui est la raison pour laquelle les deux sont transcrites
+  plutôt que l'une réutilisée :
+
+  | requête | réponse de `fr-par` |
+  |---|---|
+  | `POST /volumes` sans `volume_type` | 400 `required` : *required key not provided* |
+  | `POST /volumes` `b_ssd` | 400 `constraint` : *b_ssd volumes are no longer supported. Use Scaleway Block Storage (SBS) volumes instead…* |
+  | `POST /volumes` `sbs_volume` | 400 `constraint` : *not a valid value* (c'est le produit de `block/v1`) |
+  | `POST /volumes` `l_ssd`, `scratch` | 201 |
+  | `POST /servers` `volumes.0.volume_type: b_ssd` | 400 `constraint` sur `volumes.0.volume_type` : *Create volumes with volume_type=sbs_volume instead* |
+  | `POST /servers` `l_ssd` | 201, et le volume revient en `l_ssd` : honoré, pas remplacé |
+  | `POST /servers` `scratch` | 400 `constraint` sur **`image`** : *Cannot use an image with a scratch volume* |
+
+  C'est la dérive que le scan de surface ne peut pas voir : aucune signature Go
+  n'a changé, sur aucune des deux opérations. Seul un enregistrement du cloud la
+  nomme, et c'est tout l'argument pour en tenir un. Les quatre entrées
+  d'acceptation qui portaient la divergence dans `corpus/accepted.json` sont
+  supprimées, et `feint corpus --check` compare désormais ces échanges pour de
+  bon.
+
+  **Une limite a bougé avec :** les types locaux ne sont plus écrasés. Une
+  création nommant `l_ssd` donne un `l_ssd`, là où elle donnait un `b_ssd` sous
+  un commentaire qui expliquait pourquoi. La raison de cet écrasement est
+  inchangée et tient toujours le catalogue en place : `volumes_constraint.min_size`
+  reste à 0, pour que la somme des volumes locaux faite par le CLI ne refuse pas
+  la création qu'il vient lui-même de demander. `docs/limits.md` porte le
+  paragraphe corrigé.
+
+  **Et un nombre a bougé avec le type.** Le volume racine de l'image du catalogue
+  est en `l_ssd` désormais (mesuré : un `DEV1-S` créé sur `fr-par` avec
+  `image=ubuntu_jammy` répond `image.root_volume.volume_type: l_ssd`,
+  `size: 10000000000`), ce qui le fait entrer dans l'arithmétique que `scw`
+  applique aux disques **locaux**. Aux 20 Go que cet émulateur annonçait, toute
+  création `STARDUST1-S` était refusée par « image … requires 20 GB on root
+  volume, but root volume is constrained between 0 B and 10 GB ». `rootVolumeSize`
+  vaut 10 Go, comme celui du cloud, et le point d'entrée des images lit cette
+  constante au lieu de répéter le nombre. C'est la suite de conformance qui l'a
+  attrapé, et aucun test unitaire ne le pouvait : l'arithmétique vit chez le
+  client.
+
+  **Ce que cela tranche aussi :** le déclin de `instance/v1/API.ListVolumesTypes`
+  reposait sur une phrase qui a expiré, « cet émulateur ne fabrique aucun des deux
+  types que liste `/products/volumes` ». Il fabrique exactement ces deux-là
+  désormais. Le déclin tient sur son autre condition seule, et le dit : aucun
+  enregistrement de cette route n'existe dans `corpus/`, et elle répond une table
+  de contraintes par type que la règle 4 interdit d'inventer.
+
 - **Un filtre booléen de requête ne lisait qu'une graphie et vidait
   silencieusement la liste pour les autres** (#630). `attached=true` filtrait
   correctement ; `attached=True`, ce qu'envoie le SDK Python officiel parce que

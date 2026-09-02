@@ -227,7 +227,7 @@ func TestBlockListsHonourTheDeclaredFilters(t *testing.T) {
 		{"?tags=team-banana&tags=team-apple", []string{"banana", "apple"}}, // any-match
 		{"?project_id=00000000-0000-4000-9000-000000000001", []string{}},
 		{"?product_resource_id=00000000-dead-4000-9000-000000000001", []string{}},
-		{"?volume_type=b_ssd", []string{}},
+		{"?volume_type=scratch", []string{}},
 		{"?volume_type=sbs", []string{"banana", "apple"}},
 		// Deletion is immediate here, so both values answer the same list —
 		// served, with the difference recorded in docs/limits.md.
@@ -536,15 +536,18 @@ func TestInstanceListsHonourTheirRemainingFilters(t *testing.T) {
 	}
 
 	// Volumes: volume_type and tags.
-	status, _ = do(t, ts, "POST", zone+"/volumes", `{"name":"data","volume_type":"b_ssd","size":10000000000,"tags":["gold"]}`)
+	status, _ = do(t, ts, "POST", zone+"/volumes", `{"name":"data","volume_type":"l_ssd","size":10000000000,"tags":["gold"]}`)
 	if status != http.StatusCreated {
 		t.Fatalf("create volume: status %d", status)
 	}
-	if got := count("/volumes", "volumes", "?volume_type=l_ssd"); got != 0 {
-		t.Fatalf("volumes?volume_type=l_ssd matched %d, want 0", got)
+	// scratch, because the type that answers nothing here has to be one the
+	// filter would happily match: l_ssd played that part until #393 made it the
+	// type this create asks for.
+	if got := count("/volumes", "volumes", "?volume_type=scratch"); got != 0 {
+		t.Fatalf("volumes?volume_type=scratch matched %d, want 0", got)
 	}
-	if got := count("/volumes", "volumes", "?volume_type=b_ssd"); got != 1 {
-		t.Fatalf("volumes?volume_type=b_ssd matched %d, want 1", got)
+	if got := count("/volumes", "volumes", "?volume_type=l_ssd"); got != 1 {
+		t.Fatalf("volumes?volume_type=l_ssd matched %d, want 1", got)
 	}
 	if got := count("/volumes", "volumes", "?tags=gold"); got != 1 {
 		t.Fatalf("volumes?tags=gold matched %d, want 1", got)

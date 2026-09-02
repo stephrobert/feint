@@ -179,7 +179,21 @@ func projectOf(requested string) (project, organization string) {
 // rootVolumeSize is what the emulated image carries, matching the root_volume
 // the image endpoint publishes. The two must agree: a client that sizes a disk
 // from the image and reads it back from the server would otherwise see a diff.
-const rootVolumeSize = 20_000_000_000
+// imageView reads this constant rather than repeating the number, because they
+// drifted apart once already.
+//
+// 10 GB since #393, and the reason is a constraint the CLI enforces rather than
+// a preference. The catalogue image's root volume is typed l_ssd now — measured:
+// a DEV1-S created on fr-par with image=ubuntu_jammy comes back carrying
+// image.root_volume.volume_type "l_ssd" and size 10000000000 — and `scw` sums
+// the LOCAL disks of a create against volumes_constraint. At 20 GB the CLI
+// refused every STARDUST1-S create with "image … requires 20 GB on root volume,
+// but root volume is constrained between 0 B and 10 GB", which is the same trap
+// as the min_size one in catalog.go seen from its other end.
+//
+// The conformance suite is what caught it, and no unit test could have: the
+// arithmetic lives in the client.
+const rootVolumeSize = 10_000_000_000
 
 // rootVolume builds the volume a server always owns. The caller stores it and
 // puts it in the server's map under the key "0".
@@ -266,7 +280,7 @@ func (p *Pack) rootVolume(server *resource.Resource, name, project, organization
 	// copies had already drifted apart — one carried a clause the other did
 	// not. A fact written twice is a fact that will one day be written
 	// differently, and it was already halfway there.
-	vol := p.newVolume(server.Tenant.Zone, project, organization, volumeName, "b_ssd", size)
+	vol := p.newVolume(server.Tenant.Zone, project, organization, volumeName, wanted.VolumeType, size)
 	// A volume this call just built: it can belong to nobody else, so the only
 	// error attachVolume returns cannot happen here.
 	_ = p.attachVolume(vol, server, name)
@@ -383,6 +397,14 @@ func (p *Pack) createServer(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		placementGroup = req.PlacementGroup
+	}
+
+	// Before anything is stored, like the placement group above: a create whose
+	// volumes map names a type the cloud refuses must leave no server behind
+	// (#393). withImage is true because this pack always resolves one, including
+	// for a request that named none.
+	if refuseServerVolumeTypes(w, req.Volumes, true) {
+		return
 	}
 
 	resolvedImageID, imageDisplay, imageLabel := resolveImage(req.Image)
@@ -1334,7 +1356,16 @@ func (p *Pack) setServerVolumes(server *resource.Resource, wanted map[string]vol
 			if volumeName == "" {
 				volumeName = name + "-" + key
 			}
-			vol := p.newVolume(server.Tenant.Zone, project, organization, volumeName, orDefault(tmpl.VolumeType, "b_ssd"), uint64(tmpl.Size))
+			// b_ssd is refused here the way the create path refuses it, and
+			// the default moves to l_ssd: instance/v1 has stopped minting the
+			// former and still mints the latter (#393). UpdateServer's own
+			// answer to a template naming no type was not measured, so the
+			// default is a choice, not a recording — it is named as one here
+			// rather than in a table that would read like a measurement.
+			if err := serverVolumeTypeFault(key, tmpl.VolumeType); err != nil {
+				return err
+			}
+			vol := p.newVolume(server.Tenant.Zone, project, organization, volumeName, orDefault(tmpl.VolumeType, "l_ssd"), uint64(tmpl.Size))
 			// A volume this call just created: it can belong to nobody else.
 			_ = p.attachVolume(vol, server, name)
 			p.env.Store.Put(vol)

@@ -410,9 +410,9 @@ are in `coverage/`, one artefact per provider.
 - `instance` — 2 operations — it mounts Scaleway's File Storage product, and there is no filesystem service behind this emulator for a machine to mount
 - `instance` — 2 operations — the SDK's hand-written helpers, deprecated upstream in favour of AttachServerVolume and DetachServerVolume, which this pack serves and which the CLI calls
 - `instance` — 2 operations — there is no legacy storage behind this emulator to migrate from, so a plan would describe a move between two things that are the same store
-- `instance` — 1 operation — a live read of /products/volumes on fr-par-1 answers l_ssd and scratch, and this emulator makes neither — its instance volumes are b_ssd and its root disks sbs_volume — so serving it would offer a client two types every create then refuses
 - `instance` — 1 operation — it hands an instance flexible IP over to IPAM's pool, and the public addresses of this emulator live and die with the instance product: IPAM here holds private-network addresses only
 - `instance` — 1 operation — it writes into Object Storage, which is not emulated because the Terraform provider builds the S3 endpoint in code: supporting it needs DNS interception and a certificate, measured in docs/limits.md
+- `instance` — 1 operation — no recording of /products/volumes exists in corpus/, and the route answers a table of per-type constraints that would have to be invented rather than measured
 - `instance` — 1 operation — the server already publishes allowed_actions, derived from its state, so a second listing would be a second place to keep in step with the first
 - `ipam` — 1 operation — ipam/v1alpha1 is the superseded draft of ipam/v1, which is served
 - `lb` — 53 operations — the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI

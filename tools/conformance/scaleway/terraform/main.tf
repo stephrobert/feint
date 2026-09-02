@@ -211,8 +211,12 @@ resource "scaleway_vpc_route" "conformance" {
 # attached to a server" on every retry. Both were invisible to unit tests, which
 # read JSON, and to this fixture, which had no volume in it.
 resource "scaleway_instance_volume" "conformance" {
-  name       = "conformance-tf-data"
-  type       = "b_ssd"
+  name = "conformance-tf-data"
+  # l_ssd since #393: instance/v1 stopped minting b_ssd and this emulator now
+  # refuses it the way fr-par does, so the type this fixture declares has to be
+  # one the API still creates. That the provider plans and applies l_ssd here is
+  # the half of the measurement no unit test can make.
+  type       = "l_ssd"
   size_in_gb = 10
   zone       = "fr-par-1"
 }

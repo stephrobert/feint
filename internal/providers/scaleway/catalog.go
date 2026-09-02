@@ -61,10 +61,14 @@ type serverType struct {
 	// local volumes against volumes_constraint. A client reading the per-volume
 	// limits found nothing.
 	//
-	// Serialised as an empty object rather than a populated one: this emulator
-	// attaches no local volume, so it has no per-volume limit to state, and
-	// inventing one would put a bound in a client's arithmetic that nothing
-	// enforces.
+	// Serialised as an empty object rather than a populated one, and the reason
+	// changed with #393 without changing the answer. It used to be that this
+	// emulator attached no local volume at all; it attaches them now, since
+	// CreateVolume mints exactly what fr-par mints. What has not changed is that
+	// no recording of per_volume_constraint exists here, and inventing a bound
+	// would put it in a client's arithmetic with nothing enforcing it — the same
+	// arithmetic that refused a STARDUST1-S create the day the catalogue image
+	// became local and still claimed 20 GB.
 	PerVolumeConstraint map[string]any `json:"per_volume_constraint"`
 	// BlockBandwidth, EndOfService and the scratch fields complete what the
 	// real answer carries. GpuInfo and MigProfile are null there too — a type

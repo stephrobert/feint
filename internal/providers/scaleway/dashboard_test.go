@@ -111,15 +111,21 @@ func TestTheDashboardCountsWhatTheStoreHolds(t *testing.T) {
 		t.Errorf("volumes_count is %v after a create whose root disk is an sbs_volume", after["volumes_count"])
 	}
 	if status, out := do(t, ts, "POST", zone+"/volumes",
-		`{"name":"own","volume_type":"b_ssd","size":10000000000}`); status != http.StatusCreated {
+		`{"name":"own","volume_type":"l_ssd","size":10000000000}`); status != http.StatusCreated {
 		t.Fatalf("volume create: status %d (%v)", status, out)
 	}
 	withVolume := read()
 	if count(withVolume, "volumes_count") != 1 {
 		t.Errorf("volumes_count is %v after one instance volume", withVolume["volumes_count"])
 	}
-	if count(withVolume, "volumes_b_ssd_count") != 1 {
-		t.Errorf("volumes_b_ssd_count is %v after one b_ssd volume", withVolume["volumes_b_ssd_count"])
+	// l_ssd, not b_ssd: since #393 CreateVolume refuses the type the cloud
+	// retired, so the b_ssd counter is one no create can move and the l_ssd one
+	// is what a client now watches.
+	if count(withVolume, "volumes_l_ssd_count") != 1 {
+		t.Errorf("volumes_l_ssd_count is %v after one l_ssd volume", withVolume["volumes_l_ssd_count"])
+	}
+	if count(withVolume, "volumes_b_ssd_count") != 0 {
+		t.Errorf("volumes_b_ssd_count is %v and no create can mint one", withVolume["volumes_b_ssd_count"])
 	}
 	byType, _ := after["servers_by_types"].(map[string]any)
 	if got, _ := byType["DEV1-S"].(float64); got != 1 {
@@ -136,14 +142,13 @@ func TestTheDashboardCountsWhatTheStoreHolds(t *testing.T) {
 		t.Error("running_servers_count did not follow the server that started")
 	}
 
-	// The two types this emulator never makes are zero because it makes none,
-	// which is true of it rather than short of anything: /products/volumes on
-	// fr-par-1 lists l_ssd and scratch, and nothing here creates one.
+	// scratch is a type this API mints and this test never asked for, so its
+	// counter is zero because the store holds none. It was a constant until #393
+	// made both l_ssd and scratch creatable, at which point a hardcoded zero
+	// would have answered none while the store held them.
 	final := read()
-	for _, key := range []string{"volumes_l_ssd_count", "volumes_scratch_count"} {
-		if count(final, key) != 0 {
-			t.Errorf("%s is %v; this emulator makes none", key, final[key])
-		}
+	if count(final, "volumes_scratch_count") != 0 {
+		t.Errorf("volumes_scratch_count is %v and nothing here made one", final["volumes_scratch_count"])
 	}
 }
 
@@ -159,7 +164,7 @@ func TestTheDashboardTotalsTheSizesItCounts(t *testing.T) {
 	const zone = "/instance/v1/zones/fr-par-1"
 
 	if status, out := do(t, ts, "POST", zone+"/volumes",
-		`{"name":"sized","volume_type":"b_ssd","size":10000000000}`); status != http.StatusCreated {
+		`{"name":"sized","volume_type":"l_ssd","size":10000000000}`); status != http.StatusCreated {
 		t.Fatalf("volume create: status %d (%v)", status, out)
 	}
 	status, out := do(t, ts, "GET", zone+"/dashboard", "")
@@ -167,9 +172,9 @@ func TestTheDashboardTotalsTheSizesItCounts(t *testing.T) {
 		t.Fatalf("dashboard: status %d", status)
 	}
 	d, _ := out["dashboard"].(map[string]any)
-	total, _ := d["volumes_b_ssd_total_size"].(float64)
+	total, _ := d["volumes_l_ssd_total_size"].(float64)
 	if total != 10000000000 {
-		t.Errorf("volumes_b_ssd_total_size is %v for one 10 GB volume; the count says %v",
-			d["volumes_b_ssd_total_size"], d["volumes_b_ssd_count"])
+		t.Errorf("volumes_l_ssd_total_size is %v for one 10 GB volume; the count says %v",
+			d["volumes_l_ssd_total_size"], d["volumes_l_ssd_count"])
 	}
 }

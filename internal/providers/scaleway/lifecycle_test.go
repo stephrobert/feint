@@ -290,7 +290,7 @@ func TestAdditionalVolumesAreAttachedAtCreate(t *testing.T) {
 	ts := newTestServer(t)
 	const zone = "/instance/v1/zones/fr-par-1"
 
-	status, out := do(t, ts, "POST", zone+"/volumes", `{"name":"extra","size":10000000000,"volume_type":"b_ssd"}`)
+	status, out := do(t, ts, "POST", zone+"/volumes", `{"name":"extra","size":10000000000,"volume_type":"l_ssd"}`)
 	if status != 201 {
 		t.Fatalf("volume create: status %d", status)
 	}

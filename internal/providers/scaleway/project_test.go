@@ -24,7 +24,7 @@ func TestListsAreScopedToTheProject(t *testing.T) {
 	}{
 		{"servers", "/servers", `{"name":"scoped","commercial_type":"DEV1-S","project":"` + otherProject + `"}`, "servers"},
 		{"ips", "/ips", `{"project":"` + otherProject + `"}`, "ips"},
-		{"volumes", "/volumes", `{"name":"scoped","project":"` + otherProject + `"}`, "volumes"},
+		{"volumes", "/volumes", `{"name":"scoped","volume_type":"l_ssd","project":"` + otherProject + `"}`, "volumes"},
 		{"security_groups", "/security_groups", `{"name":"scoped","project":"` + otherProject + `"}`, "security_groups"},
 	}
 

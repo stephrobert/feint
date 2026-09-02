@@ -259,8 +259,10 @@ func TestAnInstanceSnapshotOfABlockVolumeDoesNotPromiseTheBlockProduct(t *testin
 		t.Errorf("the snapshot reports size %v, want the volume's 20000000000", snap["size"])
 	}
 	// b_ssd would name the product it was NOT taken from.
-	if snap["volume_type"] == "b_ssd" {
-		t.Errorf("the snapshot of a block volume is typed b_ssd, which is the other product")
+	if snap["volume_type"] != "unified" {
+		t.Errorf("the snapshot of a block volume is typed %v, want unified: the fallback names the "+
+			"instance product, and stating the value keeps this test discriminating whatever that "+
+			"fallback becomes (it was b_ssd until #393)", snap["volume_type"])
 	}
 	// And the promise: sbs_snapshot means "this id resolves in block/v1alpha1".
 	if snap["volume_type"] == "sbs_snapshot" {

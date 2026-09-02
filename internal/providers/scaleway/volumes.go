@@ -117,9 +117,11 @@ func (p *Pack) createVolume(w http.ResponseWriter, r *http.Request) {
 	if req.Size != nil && *req.Size > 0 {
 		size = *req.Size
 	}
+	if bad := refuseRetiredVolumeType(w, req.VolumeType); bad {
+		return
+	}
 	project, organization := projectOf(req.Project)
-	res := p.newVolume(zone, project, organization, req.Name,
-		orDefault(req.VolumeType, "b_ssd"), size)
+	res := p.newVolume(zone, project, organization, req.Name, req.VolumeType, size)
 	res.Attrs["tags"] = orEmpty(req.Tags)
 	p.env.Store.Put(res)
 

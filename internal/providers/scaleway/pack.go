@@ -777,15 +777,23 @@ func (p *Pack) Declined() []emulator.Decline {
 		// emulator creates — a client picking DEV1-S gets a DEV1-S, and its
 		// values come from a recording (corpus/scaleway/scw-instance.jsonl seq
 		// 2-4). A live read of /products/volumes on fr-par-1, 2026-09-01, answers
-		// exactly two types: l_ssd (Local SSD) and scratch. This emulator makes
-		// neither. Serving it faithfully would hand a client a menu on which
-		// every item is one the create refuses, which is a worse answer than a
-		// refusal that points at the route list.
+		// exactly two types: l_ssd (Local SSD) and scratch.
 		//
-		// The day a recording of it exists beside a pack that makes those types,
-		// this becomes a serve. Until then the decline stands, on a sentence that
-		// says what is actually true.
-		emulator.Because("a live read of /products/volumes on fr-par-1 answers l_ssd and scratch, and this emulator makes neither — its instance volumes are b_ssd and its root disks sbs_volume — so serving it would offer a client two types every create then refuses",
+		// Half of that reasoning has since expired, and this comment says which
+		// half rather than leaving the sentence standing. #393 made CreateVolume
+		// answer exactly what fr-par answers, so l_ssd and scratch are now the
+		// two types this pack mints and nothing else is: the menu would no
+		// longer list items the create refuses. It names them.
+		//
+		// What is left is the other condition the decline already carried, and
+		// it is unchanged: no recording of /products/volumes exists in corpus/,
+		// and this route answers a table of per-type constraints — sizes, snapshot
+		// rules — that rule 4 forbids inventing. A menu made up here would be
+		// exactly the plausible-wrong answer this repository exists to avoid.
+		//
+		// The day that recording lands, this becomes a serve, and the pack that
+		// makes those types is already waiting for it.
+		emulator.Because("no recording of /products/volumes exists in corpus/, and the route answers a table of per-type constraints that would have to be invented rather than measured",
 			"instance/v1/API.ListVolumesTypes"),
 
 		// Migrating a legacy local volume, or a snapshot of one, to Scaleway

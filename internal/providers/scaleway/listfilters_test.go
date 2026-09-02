@@ -164,7 +164,7 @@ func TestUpdateServerAttachesAndDetachesVolumes(t *testing.T) {
 	root, _ := volumes["0"].(map[string]any)
 	rootID, _ := root["id"].(string)
 
-	status, out = do(t, ts, "POST", zone+"/volumes", `{"name":"extra","volume_type":"b_ssd","size":10000000000}`)
+	status, out = do(t, ts, "POST", zone+"/volumes", `{"name":"extra","volume_type":"l_ssd","size":10000000000}`)
 	if status != http.StatusCreated {
 		t.Fatalf("create volume: status %d (%v)", status, out)
 	}

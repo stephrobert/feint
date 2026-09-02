@@ -161,7 +161,7 @@ func TestAnInstanceSnapshotOfARestoredVolumeInheritsItsSize(t *testing.T) {
 	defer ts.Close()
 
 	status, created := do(t, ts, "POST", instanceZone+"/volumes",
-		`{"name":"restored","volume_type":"b_ssd","size":10000000000}`)
+		`{"name":"restored","volume_type":"l_ssd","size":10000000000}`)
 	if status != http.StatusCreated && status != http.StatusOK {
 		t.Fatalf("create the instance volume: status %d, %v", status, created)
 	}

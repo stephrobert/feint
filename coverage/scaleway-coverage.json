@@ -1412,7 +1412,7 @@
     {
       "operation": "instance/v1/API.ListVolumesTypes",
       "product": "instance",
-      "reason": "a live read of /products/volumes on fr-par-1 answers l_ssd and scratch, and this emulator makes neither — its instance volumes are b_ssd and its root disks sbs_volume — so serving it would offer a client two types every create then refuses",
+      "reason": "no recording of /products/volumes exists in corpus/, and the route answers a table of per-type constraints that would have to be invented rather than measured",
       "version": "v1",
       "status": "declined"
     },

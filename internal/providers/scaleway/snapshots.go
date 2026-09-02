@@ -149,8 +149,13 @@ func (p *Pack) createSnapshot(w http.ResponseWriter, r *http.Request) {
 			size = resource.Uint64(volume, "size")
 		}
 	}
+	// l_ssd since #393: the fallback named b_ssd, which instance/v1 no longer
+	// mints, so a snapshot reaching this line was typed after a product that can
+	// no longer be created. Every instance volume now carries l_ssd or scratch,
+	// which makes this a fallback for a volume with no readable type at all —
+	// and l_ssd is the one of the two a snapshot can be taken of.
 	if volumeType == "" {
-		volumeType = "b_ssd"
+		volumeType = "l_ssd"
 	}
 
 	project, organization := projectOf(textPtr(req.Project))

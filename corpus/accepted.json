@@ -1327,38 +1327,6 @@
     },
     {
       "file": "scaleway/scw-refusals.jsonl",
-      "operation": "instance/v1/API.CreateVolume",
-      "kind": "absent",
-      "path": "details",
-      "reason": "The cloud has retired b_ssd and refuses it at creation with a constraint on volume_type; this emulator accepts it and, worse, mints it for every root volume (rootVolume, servers.go). It is drift the surface scan cannot see, because CreateVolume's Go signature is unchanged.",
-      "issue": "https://github.com/stephrobert/feint/issues/393"
-    },
-    {
-      "file": "scaleway/scw-refusals.jsonl",
-      "operation": "instance/v1/API.CreateVolume",
-      "kind": "absent",
-      "path": "message",
-      "reason": "The cloud has retired b_ssd and refuses it at creation with a constraint on volume_type; this emulator accepts it and, worse, mints it for every root volume (rootVolume, servers.go). It is drift the surface scan cannot see, because CreateVolume's Go signature is unchanged.",
-      "issue": "https://github.com/stephrobert/feint/issues/393"
-    },
-    {
-      "file": "scaleway/scw-refusals.jsonl",
-      "operation": "instance/v1/API.CreateVolume",
-      "kind": "absent",
-      "path": "type",
-      "reason": "The cloud has retired b_ssd and refuses it at creation with a constraint on volume_type; this emulator accepts it and, worse, mints it for every root volume (rootVolume, servers.go). It is drift the surface scan cannot see, because CreateVolume's Go signature is unchanged.",
-      "issue": "https://github.com/stephrobert/feint/issues/393"
-    },
-    {
-      "file": "scaleway/scw-refusals.jsonl",
-      "operation": "instance/v1/API.CreateVolume",
-      "kind": "status",
-      "path": "",
-      "reason": "The cloud has retired b_ssd and refuses it at creation with a constraint on volume_type; this emulator accepts it and, worse, mints it for every root volume (rootVolume, servers.go). It is drift the surface scan cannot see, because CreateVolume's Go signature is unchanged.",
-      "issue": "https://github.com/stephrobert/feint/issues/393"
-    },
-    {
-      "file": "scaleway/scw-refusals.jsonl",
       "operation": "instance/v1/API.GetImage",
       "kind": "absent",
       "path": "message",
