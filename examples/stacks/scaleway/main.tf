@@ -254,8 +254,10 @@ resource "scaleway_instance_security_group" "app" {
 # ---------------------------------------------------------------------------
 
 resource "scaleway_instance_volume" "golden" {
-  name       = "platform-golden-src"
-  type       = "b_ssd"
+  name = "platform-golden-src"
+  # l_ssd since #393: instance/v1 refuses b_ssd at creation the way fr-par does,
+  # so a stack declaring it would be refused by the emulator it is applied to.
+  type       = "l_ssd"
   size_in_gb = 10
 }
 
@@ -340,9 +342,10 @@ resource "scaleway_ipam_ip" "web" {
 }
 
 resource "scaleway_instance_volume" "web_data" {
-  count      = var.web_count
-  name       = "platform-web-data-${count.index}"
-  type       = "b_ssd"
+  count = var.web_count
+  name  = "platform-web-data-${count.index}"
+  # l_ssd, for the reason above.
+  type       = "l_ssd"
   size_in_gb = 10
 }
 
