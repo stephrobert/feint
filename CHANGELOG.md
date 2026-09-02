@@ -40,6 +40,36 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Fixed
 
+- **The `organization` filter was ignored, so an organization that owns nothing
+  here answered the whole fleet** (#638). Seven of `ListServers`' eight declared
+  filters partitioned the set exactly, `project` included and with the same
+  shape; only this one had no effect.
+
+  The failure mode is what makes it worth a line: an ignored filter does not
+  answer an error and does not answer nothing. It answers a **well-shaped,
+  plausible, larger** page, and the client cannot tell. It is #630's defect
+  mirrored — *match everything* where that one was *match nothing*.
+
+  Measured on fr-par, 2026-09-02, with one volume on the account:
+
+  | request | `fr-par` answers |
+  |---|---|
+  | `?organization=<the account's own>` | the volume, visible |
+  | `?organization=<a ghost uuid>` | 200, empty |
+  | `?organization=not-a-uuid` | 400 `invalid_arguments`, `argument_name: organization`, *"not-a-uuid is not a valid UUID."* |
+
+  Both facts were missing: the filter partitions, and a value that is not a UUID
+  is refused rather than accepted and ignored.
+
+  **Why this was left alone until now, and what changed.** The reason is written
+  in `listSSHKeys` and it was a good one: `scw` names its configured organization
+  on every list, nothing obliges that configuration to spell this emulator's
+  constant, and comparing once told the CLI that the key it had just created did
+  not exist. #391 settled the same argument for projects — the cloud filters, and
+  a client configured from `feint env` is clear of it. `feint env scaleway`
+  publishes `SCW_DEFAULT_ORGANIZATION_ID` as this emulator's own constant, and the
+  conformance suite's `fake-credentials.env` carries the same value.
+
 - **Two refusals answered the wrong status, and a client branches on exactly
   that** (#394). A 404 says "create the parent first", a 400 says "your body is
   wrong and the parent is beside the point", a 403 says "you are not allowed

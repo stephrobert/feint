@@ -4,15 +4,15 @@
     {
       "label": "an unfiltered list goes back to the default project, so a server created under a named project is invisible to the list that follows it",
       "file": "internal/providers/scaleway/servers.go",
-      "find": "\tif q.Get(\"organization\") != \"\" {\n\t\treturn p.tenant(zone)\n\t}\n\treturn p.tenant(zone)\n}",
-      "replace": "\tif q.Get(\"organization\") != \"\" {\n\t\treturn p.tenant(zone)\n\t}\n\treturn resource.Tenant{Provider: Name, Project: defaultProject, Zone: zone}\n}",
+      "find": "\tif organization == \"\" {\n\t\treturn p.tenant(zone), true\n\t}",
+      "replace": "\tif organization == \"\" {\n\t\tscoped := p.tenant(zone)\n\t\tscoped.Project = defaultProject\n\t\treturn scoped, true\n\t}",
       "test": "TestAnUnfilteredListAnswersEveryProjectLikeTheCloud"
     },
     {
       "label": "a project filter is ignored, so the isolation the previous behaviour was defending is gone with it",
       "file": "internal/providers/scaleway/servers.go",
-      "find": "\tif project := q.Get(\"project\"); project != \"\" {\n\t\treturn resource.Tenant{Provider: Name, Project: project, Zone: zone}\n\t}",
-      "replace": "\tif project := q.Get(\"project\"); project != \"\" && false {\n\t\treturn resource.Tenant{Provider: Name, Project: project, Zone: zone}\n\t}",
+      "find": "\tif project := q.Get(\"project\"); project != \"\" {\n\t\treturn resource.Tenant{Provider: Name, Project: project, Zone: zone}, true\n\t}",
+      "replace": "\tif project := q.Get(\"project\"); project != \"\" && false {\n\t\treturn resource.Tenant{Provider: Name, Project: project, Zone: zone}, true\n\t}",
       "test": "TestListsAreScopedToTheProject"
     },
     {

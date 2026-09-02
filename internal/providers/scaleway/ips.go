@@ -270,7 +270,11 @@ func (p *Pack) listIPs(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	all := p.env.Store.List(kindIP, p.scopeOf(r, zone))
+	scope, ok := p.scopeOf(w, r, zone)
+	if !ok {
+		return
+	}
+	all := p.env.Store.List(kindIP, scope)
 	q := r.URL.Query()
 	// `name` is the SDK's own reading, not this pack's: "filter on the IP
 	// address (Works as a LIKE operation on the IP address)". There is no name

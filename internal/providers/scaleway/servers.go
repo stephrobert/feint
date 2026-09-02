@@ -179,22 +179,66 @@ func (p *Pack) tenant(zone string) resource.Tenant {
 // The isolation the previous behaviour was defending is the filtered read, and
 // it is untouched.
 //
-// TestAnUnfilteredListAnswersEveryProjectLikeTheCloud fails without this.
-func (p *Pack) scopeOf(r *http.Request, zone string) resource.Tenant {
+// # The organization filter filters too (#638)
+//
+// It did not, and the failure mode was the worst kind: an ignored filter answers
+// a well-shaped, plausible, LARGER page, and the client cannot tell. Measured on
+// fr-par the same day, with one volume on the account:
+//
+//	GET /volumes?organization=<the account's own>  the volume: VISIBLE
+//	GET /volumes?organization=<a ghost uuid>       200, empty
+//	GET /volumes?organization=not-a-uuid           400 invalid_arguments,
+//	                                               argument_name "organization",
+//	                                               "not-a-uuid is not a valid UUID."
+//
+// Two facts, and both were missing here: the filter partitions, and a value that
+// is not a UUID is refused rather than accepted and ignored.
+//
+// The reason this was left alone until now is written in listSSHKeys and it was
+// a good one: `scw` names its configured organization on every list, nothing
+// obliges that configuration to spell this emulator's constant, and comparing
+// told the CLI that the key it had just created did not exist. What changed is
+// that the same argument was settled for projects in #391 — the cloud filters,
+// and a client configured from `feint env` is clear of it because `feint env
+// scaleway` publishes SCW_DEFAULT_ORGANIZATION_ID as this constant. The
+// conformance suite's fake-credentials.env carries the same value, which is why
+// filtering here costs no client anything.
+//
+// TestAnUnfilteredListAnswersEveryProjectLikeTheCloud and
+// TestAnOrganizationFilterPartitionsTheFleet fail without this.
+func (p *Pack) scopeOf(w http.ResponseWriter, r *http.Request, zone string) (resource.Tenant, bool) {
 	q := r.URL.Query()
 	if project := q.Get("project"); project != "" {
-		return resource.Tenant{Provider: Name, Project: project, Zone: zone}
+		return resource.Tenant{Provider: Name, Project: project, Zone: zone}, true
 	}
-	// The organization branch answers the same tenant as the fall-through, and
-	// it stays because the parameter has to be READ. #277's gate refuses a
-	// declared query parameter a handler never names: dropping this branch made
-	// four operations fail it at once, which is the gate doing exactly its job —
-	// an emulator that ignores a filter answers a superset and calls it a match.
-	if q.Get("organization") != "" {
-		return p.tenant(zone)
+	organization := q.Get("organization")
+	if organization == "" {
+		return p.tenant(zone), true
 	}
-	return p.tenant(zone)
+	// looksLikeUUID lives in images.go and is the same question asked there: one
+	// shape, one reader.
+	if !looksLikeUUID(organization) {
+		writeInvalidArguments(w, ArgumentError{
+			ArgumentName: "organization",
+			Reason:       "constraint",
+			HelpMessage:  organization + " is not a valid UUID.",
+		})
+		return resource.Tenant{}, false
+	}
+	if organization != defaultOrganization {
+		return tenantNothingMatches, true
+	}
+	return p.tenant(zone), true
 }
+
+// tenantNothingMatches is a scope no resource can be filed under, so a list
+// scoped to it is empty by construction.
+//
+// The Provider field carries it rather than the Project, and that is what makes
+// it sound: Provider is written by the pack when a resource is created and never
+// by a client, so no request can conjure a resource that matches. A sentinel
+// project identifier would be one declaration away from being real.
+var tenantNothingMatches = resource.Tenant{Provider: "no-such-organization"}
 
 // projectOf resolves the project a create request belongs to, and the
 // organization above it. The organization is not taken from the request: the
@@ -342,7 +386,11 @@ func (p *Pack) listServers(w http.ResponseWriter, r *http.Request) {
 	}
 
 	q := r.URL.Query()
-	all := filterServers(p.env.Store.List(kindServer, p.scopeOf(r, zone)), q)
+	scope, ok := p.scopeOf(w, r, zone)
+	if !ok {
+		return
+	}
+	all := filterServers(p.env.Store.List(kindServer, scope), q)
 	all, err := p.filterServersByLinks(all, q)
 	if err != nil {
 		writeInvalidArguments(w, ArgumentError{

@@ -48,7 +48,11 @@ func (p *Pack) listVolumes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	all := p.env.Store.List(kindVolume, p.scopeOf(r, zone))
+	scope, ok := p.scopeOf(w, r, zone)
+	if !ok {
+		return
+	}
+	all := p.env.Store.List(kindVolume, scope)
 	// A substring, not an equality: instance_sdk.go documents the filter with its
 	// own example — "vol" returns "myvolume" but not "data". Compared by equality
 	// here, `scw instance volume list name=vol` came back empty against a volume

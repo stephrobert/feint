@@ -43,6 +43,37 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Corrigé
 
+- **Le filtre `organization` était ignoré, donc une organisation qui ne possède
+  rien ici répondait toute la flotte** (#638). Sept des huit filtres déclarés de
+  `ListServers` partitionnaient l'ensemble exactement, `project` compris et avec
+  la même forme ; seul celui-ci n'avait aucun effet.
+
+  C'est le mode d'échec qui mérite la ligne : un filtre ignoré ne répond pas une
+  erreur et ne répond pas rien. Il répond une page **bien formée, plausible, plus
+  grande**, et le client ne peut pas s'en apercevoir. C'est le défaut de #630 en
+  miroir : « tout correspond » là où l'autre disait « rien ne correspond ».
+
+  Mesuré sur fr-par le 2026-09-02, avec un volume sur le compte :
+
+  | requête | réponse de `fr-par` |
+  |---|---|
+  | `?organization=<celle du compte>` | le volume, visible |
+  | `?organization=<un UUID fantôme>` | 200, vide |
+  | `?organization=not-a-uuid` | 400 `invalid_arguments`, `argument_name: organization`, « not-a-uuid is not a valid UUID. » |
+
+  Les deux faits manquaient : le filtre partitionne, et une valeur qui n'est pas
+  un UUID est refusée plutôt qu'acceptée puis ignorée.
+
+  **Pourquoi cela avait été laissé, et ce qui a changé.** La raison est écrite
+  dans `listSSHKeys` et elle était bonne : `scw` nomme son organisation
+  configurée sur chaque liste, rien n'oblige cette configuration à épeler la
+  constante de cet émulateur, et comparer avait un jour dit au CLI que la clé
+  qu'il venait de créer n'existait pas. #391 a tranché le même argument pour les
+  projets : le cloud filtre, et un client configuré depuis `feint env` n'y est pas
+  exposé. `feint env scaleway` publie `SCW_DEFAULT_ORGANIZATION_ID` avec la
+  constante de cet émulateur, et le `fake-credentials.env` de la suite de
+  conformance porte la même valeur.
+
 - **Deux refus répondaient le mauvais statut, et c'est exactement là-dessus qu'un
   client branche** (#394). Un 404 dit « crée le parent d'abord », un 400 dit
   « ton corps est mauvais et le parent n'y est pour rien », un 403 dit « tu n'as

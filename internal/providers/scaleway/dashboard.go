@@ -99,7 +99,10 @@ func (p *Pack) dashboard(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	scope := p.scopeOf(r, zone)
+	scope, ok := p.scopeOf(w, r, zone)
+	if !ok {
+		return
+	}
 
 	servers := p.env.Store.List(kindServer, scope)
 	byType := map[string]int{}

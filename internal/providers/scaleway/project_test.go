@@ -190,3 +190,70 @@ func TestAnUnfilteredListAnswersEveryProjectLikeTheCloud(t *testing.T) {
 
 // defaultOrganizationID is the one organization this emulator hosts.
 const defaultOrganizationID = "99999999-9999-4999-8999-999999999999"
+
+// The organization filter partitions the fleet, and a value that is not a UUID
+// is refused rather than accepted and ignored (#638).
+//
+// Measured on fr-par, 2026-09-02, with one volume on the account:
+//
+//	GET /volumes?organization=<the account's own>  the volume: VISIBLE
+//	GET /volumes?organization=<a ghost uuid>       200, empty
+//	GET /volumes?organization=not-a-uuid           400 invalid_arguments,
+//	                                               argument_name "organization",
+//	                                               "not-a-uuid is not a valid UUID."
+//
+// Why the failure mode mattered more than the missing filter: an ignored filter
+// does not answer an error and does not answer nothing. It answers a well-shaped,
+// plausible, LARGER page, and the client cannot tell. That is #630's defect
+// mirrored — match everything instead of match this one.
+func TestAnOrganizationFilterPartitionsTheFleet(t *testing.T) {
+	ts := newTestServer(t)
+	const ghostOrganization = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"
+
+	if status, created := do(t, ts, "POST", zoneURL+"/servers",
+		`{"name":"one","commercial_type":"DEV1-S"}`); status != http.StatusCreated {
+		t.Fatalf("create: %d (%v)", status, created)
+	}
+
+	count := func(query string) (int, map[string]any) {
+		t.Helper()
+		status, listed := do(t, ts, "GET", zoneURL+"/servers"+query, "")
+		if status != http.StatusOK {
+			return -status, listed
+		}
+		servers, _ := listed["servers"].([]any)
+		return len(servers), listed
+	}
+
+	// The accepting half first: without it a filter that answered nothing would
+	// pass every assertion below and break the product.
+	if got, body := count(""); got != 1 {
+		t.Fatalf("an unfiltered list answered %d server(s), want 1 (%v)", got, body)
+	}
+	if got, body := count("?organization=" + defaultOrganizationID); got != 1 {
+		t.Errorf("the account's own organization answered %d server(s), want 1 (%v)", got, body)
+	}
+
+	// The filter this issue is about. An organization that is not this one owns
+	// nothing here, and answering the whole fleet is the plausible-wrong answer.
+	if got, body := count("?organization=" + ghostOrganization); got != 0 {
+		t.Errorf("an organization nothing belongs to answered %d server(s), want 0 (%v)", got, body)
+	}
+
+	// And a value that is not a UUID is refused, in the cloud's own words.
+	status, body := do(t, ts, "GET", zoneURL+"/servers?organization=not-a-uuid", "")
+	if status != http.StatusBadRequest {
+		t.Fatalf("a malformed organization answered %d, want 400 (%v)", status, body)
+	}
+	details, _ := body["details"].([]any)
+	if len(details) != 1 {
+		t.Fatalf("details holds %d entries, want 1 (%v)", len(details), body)
+	}
+	d, _ := details[0].(map[string]any)
+	if d["argument_name"] != "organization" {
+		t.Errorf("argument_name is %v, want organization", d["argument_name"])
+	}
+	if d["help_message"] != "not-a-uuid is not a valid UUID." {
+		t.Errorf("help_message is %v, want the cloud's own sentence", d["help_message"])
+	}
+}

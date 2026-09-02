@@ -1,0 +1,40 @@
+{
+  "package": "./internal/providers/scaleway/",
+  "mutations": [
+    {
+      "label": "the organization filter is ignored again, so a client asking for one organization is answered the whole fleet and cannot tell",
+      "file": "internal/providers/scaleway/servers.go",
+      "find": "\tif organization != defaultOrganization {\n\t\treturn tenantNothingMatches, true\n\t}",
+      "replace": "\tif organization != defaultOrganization && false {\n\t\treturn tenantNothingMatches, true\n\t}",
+      "test": "TestAnOrganizationFilterPartitionsTheFleet"
+    },
+    {
+      "label": "a value that is not a UUID is accepted and ignored, which is the silence an explicit refusal replaced",
+      "file": "internal/providers/scaleway/servers.go",
+      "find": "\tif !looksLikeUUID(organization) {\n\t\twriteInvalidArguments(w, ArgumentError{",
+      "replace": "\tif !looksLikeUUID(organization) && false {\n\t\twriteInvalidArguments(w, ArgumentError{",
+      "test": "TestAnOrganizationFilterPartitionsTheFleet"
+    },
+    {
+      "label": "the refusal stops carrying the cloud's own sentence, so a client reads a message fr-par never sent",
+      "file": "internal/providers/scaleway/servers.go",
+      "find": "\t\t\tHelpMessage:  organization + \" is not a valid UUID.\",",
+      "replace": "\t\t\tHelpMessage:  organization + \" is not a valid identifier\",",
+      "test": "TestAnOrganizationFilterPartitionsTheFleet"
+    },
+    {
+      "label": "the account's own organization is filtered out too, so a client configured from `feint env` reads an empty fleet",
+      "file": "internal/providers/scaleway/servers.go",
+      "find": "\tif organization != defaultOrganization {\n\t\treturn tenantNothingMatches, true\n\t}\n\treturn p.tenant(zone), true",
+      "replace": "\tif organization != defaultOrganization || true {\n\t\treturn tenantNothingMatches, true\n\t}\n\treturn p.tenant(zone), true",
+      "test": "TestAnOrganizationFilterPartitionsTheFleet"
+    },
+    {
+      "label": "the sentinel becomes a real scope, so an organization nothing belongs to answers the default project's resources",
+      "file": "internal/providers/scaleway/servers.go",
+      "find": "var tenantNothingMatches = resource.Tenant{Provider: \"no-such-organization\"}",
+      "replace": "var tenantNothingMatches = resource.Tenant{Provider: Name}",
+      "test": "TestAnOrganizationFilterPartitionsTheFleet"
+    }
+  ]
+}
