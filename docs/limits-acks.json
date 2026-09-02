@@ -3,7 +3,7 @@
   "acknowledged": {
     "A Scaleway VPC's Network ACL is a record, and nothing at the edge applies it": "2026-08-27",
     "A Scaleway load balancer and public gateway record their configuration; nothing forwards packets": "2026-08-27",
-    "A Scaleway server's root volume type: what is writable, and what is not": "2026-08-29",
+    "A Scaleway server's root volume type: what is writable, and what is not": "2026-09-02",
     "A VPC created without `enable_routing` answered `routing_enabled=false` where the real cloud answers `true` (#497, lifted 2026-08-27)": "2026-08-27",
     "A declared query parameter is served or refused, never dropped — and `labels` is the refused one": "2026-08-27",
     "A machine's route out: which shapes reach a package repository (#507)": "2026-08-28",

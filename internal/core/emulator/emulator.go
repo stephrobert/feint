@@ -70,7 +70,14 @@ type Env struct {
 	// measured and closed on all three packs: an identifier no catalogue held,
 	// silently substituted, and a green run that meant nothing. The inventory
 	// stays something the operator stated.
-	Projects []string
+	//
+	// Each entry carries an optional identifier since #391, and that is not a
+	// convenience. Once a pack refuses a create naming a project nobody declared
+	// — which is what the cloud does — a stack holding a production project UUID
+	// has no way in, and that stack is exactly the person #372 exists to serve.
+	// Declaring `name=<uuid>` is the way in, and it stays the operator's own
+	// statement rather than an echo.
+	Projects []Project
 	// Log is where packs report what they could not do. A machine runtime that
 	// fails must never break the control plane, which makes the log the only
 	// place the operator can learn why nothing started.
@@ -783,42 +790,79 @@ func (s *Server) handleRoutes(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
+// Project is one tenancy the emulated account holds.
+//
+// ID is optional: empty means the pack derives one from the name, which is what
+// every declaration written before #391 gets and what keeps those identifiers
+// stable across runs. A declaration that carries one is an operator saying "this
+// project of mine already has an identifier, and my stack holds it".
+//
+// Neutral for the reason the field is: a name and an identifier name nothing any
+// provider owns, and what a pack does with them is the pack's.
+type Project struct {
+	Name string
+	ID   string
+}
+
 // ParseProjects reads the operator's `--projects` declaration: a comma-separated
-// list of project names, in order.
+// list of project names, in order, each optionally carrying its identifier as
+// `name=<id>`.
 //
 // Validated at the door rather than at the point of use, which is the rule
 // cloudinit.go paid for: a name that reaches a response body or a template is
 // too late to check. Refused here are the empty name, the duplicate, and any
 // control character — the last one because these strings are rendered into JSON
-// bodies and read back by clients that key on them.
+// bodies and read back by clients that key on them. An identifier is refused on
+// the same three grounds plus one: a duplicate identifier, because two tenancies
+// answering the same id is a boundary that does not separate anything.
 //
 // An empty declaration answers nil, never an empty non-nil slice: the packs test
 // `len(env.Projects) == 0` to mean "the operator declared nothing", and a
 // zero-length slice that is not nil would read the same in Go and differently to
 // a reader.
 //
-// TestParseProjectsRefusesWhatAClientWouldReadBack fails without this.
-func ParseProjects(declared string) ([]string, error) {
+// TestParseProjectsRefusesWhatAClientWouldReadBack and
+// TestParseProjectsReadsADeclaredIdentifier fail without this.
+func ParseProjects(declared string) ([]Project, error) {
 	declared = strings.TrimSpace(declared)
 	if declared == "" {
 		return nil, nil
 	}
-	seen := make(map[string]bool)
-	var out []string
+	readable := func(what, value string) error {
+		if value == "" {
+			return fmt.Errorf("%q holds an empty project %s; the form is a comma-separated list of "+
+				"name or name=<id>", declared, what)
+		}
+		if strings.ContainsFunc(value, func(r rune) bool { return r < 0x20 || r == 0x7f }) {
+			return fmt.Errorf("project %s %q carries a control character, and these strings are "+
+				"rendered into response bodies clients read back", what, value)
+		}
+		return nil
+	}
+	seenName, seenID := make(map[string]bool), make(map[string]bool)
+	var out []Project
 	for _, raw := range strings.Split(declared, ",") {
-		name := strings.TrimSpace(raw)
-		if name == "" {
-			return nil, fmt.Errorf("%q holds an empty project name; the form is a comma-separated list", declared)
+		entry := strings.TrimSpace(raw)
+		name, id, _ := strings.Cut(entry, "=")
+		name, id = strings.TrimSpace(name), strings.TrimSpace(id)
+		if err := readable("name", name); err != nil {
+			return nil, err
 		}
-		if strings.ContainsFunc(name, func(r rune) bool { return r < 0x20 || r == 0x7f }) {
-			return nil, fmt.Errorf("project name %q carries a control character, and these names are "+
-				"rendered into response bodies clients read back", name)
-		}
-		if seen[name] {
+		if seenName[name] {
 			return nil, fmt.Errorf("project %q is declared twice; each name identifies one tenancy", name)
 		}
-		seen[name] = true
-		out = append(out, name)
+		seenName[name] = true
+		if strings.Contains(entry, "=") {
+			if err := readable("identifier", id); err != nil {
+				return nil, err
+			}
+			if seenID[id] {
+				return nil, fmt.Errorf("project identifier %q is declared twice; two tenancies answering "+
+					"one identifier is a boundary that separates nothing", id)
+			}
+			seenID[id] = true
+		}
+		out = append(out, Project{Name: name, ID: id})
 	}
 	return out, nil
 }

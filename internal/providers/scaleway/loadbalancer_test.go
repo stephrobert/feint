@@ -505,7 +505,6 @@ func TestABalancerPublishesTheNodeItRunsOn(t *testing.T) {
 // Two products, because zoneProjectScopeOf serves both and a fix in one would
 // have left the other: lb and vpc-gw.
 func TestAListWithoutAProjectFilterAnswersWhatTheClientCreated(t *testing.T) {
-	const project = "7c1f4e2a-0000-4000-8000-00000000abcd"
 	for _, tc := range []struct {
 		name   string
 		create string
@@ -516,6 +515,11 @@ func TestAListWithoutAProjectFilterAnswersWhatTheClientCreated(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ts := newTestServer(t)
+			// Made through the API since #391: a create naming a project the
+			// register does not hold is refused, and lb and vpc-gw refuse it in
+			// two different shapes — 403 permissions_denied naming the load
+			// balancer, 404 not_found naming the project.
+			project := projectMade(t, ts, "second")
 			status, created := do(t, ts, "POST", tc.create, fmt.Sprintf(`{"project_id":%q}`, project))
 			if status != http.StatusOK {
 				t.Fatalf("create: expected 200, got %d (%v)", status, created)

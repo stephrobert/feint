@@ -17,7 +17,80 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ## [Unreleased]
 
+### Ajouté
+
+- **Un projet est désormais un registre, et `account/v3` sait y écrire** (#391).
+  `account/v3/ProjectAPI.CreateProject`, `account/v3/ProjectAPI.UpdateProject`
+  et `account/v3/ProjectAPI.DeleteProject` sont servis, c'est-à-dire `POST
+  /account/v3/projects`, `PATCH` et `DELETE` ; un projet qui
+  détient encore une ressource refuse sa suppression par `412
+  precondition_failed`, `resource_still_in_use`, ce qui est la réponse du cloud
+  lui-même et la raison pour laquelle la route mérite d'être servie plutôt que de
+  répondre `204` par-dessus des ressources qui lui survivent.
+
+  Elle existe à cause du refus décrit plus bas : refuser une création nommant un
+  projet que personne ne détient, sans aucun moyen d'en rendre un réel, aurait
+  laissé sans porte le comportement multi-projets pour lequel cet émulateur a été
+  construit. La porte est celle qu'a le cloud.
+
+  **`--projects` accepte un identifiant**, sous la forme `nom=<uuid>`, et une
+  entrée sans `=` continue de dériver le sien du nom comme avant. C'est ce qui
+  garde vivant le cas de #372 : une stack portant un identifiant de projet de
+  production fonctionnait parce que `GetProject` renvoyait n'importe quoi en
+  écho, et elle fonctionne maintenant parce que l'opérateur le déclare. Une
+  déclaration n'est pas un écho, et c'est la distinction que #83 a tranchée sur
+  les trois packs.
+
 ### Corrigé
+
+- **Une création nommant un projet inexistant était acceptée ici et refusée par
+  le cloud, sur sept produits** (#391). Enregistré par #390 et relu champ par
+  champ le 2026-09-02, parce que le corpus rédige les valeurs et que les mots
+  sont ce sur quoi un client branche :
+
+  | requête | réponse de `fr-par` |
+  |---|---|
+  | création `instance/v1` (serveur, IP, groupe de sécurité, groupe de placement) | 403 `permissions_denied`, `details: [{resource: project, action: read}]` |
+  | création `lb/v1` | 403, `details: [{resource: loadbalancer, action: write}]` |
+  | `block/v1` `CreateVolume` | 403, `details: [{resource: volume, action: write}]` |
+  | `iam/v1alpha1` `CreateSSHKey` | 403, `details: [{resource: ssh_key, action: create}]` |
+  | créations `vpc/v2`, `vpcgw/v2`, `ipam/v1` | 404 `not_found`, `resource: project` |
+
+  Deux formes, pas sept, et ce qui varie à l'intérieur du 403 est un champ, pas
+  un dialecte : **seul `instance/v1` nomme le projet**. Les autres nomment leur
+  propre produit et l'action refusée, ce qui est une autre phrase.
+
+  **`GET /account/v3/projects/{id}` a cessé de renvoyer l'écho**, et c'est une
+  décision documentée qui est renversée, pas un oubli réparé. La route répondait
+  pour n'importe quel identifiant afin qu'une stack portant un identifiant de
+  projet de production ne meure pas sur le seul appel qui n'a rien à voir avec ce
+  qu'elle teste (#372). Une lecture en écho à côté d'une création qui refuse est
+  pire que l'une ou l'autre séparément : le client résout un projet avec un 200
+  puis se voit refuser toutes les ressources dessous, ce qui est la contradiction
+  que #369 avait entre sa propre création et sa liste, un produit plus loin. La
+  raison de l'écho n'a pas disparu : elle est passée dans `--projects nom=<id>`.
+
+  **Deux défauts d'ordre sont apparus avec, et le corpus a nommé le premier.**
+  `vpcgw/v2 CreateGateway` validait le type de passerelle avant le projet et
+  répondait 400 là où l'enregistrement dit 404 ; `ipam/v1 BookIP` validait sa
+  source d'abord et répondait 400 là où fr-par répond 404 sur le projet. Les deux
+  interrogent désormais le projet en premier, l'ordre dans lequel le cloud
+  répond.
+
+  **Et le rejeu a dû apprendre quelque chose pour pouvoir juger tout cela.** Sur
+  le compte d'où viennent ces corpus, l'organisation et le projet par défaut
+  portent le même UUID, donc la rédaction donne aux deux
+  `00000000-…-000000000001`, et le rejeu envoyait l'*organisation* de l'émulateur
+  là où un projet était attendu. Il amorce désormais `replay.Options.Bind` par
+  fichier, la couture qui existait déjà pour faire tenir un compte à la place
+  d'un autre, et seulement pour un fichier dont le cloud a réellement accepté le
+  projet enregistré. `scw-refusals.jsonl` n'obtient aucun remplaçant, donc son
+  projet fantôme part tel quel et se fait refuser, ce qui est la seule chose que
+  le gate doit pouvoir juger ici.
+
+  Les 36 entrées d'acceptation qui nommaient cette issue sont supprimées, et une
+  de plus est partie avec : `ipam/v1/API.ListIPs` n'excusait plus rien depuis que
+  #369 avait atterri, et c'est ce rejeu qui l'a atteinte.
 
 - **Un serveur créé sous un projet nommé était invisible de la liste qui
   suivait** (#369). `createServer` honorait le `project` que la requête nommait,

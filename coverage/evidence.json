@@ -8,9 +8,27 @@
   "generated_from": {
     "contracts": "b1c322d461683911",
     "shapes": "cac046c206cc9fc8",
-    "suites": "90ef23421713ac04"
+    "suites": "9bf12fc1453a0cee"
   },
   "operations": {
+    "account/v3/ProjectAPI.CreateProject": {
+      "driven": true,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
+    "account/v3/ProjectAPI.DeleteProject": {
+      "driven": true,
+      "probed": "refusal",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": true
+    },
     "account/v3/ProjectAPI.GetProject": {
       "driven": true,
       "probed": "response",
@@ -27,6 +45,15 @@
       "dataplane": true,
       "shape": "unobserved",
       "behaviour": false,
+      "negative": false
+    },
+    "account/v3/ProjectAPI.UpdateProject": {
+      "driven": true,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
       "negative": false
     },
     "block/v1/API.CreateSnapshot": {
@@ -1278,7 +1305,7 @@
       "dataplane": true,
       "shape": "observed",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "instance/v1/API.CreateSnapshot": {
       "driven": true,
@@ -1930,7 +1957,7 @@
     },
     "lb/v1/ZonedAPI.AttachPrivateNetwork": {
       "driven": true,
-      "probed": "response",
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": true,
       "shape": "unobserved",
@@ -1939,7 +1966,7 @@
     },
     "lb/v1/ZonedAPI.CreateACL": {
       "driven": true,
-      "probed": "response",
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": true,
       "shape": "observed",
@@ -1948,7 +1975,7 @@
     },
     "lb/v1/ZonedAPI.CreateBackend": {
       "driven": true,
-      "probed": "response",
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": true,
       "shape": "observed",
@@ -1957,7 +1984,7 @@
     },
     "lb/v1/ZonedAPI.CreateFrontend": {
       "driven": true,
-      "probed": "response",
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": true,
       "shape": "observed",
@@ -1984,7 +2011,7 @@
     },
     "lb/v1/ZonedAPI.CreateRoute": {
       "driven": true,
-      "probed": "response",
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": true,
       "shape": "observed",
@@ -1993,7 +2020,7 @@
     },
     "lb/v1/ZonedAPI.DeleteACL": {
       "driven": true,
-      "probed": "response",
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": true,
       "shape": "unobserved",
@@ -2020,7 +2047,7 @@
     },
     "lb/v1/ZonedAPI.DeleteLB": {
       "driven": true,
-      "probed": "response",
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": true,
       "shape": "unobserved",
@@ -2029,7 +2056,7 @@
     },
     "lb/v1/ZonedAPI.DeleteRoute": {
       "driven": true,
-      "probed": "response",
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": true,
       "shape": "unobserved",
@@ -2038,7 +2065,7 @@
     },
     "lb/v1/ZonedAPI.DetachPrivateNetwork": {
       "driven": true,
-      "probed": "response",
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": true,
       "shape": "unobserved",
@@ -2047,7 +2074,7 @@
     },
     "lb/v1/ZonedAPI.GetACL": {
       "driven": true,
-      "probed": "response",
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": true,
       "shape": "observed",
@@ -2056,7 +2083,7 @@
     },
     "lb/v1/ZonedAPI.GetBackend": {
       "driven": true,
-      "probed": "response",
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": true,
       "shape": "observed",
@@ -2065,7 +2092,7 @@
     },
     "lb/v1/ZonedAPI.GetFrontend": {
       "driven": true,
-      "probed": "response",
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": true,
       "shape": "observed",
@@ -2083,7 +2110,7 @@
     },
     "lb/v1/ZonedAPI.GetLB": {
       "driven": true,
-      "probed": "response",
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": true,
       "shape": "observed",
@@ -2092,7 +2119,7 @@
     },
     "lb/v1/ZonedAPI.GetRoute": {
       "driven": true,
-      "probed": "response",
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": true,
       "shape": "observed",
@@ -2101,7 +2128,7 @@
     },
     "lb/v1/ZonedAPI.ListACLs": {
       "driven": true,
-      "probed": "response",
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": true,
       "shape": "observed",
@@ -2110,7 +2137,7 @@
     },
     "lb/v1/ZonedAPI.ListBackends": {
       "driven": true,
-      "probed": "response",
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": true,
       "shape": "observed",
@@ -2119,7 +2146,7 @@
     },
     "lb/v1/ZonedAPI.ListFrontends": {
       "driven": true,
-      "probed": "response",
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": true,
       "shape": "observed",
@@ -2137,7 +2164,7 @@
     },
     "lb/v1/ZonedAPI.ListLBPrivateNetworks": {
       "driven": true,
-      "probed": "response",
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": true,
       "shape": "observed",
@@ -2173,7 +2200,7 @@
     },
     "lb/v1/ZonedAPI.SetBackendServers": {
       "driven": true,
-      "probed": "response",
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": true,
       "shape": "observed",
@@ -2182,7 +2209,7 @@
     },
     "lb/v1/ZonedAPI.UpdateACL": {
       "driven": true,
-      "probed": "response",
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": true,
       "shape": "observed",
@@ -2191,7 +2218,7 @@
     },
     "lb/v1/ZonedAPI.UpdateBackend": {
       "driven": true,
-      "probed": "response",
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": true,
       "shape": "observed",
@@ -2200,7 +2227,7 @@
     },
     "lb/v1/ZonedAPI.UpdateFrontend": {
       "driven": true,
-      "probed": "response",
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": true,
       "shape": "observed",
@@ -2209,7 +2236,7 @@
     },
     "lb/v1/ZonedAPI.UpdateHealthCheck": {
       "driven": true,
-      "probed": "response",
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": true,
       "shape": "unobserved",
@@ -2227,7 +2254,7 @@
     },
     "lb/v1/ZonedAPI.UpdateLB": {
       "driven": true,
-      "probed": "response",
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": true,
       "shape": "observed",
@@ -2236,7 +2263,7 @@
     },
     "lb/v1/ZonedAPI.UpdateRoute": {
       "driven": true,
-      "probed": "response",
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": true,
       "shape": "observed",

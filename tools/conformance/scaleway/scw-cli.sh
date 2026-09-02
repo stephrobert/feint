@@ -753,6 +753,80 @@ fi
 
 ok "listed by name, read by id, and a foreign name answers nothing"
 
+# The project lifecycle, driven end to end by the client that owns it (#391).
+#
+# Serving CreateProject is not a convenience: since #391 a create naming a
+# project the register does not hold is refused the way fr-par refuses it, so
+# without this route the multi-project behaviour would have had no door. The
+# refusal and the door are one change and they are proven together here.
+#
+# One span for the whole lifecycle, because that is what a behaviour span
+# observes — a resource created and destroyed inside it. Splitting the create
+# from the delete made the harness answer 409, "the span declared a lifecycle and
+# the store observed no resource created and then destroyed inside it", which is
+# the harness being right.
+echo "- a project is created, renamed, filled, emptied and deleted"
+span="$(prove_begin behaviour)"
+made="$(scw account project create name=conformance-project -o json 2>&1)" \
+  || fail "project create rejected: $made"
+made_id="$(printf '%s' "$made" | jq -r '.id // empty')"
+[ -n "$made_id" ] || fail "the created project carries no id: $made"
+# The name only, and `status` deliberately not: the emulator answers it (a raw
+# GET carries "status":"active", and fr-par does too, measured 2026-09-02) but
+# scw 2.56.3's SDK does not declare the field, so the CLI drops it before it
+# prints. Asserting it here would fail on the client's age rather than on the
+# emulator's answer. The unit tests read the raw body and check it there.
+printf '%s' "$made" | jq -e '.name == "conformance-project"' >/dev/null \
+  || fail "the created project did not read back as itself: $made"
+
+scw account project update project-id="$made_id" name=conformance-project-2 -o json \
+  | jq -e '.name == "conformance-project-2"' >/dev/null \
+  || fail "the rename did not carry the name back"
+
+# The create the register now allows, which is the whole point of the route
+# above: before it, this identifier was one no create would accept.
+proj_vol="$(scw instance volume create name=conformance-project-vol volume-type=l_ssd size=10G \
+             project-id="$made_id" zone="$ZONE" -o json 2>&1)" \
+  || fail "a create under the project just made was rejected: $proj_vol"
+proj_vol_id="$(printf '%s' "$proj_vol" | jq -r '(.volume // .).id')"
+[ -n "$proj_vol_id" ] || fail "no id in the volume create response: $proj_vol"
+
+scw instance volume delete "$proj_vol_id" zone="$ZONE" >/dev/null \
+  || fail "cleanup: volume delete rejected"
+scw account project delete project-id="$made_id" >/dev/null \
+  || fail "deleting an empty project was rejected"
+if scw account project get project-id="$made_id" -o json >/dev/null 2>&1; then
+  fail "a deleted project still reads back"
+fi
+prove_end "$span"
+ok "created, renamed, filled, emptied, deleted, and gone from the register"
+
+# The 412 is the reason this route is worth serving rather than answering 204
+# over resources that outlive the project. fr-par answers precondition_failed /
+# resource_still_in_use, measured 2026-09-02, and a client that read a 204 here
+# would leave a volume behind believing it went with the project.
+echo "- a project that still holds a volume refuses its own delete"
+held="$(scw account project create name=conformance-held -o json 2>&1)" \
+  || fail "project create rejected: $held"
+held_id="$(printf '%s' "$held" | jq -r '.id // empty')"
+[ -n "$held_id" ] || fail "the created project carries no id: $held"
+held_vol="$(scw instance volume create name=conformance-held-vol volume-type=l_ssd size=10G \
+             project-id="$held_id" zone="$ZONE" -o json 2>&1)" \
+  || fail "a create under the held project was rejected: $held_vol"
+held_vol_id="$(printf '%s' "$held_vol" | jq -r '(.volume // .).id')"
+
+span="$(prove_begin negative)"
+if scw account project delete project-id="$held_id" -o json >/dev/null 2>&1; then
+  fail "deleting a project that still holds a volume was accepted"
+fi
+prove_end "$span"
+ok "refused while it still held something"
+
+scw instance volume delete "$held_vol_id" zone="$ZONE" >/dev/null \
+  || fail "cleanup: held volume delete rejected"
+scw account project delete project-id="$held_id" >/dev/null \
+  || fail "cleanup: held project delete rejected"
+
 # User data, the three operations the YAML-injection work hardened and that no
 # client had ever driven (#174). The hardened route is the one a client's
 # cloud-init actually takes, so leaving it unproven was the gap that mattered

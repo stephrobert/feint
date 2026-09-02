@@ -137,23 +137,36 @@ func TestListProjectsRefusesAnUnknownOrder(t *testing.T) {
 // resolved or on the configured one. A 404 here is a wall one call after the
 // one this issue removed.
 //
-// The identifier is echoed rather than checked, which is docs/limits.md's
-// "Identifiers are not checked against anything" applied to the identifier a
-// stack is most likely to carry from production. Without it, every client whose
-// configured project id is not this emulator's constant fails the read.
-func TestGetProjectAnswersAnIdentifierItNeverMinted(t *testing.T) {
+// The identifier used to be echoed rather than checked, and this test asserted
+// that. #391 reversed it: fr-par answers 404 for a project it does not hold
+// (measured 2026-09-02), and once the creates of four products refuse an unknown
+// project, a GetProject that resolves one is worse than either answer alone —
+// the client resolves with 200 and is refused the create under it, which is the
+// disagreement #369 removed one product further in.
+//
+// The reason the echo existed did not stop being true, and it did not disappear:
+// it moved to a declaration. TestADeclaredIdentifierIsTheOneAStackHolds is the
+// stack carrying a production UUID, working.
+//
+// The `resource` field is "project_id" here and "project" on the delete. Two
+// spellings of one word on two routes of one product, both measured, and rule 4
+// says to copy them rather than pick one.
+func TestGetProjectRefusesAnIdentifierNobodyDeclared(t *testing.T) {
 	ts := newTestServer(t)
 
 	const foreign = "6170692e-7363-616c-6577-61792e636f6d"
 	status, body := do(t, ts, "GET", projectsURL+"/"+foreign, "")
-	if status != http.StatusOK {
-		t.Fatalf("get a project this emulator never minted: expected 200, got %d (%v)", status, body)
+	if status != http.StatusNotFound {
+		t.Fatalf("get a project this register does not hold: expected 404, got %d (%v)", status, body)
 	}
-	if body["id"] != foreign {
-		t.Errorf("GetProject answered id %v for %s; the identifier a client sent is the one it must read back", body["id"], foreign)
+	if body["type"] != "not_found" {
+		t.Errorf("error type is %v, want not_found", body["type"])
 	}
-	if body["organization_id"] != emulatedOrganization {
-		t.Errorf("organization_id is %v, not the emulated organization", body["organization_id"])
+	if body["resource"] != "project_id" {
+		t.Errorf("resource is %v, want project_id — the delete says \"project\" and this route does not", body["resource"])
+	}
+	if body["resource_id"] != foreign {
+		t.Errorf("resource_id is %v, want the identifier that was asked for", body["resource_id"])
 	}
 }
 

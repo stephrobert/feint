@@ -595,25 +595,60 @@ turns out to be the wrong one, the place to change it is `resolveImage` in
 `internal/providers/scaleway/images.go`, and the change must come with a way to
 keep hardcoded production ids working.
 
-**A project identifier is the same trade, taken again for the same reason
-(#372).** `GET /account/v3/projects/{id}` answers for any identifier, echoing
-it, because the Terraform provider's `data "scaleway_account_project"` always
-ends on that call — with the id a name resolved to, or with the one the provider
-block configures. Refusing an id this emulator never minted would put a wall one
-call after the wall #372 removed, and a project id is the value a stack is most
-likely to carry over from production.
+**A project identifier is the exception, since #391.** It used to be the same
+trade — `GET /account/v3/projects/{id}` echoed any identifier, so a stack
+carrying a production project id kept working — and that stopped being tenable
+the day the creates started refusing a project nobody holds, which is what the
+cloud does:
 
-The **list** does not do this: `GET /account/v3/projects` answers exactly one
-project, named `default` — the name Scaleway's own published document gives the
-initial project of an organization — and a `name` or `project_ids` filter that
-names something else answers an empty list. A filter is a question about what
-exists, and emptiness is a truthful answer to it; a read that answers 404 is a
-wall. **So a stack whose `project_name` is not `default` will fail here**, on
-`FindExact`, and the fix is to point it at `default` rather than at its
-production project's name. The organization is never compared at all, for the
-reason `listSSHKeys` records: `scw` names its own configured organization on
-every list, and comparing told the CLI that the key it had just created did not
-exist.
+| request naming a project that does not exist | `fr-par` answers |
+|---|---|
+| `instance/v1` create (server, IP, security group, placement group) | 403 `permissions_denied`, `details: [{resource: project, action: read}]` |
+| `lb/v1` create | 403, `details: [{resource: loadbalancer, action: write}]` |
+| `block/v1` `CreateVolume` | 403, `details: [{resource: volume, action: write}]` |
+| `iam/v1alpha1` `CreateSSHKey` | 403, `details: [{resource: ssh_key, action: create}]` |
+| `vpc/v2`, `vpcgw/v2`, `ipam/v1` creates | 404 `not_found`, `resource: project` |
+| `GET /account/v3/projects/{id}` | 404 `not_found`, `resource: **project_id**` |
+| `DELETE /account/v3/projects/{id}` | 404 `not_found`, `resource: **project**` |
+
+Measured 2026-09-02. An echoing read beside a refusing create is worse than
+either on its own: the client resolves a project with 200 and is then refused
+every resource under it.
+
+**So the register decides, and it holds two kinds of project.** What the
+operator declared (`feint serve --projects`, `cloud.projects` in `feint.yaml`),
+and what a client created — `POST /account/v3/projects` is served now, with
+`PATCH` and `DELETE` beside it. A project that still holds a resource refuses
+its delete with 412 `resource_still_in_use`, which is the cloud's own answer and
+the reason the route is worth serving at all.
+
+**A stack carrying a production project id declares it**, and that is the door
+the echo used to be:
+
+```bash
+feint serve --projects "platform-prod=8fad27e6-d8d8-45e5-8439-36ef7ff02fd6"
+```
+
+An entry with no `=` keeps deriving its identifier from the name, so every
+declaration written before #391 is unchanged. A request naming **no** project is
+never refused: it is filed under the default, so a client configured from
+`feint env` never meets any of this.
+
+The **list** filters over that register: `GET /account/v3/projects` answers what
+the operator declared plus what has been created, and a `name` or `project_ids`
+filter that names something else answers an empty list. A filter is a question
+about what exists, and emptiness is a truthful answer to it. **A stack whose
+`project_name` is not `default` needs that name declared** — `--projects
+platform-prod` — or it fails on the provider's `FindExact`. The organization is
+never compared at all, for the reason `listSSHKeys` records: `scw` names its own
+configured organization on every list, and comparing told the CLI that the key it
+had just created did not exist.
+
+**What this does not change is the rest of the section above.** An image, a
+template or a machine type the emulator never minted is still accepted, and for
+the reason that has not moved: the emulator has no inventory of those. A project
+is different — it is the boundary every other resource is filed under, and the
+register is an inventory of exactly it.
 
 **What an unknown identifier can no longer do is boot a substitute.** Measured
 in #83, on all three packs: with a runtime configured (`--vm incus`, `incus-vm`,

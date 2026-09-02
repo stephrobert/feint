@@ -215,6 +215,9 @@ func (p *Pack) createSecurityGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if p.refuseUnknownProject(w, req.Project, projectDeniedToInstance) {
+		return
+	}
 	project, _ := projectOf(req.Project)
 	res := p.newSecurityGroup(zone, project, req.Name, req.Description, inbound, outbound)
 	res.Attrs["tags"] = orEmpty(req.Tags)

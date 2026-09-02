@@ -1010,7 +1010,18 @@ func serve(args []string, stdout io.Writer) error {
 		return fmt.Errorf("--projects: %w", err)
 	} else if declared != nil {
 		env.Projects = declared
-		fmt.Fprintf(stdout, "projects declared by the operator: %s\n", strings.Join(declared, ", "))
+		// Printed with the identifier when the operator stated one, because that
+		// is the value their stack has to match and a silent derivation would
+		// leave them guessing which of the two the emulator took (#391).
+		named := make([]string, 0, len(declared))
+		for _, project := range declared {
+			if project.ID == "" {
+				named = append(named, project.Name)
+				continue
+			}
+			named = append(named, project.Name+"="+project.ID)
+		}
+		fmt.Fprintf(stdout, "projects declared by the operator: %s\n", strings.Join(named, ", "))
 	}
 	// Set after newServer, which cannot know the flag. At debug the runtime's
 	// own lifecycle events come through, which is what makes a machine that

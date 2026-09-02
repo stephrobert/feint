@@ -1,23 +1,23 @@
 {
   "provider": "scaleway",
   "total": 498,
-  "implemented": 179,
-  "declined": 319,
+  "implemented": 182,
+  "declined": 316,
   "unknown": 0,
   "orphans": null,
   "products": [
     {
       "product": "account",
       "total": 12,
-      "implemented": 2,
-      "declined": 10,
+      "implemented": 5,
+      "declined": 7,
       "unknown": 0,
       "versions": [
         {
           "version": "v3",
           "total": 12,
-          "implemented": 2,
-          "declined": 10,
+          "implemented": 5,
+          "declined": 7,
           "unknown": 0
         }
       ]
@@ -183,8 +183,8 @@
     {
       "group": "account",
       "total": 12,
-      "implemented": 2,
-      "declined": 10,
+      "implemented": 5,
+      "declined": 7,
       "unknown": 0
     },
     {
@@ -283,21 +283,19 @@
     {
       "operation": "account/v3/ProjectAPI.CreateProject",
       "product": "account",
-      "reason": "this emulator hosts one project and files every resource under whatever project a request names (projectOf, scopeOf), so a project is not a record here: a created one would be an entry nothing consults, a deleted one would not stop the resources filed under it, and a renamed one would move a name no other answer of this pack carries",
       "version": "v3",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "account/v3/ProjectAPI.DeleteProject",
       "product": "account",
-      "reason": "this emulator hosts one project and files every resource under whatever project a request names (projectOf, scopeOf), so a project is not a record here: a created one would be an entry nothing consults, a deleted one would not stop the resources filed under it, and a renamed one would move a name no other answer of this pack carries",
       "version": "v3",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "account/v3/ProjectAPI.DeleteProjectWithResources",
       "product": "account",
-      "reason": "this emulator hosts one project and files every resource under whatever project a request names (projectOf, scopeOf), so a project is not a record here: a created one would be an entry nothing consults, a deleted one would not stop the resources filed under it, and a renamed one would move a name no other answer of this pack carries",
+      "reason": "it deletes a project together with everything filed under it, and the resources of this pack are removed through their own per-product paths: a sweep written here would be a second inventory of what exists, and the kind it forgets is the one that outlives a delete the client was told succeeded",
       "version": "v3",
       "status": "declined"
     },
@@ -323,9 +321,8 @@
     {
       "operation": "account/v3/ProjectAPI.UpdateProject",
       "product": "account",
-      "reason": "this emulator hosts one project and files every resource under whatever project a request names (projectOf, scopeOf), so a project is not a record here: a created one would be an entry nothing consults, a deleted one would not stop the resources filed under it, and a renamed one would move a name no other answer of this pack carries",
       "version": "v3",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "block/v1/API.CreateSnapshot",

@@ -16,6 +16,7 @@ import (
 
 	"github.com/stephrobert/feint/internal/core/emulator"
 	"github.com/stephrobert/feint/internal/replay"
+	"github.com/stephrobert/feint/internal/trace"
 )
 
 // The default locations, so the gate is one word to type and the paths are not
@@ -626,8 +627,62 @@ func replayCorpusFile(dir, file string, env *emulator.Env, packs []emulator.Pack
 		Table:      table,
 		Declined:   declined,
 		Invariants: invariants,
+		Bind:       projectStandingIn(exs),
 	})
 }
+
+// projectStandingIn says which project this emulator answers for the one the
+// recording was made under, and it is empty when the recording's project was a
+// ghost the cloud refused.
+//
+// Why it is needed at all, since #391: a create naming a project the register
+// does not hold is now refused, the way the cloud refuses it. The recorded
+// identifier belongs to an account this replay is not pointed at, so without a
+// stand-in every create in every corpus is refused and the gate measures nothing
+// but its own new guard.
+//
+// Why it is a Bind rather than a declared project. Two reasons, and the second
+// was measured rather than reasoned:
+//
+//  1. Options.Bind exists for exactly this — "this account is the one that
+//     stands in for the recorded one" — and it seeds before the first request,
+//     which a corpus opening on a create needs.
+//  2. Declaring the recorded identifier instead does not work, and the way it
+//     fails is worth keeping. On the account these corpora were recorded from,
+//     the organization and the default project carry THE SAME UUID, so the
+//     redaction gives both `00000000-0000-4000-8000-000000000001`. The replay
+//     then learns that identifier from an `organization` field it read back and
+//     sends the emulator's ORGANIZATION where a project belongs. Fifteen creates
+//     were refused on an identifier no corpus ever wrote.
+//
+// The ghost is the point of the empty case. In scw-refusals.jsonl every request
+// naming a project was refused by the cloud, so nothing stands in, the recorded
+// identifier goes out as itself, and the emulator refuses it — which is the one
+// thing this gate has to be able to judge about #391.
+func projectStandingIn(exs []trace.Exchange) map[string]string {
+	for _, ex := range exs {
+		if ex.Status < 200 || ex.Status > 299 || ex.Req == nil {
+			continue
+		}
+		body, ok := ex.Req.Body.(map[string]any)
+		if !ok {
+			continue
+		}
+		for _, key := range []string{"project", "project_id"} {
+			if id, _ := body[key].(string); id != "" {
+				// One stand-in for both spellings: they name the same thing, and
+				// a corpus that uses both must not send two different projects.
+				return map[string]string{"project": defaultProjectID, "project_id": defaultProjectID}
+			}
+		}
+	}
+	return nil
+}
+
+// defaultProjectID is the project every pack of this emulator files an
+// unattributed resource under. Spelled here rather than imported from a pack:
+// internal/cli mounts three of them and knows none of their vocabularies.
+const defaultProjectID = "11111111-1111-1111-1111-111111111111"
 
 // corpusFiles lists every committed corpus under dir, as slash-separated paths
 // relative to it, sorted so two runs report the same order.

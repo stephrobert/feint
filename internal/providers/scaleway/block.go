@@ -176,6 +176,9 @@ func (p *Pack) createBlockVolume(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if p.refuseUnknownProject(w, textPtr(req.ProjectID), projectDeniedToBlock) {
+		return
+	}
 	project, _ := projectOf(textPtr(req.ProjectID))
 	now := p.env.Now()
 	res := resource.New(p.env.NewID(), kindBlockVolume, resource.Tenant{Provider: Name, Project: project, Zone: zone}, "available", now)
@@ -548,6 +551,9 @@ func (p *Pack) createBlockSnapshot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if p.refuseUnknownProject(w, textPtr(req.ProjectID), projectDeniedToBlock) {
+		return
+	}
 	project, _ := projectOf(textPtr(req.ProjectID))
 	now := p.env.Now()
 	res := resource.New(p.env.NewID(), kindBlockSnapshot, resource.Tenant{Provider: Name, Project: project, Zone: zone}, "available", now)

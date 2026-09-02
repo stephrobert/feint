@@ -309,7 +309,11 @@ func TestServerCarriesSecurityGroup(t *testing.T) {
 func TestSecurityGroupListIsScopedToTheProject(t *testing.T) {
 	ts := newTestServer(t)
 
-	const other = "22222222-2222-2222-2222-222222222222"
+	// Made through the API since #391: a group filed under a project the
+	// register does not hold is refused, the way fr-par refuses it. The list
+	// below still asks about it before anything exists there, which stays a
+	// truthful empty answer.
+	other := projectMade(t, ts, "second")
 	if status, _ := do(t, ts, "GET", zoneURL+"/security_groups?project="+other, ""); status != http.StatusOK {
 		t.Fatalf("list for another project: expected 200, got %d", status)
 	}

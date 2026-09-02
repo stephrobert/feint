@@ -126,3 +126,27 @@ func writeParseFailure(w http.ResponseWriter, field string, err error) {
 		"message": fmt.Sprintf("parsing field %q: %s", field, err),
 	})
 }
+
+// writeProjectStillInUse answers a project delete that would strand what is
+// filed under it.
+//
+// Same body as writePreconditionFailed above and a different STATUS, which is
+// why it is its own function rather than a parameter with a default: 412 here,
+// 400 there, both measured. account/v3 answered, verbatim, on a project holding
+// one volume (fr-par, 2026-09-02, #391):
+//
+//	412 {"help_message": "all resources are not deleted",
+//	     "message": "precondition is not respected",
+//	     "precondition": "resource_still_in_use",
+//	     "type": "precondition_failed"}
+//
+// A client branches on the status before it reads the body, so answering 400
+// here would send it down the path it takes for a malformed request.
+func writeProjectStillInUse(w http.ResponseWriter) {
+	emulator.WriteJSON(w, http.StatusPreconditionFailed, APIError{
+		Type:         "precondition_failed",
+		Message:      "precondition is not respected",
+		Precondition: "resource_still_in_use",
+		HelpMessage:  "all resources are not deleted",
+	})
+}

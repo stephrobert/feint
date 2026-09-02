@@ -15,7 +15,77 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ## [Unreleased]
 
+### Added
+
+- **A project is a register now, and `account/v3` can write to it** (#391).
+  `account/v3/ProjectAPI.CreateProject`, `account/v3/ProjectAPI.UpdateProject`
+  and `account/v3/ProjectAPI.DeleteProject` are served — `POST
+  /account/v3/projects`, `PATCH` and `DELETE`; a project that
+  still holds a resource refuses its delete with `412 precondition_failed`,
+  `resource_still_in_use`, which is the cloud's own answer and the reason the
+  route is worth serving rather than answering `204` over resources that outlive
+  it.
+
+  It exists because of the refusal below: refusing a create that names a project
+  nobody holds, with no way to make one real, would have left the multi-project
+  behaviour this emulator was built with no door at all. The door is the one the
+  cloud has.
+
+  **`--projects` takes an identifier**, `name=<uuid>`, and an entry with no `=`
+  keeps deriving one from the name as before. This is what keeps #372's case
+  alive: a stack carrying a production project id used to work because
+  `GetProject` echoed anything, and it now works because the operator states it.
+  A declaration is not an echo, which is the distinction #83 closed on all three
+  packs.
+
 ### Fixed
+
+- **A create naming a project that does not exist was accepted here and refused
+  by the cloud, across seven products** (#391). Recorded in #390 and re-read
+  field by field on 2026-09-02, because the corpus redacts values and the words
+  are what a client branches on:
+
+  | request | `fr-par` answers |
+  |---|---|
+  | `instance/v1` create (server, IP, security group, placement group) | 403 `permissions_denied`, `details: [{resource: project, action: read}]` |
+  | `lb/v1` create | 403, `details: [{resource: loadbalancer, action: write}]` |
+  | `block/v1` `CreateVolume` | 403, `details: [{resource: volume, action: write}]` |
+  | `iam/v1alpha1` `CreateSSHKey` | 403, `details: [{resource: ssh_key, action: create}]` |
+  | `vpc/v2`, `vpcgw/v2`, `ipam/v1` creates | 404 `not_found`, `resource: project` |
+
+  Two shapes, not seven, and what varies inside the 403 is a field rather than a
+  dialect: **only `instance/v1` names the project at all**. The others name their
+  own product and the action refused, which is a different sentence.
+
+  **`GET /account/v3/projects/{id}` stopped echoing**, and that is a documented
+  decision reversed rather than an oversight fixed. It answered for any
+  identifier so that a stack carrying a production project id would not die on
+  the one call that has nothing to do with what it is testing (#372). An echoing
+  read beside a refusing create is worse than either alone — the client resolves
+  a project with 200 and is then refused every resource under it, which is the
+  disagreement #369 had between its own create and list, one product out. The
+  reason the echo existed did not disappear: it moved to `--projects name=<id>`.
+
+  **Two ordering defects surfaced with it, and the corpus named the first one.**
+  `vpcgw/v2 CreateGateway` validated the gateway type before the project and
+  answered 400 where the recording says 404; `ipam/v1 BookIP` validated its
+  source first and answered 400 where fr-par answers 404 on the project. Both
+  now ask about the project first, which is the order the cloud answers in.
+
+  **And the replay had to learn something to be able to judge any of this.** On
+  the account these corpora were recorded from, the organization and the default
+  project carry the same UUID, so the redaction gives both
+  `00000000-…-000000000001`, and the replay was sending the emulator's
+  *organization* where a project belonged. It now seeds `replay.Options.Bind`
+  per file — the seam that already existed for standing one account in for
+  another — and only for a file whose recorded project the cloud actually
+  accepted. `scw-refusals.jsonl` gets no stand-in, so its ghost project goes out
+  as itself and is refused, which is the one thing the gate has to be able to
+  judge here.
+
+  The 36 acceptance entries naming this issue are deleted, and one more went with
+  them: `ipam/v1/API.ListIPs` had stopped excusing anything the moment #369
+  landed, and this replay is what reached it.
 
 - **A server created under a named project was invisible to the list that
   followed it** (#369). `createServer` honoured the `project` a request named,

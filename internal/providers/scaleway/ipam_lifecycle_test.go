@@ -491,8 +491,13 @@ func TestBookIPRefusesAForeignProject(t *testing.T) {
 	ts := newTestServer(t)
 	pnID, _ := createPN(t, ts, "10.71.0.0/24")
 
+	// The project is made first, so this test measures what it says it does.
+	// Without that it now measures #391's refusal instead — a 404 for a project
+	// nobody holds — and would have gone on passing while the rule it names went
+	// untested.
+	foreign := projectMade(t, ts, "second")
 	status, body := do(t, ts, "POST", ipamRegion+"/ips",
-		fmt.Sprintf(`{"project_id":"22222222-2222-4222-8222-222222222222","source":{"private_network_id":%q}}`, pnID))
+		fmt.Sprintf(`{"project_id":%q,"source":{"private_network_id":%q}}`, foreign, pnID))
 	if status != http.StatusBadRequest {
 		t.Fatalf("booking across projects answered %d (%v)", status, body)
 	}

@@ -120,6 +120,9 @@ func (p *Pack) createVolume(w http.ResponseWriter, r *http.Request) {
 	if bad := refuseRetiredVolumeType(w, req.VolumeType); bad {
 		return
 	}
+	if p.refuseUnknownProject(w, req.Project, projectDeniedToInstance) {
+		return
+	}
 	project, organization := projectOf(req.Project)
 	res := p.newVolume(zone, project, organization, req.Name, req.VolumeType, size)
 	res.Attrs["tags"] = orEmpty(req.Tags)

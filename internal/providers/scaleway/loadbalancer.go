@@ -148,6 +148,9 @@ func (p *Pack) createLBIP(w http.ResponseWriter, r *http.Request) {
 	if req.ProjectID != nil {
 		requested = *req.ProjectID
 	}
+	if p.refuseUnknownProject(w, requested, projectDeniedToLB) {
+		return
+	}
 	project, _ := projectOf(requested)
 
 	unlock := p.lockAddresses()
@@ -345,6 +348,9 @@ func (p *Pack) createLB(w http.ResponseWriter, r *http.Request) {
 	requested := ""
 	if req.ProjectID != nil {
 		requested = *req.ProjectID
+	}
+	if p.refuseUnknownProject(w, requested, projectDeniedToLB) {
+		return
 	}
 	project, _ := projectOf(requested)
 

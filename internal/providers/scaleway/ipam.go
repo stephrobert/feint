@@ -344,13 +344,24 @@ func (p *Pack) bookIP(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	// The project before the source, because that is the order fr-par answers
+	// in: BookIP naming a ghost project and a `zonal` source — a source this
+	// emulator does not book from — answered 404 on the PROJECT, measured
+	// 2026-09-02 (#391). Validating the source first made this route answer 400
+	// on a request the cloud refuses for another reason entirely, which tells a
+	// client to fix the wrong field.
+	if p.refuseUnknownProject(w, req.ProjectID, projectAbsent) {
+		return
+	}
 	pn, ok := p.bookSourceOf(w, region, req.Source)
 	if !ok {
 		return
 	}
 
-	// The Project must match the Private Network's, which is upstream's own
-	// documented constraint on BookIP.
+	// And the Project must match the Private Network's, which is upstream's own
+	// documented constraint on BookIP. Two different refusals: one for a project
+	// that does not exist, one for a project that exists and is not this
+	// network's.
 	project, _ := projectOf(req.ProjectID)
 	if pnProject, _ := pn.Attrs["project_id"].(string); pnProject != project {
 		writeInvalidArguments(w, ArgumentError{

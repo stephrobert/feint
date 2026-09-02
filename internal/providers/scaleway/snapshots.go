@@ -158,6 +158,9 @@ func (p *Pack) createSnapshot(w http.ResponseWriter, r *http.Request) {
 		volumeType = "l_ssd"
 	}
 
+	if p.refuseUnknownProject(w, textPtr(req.Project), projectDeniedToInstance) {
+		return
+	}
 	project, organization := projectOf(textPtr(req.Project))
 	now := p.env.Now()
 	res := resource.New(p.env.NewID(), kindSnapshot, resource.Tenant{Provider: Name, Project: project, Zone: zone}, "available", now)

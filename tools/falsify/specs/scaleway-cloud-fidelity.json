@@ -37,7 +37,7 @@
       "test": "TestAnAttachedAddressPublishesItsGatewayAndItsOwnTags"
     },
     {
-      "label": "tagValues hands back the stored slice itself, so a caller mutating a response reaches the store \u2014 the branch a restored snapshot takes (#368)",
+      "label": "tagValues hands back the stored slice itself, so a caller mutating a response reaches the store — the branch a restored snapshot takes (#368)",
       "file": "internal/providers/scaleway/servers.go",
       "find": "\t\treturn append([]any{}, tags...)",
       "replace": "\t\treturn append(tags[:len(tags)], tags[:0]...)",
@@ -65,17 +65,10 @@
       "test": "TestListProjectsRefusesACallWithNoOrganization"
     },
     {
-      "label": "GetProject resolves only the identifier this emulator minted, which is the wall #372 removes put back one call later",
+      "label": "the name filter stops filtering, so every name a client asks for answers a project this emulator does not hold — the echo #83 measured and closed on all three packs, one product over (#372, #572)",
       "file": "internal/providers/scaleway/projects.go",
-      "find": "\tif id == \"\" {\n\t\twriteNotFound(w, \"project\", id)\n\t\treturn\n\t}",
-      "replace": "\tif id != defaultProject {\n\t\twriteNotFound(w, \"project\", id)\n\t\treturn\n\t}",
-      "test": "TestGetProjectAnswersAnIdentifierItNeverMinted"
-    },
-    {
-      "label": "the name filter stops filtering, so every name a client asks for answers a project this emulator does not hold \u2014 the echo #83 measured and closed on all three packs, one product over (#372, #572)",
-      "file": "internal/providers/scaleway/projects.go",
-      "find": "\t\tif wantName != \"\" && wantName != declared {",
-      "replace": "\t\tif wantName != \"\" && wantName != declared && false {",
+      "find": "\t\tif wantName != \"\" && wantName != name {",
+      "replace": "\t\tif wantName != \"\" && wantName != name && false {",
       "test": "TestListProjectsFiltersRatherThanInvents"
     },
     {
@@ -112,6 +105,12 @@
       "find": "\tif name, ok := p.projectNamed(id); ok {",
       "replace": "\tif name, ok := p.projectNamed(id); ok && false {",
       "test": "TestGetProjectAnswersADeclaredProjectByItsOwnName"
+    }
+  ],
+  "retired": [
+    {
+      "label": "GetProject resolves only the identifier this emulator minted, which is the wall #372 removes put back one call later",
+      "why": "Its subject is gone, not moved. #391 made GetProject answer 404 for a project the register does not hold, because the creates of seven products refuse one and an echoing read beside a refusing create is worse than either alone. What this mutation called the defect is the behaviour now, and TestGetProjectRefusesAnIdentifierNobodyDeclared plus the projects-are-a-register.json spec measure it from the other side. The reason the echo existed did not disappear: --projects name=<id> carries it, and TestADeclaredIdentifierIsTheOneAStackHolds is that half."
     }
   ]
 }

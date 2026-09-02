@@ -81,6 +81,9 @@ func (p *Pack) createIP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if p.refuseUnknownProject(w, req.Project, projectDeniedToInstance) {
+		return
+	}
 	project, organization := projectOf(req.Project)
 
 	// Same lock as private addresses: rebuild, allocate, persist is a

@@ -5,8 +5,10 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/stephrobert/feint/internal/core/emulator"
+	"github.com/stephrobert/feint/internal/core/resource"
 )
 
 // The Account product's projects, and why a pack about servers serves them.
@@ -43,14 +45,40 @@ import (
 //
 //   - `name` and `project_ids` FILTER. An empty list is a truthful answer to
 //     "which of your projects is called X": nothing here is called X.
-//   - `GetProject` RESOLVES, and a 404 there is a wall rather than an answer.
-//     It echoes whatever identifier is asked for, which is docs/limits.md's
-//     "Identifiers are not checked against anything" rule — the same decision
-//     getImage takes for an image UUID the catalogue never minted, and taken
-//     for the same reason: a stack configured with a real project id must not
-//     die on the one thing that has nothing to do with what it is testing.
+//   - `GetProject` RESOLVED, and echoed whatever identifier it was asked for.
+//     That is over: it answers 404 for a project the register does not hold, the
+//     way fr-par does, and the paragraph below says what replaced the reason.
 //
-// The asymmetry is deliberate and is the whole design of this file.
+// # Why the echo went, and what took its place (#391)
+//
+// The echo was written for a measured reason: a stack configured with a real
+// project id must not die on the one thing that has nothing to do with what it
+// is testing. That reason has not stopped being true. What changed is that it
+// stopped being reachable from where it stood.
+//
+// Measured on fr-par, 2026-09-02, with a project made for the occasion and
+// deleted after:
+//
+//	POST   /account/v3/projects              200, and two projects may share a name
+//	PATCH  /account/v3/projects/{id}         200, updated_at moves
+//	GET    /account/v3/projects/{unknown}    404 not_found, resource "project_id"
+//	DELETE /account/v3/projects/{unknown}    404 not_found, resource "project"
+//	DELETE a project that still holds a disk 412 precondition_failed,
+//	                                         precondition "resource_still_in_use"
+//	DELETE it once empty                     204
+//
+// And the creates of four products refuse a project nobody holds, in three
+// different dialects (projectguard.go). Once a create refuses, an echoing
+// GetProject is worse than either answer on its own: a client resolves a project
+// with 200 and is then refused the create under it, which is the disagreement
+// #369 had between its own create and list, one product further out.
+//
+// So the register holds two kinds of project and answers both the same way:
+// what the operator declared (`--projects`, now `name` or `name=<id>`), and what
+// a client created through CreateProject. The stack holding a production UUID
+// declares it — `--projects prod=<uuid>` — which is a statement the operator
+// makes rather than an echo the emulator invents, and that distinction is the
+// one #83 closed on all three packs.
 
 // projectEpoch is when the emulated project was "created". Fixed, like
 // imageEpoch and for the same reason: a date that moved between two reads is a
@@ -70,9 +98,18 @@ const projectEpoch = "2025-01-01T00:00:00Z"
 const defaultProjectName = "default"
 
 // defaultProjectDescription is the same example's description for that project,
-// and it is truthful about this emulator too: DeleteProject is declined, so the
-// project cannot be deleted here either.
+// and it stays truthful about this emulator for a second reason since #391:
+// DeleteProject is served now, and it refuses the declared projects — an
+// operator's declaration is not a client's to delete.
 const defaultProjectDescription = "cannot_be_deleted"
+
+// kindProject is a project a client created, as opposed to one the operator
+// declared. Both are in the register; only these are in the store.
+const kindProject = "project"
+
+// createdProjectDescription is what a project this emulator minted carries. The
+// cloud answers "" for a create that named no description, measured 2026-09-02.
+const createdProjectDescription = ""
 
 // # The declared catalogue (#572)
 //
@@ -123,22 +160,93 @@ func projectID(name string) string {
 // recording expects. The fallback is here rather than at the parse site so that
 // a pack reading env.Projects never has to ask whether the empty case means
 // "none" or "the default" — it means the default, once, in this function.
-func (p *Pack) declaredProjects() []string {
+func (p *Pack) declaredProjects() []emulator.Project {
 	if len(p.env.Projects) == 0 {
-		return []string{defaultProjectName}
+		return []emulator.Project{{Name: defaultProjectName}}
 	}
 	return p.env.Projects
+}
+
+// identifierOf answers the identifier a declared project carries: the one the
+// operator stated, or the one derived from its name.
+func identifierOf(declared emulator.Project) string {
+	if declared.ID != "" {
+		return declared.ID
+	}
+	return projectID(declared.Name)
 }
 
 // projectNamed answers the declared name carrying that identifier, and whether
 // the catalogue holds it at all.
 func (p *Pack) projectNamed(id string) (string, bool) {
-	for _, name := range p.declaredProjects() {
-		if projectID(name) == id {
-			return name, true
+	for _, declared := range p.declaredProjects() {
+		if identifierOf(declared) == id {
+			return declared.Name, true
 		}
 	}
 	return "", false
+}
+
+// projectExists is the one question every other product of this pack asks about
+// a project, and the reason this file has a register at all.
+//
+// Two sources, one answer: what the operator declared, and what a client created
+// here. An empty identifier is the default project, which always exists — that
+// is what keeps a client configured from `feint env` clear of the refusal, which
+// is the first thing #391 said a fix would have to hold.
+func (p *Pack) projectExists(id string) bool {
+	if id == "" {
+		return true
+	}
+	if _, ok := p.projectNamed(id); ok {
+		return true
+	}
+	_, found := p.env.Store.Get(Name, kindProject, id)
+	return found
+}
+
+// projectRecord answers the view of a project the register holds, declared or
+// created, and whether it holds it.
+func (p *Pack) projectRecord(id string) (map[string]any, bool) {
+	if name, ok := p.projectNamed(id); ok {
+		return projectView(id, name), true
+	}
+	if res, found := p.env.Store.Get(Name, kindProject, id); found {
+		return p.createdProjectView(res), true
+	}
+	return nil, false
+}
+
+// createdProjectView renders a project this emulator minted. Same field order as
+// projectView, and the two dates come from the resource rather than from the
+// epoch: a client that creates a project and reads it back must see the moment
+// it asked for, and a rename has to move updated_at (measured).
+func (p *Pack) createdProjectView(res *resource.Resource) map[string]any {
+	name, _ := res.Attrs["name"].(string)
+	description, _ := res.Attrs["description"].(string)
+	return map[string]any{
+		"id":              res.ID,
+		"name":            name,
+		"organization_id": defaultOrganization,
+		"created_at":      res.Created.UTC().Format(time.RFC3339Nano),
+		"updated_at":      res.Updated.UTC().Format(time.RFC3339Nano),
+		"description":     description,
+		"qualification":   nil,
+		"status":          "active",
+	}
+}
+
+// registeredProjects answers every project the account holds, declared first and
+// then created, in the order each was stated or minted.
+func (p *Pack) registeredProjects() []map[string]any {
+	out := make([]map[string]any, 0, len(p.declaredProjects()))
+	for _, declared := range p.declaredProjects() {
+		out = append(out, projectView(identifierOf(declared), declared.Name))
+	}
+	for _, res := range p.env.Store.List(kindProject, resource.Tenant{Provider: Name}) {
+		out = append(out, p.createdProjectView(res))
+	}
+	return out
 }
 
 // projectView renders one Project, field for field as the SDK declares it
@@ -200,22 +308,23 @@ func (p *Pack) listProjects(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The two filters still FILTER, over the declared catalogue rather than over
-	// a constant. An empty answer remains the truthful one for a name this
-	// account does not hold — the whole point of #572 is that the operator can
-	// make it hold that name, not that the emulator invents it.
+	// The two filters still FILTER, over the register rather than over a
+	// constant. An empty answer remains the truthful one for a name this account
+	// does not hold — the point of #572 is that the operator can make it hold
+	// that name, and the point of #391 is that a client can too, by creating it.
 	wantName := q.Get("name")
 	wantIDs := csvValues(q, "project_ids")
 	projects := []any{}
-	for _, declared := range p.declaredProjects() {
-		id := projectID(declared)
-		if wantName != "" && wantName != declared {
+	for _, view := range p.registeredProjects() {
+		id, _ := view["id"].(string)
+		name, _ := view["name"].(string)
+		if wantName != "" && wantName != name {
 			continue
 		}
 		if len(wantIDs) > 0 && !contains(wantIDs, id) {
 			continue
 		}
-		projects = append(projects, projectView(id, declared))
+		projects = append(projects, view)
 	}
 
 	page := parsePage(r)
@@ -226,33 +335,155 @@ func (p *Pack) listProjects(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// getProject resolves one project by identifier, and answers for any of them.
+// getProject resolves one project by identifier, and refuses one the register
+// does not hold.
 //
-// The echo is the point, not a shortcut: docs/limits.md's "Identifiers are not
-// checked against anything" is what keeps a configuration holding a production
-// project UUID working against this emulator, and a project id is the identifier
-// a stack is most likely to carry — projectOf files every resource under
-// whatever the request named, so the id asked for here is a live isolation
-// boundary in this store whether or not anything was created in it yet.
+// It used to echo any identifier, and the file comment carries why that went.
+// The refusal's own shape is measured rather than borrowed from the sibling
+// below: fr-par answers `resource: "project_id"` here and `resource: "project"`
+// on the delete, 2026-09-02. Two spellings of the same word on two routes of one
+// product is exactly the kind of thing rule 4 exists for — nobody would invent
+// it, and a client keying on it would be told the wrong field.
 //
-// TestGetProjectAnswersAnIdentifierItNeverMinted fails without this.
+// TestGetProjectRefusesAnIdentifierNobodyDeclared and
+// TestGetProjectAnswersADeclaredProjectByItsOwnName fail without this.
 func (p *Pack) getProject(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	if id == "" {
+	if view, ok := p.projectRecord(id); ok {
+		emulator.WriteJSON(w, http.StatusOK, view)
+		return
+	}
+	writeNotFound(w, "project_id", id)
+}
+
+// createProjectRequest is CreateProjectRequest, cut to what this pack honours.
+// OrganizationID is read and not compared, for the reason listProjects gives
+// about organization_id: a client names its own configured organization, and
+// comparing told `scw iam ssh-key list` that a key it had just made was gone.
+type createProjectRequest struct {
+	Name           string `json:"name"`
+	Description    string `json:"description"`
+	OrganizationID string `json:"organization_id"`
+}
+
+// createProject mints a project a client can then file resources under.
+//
+// 200, not 201: measured on fr-par 2026-09-02, and it is the status the SDK's
+// generated method expects. Two projects may carry the same name — the same
+// measurement made one twice and got two identifiers — so there is no uniqueness
+// check here, and inventing one would refuse a request the cloud accepts.
+//
+// TestCreateProjectMintsAProjectTheCreatesThenAccept fails without this.
+func (p *Pack) createProject(w http.ResponseWriter, r *http.Request) {
+	var req createProjectRequest
+	if err := emulator.DecodeJSON(r, &req); err != nil {
+		writeInvalidArguments(w, ArgumentError{ArgumentName: "body", Reason: "format", HelpMessage: err.Error()})
+		return
+	}
+	if req.Name == "" {
+		writeInvalidArguments(w, ArgumentError{
+			ArgumentName: "name",
+			Reason:       "required",
+			HelpMessage:  "required key not provided",
+		})
+		return
+	}
+	now := p.env.Now()
+	res := resource.New(p.env.NewID(), kindProject, resource.Tenant{Provider: Name}, "active", now)
+	res.Attrs = map[string]any{
+		"name":        req.Name,
+		"description": orDefault(req.Description, createdProjectDescription),
+	}
+	p.env.Store.Put(res)
+	emulator.WriteJSON(w, http.StatusOK, p.createdProjectView(res))
+}
+
+// updateProjectRequest is UpdateProjectRequest. Both fields are pointers: the
+// SDK sends only what the client asked to change, and an absent name is not a
+// name set to empty.
+type updateProjectRequest struct {
+	Name        *string `json:"name"`
+	Description *string `json:"description"`
+}
+
+// updateProject renames a project, or restates its description.
+//
+// A declared project is refused rather than renamed, and the refusal is the
+// register's own: an operator's declaration is a statement made outside the API,
+// and a client renaming it would leave `--projects` describing something that no
+// longer answers. The status is the one the cloud gives a project it does not
+// hold, because from the API's side a declared project is not a record.
+//
+// TestUpdateProjectRenamesACreatedProjectAndRefusesADeclaredOne fails without
+// this.
+func (p *Pack) updateProject(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	res, found := p.env.Store.Get(Name, kindProject, id)
+	if !found {
+		writeNotFound(w, "project_id", id)
+		return
+	}
+	var req updateProjectRequest
+	if err := emulator.DecodeJSON(r, &req); err != nil {
+		writeInvalidArguments(w, ArgumentError{ArgumentName: "body", Reason: "format", HelpMessage: err.Error()})
+		return
+	}
+	clone := res.Clone()
+	if req.Name != nil {
+		clone.Attrs["name"] = *req.Name
+	}
+	if req.Description != nil {
+		clone.Attrs["description"] = *req.Description
+	}
+	clone.Updated = p.env.Now()
+	p.env.Store.Commit(res, clone, p.env.Now())
+	emulator.WriteJSON(w, http.StatusOK, p.createdProjectView(clone))
+}
+
+// deleteProject removes a project nothing is filed under.
+//
+// The 412 is the measurement this route exists for. fr-par refuses a project
+// that still holds a disk with precondition_failed / resource_still_in_use, and
+// a client that reads a 204 and moves on would leave resources behind believing
+// they went with it. Answering 204 unconditionally is the plausible-wrong answer
+// this repository exists to avoid.
+//
+// TestDeleteProjectRefusesOneThatStillHoldsSomething fails without this.
+func (p *Pack) deleteProject(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if _, declared := p.projectNamed(id); declared {
+		// The operator's declaration outlives a client, the way the account's
+		// own `default` does upstream: its description is literally
+		// "cannot_be_deleted".
+		writeProjectStillInUse(w)
+		return
+	}
+	res, found := p.env.Store.Get(Name, kindProject, id)
+	if !found {
 		writeNotFound(w, "project", id)
 		return
 	}
-	// A declared project answers with its own name; anything else still echoes,
-	// under the first declared name. The echo is unchanged and deliberate — see
-	// the file comment — but it stopped being able to answer `default` for
-	// everything the moment the catalogue could hold more than one, and a
-	// project the operator DID declare must read back as itself or the data
-	// source resolves a name nobody asked for.
-	//
-	// TestGetProjectAnswersADeclaredProjectByItsOwnName fails without this.
-	if name, ok := p.projectNamed(id); ok {
-		emulator.WriteJSON(w, http.StatusOK, projectView(id, name))
+	if held := p.resourcesUnder(id); held > 0 {
+		writeProjectStillInUse(w)
 		return
 	}
-	emulator.WriteJSON(w, http.StatusOK, projectView(id, p.declaredProjects()[0]))
+	p.env.Store.Delete(Name, kindProject, res.ID)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// resourcesUnder counts what is filed under a project, across every kind this
+// pack stores. Written as a sweep of the store rather than a list of kinds:
+// a list would be a second inventory to keep, and the kind that gets forgotten
+// is the one that makes a delete answer 204 over a resource still standing.
+func (p *Pack) resourcesUnder(project string) int {
+	held := 0
+	for _, res := range p.env.Store.All() {
+		if res.Tenant.Provider != Name || res.Kind == kindProject {
+			continue
+		}
+		if res.Tenant.Project == project {
+			held++
+		}
+	}
+	return held
 }

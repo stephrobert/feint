@@ -37,6 +37,27 @@ func newTestServer(t testing.TB) *httptest.Server {
 	return ts
 }
 
+// projectMade creates a project through the API and answers its identifier.
+//
+// Since #391 a create naming a project the register does not hold is refused,
+// the way the cloud refuses it, so a test that files something under a second
+// project has to make that project first — which is what a client does too. The
+// identifier is the emulator's, never one the test picked: minting an id and
+// hoping the register would honour it is precisely the echo #391 removed.
+func projectMade(t *testing.T, ts *httptest.Server, name string) string {
+	t.Helper()
+	status, created := do(t, ts, "POST", "/account/v3/projects",
+		`{"name":"`+name+`","organization_id":"`+defaultOrganizationID+`"}`)
+	if status != http.StatusOK {
+		t.Fatalf("create project %q: expected 200, got %d (%v)", name, status, created)
+	}
+	id, _ := created["id"].(string)
+	if id == "" {
+		t.Fatalf("create project %q: no id in %v", name, created)
+	}
+	return id
+}
+
 func do(t *testing.T, ts *httptest.Server, method, path, body string) (int, map[string]any) {
 	t.Helper()
 

@@ -474,6 +474,9 @@ func (p *Pack) Routes() []emulator.Route {
 		// measurement and the two rules the answers follow.
 		{Method: "GET", Path: "/account/v3/projects", Operation: "account/v3/ProjectAPI.ListProjects", Handler: p.listProjects},
 		{Method: "GET", Path: "/account/v3/projects/{id}", Operation: "account/v3/ProjectAPI.GetProject", Handler: p.getProject},
+		{Method: "POST", Path: "/account/v3/projects", Operation: "account/v3/ProjectAPI.CreateProject", Handler: p.createProject},
+		{Method: "PATCH", Path: "/account/v3/projects/{id}", Operation: "account/v3/ProjectAPI.UpdateProject", Handler: p.updateProject},
+		{Method: "DELETE", Path: "/account/v3/projects/{id}", Operation: "account/v3/ProjectAPI.DeleteProject", Handler: p.deleteProject},
 	}
 }
 
@@ -1232,11 +1235,22 @@ func (p *Pack) Declined() []emulator.Decline {
 		// a whole product's operations in front of a triage that used to be
 		// able to ignore them.
 
-		emulator.Because("this emulator hosts one project and files every resource under whatever project a request names (projectOf, scopeOf), so a project is not a record here: a created one would be an entry nothing consults, a deleted one would not stop the resources filed under it, and a renamed one would move a name no other answer of this pack carries",
-			"account/v3/ProjectAPI.CreateProject",
-			"account/v3/ProjectAPI.DeleteProject",
-			"account/v3/ProjectAPI.DeleteProjectWithResources",
-			"account/v3/ProjectAPI.UpdateProject"),
+		// Three of those four are served since #391, and the sentence that
+		// declined them named its own expiry: "a project is not a record here".
+		// It is one now — the register in projects.go — because the creates of
+		// four products refuse a project nobody holds, which is what the cloud
+		// does, and refusing without a way to make a project real would have
+		// left the multi-project behaviour with no door.
+		//
+		// DeleteProjectWithResources is the one that stays, and for a reason
+		// that did not move: it deletes the resources too, and this pack's
+		// delete paths are per-product and per-zone. A sweep written here would
+		// be a second inventory of what exists, and the kind it forgets is the
+		// one that survives a delete the client was told succeeded. The 412 of
+		// DeleteProject says "empty it first" in the cloud's own words, which is
+		// an answer rather than a silence.
+		emulator.Because("it deletes a project together with everything filed under it, and the resources of this pack are removed through their own per-product paths: a sweep written here would be a second inventory of what exists, and the kind it forgets is the one that outlives a delete the client was told succeeded",
+			"account/v3/ProjectAPI.DeleteProjectWithResources"),
 
 		emulator.Because("a project's qualification is the use case declared to Scaleway for commercial and compliance purposes, and nothing here reads it back into any behaviour: recording one would be a declaration made to nobody",
 			"account/v3/ProjectAPI.SetProjectQualification"),

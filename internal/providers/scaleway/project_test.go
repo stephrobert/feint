@@ -5,11 +5,6 @@ import (
 	"testing"
 )
 
-// otherProject is a second project of the same organization. Any UUID that is
-// not the default one does: what matters is that resources created under it
-// stay invisible from the default project.
-const otherProject = "22222222-2222-4222-8222-222222222222"
-
 // A project is an isolation boundary, not a label. A list that NAMES a project
 // must answer that project alone, or a client reads resources it does not own
 // and Terraform plans a destroy for something another project created.
@@ -21,23 +16,25 @@ const otherProject = "22222222-2222-4222-8222-222222222222"
 func TestListsAreScopedToTheProject(t *testing.T) {
 	ts := newTestServer(t)
 
+	second := projectMade(t, ts, "second")
+
 	kinds := []struct {
 		name   string
 		path   string
 		create string
 		field  string
 	}{
-		{"servers", "/servers", `{"name":"scoped","commercial_type":"DEV1-S","project":"` + otherProject + `"}`, "servers"},
-		{"ips", "/ips", `{"project":"` + otherProject + `"}`, "ips"},
-		{"volumes", "/volumes", `{"name":"scoped","volume_type":"l_ssd","project":"` + otherProject + `"}`, "volumes"},
-		{"security_groups", "/security_groups", `{"name":"scoped","project":"` + otherProject + `"}`, "security_groups"},
+		{"servers", "/servers", `{"name":"scoped","commercial_type":"DEV1-S","project":"` + second + `"}`, "servers"},
+		{"ips", "/ips", `{"project":"` + second + `"}`, "ips"},
+		{"volumes", "/volumes", `{"name":"scoped","volume_type":"l_ssd","project":"` + second + `"}`, "volumes"},
+		{"security_groups", "/security_groups", `{"name":"scoped","project":"` + second + `"}`, "security_groups"},
 	}
 
 	for _, k := range kinds {
 		t.Run(k.name, func(t *testing.T) {
 			status, created := do(t, ts, "POST", zoneURL+k.path, k.create)
 			if status != http.StatusCreated {
-				t.Fatalf("create in %s: expected 201, got %d (%v)", otherProject, status, created)
+				t.Fatalf("create in %s: expected 201, got %d (%v)", second, status, created)
 			}
 
 			id, _ := firstID(created)
@@ -56,7 +53,7 @@ func TestListsAreScopedToTheProject(t *testing.T) {
 			}
 
 			// Its own project must.
-			_, listed = do(t, ts, "GET", zoneURL+k.path+"?project="+otherProject, "")
+			_, listed = do(t, ts, "GET", zoneURL+k.path+"?project="+second, "")
 			found := false
 			for _, item := range listed[k.field].([]any) {
 				if m, _ := item.(map[string]any); m["id"] == id {
@@ -78,7 +75,7 @@ func TestOrganizationScopeSpansProjects(t *testing.T) {
 	if status, _ := do(t, ts, "POST", zoneURL+"/servers", `{"name":"a","commercial_type":"DEV1-S"}`); status != http.StatusCreated {
 		t.Fatalf("create in the default project: got %d", status)
 	}
-	body := `{"name":"b","commercial_type":"DEV1-S","project":"` + otherProject + `"}`
+	body := `{"name":"b","commercial_type":"DEV1-S","project":"` + projectMade(t, ts, "second") + `"}`
 	if status, _ := do(t, ts, "POST", zoneURL+"/servers", body); status != http.StatusCreated {
 		t.Fatalf("create in the other project: got %d", status)
 	}
@@ -157,10 +154,11 @@ const defaultProjectID = "11111111-1111-1111-1111-111111111111"
 func TestAnUnfilteredListAnswersEveryProjectLikeTheCloud(t *testing.T) {
 	ts := newTestServer(t)
 
+	second := projectMade(t, ts, "second")
 	status, created := do(t, ts, "POST", zoneURL+"/servers",
-		`{"name":"elsewhere","commercial_type":"DEV1-S","project":"`+otherProject+`"}`)
+		`{"name":"elsewhere","commercial_type":"DEV1-S","project":"`+second+`"}`)
 	if status != http.StatusCreated {
-		t.Fatalf("create in %s: expected 201, got %d (%v)", otherProject, status, created)
+		t.Fatalf("create in %s: expected 201, got %d (%v)", second, status, created)
 	}
 	id, _ := firstID(created)
 	if id == "" {

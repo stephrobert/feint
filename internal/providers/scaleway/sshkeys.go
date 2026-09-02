@@ -145,6 +145,9 @@ func (p *Pack) createSSHKey(w http.ResponseWriter, r *http.Request) {
 
 	// IAM keys belong to a project, and the organization above it is the
 	// account, never the same identifier.
+	if p.refuseUnknownProject(w, req.ProjectID, projectDeniedToIAM) {
+		return
+	}
 	project, organization := projectOf(req.ProjectID)
 	now := p.env.Now()
 

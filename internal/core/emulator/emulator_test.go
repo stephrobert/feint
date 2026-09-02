@@ -140,8 +140,11 @@ func TestParseProjectsRefusesWhatAClientWouldReadBack(t *testing.T) {
 	if err != nil {
 		t.Fatalf("an ordinary declaration was refused: %v", err)
 	}
-	if len(got) != 2 || got[0] != "default" || got[1] != "platform-prod" {
-		t.Errorf("parsed as %q, want the two names in order with the spaces trimmed", got)
+	if len(got) != 2 || got[0].Name != "default" || got[1].Name != "platform-prod" {
+		t.Errorf("parsed as %v, want the two names in order with the spaces trimmed", got)
+	}
+	if got[0].ID != "" || got[1].ID != "" {
+		t.Errorf("a declaration naming no identifier carries one: %v", got)
 	}
 
 	// An empty declaration answers nil and never an empty non-nil slice: the
@@ -149,5 +152,43 @@ func TestParseProjectsRefusesWhatAClientWouldReadBack(t *testing.T) {
 	// and the two would read the same in Go and differently to a reader.
 	if got, err := emulator.ParseProjects("   "); err != nil || got != nil {
 		t.Errorf("an empty declaration answered %#v, %v; want nil, nil", got, err)
+	}
+}
+
+// A declaration may carry the identifier a stack already holds (#391), and the
+// parser is where that is read and refused.
+//
+// Why it exists at all: once a pack refuses a create naming a project nobody
+// declared — which is what the cloud does — an operator whose Terraform carries
+// a production project UUID has no way in. `name=<id>` is the way in.
+//
+// TestParseProjectsReadsADeclaredIdentifier fails without this.
+func TestParseProjectsReadsADeclaredIdentifier(t *testing.T) {
+	got, err := emulator.ParseProjects("default, platform-prod = abcdef01-2345-4678-9abc-def012345678")
+	if err != nil {
+		t.Fatalf("an ordinary declaration was refused: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("parsed %d entries, want 2: %v", len(got), got)
+	}
+	if got[0].Name != "default" || got[0].ID != "" {
+		t.Errorf("the entry naming no identifier came back as %v", got[0])
+	}
+	if got[1].Name != "platform-prod" || got[1].ID != "abcdef01-2345-4678-9abc-def012345678" {
+		t.Errorf("the entry naming an identifier came back as %v, spaces and all", got[1])
+	}
+
+	// The refusing half, and the fourth ground this parser adds for identifiers:
+	// two tenancies answering one identifier is a boundary that separates
+	// nothing.
+	for _, bad := range []string{
+		"prod=",
+		"=abcdef01-2345-4678-9abc-def012345678",
+		"prod=abcdef01-2345-4678-9abc-def012345678,staging=abcdef01-2345-4678-9abc-def012345678",
+		"prod=a\u0000b",
+	} {
+		if _, err := emulator.ParseProjects(bad); err == nil {
+			t.Errorf("accepted %q", bad)
+		}
 	}
 }

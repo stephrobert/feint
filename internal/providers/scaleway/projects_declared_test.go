@@ -93,15 +93,77 @@ func TestGetProjectAnswersADeclaredProjectByItsOwnName(t *testing.T) {
 		t.Errorf("GetProject answered id %v for %s", got["id"], id)
 	}
 
-	// The echo, unchanged: an identifier this catalogue never held still
-	// resolves, because a configuration carrying a production project UUID must
-	// not die on the one thing that has nothing to do with what it is testing.
+	// The echo is gone (#391): an identifier this register does not hold is
+	// refused, the way fr-par refuses it. The reason the echo existed has not
+	// stopped being true, and the test below is where it went — the operator
+	// declares the identifier their stack carries.
 	foreign := "abcdef01-2345-4678-9abc-def012345678"
-	echoed := getProject(t, srv, foreign)
-	if echoed["id"] != foreign {
-		t.Errorf("GetProject answered id %v for %s; the identifier a client sent is the one it must read back",
-			echoed["id"], foreign)
+	if status := getProjectStatus(t, srv, foreign); status != http.StatusNotFound {
+		t.Errorf("GetProject answered %d for an identifier nobody declared, want 404", status)
 	}
+}
+
+// The way out the echo used to be: an operator whose stack carries a production
+// project identifier declares it, and the register holds that identifier rather
+// than one derived from a name.
+//
+// This is what keeps #372's case alive after #391 refused unknown projects. The
+// two stacks #372 measured die on GET /account/v3/projects/{id} before they
+// reach a single VPC path, and a 404 there would have put them back where they
+// were. `--projects platform-prod=<their uuid>` is the door, and it is the
+// operator's own statement rather than an echo the emulator invents — which is
+// the distinction #83 closed on all three packs.
+func TestADeclaredIdentifierIsTheOneAStackHolds(t *testing.T) {
+	const held = "abcdef01-2345-4678-9abc-def012345678"
+
+	var seq int
+	env := &emulator.Env{
+		Store: store.New(),
+		Now:   func() time.Time { return time.Unix(1700000000, 0).UTC() },
+		NewID: func() string {
+			seq++
+			return fmt.Sprintf("00000000-0000-4000-8000-%012d", seq)
+		},
+		Projects: []emulator.Project{{Name: "platform-prod", ID: held}},
+	}
+	srv, err := emulator.NewServer(env, scaleway.New(env))
+	if err != nil {
+		t.Fatalf("build emulator: %v", err)
+	}
+	ts := httptest.NewServer(srv.Handler())
+	t.Cleanup(ts.Close)
+
+	got := getProject(t, ts, held)
+	if got["id"] != held {
+		t.Errorf("GetProject answered id %v, want the declared %s", got["id"], held)
+	}
+	if got["name"] != "platform-prod" {
+		t.Errorf("GetProject answered name %v, want platform-prod", got["name"])
+	}
+
+	// And the creates accept it, which is the half a data source alone would not
+	// prove: resolving a project a create then refuses is the disagreement #369
+	// removed one product out.
+	res, err := http.Post(ts.URL+"/instance/v1/zones/fr-par-1/servers", "application/json",
+		strings.NewReader(`{"name":"held","commercial_type":"DEV1-S","project":"`+held+`"}`))
+	if err != nil {
+		t.Fatalf("create under the declared identifier: %v", err)
+	}
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusCreated {
+		t.Errorf("a create under the declared identifier answered %d, want 201", res.StatusCode)
+	}
+}
+
+// getProjectStatus is getProject without the 200 it insists on.
+func getProjectStatus(t *testing.T, srv *httptest.Server, id string) int {
+	t.Helper()
+	res, err := http.Get(srv.URL + "/account/v3/projects/" + id)
+	if err != nil {
+		t.Fatalf("get project: %v", err)
+	}
+	defer func() { _ = res.Body.Close() }()
+	return res.StatusCode
 }
 
 // The identifiers are derived from the name and never minted, for the reason
@@ -142,7 +204,7 @@ func serveWithProjects(t *testing.T, names ...string) *httptest.Server {
 			seq++
 			return fmt.Sprintf("00000000-0000-4000-8000-%012d", seq)
 		},
-		Projects: names,
+		Projects: declaredFrom(names),
 	}
 	srv, err := emulator.NewServer(env, scaleway.New(env))
 	if err != nil {
@@ -151,6 +213,18 @@ func serveWithProjects(t *testing.T, names ...string) *httptest.Server {
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts.Close)
 	return ts
+}
+
+// declaredFrom turns the names a test writes into the declaration the Env now
+// carries. Names alone, no identifiers: a test that wants to state one writes
+// emulator.Project itself, which is what TestADeclaredIdentifierIsTheOneAStackHolds
+// does.
+func declaredFrom(names []string) []emulator.Project {
+	out := make([]emulator.Project, 0, len(names))
+	for _, name := range names {
+		out = append(out, emulator.Project{Name: name})
+	}
+	return out
 }
 
 func projectsOf(t *testing.T, srv *httptest.Server, filter string) []map[string]any {

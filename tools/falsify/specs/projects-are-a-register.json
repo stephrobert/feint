@@ -1,0 +1,68 @@
+{
+  "package": "./internal/providers/scaleway/",
+  "mutations": [
+    {
+      "label": "the register answers yes to everything again, so a create names any project it likes and the cloud's refusal is gone",
+      "file": "internal/providers/scaleway/projects.go",
+      "find": "func (p *Pack) projectExists(id string) bool {\n\tif id == \"\" {\n\t\treturn true\n\t}",
+      "replace": "func (p *Pack) projectExists(id string) bool {\n\tif id == \"\" || id != \"\" {\n\t\treturn true\n\t}",
+      "test": "TestACreateNamingAnUnknownProjectIsRefusedInItsProductsShape"
+    },
+    {
+      "label": "every product answers instance/v1's words, so a client reading details is told the project is unreadable when the cloud said it may not write a volume",
+      "file": "internal/providers/scaleway/projectguard.go",
+      "find": "\tprojectDeniedToBlock    = projectRefusal{resource: \"volume\", action: \"write\"}",
+      "replace": "\tprojectDeniedToBlock    = projectRefusal{resource: \"project\", action: \"read\"}",
+      "test": "TestACreateNamingAnUnknownProjectIsRefusedInItsProductsShape"
+    },
+    {
+      "label": "the 404 products answer 403 too, so vpc and ipam stop saying which identifier was not found",
+      "file": "internal/providers/scaleway/projectguard.go",
+      "find": "\tprojectAbsent = projectRefusal{}",
+      "replace": "\tprojectAbsent = projectRefusal{resource: \"project\", action: \"read\"}",
+      "test": "TestACreateNamingAnUnknownProjectIsRefusedInItsProductsShape"
+    },
+    {
+      "label": "an empty project is refused too, so a client configured from `feint env` meets the refusal on its first create",
+      "file": "internal/providers/scaleway/projects.go",
+      "find": "func (p *Pack) projectExists(id string) bool {\n\tif id == \"\" {\n\t\treturn true\n\t}\n\tif _, ok := p.projectNamed(id); ok {\n\t\treturn true\n\t}",
+      "replace": "func (p *Pack) projectExists(id string) bool {\n\tif id == \"\" && false {\n\t\treturn true\n\t}\n\tif _, ok := p.projectNamed(id); ok {\n\t\treturn true\n\t}",
+      "test": "TestOrganizationScopeSpansProjects"
+    },
+    {
+      "label": "a delete no longer counts what the project holds, so it answers 204 over resources that outlive it",
+      "file": "internal/providers/scaleway/projects.go",
+      "find": "\tif held := p.resourcesUnder(id); held > 0 {",
+      "replace": "\tif held := p.resourcesUnder(id); held > 0 && false {",
+      "test": "TestDeleteProjectRefusesOneThatStillHoldsSomething"
+    },
+    {
+      "label": "the delete answers instance/v1's 400 for the same body, so a client branching on the status takes its malformed-request path",
+      "file": "internal/providers/scaleway/errors.go",
+      "find": "\temulator.WriteJSON(w, http.StatusPreconditionFailed, APIError{\n\t\tType:         \"precondition_failed\",\n\t\tMessage:      \"precondition is not respected\",\n\t\tPrecondition: \"resource_still_in_use\",",
+      "replace": "\temulator.WriteJSON(w, http.StatusBadRequest, APIError{\n\t\tType:         \"precondition_failed\",\n\t\tMessage:      \"precondition is not respected\",\n\t\tPrecondition: \"resource_still_in_use\",",
+      "test": "TestDeleteProjectRefusesOneThatStillHoldsSomething"
+    },
+    {
+      "label": "GetProject echoes any identifier again, so a client resolves a project the create then refuses",
+      "file": "internal/providers/scaleway/projects.go",
+      "find": "\tif view, ok := p.projectRecord(id); ok {\n\t\temulator.WriteJSON(w, http.StatusOK, view)\n\t\treturn\n\t}\n\twriteNotFound(w, \"project_id\", id)",
+      "replace": "\tif view, ok := p.projectRecord(id); ok {\n\t\temulator.WriteJSON(w, http.StatusOK, view)\n\t\treturn\n\t}\n\temulator.WriteJSON(w, http.StatusOK, projectView(id, p.declaredProjects()[0].Name))\n\t_ = writeNotFound",
+      "test": "TestGetProjectRefusesAnIdentifierNobodyDeclared"
+    },
+    {
+      "label": "a declared identifier is ignored and derived from the name instead, so the stack holding a production UUID is locked out",
+      "file": "internal/providers/scaleway/projects.go",
+      "find": "func identifierOf(declared emulator.Project) string {\n\tif declared.ID != \"\" {\n\t\treturn declared.ID\n\t}",
+      "replace": "func identifierOf(declared emulator.Project) string {\n\tif declared.ID != \"\" && false {\n\t\treturn declared.ID\n\t}",
+      "test": "TestADeclaredIdentifierIsTheOneAStackHolds"
+    },
+    {
+      "label": "CreateProject answers 201, which is the status a client takes as created-elsewhere",
+      "file": "internal/providers/scaleway/projects.go",
+      "find": "\tp.env.Store.Put(res)\n\temulator.WriteJSON(w, http.StatusOK, p.createdProjectView(res))",
+      "replace": "\tp.env.Store.Put(res)\n\temulator.WriteJSON(w, http.StatusCreated, p.createdProjectView(res))",
+      "test": "TestCreateProjectMintsAProjectTheCreatesThenAccept"
+    }
+  ]
+}

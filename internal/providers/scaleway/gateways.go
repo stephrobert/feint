@@ -220,6 +220,9 @@ func (p *Pack) createGatewayIP(w http.ResponseWriter, r *http.Request) {
 		writeInvalidArguments(w, ArgumentError{ArgumentName: "body", Reason: "format", HelpMessage: err.Error()})
 		return
 	}
+	if p.refuseUnknownProject(w, req.ProjectID, projectAbsent) {
+		return
+	}
 	project, _ := projectOf(req.ProjectID)
 
 	unlock := p.lockAddresses()
@@ -427,6 +430,15 @@ func (p *Pack) createGateway(w http.ResponseWriter, r *http.Request) {
 	var req createGatewayRequest
 	if err := emulator.DecodeJSON(r, &req); err != nil {
 		writeInvalidArguments(w, ArgumentError{ArgumentName: "body", Reason: "format", HelpMessage: err.Error()})
+		return
+	}
+	// The project before the type, because that is the order the cloud answers
+	// in: corpus/scaleway/scw-refusals.jsonl seq 103 records CreateGateway
+	// naming a ghost project AND a type this emulator does not offer, and
+	// fr-par answers 404 on the project. Validating the type first made this
+	// route answer 400, and the corpus gate named it — the one divergence left
+	// after #391's guard went in.
+	if p.refuseUnknownProject(w, req.ProjectID, projectAbsent) {
 		return
 	}
 	if !gatewayTypes[strings.ToUpper(req.Type)] {

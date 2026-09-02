@@ -107,6 +107,9 @@ func (p *Pack) createPlacementGroupV2(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if p.refuseUnknownProject(w, req.ProjectID, projectDeniedToInstance) {
+		return
+	}
 	project, organization := projectOf(req.ProjectID)
 	res := resource.New(p.env.NewID(), kindPlacementGroup, resource.Tenant{Provider: Name, Project: project, Zone: zone}, "available", p.env.Now())
 	res.Attrs = map[string]any{

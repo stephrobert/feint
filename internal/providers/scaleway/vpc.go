@@ -219,6 +219,9 @@ func (p *Pack) createVPC(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if p.refuseUnknownProject(w, req.ProjectID, projectAbsent) {
+		return
+	}
 	project, _ := projectOf(req.ProjectID)
 	res := p.newVPC(region, project, req.Name, false)
 	res.Attrs["tags"] = orEmpty(req.Tags)
@@ -403,6 +406,9 @@ func (p *Pack) createPrivateNetwork(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if p.refuseUnknownProject(w, req.ProjectID, projectAbsent) {
+		return
+	}
 	project, _ := projectOf(req.ProjectID)
 	vpc := p.ensureDefaultVPC(region, project)
 	if req.VpcID != nil && *req.VpcID != "" {

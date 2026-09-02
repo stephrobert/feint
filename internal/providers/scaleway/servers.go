@@ -395,6 +395,9 @@ func (p *Pack) createServer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	now := p.env.Now()
+	if p.refuseUnknownProject(w, req.Project, projectDeniedToInstance) {
+		return
+	}
 	project, organization := projectOf(req.Project)
 
 	// Every server belongs to a security group, and the project default is what
