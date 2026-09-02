@@ -98,13 +98,31 @@ func TestConcurrentSubnetCreatesShareTheirIsolationPasses(t *testing.T) {
 	}
 	go func() { wg.Wait(); close(burstDone) }()
 
-	// Long enough for every burst caller to have reached the coalescer while
-	// the first pass is still held open — which is what makes the pass count
-	// below a staged fact rather than a bet.
+	// Every burst caller has to have REACHED the coalescer while the first pass
+	// is still held open, or the count below means nothing: a caller still
+	// walking towards the wait when the held pass is released starts a pass of
+	// its own.
+	//
+	// This was a 100 ms sleep, under a comment calling the result "a staged fact
+	// rather than a bet". It was a bet, and macos-15-intel called it on
+	// 2026-09-02: three passes instead of two, on a tree that had passed on
+	// every other runner minutes earlier, with nothing in the change touching
+	// this pack. Waiting on the fact itself makes the sentence true.
+	deadline := time.Now().Add(30 * time.Second)
+	for p.isolation.Waiting() < burst {
+		if time.Now().After(deadline) {
+			t.Fatalf("only %d of %d burst callers reached the coalescer", p.isolation.Waiting(), burst)
+		}
+		time.Sleep(time.Millisecond)
+	}
+
+	// And none of them may have returned: the only pass in flight predates their
+	// subnets, so satisfying one would be the coalescer covering a change the
+	// running pass never read.
 	select {
 	case <-burstDone:
 		t.Fatal("a burst caller returned while the only pass in flight predates its subnet")
-	case <-time.After(100 * time.Millisecond):
+	default:
 	}
 
 	close(driver.release)
