@@ -43,6 +43,40 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Corrigé
 
+- **Deux refus répondaient le mauvais statut, et c'est exactement là-dessus qu'un
+  client branche** (#394). Un 404 dit « crée le parent d'abord », un 400 dit
+  « ton corps est mauvais et le parent n'y est pour rien », un 403 dit « tu n'as
+  pas le droit ici », et Terraform ne réessaie aucun des trois de la même façon.
+
+  `vpc/v2 CreateRoute` résolvait le VPC avant de lire le corps. Mesuré sur fr-par
+  le 2026-09-02, avec un `vpc_id` qui ne nomme rien :
+
+  | requête | réponse de `fr-par` |
+  |---|---|
+  | aucun next hop | 400, `argument_name: route`, `requires_one_of: {"fields": "nexthop_vpc_connector_id, nexthop_private_network_id"}` |
+  | avec un next hop | 404 `resource is not found` |
+  | aucun `vpc_id` | 400, `argument_name: vpc_id`, `help_message: "uuid: {}"` |
+
+  Le cloud ne valide donc pas « le corps d'abord » par habitude : sa couche
+  générée applique ce que **le document déclare**, un champ requis, une forme
+  d'UUID, un `requires_one_of`, et ce n'est qu'ensuite qu'un handler résout quoi
+  que ce soit. La même requête répond 400 ou 404 selon celui des deux murs
+  qu'elle rencontre, et cet émulateur répondait 404 aux trois.
+
+  `lb/v1 CreateRoute` répondait 404 pour un frontend inexistant, là où fr-par
+  répond **403**, et c'est la réponse propre à cette route et non au produit :
+  `GET /frontends/{id}` et `GET /lbs/{id}` répondent 404 des deux côtés. Le
+  statut est désormais celui du cloud.
+
+  **Une divergence demeure, et elle est écrite plutôt que laissée implicite.**
+  `lb/v1` n'envoie aucune enveloppe d'erreur `scw` sur ces trois refus : ni
+  `type`, ni `details`. Cet émulateur en envoie une, parce que
+  `contracts/scaleway.json` déclare un `errorSchema` unique pour tout le
+  document, `scw.ResponseError` avec `required: ["type"]`, extrait du SDK, et que
+  `internal/probe` valide chaque refus contre lui. Lever cela demande un
+  `errorSchema` par produit, arbitré par un enregistrement plutôt que par un
+  document. `docs/limits.md` le porte.
+
 - **Une création nommant un projet inexistant était acceptée ici et refusée par
   le cloud, sur sept produits** (#391). Enregistré par #390 et relu champ par
   champ le 2026-09-02, parce que le corpus rédige les valeurs et que les mots

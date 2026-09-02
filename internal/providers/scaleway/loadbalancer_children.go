@@ -921,9 +921,26 @@ func (p *Pack) createLBRoute(w http.ResponseWriter, r *http.Request) {
 		writeInvalidArguments(w, ArgumentError{ArgumentName: "body", Reason: "format", HelpMessage: err.Error()})
 		return
 	}
+	// 403 and not 404, and it is measured rather than reasoned (#394). Against
+	// fr-par, 2026-09-02, with a frontend identifier that names nothing:
+	//
+	//	POST   /lb/v1/zones/fr-par-1/routes         403 {"message": "Permission denied"}
+	//	GET    /lb/v1/zones/fr-par-1/frontends/{id} 404 {"message": "frontend not Found"}
+	//	GET    /lb/v1/zones/fr-par-1/lbs/{id}       404 {"message": "lbs not Found"}
+	//
+	// So this is not the product answering 403 to everything it does not hold —
+	// the two reads beside it answer 404. It is this route's own answer, and it
+	// is the platform's choice rather than a shape worth improving: rule 4 says
+	// to copy it. A client branches on the status, and Terraform retries a 403
+	// and a 404 differently.
+	//
+	// The body carries `message` alone, with no `type`, which is the older lb/v1
+	// error shape and another thing nobody would invent.
+	//
+	// TestALBRouteRefusesAnAbsentFrontendTheWayTheCloudDoes fails without this.
 	fe, found := p.env.Store.Get(Name, kindLBFrontend, req.FrontendID)
 	if !found || fe.Tenant.Zone != zone {
-		writeNotFound(w, "frontend", req.FrontendID)
+		writePermissionDenied(w)
 		return
 	}
 	backend, found := p.env.Store.Get(Name, kindLBBackend, req.BackendID)

@@ -16,7 +16,7 @@
     "An Outscale load balancer distributes packets inside its network, and nowhere else": "2026-08-27",
     "An Outscale machine owns a root volume, and that volume holds no bytes": "2026-08-27",
     "Exoscale has one zone per process, and the reason is the client": "2026-08-27",
-    "Identifiers are not checked against anything": "2026-08-27",
+    "Identifiers are not checked against anything": "2026-09-02",
     "Lifecycle transitions are immediate": "2026-08-29",
     "Managed Kubernetes is not emulated, and a CRUD-only version is refused (#283)": "2026-08-27",
     "Object Storage is not emulated": "2026-08-27",

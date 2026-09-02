@@ -150,3 +150,37 @@ func writeProjectStillInUse(w http.ResponseWriter) {
 		HelpMessage:  "all resources are not deleted",
 	})
 }
+
+// writePermissionDenied answers lb/v1's refusal for a frontend it does not hold.
+//
+// The STATUS is the measurement and the point of #394: fr-par answers 403 here
+// where its own reads of the same absent frontend answer 404, so a client
+// branching on the status — which Terraform does, retrying a 403 and a 404
+// differently — took the wrong path against this emulator.
+//
+// The message is the cloud's word for word. The `type` is NOT, and that is a
+// known divergence rather than an oversight, so it is written here:
+//
+//	fr-par POST /lb/v1/zones/fr-par-1/routes  403 {"message": "Permission denied"}
+//	fr-par GET  /lb/v1/.../frontends/{ghost}  404 {"message": "frontend not Found"}
+//	fr-par GET  /lb/v1/.../lbs/{ghost}        404 {"message": "lbs not Found"}
+//
+// lb/v1 sends no scw error envelope at all, on any of the three. This pack does,
+// on every one of them — writeNotFound has answered lb/v1's 404s with a `type`
+// since long before this route existed — and the reason is structural rather
+// than chosen: contracts/scaleway.json declares ONE errorSchema for the whole
+// document (scw.ResponseError, `required: ["type"]`), extracted from the SDK,
+// and internal/probe validates every refusal against it. A body without `type`
+// fails that probe, which is the gate being right about the document it was
+// given and the document being a document rather than a recording.
+//
+// So this answers the status the cloud answers, in the envelope this pack serves
+// for the whole product. Making the envelope per-product is a change to the
+// contract extraction, and docs/limits.md carries it as a limit rather than
+// leaving it implicit here.
+func writePermissionDenied(w http.ResponseWriter) {
+	emulator.WriteJSON(w, http.StatusForbidden, APIError{
+		Type:    "permissions_denied",
+		Message: "Permission denied",
+	})
+}

@@ -40,6 +40,40 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Fixed
 
+- **Two refusals answered the wrong status, and a client branches on exactly
+  that** (#394). A 404 says "create the parent first", a 400 says "your body is
+  wrong and the parent is beside the point", a 403 says "you are not allowed
+  here", and Terraform retries none of the three the same way.
+
+  `vpc/v2 CreateRoute` resolved the VPC before it read the body. Measured on
+  fr-par, 2026-09-02, with a `vpc_id` that names nothing:
+
+  | request | `fr-par` answers |
+  |---|---|
+  | no next hop at all | 400, `argument_name: route`, `requires_one_of: {"fields": "nexthop_vpc_connector_id, nexthop_private_network_id"}` |
+  | with a next hop | 404 `resource is not found` |
+  | no `vpc_id` at all | 400, `argument_name: vpc_id`, `help_message: "uuid: {}"` |
+
+  So the cloud is not validating the body first as a habit: its generated layer
+  enforces what the **document declares** — a required field, a UUID shape, a
+  `requires_one_of` — and only then does a handler resolve anything. The same
+  request answers 400 or 404 depending on which of those two walls it meets, and
+  this emulator answered 404 to all three.
+
+  `lb/v1 CreateRoute` answered 404 for a frontend that does not exist, where
+  fr-par answers **403** — and that is this route's own answer rather than the
+  product's: `GET /frontends/{id}` and `GET /lbs/{id}` both answer 404 on both
+  sides. The status is now the cloud's.
+
+  **One divergence stays, and it is written down rather than left implicit.**
+  `lb/v1` sends no `scw` error envelope on any of those three refusals: no
+  `type`, no `details`. This emulator sends one, because
+  `contracts/scaleway.json` declares a single `errorSchema` for the whole
+  document — `scw.ResponseError`, `required: ["type"]`, extracted from the SDK —
+  and `internal/probe` validates every refusal against it. Lifting that means an
+  `errorSchema` per product, arbitrated by a recording rather than a document.
+  `docs/limits.md` carries it.
+
 - **A create naming a project that does not exist was accepted here and refused
   by the cloud, across seven products** (#391). Recorded in #390 and re-read
   field by field on 2026-09-02, because the corpus redacts values and the words

@@ -57,6 +57,33 @@ func (p *Pack) createRoute(w http.ResponseWriter, r *http.Request) {
 		writeInvalidArguments(w, ArgumentError{ArgumentName: "body", Reason: "format", HelpMessage: err.Error()})
 		return
 	}
+	// What the document DECLARES is checked before what the store HOLDS, and
+	// that ordering is measured rather than preferred (#394). Against fr-par,
+	// 2026-09-02, with a vpc_id that names nothing:
+	//
+	//	no next hop at all   400 invalid_arguments, argument_name "route",
+	//	                     help_message `requires_one_of: {"fields":
+	//	                     "nexthop_vpc_connector_id, nexthop_private_network_id"}`
+	//	with a next hop      404 resource is not found
+	//	no vpc_id at all     400 invalid_arguments, argument_name "vpc_id",
+	//	                     help_message "uuid: {}"
+	//
+	// So the cloud is not "validating the body first" as a habit: its generated
+	// layer enforces the constraints the document declares — a required field, a
+	// UUID shape, a requires_one_of — and only then does a handler resolve
+	// anything. The same request answers 400 or 404 depending on which of those
+	// two walls it meets, and a client branches on exactly that: 404 says
+	// "create the parent first", 400 says "your body is wrong and the parent is
+	// beside the point".
+	//
+	// This emulator resolved the VPC first and answered 404 to both.
+	//
+	// TestCreateRouteChecksWhatTheDocumentDeclaresBeforeWhatTheStoreHolds fails
+	// without this.
+	if bad := routeBodyFault(req); bad != nil {
+		writeInvalidArguments(w, *bad)
+		return
+	}
 	vpc, found := p.env.Store.Get(Name, kindVPC, req.VpcID)
 	if !found || vpc.Tenant.Zone != region {
 		writeNotFound(w, "vpc", req.VpcID)
@@ -233,4 +260,35 @@ func setOrDelete(attrs map[string]any, key, value string) {
 		return
 	}
 	attrs[key] = value
+}
+
+// routeBodyFault answers the constraint vpc/v2's document declares on a route,
+// or nil when the body satisfies them.
+//
+// Two constraints, both transcribed from what fr-par answered rather than
+// paraphrased. The help_message of the first is a JSON fragment inside a string,
+// which is not a shape anyone would invent: the cloud's generated layer renders
+// its constraint that way and a client reads it back verbatim.
+//
+// The order between them is measured too: a body with neither a vpc_id nor a
+// next hop answers about vpc_id, so the field-level constraints come before the
+// object-level one.
+func routeBodyFault(req createRouteRequest) *ArgumentError {
+	if req.VpcID == "" {
+		return &ArgumentError{
+			ArgumentName: "vpc_id",
+			Reason:       "unknown",
+			HelpMessage:  "uuid: {}",
+		}
+	}
+	connector := req.NexthopVpcConnectorID != nil && *req.NexthopVpcConnectorID != ""
+	network := req.NexthopPrivateNetworkID != nil && *req.NexthopPrivateNetworkID != ""
+	if !connector && !network {
+		return &ArgumentError{
+			ArgumentName: "route",
+			Reason:       "unknown",
+			HelpMessage:  `requires_one_of: {"fields": "nexthop_vpc_connector_id, nexthop_private_network_id"}`,
+		}
+	}
+	return nil
 }

@@ -1223,14 +1223,6 @@
     },
     {
       "file": "scaleway/scw-refusals.jsonl",
-      "operation": "lb/v1/ZonedAPI.CreateRoute",
-      "kind": "status",
-      "path": "",
-      "reason": "Both sides refuse and disagree on which refusal it is: upstream validates the body before it resolves the parent (400 naming the field) where this pack resolves the parent first (404), and lb answers 403 where the frontend is simply absent. A client branches on the status, so the difference is not cosmetic; changing it is a rule about every handler rather than about these two.",
-      "issue": "https://github.com/stephrobert/feint/issues/394"
-    },
-    {
-      "file": "scaleway/scw-refusals.jsonl",
       "operation": "marketplace/v2/API.ListLocalImages",
       "kind": "absent",
       "path": "message",
@@ -1268,22 +1260,6 @@
       "path": "",
       "reason": "An image identifier that names nothing answers success here by decision: getImage serves the default catalogue entry for an unknown ID (docs/limits.md, so a script holding a real one keeps working), the marketplace local-image list does the same, and the Outscale createVms never looks the image up. The cloud refuses all three. A fix has to say what an emulator with no account does with an image identifier it never minted, and corpus/outscale/oapi-cli-lifecycle.jsonl is what would grade the answer.",
       "issue": "https://github.com/stephrobert/feint/issues/392"
-    },
-    {
-      "file": "scaleway/scw-refusals.jsonl",
-      "operation": "vpc/v2/API.CreateRoute",
-      "kind": "absent",
-      "path": "details",
-      "reason": "Both sides refuse and disagree on which refusal it is: upstream validates the body before it resolves the parent (400 naming the field) where this pack resolves the parent first (404), and lb answers 403 where the frontend is simply absent. A client branches on the status, so the difference is not cosmetic; changing it is a rule about every handler rather than about these two.",
-      "issue": "https://github.com/stephrobert/feint/issues/394"
-    },
-    {
-      "file": "scaleway/scw-refusals.jsonl",
-      "operation": "vpc/v2/API.CreateRoute",
-      "kind": "status",
-      "path": "",
-      "reason": "Both sides refuse and disagree on which refusal it is: upstream validates the body before it resolves the parent (400 naming the field) where this pack resolves the parent first (404), and lb answers 403 where the frontend is simply absent. A client branches on the status, so the difference is not cosmetic; changing it is a rule about every handler rather than about these two.",
-      "issue": "https://github.com/stephrobert/feint/issues/394"
     },
     {
       "file": "scaleway/terraform.jsonl",

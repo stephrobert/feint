@@ -571,6 +571,37 @@ the table is its fix); an emulator-side refusal would add a second wall for
 raw SDK users and catch nothing the first does not. The real cloud does
 refuse an unknown type, so this is a divergence, recorded here on purpose.
 
+## `lb/v1` refusals carry an envelope the real one does not
+
+Measured on `fr-par`, 2026-09-02 (#394). Three refusals of the load balancer
+product, and not one of them carries the `scw` error envelope:
+
+| request | `fr-par` answers |
+|---|---|
+| `POST /lb/v1/zones/fr-par-1/routes`, frontend that does not exist | 403 `{"message": "Permission denied"}` |
+| `GET /lb/v1/zones/fr-par-1/frontends/{id}`, absent | 404 `{"message": "frontend not Found"}` |
+| `GET /lb/v1/zones/fr-par-1/lbs/{id}`, absent | 404 `{"message": "lbs not Found"}` |
+
+No `type`, no `details`, no `resource`. This emulator answers all three with the
+envelope, and the reason is structural rather than chosen:
+`contracts/scaleway.json` declares **one** `errorSchema` for the whole document,
+`scw.ResponseError` with `required: ["type"]`, extracted from the SDK — and
+`internal/probe` validates every refusal against it. A body without `type` fails
+the probe, which is the gate being right about the document it was given, and the
+document being a document rather than a recording.
+
+**What is faithful is the status**, which is the half a client branches on:
+`POST /routes` answers 403 here now, where this emulator used to answer 404 and
+where the two reads beside it answer 404 on both sides. Terraform retries a 403
+and a 404 differently.
+
+Lifting this means giving the contract an `errorSchema` per product rather than
+per document, and a way to say "this product's refusals are not validatable
+against the SDK's struct" that a recording rather than a document arbitrates.
+`RecordedFields` already does the opposite direction — a field a recording
+carries and the document does not declare — and the symmetric one does not exist
+yet.
+
 ## Identifiers are not checked against anything
 
 A create that names an image, a template or a machine type the emulator has never

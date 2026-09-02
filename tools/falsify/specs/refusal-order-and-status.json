@@ -1,0 +1,40 @@
+{
+  "package": "./internal/providers/scaleway/",
+  "mutations": [
+    {
+      "label": "the body constraints stop firing altogether, so a request missing its next hop answers 404 about a parent the cloud never looked at",
+      "file": "internal/providers/scaleway/routes.go",
+      "find": "\tif bad := routeBodyFault(req); bad != nil {\n\t\twriteInvalidArguments(w, *bad)\n\t\treturn\n\t}\n\tvpc, found := p.env.Store.Get(Name, kindVPC, req.VpcID)",
+      "replace": "\tif bad := routeBodyFault(req); bad != nil && false {\n\t\twriteInvalidArguments(w, *bad)\n\t\treturn\n\t}\n\tvpc, found := p.env.Store.Get(Name, kindVPC, req.VpcID)",
+      "test": "TestCreateRouteChecksWhatTheDocumentDeclaresBeforeWhatTheStoreHolds"
+    },
+    {
+      "label": "the requires_one_of constraint stops firing, so a route with no next hop is created rather than refused",
+      "file": "internal/providers/scaleway/routes.go",
+      "find": "\tif !connector && !network {",
+      "replace": "\tif !connector && !network && false {",
+      "test": "TestCreateRouteChecksWhatTheDocumentDeclaresBeforeWhatTheStoreHolds"
+    },
+    {
+      "label": "the field constraint yields to the object one, so a body with no vpc_id is told about its next hop instead",
+      "file": "internal/providers/scaleway/routes.go",
+      "find": "\tif req.VpcID == \"\" {\n\t\treturn &ArgumentError{\n\t\t\tArgumentName: \"vpc_id\",",
+      "replace": "\tif req.VpcID == \"\" && false {\n\t\treturn &ArgumentError{\n\t\t\tArgumentName: \"vpc_id\",",
+      "test": "TestCreateRouteChecksWhatTheDocumentDeclaresBeforeWhatTheStoreHolds"
+    },
+    {
+      "label": "the lb route answers 404 for an absent frontend again, so a client that retries a 403 differently takes the wrong path",
+      "file": "internal/providers/scaleway/loadbalancer_children.go",
+      "find": "\tfe, found := p.env.Store.Get(Name, kindLBFrontend, req.FrontendID)\n\tif !found || fe.Tenant.Zone != zone {\n\t\twritePermissionDenied(w)\n\t\treturn\n\t}",
+      "replace": "\tfe, found := p.env.Store.Get(Name, kindLBFrontend, req.FrontendID)\n\tif !found || fe.Tenant.Zone != zone {\n\t\twriteNotFound(w, \"frontend\", req.FrontendID)\n\t\t_ = writePermissionDenied\n\t\treturn\n\t}",
+      "test": "TestALBRouteRefusesAnAbsentFrontendTheWayTheCloudDoes"
+    },
+    {
+      "label": "the 403 stops carrying the cloud's own message, so a client reads a sentence fr-par never sent",
+      "file": "internal/providers/scaleway/errors.go",
+      "find": "\t\tType:    \"permissions_denied\",\n\t\tMessage: \"Permission denied\",",
+      "replace": "\t\tType:    \"permissions_denied\",\n\t\tMessage: \"insufficient permissions\",",
+      "test": "TestALBRouteRefusesAnAbsentFrontendTheWayTheCloudDoes"
+    }
+  ]
+}

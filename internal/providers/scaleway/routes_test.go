@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 
@@ -234,11 +235,71 @@ func TestARouteRefusesWhatCannotExistHere(t *testing.T) {
 		t.Fatalf("a foreign nexthop network was accepted: status %d", status)
 	}
 
-	// An unknown VPC is not found, in the SDK's shape.
+	// An unknown VPC is not found, in the SDK's shape — and the body has to be
+	// valid for the request to reach that wall at all. This case used to send no
+	// next hop and expect 404, which is the very thing #394 measured as wrong:
+	// fr-par answers 400 there, about the body, and 404 only once the body
+	// satisfies the constraints its document declares.
 	status, _ = do(t, ts, "POST", vpcRegion+"/routes",
-		`{"vpc_id":"00000000-dead-4000-8000-000000000000","destination":"10.9.0.0/24"}`)
+		fmt.Sprintf(`{"vpc_id":"00000000-dead-4000-8000-000000000000","destination":"10.9.0.0/24","nexthop_private_network_id":%q}`, otherPN))
 	if status != http.StatusNotFound {
 		t.Fatalf("an unknown VPC answered %d", status)
+	}
+}
+
+// The order the two refusals come in, measured against fr-par on 2026-09-02
+// (#394). A client branches on the status: 404 says "create the parent first",
+// 400 says "your body is wrong and the parent is beside the point", and this
+// emulator answered 404 to both.
+func TestCreateRouteChecksWhatTheDocumentDeclaresBeforeWhatTheStoreHolds(t *testing.T) {
+	ts := newTestServer(t)
+	const ghost = "00000000-dead-4000-8000-000000000000"
+
+	// A ghost VPC and no next hop: the cloud answers about the next hop, not
+	// about the VPC it was never asked to resolve.
+	status, body := do(t, ts, "POST", vpcRegion+"/routes",
+		`{"vpc_id":"`+ghost+`","destination":"10.9.0.0/24"}`)
+	if status != http.StatusBadRequest {
+		t.Fatalf("a body missing its next hop answered %d, want 400 (%v)", status, body)
+	}
+	details, _ := body["details"].([]any)
+	if len(details) != 1 {
+		t.Fatalf("details holds %d entries, want 1 (%v)", len(details), body)
+	}
+	d, _ := details[0].(map[string]any)
+	if d["argument_name"] != "route" {
+		t.Errorf("argument_name is %v, want route: the constraint is on the object, not on a field", d["argument_name"])
+	}
+	// The help_message is a JSON fragment inside a string, which is not a shape
+	// anyone would invent — the cloud's generated layer renders it that way.
+	if help, _ := d["help_message"].(string); !strings.Contains(help, "requires_one_of") ||
+		!strings.Contains(help, "nexthop_private_network_id") {
+		t.Errorf("help_message is %q, want the requires_one_of the cloud answers", help)
+	}
+
+	// No vpc_id at all: the field-level constraint comes before the object-level
+	// one, so this answers about vpc_id rather than about the next hop.
+	status, body = do(t, ts, "POST", vpcRegion+"/routes", `{"destination":"10.9.0.0/24"}`)
+	if status != http.StatusBadRequest {
+		t.Fatalf("a body with no vpc_id answered %d, want 400 (%v)", status, body)
+	}
+	details, _ = body["details"].([]any)
+	d, _ = details[0].(map[string]any)
+	if d["argument_name"] != "vpc_id" {
+		t.Errorf("argument_name is %v, want vpc_id", d["argument_name"])
+	}
+	if d["help_message"] != "uuid: {}" {
+		t.Errorf("help_message is %v, want the cloud's own \"uuid: {}\"", d["help_message"])
+	}
+
+	// And the accepting half: a body the document is happy with reaches the
+	// store, and THEN the ghost VPC is not found. Without this a guard that
+	// refused every route would pass the two cases above.
+	pnID, _ := createPN(t, ts, "10.86.0.0/24")
+	status, body = do(t, ts, "POST", vpcRegion+"/routes",
+		fmt.Sprintf(`{"vpc_id":%q,"destination":"10.9.0.0/24","nexthop_private_network_id":%q}`, ghost, pnID))
+	if status != http.StatusNotFound {
+		t.Fatalf("a valid body naming a ghost VPC answered %d, want 404 (%v)", status, body)
 	}
 }
 
@@ -316,5 +377,46 @@ func TestAVPCCreatedWithoutEnableRoutingRoutes(t *testing.T) {
 					tc.name, peered, tc.routing, rt.peersOf(first), rt.peersOf(second))
 			}
 		})
+	}
+}
+
+// lb/v1 answers 403 for a frontend it does not hold, where its own reads answer
+// 404 (#394).
+//
+// Measured on fr-par, 2026-09-02: POST /routes with a ghost frontend answers
+// 403 {"message": "Permission denied"}, while GET /frontends/{id} and
+// GET /lbs/{id} both answer 404. So this is not the product refusing everything
+// it cannot see — it is this route's own answer, and the emulator answered 404.
+//
+// The body carries `message` alone, with no `type`: the older lb/v1 error shape,
+// which is why it does not share a helper with the projectguard's 403.
+func TestALBRouteRefusesAnAbsentFrontendTheWayTheCloudDoes(t *testing.T) {
+	ts := newTestServer(t)
+	const ghost = "00000000-dead-4000-8000-000000000000"
+
+	status, body := do(t, ts, "POST", "/lb/v1/zones/fr-par-1/routes",
+		`{"frontend_id":"`+ghost+`","backend_id":"`+ghost+`","match":{"sni":"probe.example.com"}}`)
+	if status != http.StatusForbidden {
+		t.Fatalf("a route naming a frontend nothing holds answered %d, want 403 (%v)", status, body)
+	}
+	if body["message"] != "Permission denied" {
+		t.Errorf("message is %v, want the cloud's own \"Permission denied\"", body["message"])
+	}
+	// The `type` this pack adds and lb/v1 does not send: asserted rather than
+	// left to drift, because it is a known divergence and the contract is why.
+	// contracts/scaleway.json declares one errorSchema for the whole document,
+	// scw.ResponseError with `required: ["type"]`, so a body without it fails
+	// internal/probe. docs/limits.md carries the limit.
+	if body["type"] != "permissions_denied" {
+		t.Errorf("type is %v, want the envelope this pack serves for all of lb/v1", body["type"])
+	}
+
+	// The reads beside it still answer 404, which is what makes the 403 above a
+	// property of the route rather than of the product.
+	if status, _ := do(t, ts, "GET", "/lb/v1/zones/fr-par-1/frontends/"+ghost, ""); status != http.StatusNotFound {
+		t.Errorf("GET a frontend that does not exist answered %d, want 404", status)
+	}
+	if status, _ := do(t, ts, "GET", "/lb/v1/zones/fr-par-1/lbs/"+ghost, ""); status != http.StatusNotFound {
+		t.Errorf("GET a load balancer that does not exist answered %d, want 404", status)
 	}
 }
