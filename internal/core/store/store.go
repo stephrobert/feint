@@ -27,10 +27,37 @@ type Store struct {
 	items map[string]*resource.Resource
 	// observe, when set, is told about every touch a caller makes. See Observe.
 	observe func(Event)
-	// eventual turns the pending chains on. Off is the default and is
-	// byte-identical to a store that never had them, which is what keeps the
-	// conformance suite and every existing test untouched (#124).
+	// eventual turns the ordinary pending chains on. Off is the default: a
+	// chain a client can do without is not walked, which is what keeps a local
+	// emulator from making anyone wait for information no runtime is producing
+	// (#124).
+	//
+	// It does not govern the chains marked PendingOnlySignal, which are walked
+	// in both modes. See onlySignal.
 	eventual bool
+	// onlySignal counts the resources carrying a chain whose arrival is its
+	// departure. Kept rather than searched for, because Get and List consult it
+	// on the way in to decide which lock to take, and scanning the store to
+	// answer that would cost more than the chains do.
+	onlySignal int
+}
+
+// countOnlySignal adjusts the tally when a stored resource is replaced. Called
+// under the write lock, with what was there and what replaces it; either may be
+// nil, which is a create or a delete.
+func (s *Store) countOnlySignal(before, after *resource.Resource) {
+	if walkable(before) {
+		s.onlySignal--
+	}
+	if walkable(after) {
+		s.onlySignal++
+	}
+}
+
+// walkable reports whether a resource carries a chain the store must walk
+// whatever the mode.
+func walkable(r *resource.Resource) bool {
+	return r != nil && r.PendingOnlySignal && len(r.Pending) > 0
 }
 
 // Eventual turns transient states on, so a resource carrying a pending chain
@@ -60,11 +87,25 @@ func (s *Store) Eventual(on bool) {
 // that advanced the clone instead would answer the same first state for ever,
 // which is the defect this exists to avoid rather than a subtlety of it.
 func (s *Store) advance(r *resource.Resource) {
-	if !s.eventual || r == nil || len(r.Pending) == 0 {
+	if r == nil || len(r.Pending) == 0 {
+		return
+	}
+	// Two kinds of chain, and the difference is what the client can observe
+	// without it. An ordinary chain narrates a change the state already shows
+	// — stopped becomes running whether or not anyone watched it pass through
+	// `starting` — so the mode decides. A chain marked PendingOnlySignal
+	// settles where it started, so skipping it leaves an action that answered
+	// success and changed nothing observable: measured on a reboot, six reads
+	// of `running` before and after (#654).
+	if !s.eventual && !r.PendingOnlySignal {
 		return
 	}
 	r.State = r.Pending[0]
 	r.Pending = r.Pending[1:]
+	if len(r.Pending) == 0 && r.PendingOnlySignal {
+		r.PendingOnlySignal = false
+		s.onlySignal--
+	}
 }
 
 // Event is one observed touch of the store: something was created, read,
@@ -132,8 +173,10 @@ func key(provider, kind, id string) string {
 func (s *Store) Put(r *resource.Resource) {
 	s.mu.Lock()
 	k := key(r.Tenant.Provider, r.Kind, r.ID)
-	_, existed := s.items[k]
-	s.items[k] = r.Clone()
+	before, existed := s.items[k]
+	stored := r.Clone()
+	s.items[k] = stored
+	s.countOnlySignal(before, stored)
 	s.mu.Unlock()
 
 	action := EventCreated
@@ -245,6 +288,7 @@ func (s *Store) Update(provider, kind, id string, change func(*resource.Resource
 			return err
 		}
 		s.items[key(provider, kind, id)] = draft
+		s.countOnlySignal(r, draft)
 		return nil
 	}()
 	if err != nil {
@@ -310,6 +354,12 @@ func (s *Store) Commit(base, res *resource.Resource, now time.Time) bool {
 		// (scaleway's TestARebootIsObservableUnderEventualConsistency).
 		if !slices.Equal(base.Pending, res.Pending) {
 			stored.Pending = append([]string(nil), res.Pending...)
+			// The chain and what it means travel together: a chain that is an
+			// action's only signal, merged without its mark, is a chain the
+			// store walks in one mode out of two (#654). Carried on the same
+			// condition as the chain itself, so a caller that did not touch
+			// either leaves both alone.
+			stored.PendingOnlySignal = res.PendingOnlySignal
 		}
 		stored.Updated = now
 		return nil
@@ -354,8 +404,9 @@ func mergeRuntime(stored, base, res map[string]string) {
 func (s *Store) Delete(provider, kind, id string) bool {
 	s.mu.Lock()
 	k := key(provider, kind, id)
-	_, ok := s.items[k]
+	before, ok := s.items[k]
 	delete(s.items, k)
+	s.countOnlySignal(before, nil)
 	s.mu.Unlock()
 
 	if ok {
@@ -418,7 +469,7 @@ func sortByCreation(out []*resource.Resource) {
 func (s *Store) advancing() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.eventual
+	return s.eventual || s.onlySignal > 0
 }
 
 // All returns a clone of every resource, whatever its provider or kind, in the
@@ -593,7 +644,9 @@ func (s *Store) Restore(r io.Reader) error {
 		if res == nil {
 			continue
 		}
-		s.items[key(res.Tenant.Provider, res.Kind, res.ID)] = res
+		k := key(res.Tenant.Provider, res.Kind, res.ID)
+		s.countOnlySignal(s.items[k], res)
+		s.items[k] = res
 	}
 	return nil
 }

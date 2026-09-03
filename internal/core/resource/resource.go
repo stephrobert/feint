@@ -91,6 +91,25 @@ type Resource struct {
 	// saved is a reboot still in flight when it is loaded. That also makes it
 	// untrusted input on the way back in, which is why Restore treats it as one.
 	Pending []string
+	// PendingOnlySignal marks a chain whose arrival is its departure: the
+	// action settles on the state it started from, so a client watching the
+	// state has nothing else to go on. The store walks such a chain whatever
+	// the consistency mode, where an ordinary one is walked only under eventual
+	// consistency (#654).
+	//
+	// The distinction is a property of the chain, not of a provider: a pack
+	// says what it pushed and from where, and the core never learns that the
+	// action was called "reboot". Measured on this emulator before the flag
+	// existed: poweron and poweroff stayed observable with the mode off,
+	// because their state changes; reboot answered `running` on every read of
+	// a six-read poll, indistinguishable from an action that never happened.
+	//
+	// It survives a snapshot for the reason Pending does, and it has to: a
+	// chain restored without it would be walked by no mode at all, leaving the
+	// resource with states to pass through that nothing ever consumes. Same
+	// consequence as Pending on the way back in, and the same treatment: what
+	// Restore accepts here it accepts as untrusted input.
+	PendingOnlySignal bool
 }
 
 // New returns a resource stamped at now, with Created and Updated aligned and
@@ -139,6 +158,7 @@ func (r *Resource) Clone() *Resource {
 	if r.Pending != nil {
 		out.Pending = append([]string(nil), r.Pending...)
 	}
+	out.PendingOnlySignal = r.PendingOnlySignal
 	return &out
 }
 
