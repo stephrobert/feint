@@ -110,6 +110,27 @@ what this project is judged on: **a response shape a client can observe**, and
   publishes `SCW_DEFAULT_ORGANIZATION_ID` as this emulator's own constant, and the
   conformance suite's `fake-credentials.env` carries the same value.
 
+- **A package install ran under the cap made for a control command, and the
+  nightly runtime proof died on it** (#641). Every `incus` call went through one
+  120-second cap — the right bound for `info`, `start` or `network create`, where
+  a control plane slower than that is broken rather than busy. `incus exec
+  <builder> -- dnf install -y -q openssh-server` went through it too, and on
+  2026-09-03 it was killed at exactly that limit while building `almalinux/9`,
+  taking the whole scheduled run with it. The night before, the same command had
+  finished just under.
+
+  A step inside a build instance now runs under its own cap, ten minutes, and the
+  build as a whole is still bounded by the twenty minutes that stop a wedged
+  download from holding the lock for ever. An operator who set `Timeout` because
+  their station is slow gets both scaled, since a station that needs a longer
+  control cap needs a longer install cap by the same measure.
+
+  The cap is asserted rather than described: the deadline is set before the
+  runner seam as well as before the real binary, so a test reads
+  `ctx.Deadline()` and says which cap a call ran under. Both halves are held —
+  a guard that gave everything ten minutes would break what the control cap is
+  for.
+
 - **Two refusals answered the wrong status, and a client branches on exactly
   that** (#394). A 404 says "create the parent first", a 400 says "your body is
   wrong and the parent is beside the point", a 403 says "you are not allowed

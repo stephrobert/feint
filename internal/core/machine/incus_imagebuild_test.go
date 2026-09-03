@@ -216,3 +216,96 @@ func TestImageRemovalStaysInsideThePrefix(t *testing.T) {
 		t.Fatalf("argv %v, want exactly %v", rec.calls, want)
 	}
 }
+
+// deadlineRecorder answers like buildRecorder and, for each call, keeps how long
+// the caller gave it. That is the only way this property is observable: a test
+// cannot wait out a ten-minute cap, but it can read the deadline the call runs
+// under and say which cap set it.
+type deadlineRecorder struct {
+	mu    sync.Mutex
+	calls []deadlineCall
+}
+
+type deadlineCall struct {
+	args []string
+	left time.Duration
+	set  bool
+}
+
+func (r *deadlineRecorder) run(ctx context.Context, args ...string) ([]byte, error) {
+	call := deadlineCall{args: append([]string(nil), args...)}
+	if deadline, ok := ctx.Deadline(); ok {
+		call.left, call.set = time.Until(deadline), true
+	}
+	r.mu.Lock()
+	r.calls = append(r.calls, call)
+	r.mu.Unlock()
+
+	switch {
+	case len(args) > 3 && args[0] == "exec" && args[3] == "ip":
+		return []byte("2: eth0    inet 10.248.68.10/24 scope global eth0\n"), nil
+	case len(args) > 1 && args[0] == "image" && args[1] == "list":
+		return []byte("[]"), nil
+	}
+	return nil, nil
+}
+
+// find answers the first call whose argv joins to something containing want.
+func (r *deadlineRecorder) find(want string) (deadlineCall, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, call := range r.calls {
+		if strings.Contains(strings.Join(call.args, " "), want) {
+			return call, true
+		}
+	}
+	return deadlineCall{}, false
+}
+
+// A command run inside the build instance gets the build cap, and a control
+// command gets the control cap (#641).
+//
+// The defect this holds: every `incus` call went through one 120 s cap, chosen
+// for control commands — a control plane slower than that is broken, not busy.
+// `incus exec <builder> -- dnf install -y -q openssh-server` on almalinux/9 went
+// through it too and was killed at exactly that limit on 2026-09-03, taking the
+// whole nightly runtime proof with it. The night before, the same command had
+// finished just under. An intermittent red whose cause is a fixed limit applied
+// to the wrong kind of work.
+//
+// Both halves are asserted. A guard that gave everything ten minutes would pass
+// the first and break what the control cap is for.
+func TestABuildStepRunsUnderTheBuildCapAndNotTheControlCap(t *testing.T) {
+	rec := &deadlineRecorder{}
+	d := &Incus{runner: rec.run}
+	spec := RequiredImages()[0]
+
+	if _, err := BuildIfMissing(context.Background(), d, spec, nil); err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	install, ok := rec.find(spec.Package)
+	if !ok {
+		t.Fatalf("no call installed %s: %v", spec.Package, rec.calls)
+	}
+	if !install.set {
+		t.Fatal("the install ran with no deadline at all, so nothing bounds a wedged mirror")
+	}
+	if install.left <= 2*time.Minute {
+		t.Errorf("the install had %s, which is the control cap: a package install waits on a mirror, "+
+			"and 120 s is what killed the nightly proof", install.left.Round(time.Second))
+	}
+
+	// The control cap still binds what it was chosen for.
+	launch, ok := rec.find("launch")
+	if !ok {
+		t.Fatalf("no launch call: %v", rec.calls)
+	}
+	if !launch.set {
+		t.Fatal("a control command ran with no deadline")
+	}
+	if launch.left > 3*time.Minute {
+		t.Errorf("a control command had %s: the build cap leaked onto the control path, and a "+
+			"daemon that never answers would hang for minutes", launch.left.Round(time.Second))
+	}
+}

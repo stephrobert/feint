@@ -1,0 +1,26 @@
+{
+  "package": "./internal/core/machine/",
+  "mutations": [
+    {
+      "label": "a build step goes back through the control cap, which is the 120 s that killed the nightly proof",
+      "file": "internal/core/machine/incus_images.go",
+      "find": "\tif _, err := d.runWithin(ctx, d.buildTimeout(), args...); err != nil {",
+      "replace": "\tif _, err := d.runWithin(ctx, d.controlTimeout(), args...); err != nil {",
+      "test": "TestABuildStepRunsUnderTheBuildCapAndNotTheControlCap"
+    },
+    {
+      "label": "the build cap leaks onto the control path, so a daemon that never answers hangs for ten minutes instead of two",
+      "file": "internal/core/machine/incus.go",
+      "find": "func (d *Incus) run(ctx context.Context, args ...string) ([]byte, error) {\n\treturn d.runWithin(ctx, d.controlTimeout(), args...)\n}",
+      "replace": "func (d *Incus) run(ctx context.Context, args ...string) ([]byte, error) {\n\t_ = d.controlTimeout\n\treturn d.runWithin(ctx, d.buildTimeout(), args...)\n}",
+      "test": "TestABuildStepRunsUnderTheBuildCapAndNotTheControlCap"
+    },
+    {
+      "label": "the deadline stops reaching the runner seam, so no test can say which cap a call ran under",
+      "file": "internal/core/machine/incus.go",
+      "find": "\tif d.runner != nil {\n\t\tctx, cancel := context.WithTimeout(ctx, timeout)\n\t\tdefer cancel()\n\t\treturn d.runner(ctx, args...)\n\t}",
+      "replace": "\tif d.runner != nil {\n\t\t_, cancel := context.WithTimeout(ctx, timeout)\n\t\tdefer cancel()\n\t\treturn d.runner(ctx, args...)\n\t}",
+      "test": "TestABuildStepRunsUnderTheBuildCapAndNotTheControlCap"
+    }
+  ]
+}

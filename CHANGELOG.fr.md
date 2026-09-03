@@ -117,6 +117,30 @@ change ni l'un ni l'autre a sa place dans `git log`.
   constante de cet émulateur, et le `fake-credentials.env` de la suite de
   conformance porte la même valeur.
 
+- **Une installation de paquets tournait sous le plafond prévu pour une commande
+  de contrôle, et la preuve d'exécution nocturne en est morte** (#641). Tous les
+  appels `incus` passaient par un plafond unique de 120 secondes, qui est la
+  bonne borne pour `info`, `start` ou `network create`, où un plan de contrôle
+  plus lent que ça est cassé et non occupé. `incus exec <builder> -- dnf install
+  -y -q openssh-server` y passait aussi, et le 2026-09-03 il a été tué exactement
+  à cette limite pendant la construction d'`almalinux/9`, emportant toute
+  l'exécution planifiée. La nuit précédente, la même commande avait fini juste en
+  dessous.
+
+  Une étape à l'intérieur d'une instance de construction a désormais son propre
+  plafond, dix minutes, et la construction entière reste bornée par les vingt
+  minutes qui empêchent un téléchargement bloqué de garder le verrou pour
+  toujours. Un opérateur qui a réglé `Timeout` parce que sa station est lente
+  obtient les deux mis à l'échelle : une station qui demande un plafond de
+  contrôle plus long demande un plafond d'installation plus long dans la même
+  proportion.
+
+  Le plafond est affirmé plutôt que décrit : l'échéance est posée avant la
+  couture du runner autant qu'avant le vrai binaire, de sorte qu'un test lit
+  `ctx.Deadline()` et dit sous quel plafond un appel a tourné. Les deux moitiés
+  sont tenues : un garde qui donnerait dix minutes à tout casserait ce à quoi
+  sert le plafond de contrôle.
+
 - **Deux refus répondaient le mauvais statut, et c'est exactement là-dessus qu'un
   client branche** (#394). Un 404 dit « crée le parent d'abord », un 400 dit
   « ton corps est mauvais et le parent n'y est pour rien », un 403 dit « tu n'as

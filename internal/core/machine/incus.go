@@ -1880,16 +1880,63 @@ func (d *Incus) inspectOrFail(ctx context.Context, name string) (Machine, error)
 }
 
 func (d *Incus) run(ctx context.Context, args ...string) ([]byte, error) {
+	return d.runWithin(ctx, d.controlTimeout(), args...)
+}
+
+// controlTimeout caps a CONTROL command: `incus info`, `start`, `network
+// create`, `delete`. Two minutes because a control plane that takes longer than
+// that to answer is broken, not busy.
+//
+// It is not the cap for everything the driver runs, and that distinction is
+// #641: `incus exec <builder> -- dnf install openssh-server` went through here
+// and was killed at exactly 120 s on 2026-09-03, taking the whole nightly
+// runtime proof with it. Installing a package is not a control command — it
+// resolves metadata over whatever mirror the runner is given — and the night
+// before, the same command had finished just under the cap. An intermittent
+// failure whose cause is a fixed limit applied to the wrong kind of work.
+func (d *Incus) controlTimeout() time.Duration {
+	if d.Timeout > 0 {
+		return d.Timeout
+	}
+	return 120 * time.Second
+}
+
+// buildStepTimeout caps one command run INSIDE a build instance.
+//
+// Generous on purpose, and bounded twice rather than not at all: the build as a
+// whole already runs under imageBuildTimeout (20 minutes), which is what stops a
+// wedged download from holding the lock for ever. This is one step's share of
+// it, and it exists so that a slow mirror costs minutes instead of a red night.
+//
+// An operator who sets Timeout still gets it here, multiplied: the field means
+// "this station is slow", and a station slow enough to need a longer control cap
+// needs a longer install cap by the same measure.
+const buildStepTimeout = 10 * time.Minute
+
+// buildTimeout is buildStepTimeout, scaled by whatever the operator said about
+// this station.
+func (d *Incus) buildTimeout() time.Duration {
+	if d.Timeout > 0 {
+		return d.Timeout * 5
+	}
+	return buildStepTimeout
+}
+
+// runWithin is run with the cap named by the caller rather than by the field.
+//
+// The deadline is set before the runner seam as well as before the real binary,
+// which is what makes the cap observable: a test cannot time a ten-minute
+// timeout, but it can read ctx.Deadline() and say which cap a call ran under.
+// TestABuildStepRunsUnderTheBuildCapAndNotTheControlCap does exactly that.
+func (d *Incus) runWithin(ctx context.Context, timeout time.Duration, args ...string) ([]byte, error) {
 	if d.runner != nil {
+		ctx, cancel := context.WithTimeout(ctx, timeout)
+		defer cancel()
 		return d.runner(ctx, args...)
 	}
 	binary := d.Binary
 	if binary == "" {
 		binary = "incus"
-	}
-	timeout := d.Timeout
-	if timeout <= 0 {
-		timeout = 120 * time.Second
 	}
 	return runCLI(ctx, binary, timeout, args...)
 }
