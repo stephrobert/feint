@@ -1,0 +1,52 @@
+{
+  "mutations": [
+    {
+      "label": "StartVms accepts a machine already running again, so the emulator says yes where the cloud says 409",
+      "file": "internal/providers/outscale/vms.go",
+      "package": "./internal/providers/outscale/",
+      "find": "\t\tif res.State == stateRunning {\n\t\t\treturn \"the Vm \" + res.ID + \" is already running\"\n\t\t}",
+      "replace": "\t\tif res.State == stateRunning && false {\n\t\t\treturn \"the Vm \" + res.ID + \" is already running\"\n\t\t}",
+      "test": "TestStartVmsRefusesAMachineAlreadyRunning"
+    },
+    {
+      "label": "the refusal is decided but nothing carries it, so the client reads a 200 with the machine's own state",
+      "file": "internal/providers/outscale/vms.go",
+      "package": "./internal/providers/outscale/",
+      "find": "\t\t\tif details := refuse(res); details != \"\" {",
+      "replace": "\t\t\tif details := refuse(res); details != \"\" && false {",
+      "test": "TestStartVmsRefusesAMachineAlreadyRunning"
+    },
+    {
+      "label": "the short circuit under the lock goes, so two concurrent starts reach the runtime twice",
+      "file": "internal/providers/outscale/vms.go",
+      "package": "./internal/providers/outscale/",
+      "find": "\t\tif res.State == stateRunning {\n\t\t\treturn stateRunning\n\t\t}\n\t\tp.powerOn(r.Context(), res)",
+      "replace": "\t\tif res.State == stateRunning && false {\n\t\t\treturn stateRunning\n\t\t}\n\t\tp.powerOn(r.Context(), res)",
+      "test": "TestTwoConcurrentStartsReachTheRuntimeOnce"
+    },
+    {
+      "label": "UnlinkVolume detaches what is attached to nothing again, telling the client a detach happened",
+      "file": "internal/providers/outscale/volumes.go",
+      "package": "./internal/providers/outscale/",
+      "find": "\t\tif held, _ := stored.Attrs[\"LinkedVmId\"].(string); held == \"\" {\n\t\t\treturn errVolumeFree\n\t\t}",
+      "replace": "\t\tif held, _ := stored.Attrs[\"LinkedVmId\"].(string); held == \"\" && false {\n\t\t\treturn errVolumeFree\n\t\t}",
+      "test": "TestUnlinkVolumeRefusesAVolumeAttachedToNothing"
+    },
+    {
+      "label": "the refusal fires on every volume, so a linked one can no longer be detached",
+      "file": "internal/providers/outscale/volumes.go",
+      "package": "./internal/providers/outscale/",
+      "find": "\t\tif held, _ := stored.Attrs[\"LinkedVmId\"].(string); held == \"\" {\n\t\t\treturn errVolumeFree\n\t\t}",
+      "replace": "\t\tif held, _ := stored.Attrs[\"LinkedVmId\"].(string); held == \"\" || true {\n\t\t\treturn errVolumeFree\n\t\t}",
+      "test": "TestLinkVolumeStillRefusesAVolumeHeldElsewhere"
+    },
+    {
+      "label": "LinkVolume stops refusing a volume held elsewhere, which #621 lists as already true",
+      "file": "internal/providers/outscale/volumes.go",
+      "package": "./internal/providers/outscale/",
+      "find": "\t\tif held, _ := stored.Attrs[\"LinkedVmId\"].(string); held != \"\" && held != req.VMID {",
+      "replace": "\t\tif held, _ := stored.Attrs[\"LinkedVmId\"].(string); held != \"\" && held != req.VMID && false {",
+      "test": "TestLinkVolumeStillRefusesAVolumeHeldElsewhere"
+    }
+  ]
+}
