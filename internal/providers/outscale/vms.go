@@ -642,8 +642,40 @@ func (p *Pack) updateVm(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// startVms refuses a machine that is already running, which is what the real
+// cloud does (#621).
+//
+// Recorded against a real account on 2026-08-30, driving a published training
+// sequence: `StartVms` on a running machine answered 409 ResourceConflict where
+// this pack answered 200 with the machine's own state beside it. Saying yes
+// where the cloud says no is the one direction that turns a green run into a
+// false promise, which is why this is served even though the state it names is
+// the only one of the four #621 lists that needs no transient state.
+//
+// The API description does not settle it, and cannot: `osc/api.yaml` declares
+// 200, 400, 401 and 500 for StartVms and for every other operation, INCLUDING
+// DeleteSecurityGroup, whose 409 this repository holds in its own recorded
+// corpus (corpus/outscale/oapi-cli-lb-shapes.jsonl, Code 9085). A document
+// that never declares a 409 cannot be read as denying one.
+//
+// TestStartVmsRefusesAMachineAlreadyRunning fails without this.
 func (p *Pack) startVms(w http.ResponseWriter, r *http.Request) {
-	p.transition(w, r, func(res *resource.Resource) string {
+	p.transitionUnless(w, r, func(res *resource.Resource) string {
+		if res.State == stateRunning {
+			return "the Vm " + res.ID + " is already running"
+		}
+		return ""
+	}, func(res *resource.Resource) string {
+		// And the same question again, under the lock this time, because the
+		// two answer different things. The refusal above is what a client
+		// asking to start a running machine must hear; this is the guard that
+		// keeps two CONCURRENT starts from reaching the runtime twice, which
+		// they do whenever both read `stopped` before either wrote.
+		//
+		// Removing it made TestTwoConcurrentStartsReachTheRuntimeOnce fail
+		// within the minute, and transitionOne's own comment had said why:
+		// deciding "already running" from a state read before the lock is how
+		// a short circuit stops short-circuiting.
 		if res.State == stateRunning {
 			return stateRunning
 		}
@@ -677,6 +709,19 @@ func (p *Pack) stopVms(w http.ResponseWriter, r *http.Request) {
 // VmStateInfo array the SDK expects: the previous state beside the new one, per
 // machine, which is how a client tells "already stopped" from "stopping now".
 func (p *Pack) transition(w http.ResponseWriter, r *http.Request, change func(*resource.Resource) string) {
+	p.transitionUnless(w, r, nil, change)
+}
+
+// transitionUnless is transition with a state precondition: refuse names why
+// this machine may not make the transition, empty when it may.
+//
+// The refusal is decided over EVERY target before anything moves, on the same
+// argument the identifier resolution below already makes: a list with one
+// machine in the wrong state must not leave the others transitioned. A caller
+// that reads the 409 and retries would otherwise start the same machines twice
+// and get a different answer each time.
+func (p *Pack) transitionUnless(w http.ResponseWriter, r *http.Request,
+	refuse func(*resource.Resource) string, change func(*resource.Resource) string) {
 	var req vmIDsRequest
 	if err := emulator.DecodeJSON(r, &req); err != nil {
 		p.badRequest(w, err.Error())
@@ -697,6 +742,14 @@ func (p *Pack) transition(w http.ResponseWriter, r *http.Request, change func(*r
 			return
 		}
 		targets = append(targets, res)
+	}
+	if refuse != nil {
+		for _, res := range targets {
+			if details := refuse(res); details != "" {
+				p.conflict(w, details)
+				return
+			}
+		}
 	}
 
 	out := make([]map[string]any, 0, len(targets))

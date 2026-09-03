@@ -315,18 +315,40 @@ func (p *Pack) unlinkVolume(w http.ResponseWriter, r *http.Request) {
 	}
 	emulator.MarkRead(r, "ForceUnlink")
 	_ = req.ForceUnlink
-	// Same critical section as linkVolume, same reason (#295).
+	// Same critical section as linkVolume, same reason (#295), and the
+	// precondition is decided INSIDE it: a detach that reads "is it linked"
+	// outside the lock races the link that answers it.
+	//
+	// Detaching a volume that is attached to nothing is refused, which is what
+	// the real cloud does (#621). Recorded against a real account 2026-08-30:
+	// UnlinkVolume on a volume that had never successfully attached answered
+	// 409 ResourceConflict, where this pack answered 200 and told the client a
+	// detach had happened. An emulator that says yes where the cloud says no
+	// teaches a client something the cloud will punish, and this is the half
+	// that needs no transient state to be true.
+	//
+	// TestUnlinkVolumeRefusesAVolumeAttachedToNothing fails without this.
+	var unlinked bool
 	err := p.env.Store.Update(Name, kindVolume, req.VolumeID, func(stored *resource.Resource) error {
+		if held, _ := stored.Attrs["LinkedVmId"].(string); held == "" {
+			return errVolumeFree
+		}
+		unlinked = true
 		delete(stored.Attrs, "LinkedVmId")
 		delete(stored.Attrs, "DeviceName")
 		stored.State = volumeStateAvailable
 		stored.Updated = p.env.Now()
 		return nil
 	})
-	if err != nil {
+	switch {
+	case errors.Is(err, errVolumeFree):
+		p.conflict(w, "the volume "+req.VolumeID+" is not linked to any Vm")
+		return
+	case err != nil:
 		p.notFound(w, "volume", req.VolumeID)
 		return
 	}
+	_ = unlinked
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{"ResponseContext": p.context()})
 }
 
@@ -537,4 +559,8 @@ func deleteOnVmDeletion(res *resource.Resource) bool {
 var (
 	errVolumeShrinks = errors.New("a volume cannot shrink")
 	errVolumeHeld    = errors.New("the volume is linked elsewhere")
+	// errVolumeFree is the other side of the same fact, and it is a refusal
+	// rather than a no-op: detaching what is attached to nothing is a 409 on
+	// the real cloud (#621).
+	errVolumeFree = errors.New("the volume is linked to nothing")
 )
