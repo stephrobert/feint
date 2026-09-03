@@ -17,6 +17,46 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Added
 
+- **`serve --consistency eventual`: a client's waiter finally has something to
+  observe** (#637, and the mechanism #124 asked for). Off by default, so nothing
+  changes unless it is asked for.
+
+  A reboot's target state is the state it started from, so `state == "running"`
+  proves nothing to a client waiting on one. Without task support the only signal
+  available is watching the machine **leave** its initial state — and this
+  emulator answered `running` from the first read to the last. So `poweron`,
+  `poweroff` and `stop_in_place` could all be exercised here, and `reboot`, the
+  one action where waiting is subtle, could not be exercised at all. The author
+  of #637 had to prove their own waiting guard by unit test, because running it
+  against feint failed for a reason that had nothing to do with their client.
+
+  With the mode on, a Scaleway server walks the states `fr-par` walks, measured
+  2026-09-03 by polling a real DEV1-S through each action:
+
+  | action | states answered, in order |
+  |---|---|
+  | `poweron` | `starting`, then `running` |
+  | `reboot` | `stopping`, `starting`, then `running` |
+  | `poweroff` | `stopping`, then `stopped` |
+
+  **States advance on reads, never on a clock**, and that is the design rather
+  than a shortcut: the emulator's clock is injected, so a transient state timed
+  on a wall clock would either never end under a frozen test clock or turn every
+  suite into a wait. A four-second suite stays four seconds.
+
+  Two consequences worth knowing. **An action is not an observation** — the read
+  a lifecycle action makes in order to change a resource does not advance it, or
+  the action would consume the first state it just pushed (that defect happened,
+  and the reboot answered `starting, running` where the cloud answers `stopping,
+  starting, running`). And **a failed action walks no chain**: a start that
+  failed answers its failed state, because narrating a path towards a `running`
+  it never reached is the plausible-wrong answer this project exists to avoid.
+
+  What this does not yet cover is the rest of #124: the Outscale `creating →
+  available` and `in-queue → completed` chains, and the `409 InvalidVolumeState`
+  refusal that was reverted for want of a reachable state. The mechanism those
+  need is this one; what is missing is the chains and the guard.
+
 - **A project is a register now, and `account/v3` can write to it** (#391).
   `account/v3/ProjectAPI.CreateProject`, `account/v3/ProjectAPI.UpdateProject`
   and `account/v3/ProjectAPI.DeleteProject` are served — `POST

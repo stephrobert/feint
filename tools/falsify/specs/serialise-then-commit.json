@@ -13,8 +13,8 @@
       "label": "Observe hands the look a copy read before the hold",
       "package": "./internal/core/machine/",
       "file": "internal/core/machine/observe.go",
-      "find": "\tunlock := b.Serialise(id)\n\tdefer unlock()\n\n\tres, found := st.Get(b.Provider, kind, id)",
-      "replace": "\tres, found := st.Get(b.Provider, kind, id)\n\tunlock := b.Serialise(id)\n\tdefer unlock()",
+      "find": "\tunlock := b.Serialise(id)\n\tdefer unlock()\n\n\t// Peek and not Get: this reads to ACT, and an action is not an observation.\n\t// Under eventual consistency a Get here would consume the first step of the\n\t// chain the action is about to push, and the client's first read would\n\t// answer the second one (#637).\n\tres, found := st.Peek(b.Provider, kind, id)",
+      "replace": "\tres, found := st.Peek(b.Provider, kind, id)\n\tunlock := b.Serialise(id)\n\tdefer unlock()\n\n\t// Peek and not Get: this reads to ACT, and an action is not an observation.\n\t// Under eventual consistency a Get here would consume the first step of the\n\t// chain the action is about to push, and the client's first read would\n\t// answer the second one (#637).\n",
       "test": "TestObserveReadsInsideTheHold"
     },
     {
@@ -37,8 +37,8 @@
       "label": "Observe asks the runtime about a resource that does not exist",
       "package": "./internal/core/machine/",
       "file": "internal/core/machine/observe.go",
-      "find": "\tres, found := st.Get(b.Provider, kind, id)\n\tif !found {\n\t\treturn nil, store.ErrNotFound\n\t}",
-      "replace": "\tres, found := st.Get(b.Provider, kind, id)\n\tif !found {\n\t\tres = &resource.Resource{ID: id, Kind: kind}\n\t\tdefer func() { _ = store.ErrNotFound }()\n\t}",
+      "find": "\tres, found := st.Peek(b.Provider, kind, id)\n\tif !found {\n\t\treturn nil, store.ErrNotFound\n\t}",
+      "replace": "\tres, found := st.Peek(b.Provider, kind, id)\n\tif !found {\n\t\tres = &resource.Resource{ID: id, Kind: kind}\n\t\tdefer func() { _ = store.ErrNotFound }()\n\t}",
       "test": "TestObserveRefusesAMissingTargetBeforeTheLook"
     },
     {

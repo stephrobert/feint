@@ -941,7 +941,7 @@ Not revisited unless somebody shows a use where a fabricated private key is
 better than an absent one. "The course says so" is not that argument: the course
 can carry the two lines above, and the emulator cannot un-hand a secret.
 
-## Lifecycle transitions are immediate
+## Lifecycle transitions are immediate, unless you ask for otherwise
 
 A server goes from `stopped` to `running` within the action call. Real hardware
 takes a minute; reproducing that delay locally would only make every client wait
@@ -949,6 +949,45 @@ for information that does not exist here.
 
 The states clients *check* are preserved: deleting a running server is refused
 with `transient_state`, because Terraform depends on that error.
+
+**Since #637 the default has an opt-out**, because the default has a cost that
+only a client author could find. A reboot's target state is the state it started
+from, so a waiter watching for `running` proves nothing: without task support the
+only signal is watching the machine *leave* its initial state, and this emulator
+answered `running` from the first read to the last. That made `reboot` the one
+action whose waiting could not be exercised here at all — and it is the one where
+waiting is subtle, which is what makes it worth being able to test.
+
+```bash
+feint serve --consistency eventual
+```
+
+With it, a Scaleway server walks the states `fr-par` walks, measured 2026-09-03
+by polling a real DEV1-S through each action:
+
+| action | states answered, in order |
+|---|---|
+| `poweron` | `starting`, then `running` |
+| `reboot` | `stopping`, `starting`, then `running` |
+| `poweroff` | `stopping`, then `stopped` |
+
+**States advance on reads, never on a clock**, and that is the design rather than
+a shortcut. The emulator's clock is injected — tests freeze it — so a transient
+state timed on a wall clock would either never end under a frozen clock or turn
+every suite into a wait. A four-second suite stays four seconds.
+
+Two consequences worth knowing. An action is not an observation: the read a
+lifecycle action makes to *change* a resource does not advance it, or the action
+would consume the first state it just pushed. And a failed action walks no chain
+— a start that failed answers its failed state, because narrating a path towards
+a `running` it never reached is exactly the plausible-wrong answer this project
+exists to avoid.
+
+**What the mode does not yet do** is the rest of #124: the Outscale volume
+(`creating` → `available`) and snapshot (`in-queue` → `completed`) chains, and
+with them the `409 InvalidVolumeState` refusal the next paragraph explains cannot
+be served. The mechanism those need is the one this section describes; what is
+missing is the chains and the guard, not the scheduler.
 
 **What follows from this is that a refusal which only exists during a transient
 state cannot be reproduced**, and one has been measured. Against a real Outscale

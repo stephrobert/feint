@@ -1,0 +1,26 @@
+{
+  "package": "./internal/providers/scaleway/",
+  "mutations": [
+    {
+      "label": "a reboot pushes no chain, so a client waiting on it observes nothing and returns having proven nothing",
+      "file": "internal/providers/scaleway/servers.go",
+      "find": "\t\ttransitionTo(res, res.State, \"stopping\", \"starting\")",
+      "replace": "\t\ttransitionTo(res, res.State)",
+      "test": "TestARebootIsObservableUnderEventualConsistency"
+    },
+    {
+      "label": "the reboot chain is invented rather than transcribed, so it skips the stopping fr-par answers first",
+      "file": "internal/providers/scaleway/servers.go",
+      "find": "\t\ttransitionTo(res, res.State, \"stopping\", \"starting\")",
+      "replace": "\t\ttransitionTo(res, res.State, \"starting\")",
+      "test": "TestARebootIsObservableUnderEventualConsistency"
+    },
+    {
+      "label": "a failed action walks a chain anyway, narrating a path to a running state it never reached",
+      "file": "internal/providers/scaleway/servers.go",
+      "find": "\tif settled != \"running\" && settled != \"stopped\" && settled != \"stopped in place\" {",
+      "replace": "\tif settled != \"running\" && settled != \"stopped\" && settled != \"stopped in place\" && false {",
+      "test": "TestAFailedActionWalksNoChain"
+    }
+  ]
+}

@@ -17,7 +17,7 @@
     "An Outscale machine owns a root volume, and that volume holds no bytes": "2026-08-27",
     "Exoscale has one zone per process, and the reason is the client": "2026-08-27",
     "Identifiers are not checked against anything": "2026-09-02",
-    "Lifecycle transitions are immediate": "2026-08-29",
+    "Lifecycle transitions are immediate, unless you ask for otherwise": "2026-09-03",
     "Managed Kubernetes is not emulated, and a CRUD-only version is refused (#283)": "2026-08-27",
     "Object Storage is not emulated": "2026-08-27",
     "Outscale and Exoscale trail Scaleway, and the generated tables say by how much": "2026-08-27",
@@ -36,6 +36,7 @@
     "Two Outscale filters reach the API only as a payload, and that is `octl`'s gap": "2026-08-27",
     "What survives a dead emulator, in one table": "2026-08-27",
     "`feint images resolve` prints only what boots, and names what it left out (#476)": "2026-08-30",
+    "`lb/v1` refusals carry an envelope the real one does not": "2026-09-03",
     "`scw` 2.56.3 prints a recovered panic on every successful `lb acl delete`, and the defect is upstream (#505)": "2026-08-28"
   }
 }

@@ -72,6 +72,25 @@ type Resource struct {
 	// must never reach a client: the backing container name, for instance. Packs
 	// read it; views never serialize it.
 	Runtime map[string]string
+	// Pending are the states this resource passes through before it settles, in
+	// order, one consumed per observation. Empty for a settled resource, which
+	// is every resource unless a pack pushed a transition and the operator asked
+	// for eventual consistency (#124, #637).
+	//
+	// Why states and not a duration. The emulator's clock is injected — tests
+	// freeze it — so a transient state timed on a wall clock would either never
+	// end under a frozen clock or turn every suite into a wait. Observations are
+	// the one cursor that advances in both. A four-second suite stays four
+	// seconds.
+	//
+	// Neutral: a list of state names is the vocabulary of whatever pack wrote
+	// it, and this core knows none of them. What varies is the content, which is
+	// a field rather than a convention.
+	//
+	// It survives a snapshot on purpose: a reboot in flight when the state is
+	// saved is a reboot still in flight when it is loaded. That also makes it
+	// untrusted input on the way back in, which is why Restore treats it as one.
+	Pending []string
 }
 
 // New returns a resource stamped at now, with Created and Updated aligned and
@@ -113,6 +132,12 @@ func (r *Resource) Clone() *Resource {
 		for k, v := range r.Runtime {
 			out.Runtime[k] = v
 		}
+	}
+	// Copied rather than shared: a caller that consumes a pending state must not
+	// consume it out of the store's own copy, which is the whole reason the
+	// store hands out clones.
+	if r.Pending != nil {
+		out.Pending = append([]string(nil), r.Pending...)
 	}
 	return &out
 }

@@ -19,6 +19,49 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Ajouté
 
+- **`serve --consistency eventual` : l'attente d'un client a enfin quelque chose
+  à observer** (#637, et le mécanisme que demandait #124). Éteint par défaut,
+  donc rien ne change tant qu'on ne le demande pas.
+
+  L'état visé par un redémarrage est celui d'où il part, donc `state == "running"`
+  ne prouve rien à un client qui l'attend. Sans support des tâches, le seul signal
+  disponible est de voir la machine **quitter** son état initial, et cet émulateur
+  répondait `running` de la première lecture à la dernière. `poweron`, `poweroff`
+  et `stop_in_place` étaient donc exerçables ici, et `reboot`, la seule action où
+  l'attente est subtile, ne l'était pas du tout. L'auteur de #637 a dû prouver sa
+  propre garde d'attente par test unitaire, parce que la jouer contre feint
+  échouait pour une raison étrangère à son client.
+
+  Avec le mode actif, un serveur Scaleway parcourt les états que parcourt
+  `fr-par`, mesurés le 2026-09-03 en interrogeant un vrai DEV1-S à chaque action :
+
+  | action | états répondus, dans l'ordre |
+  |---|---|
+  | `poweron` | `starting`, puis `running` |
+  | `reboot` | `stopping`, `starting`, puis `running` |
+  | `poweroff` | `stopping`, puis `stopped` |
+
+  **Les états avancent sur les lectures, jamais sur une horloge**, et c'est la
+  conception et non un raccourci : l'horloge de l'émulateur est injectée, donc un
+  état transitoire minuté sur une horloge murale ne finirait jamais sous une
+  horloge de test figée, ou transformerait chaque suite en attente. Une suite de
+  quatre secondes reste de quatre secondes.
+
+  Deux conséquences à connaître. **Une action n'est pas une observation** : la
+  lecture qu'une action du cycle de vie fait pour modifier une ressource ne la
+  fait pas avancer, sinon l'action consommerait le premier état qu'elle vient de
+  pousser (le défaut a eu lieu, et le redémarrage répondait `starting, running`
+  là où le cloud répond `stopping, starting, running`). Et **une action échouée
+  ne parcourt aucune chaîne** : un démarrage qui a échoué répond son état
+  d'échec, parce que raconter un chemin vers un `running` jamais atteint est la
+  réponse plausible et fausse que ce projet existe pour éviter.
+
+  Ce que cela ne couvre pas encore, c'est le reste de #124 : les chaînes Outscale
+  `creating → available` et `in-queue → completed`, et le refus `409
+  InvalidVolumeState` qui avait été annulé faute d'un état atteignable. Le
+  mécanisme dont elles ont besoin est celui-ci ; ce qui manque, ce sont les
+  chaînes et la garde.
+
 - **Un projet est désormais un registre, et `account/v3` sait y écrire** (#391).
   `account/v3/ProjectAPI.CreateProject`, `account/v3/ProjectAPI.UpdateProject`
   et `account/v3/ProjectAPI.DeleteProject` sont servis, c'est-à-dire `POST

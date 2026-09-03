@@ -921,6 +921,12 @@ func (p *Pack) applyServerAction(w http.ResponseWriter, r *http.Request, req ser
 			// routed, #116), then the firewall, replayed by the shared
 			// Reconciler in the one order every pack follows (#510).
 			p.startMachine(r.Context(), res)
+			// The states a client watching this action would see on fr-par,
+			// consumed one per observation and only when the operator asked for
+			// them. Pushed after the machine call, so a start that FAILED keeps
+			// the failed state it earned rather than walking a chain towards a
+			// running it never reached.
+			transitionTo(res, res.State, "starting")
 		}
 		res.Attrs["allowed_actions"] = allowedActions(res.State, protectedServer(res))
 	case "reboot":
@@ -941,6 +947,12 @@ func (p *Pack) applyServerAction(w http.ResponseWriter, r *http.Request, req ser
 		// inventing a refusal upstream may not answer would be a divergence
 		// nobody measured. Reconciler.Reboot skips the stop for it.
 		p.rebootMachine(r.Context(), res)
+		// The action this whole mechanism exists for (#637). A reboot's target
+		// state is the state it started from, so "the state equals running"
+		// proves nothing to a client waiting on it: the only signal available
+		// without task support is watching the machine LEAVE its initial state,
+		// and there was nothing to see.
+		transitionTo(res, res.State, "stopping", "starting")
 		res.Attrs["allowed_actions"] = allowedActions(res.State, protectedServer(res))
 	case "poweroff", "stop_in_place":
 		// Two actions, two states, and the difference is not cosmetic: the SDK
@@ -963,6 +975,7 @@ func (p *Pack) applyServerAction(w http.ResponseWriter, r *http.Request, req ser
 		// the whole difference between dynamic and flexible.
 		p.releaseDynamicAddress(r.Context(), res)
 		p.stopMachine(r.Context(), res)
+		transitionTo(res, res.State, "stopping")
 	case "terminate":
 		p.releaseDynamicAddress(r.Context(), res)
 		p.removeMachine(r.Context(), res)
@@ -1892,4 +1905,48 @@ func (p *Pack) nextVolumeKey(res *resource.Resource) string {
 			return key
 		}
 	}
+}
+
+// transitionTo makes a settled action observable: the resource answers each of
+// through in order, one per read, before it answers settled.
+//
+// Measured on fr-par, 2026-09-03, by polling a real DEV1-S hard through each
+// action:
+//
+//	poweron   starting (allocating node) -> running (booting kernel)
+//	reboot    stopping (rebooting) -> starting (starting) -> running (booting kernel)
+//	poweroff  stopping -> stopped
+//
+// So the chain is transcribed rather than invented, and reboot is the one that
+// matters: its target state is the state it started from.
+//
+// Two things this deliberately does not do. It does not touch state_detail —
+// the cloud's are per-step ("allocating node", "booting kernel") and this
+// emulator has nothing behind them to be true about. And it does nothing at all
+// unless the operator asked for eventual consistency: the store drops Pending on
+// the floor with the mode off, which is what keeps every existing test and the
+// conformance suite byte-identical.
+//
+// A failed action pushes no chain, because the caller passes the state the
+// machine call produced: startMachine leaves a failed start in FailedState, and
+// walking a chain from there towards running would be the plausible-wrong answer
+// this project exists to avoid.
+//
+// TestARebootIsObservableUnderEventualConsistency fails without this.
+func transitionTo(res *resource.Resource, settled string, through ...string) {
+	if len(through) == 0 {
+		return
+	}
+	if settled != "running" && settled != "stopped" && settled != "stopped in place" {
+		// Whatever the machine layer produced is not a state this chain knows
+		// how to arrive at. Answer it directly rather than narrating a path to
+		// somewhere else.
+		return
+	}
+	res.State = settled
+	res.Pending = append(append([]string(nil), through...), settled)
+	// The first state a reader sees is the first of the chain, so the resource
+	// as stored has to be the one BEFORE the chain runs. Pending carries the
+	// settled state as its last step; State holds it too, so a store with the
+	// mode off answers exactly what it answered before.
 }

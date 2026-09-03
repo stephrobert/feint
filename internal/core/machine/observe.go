@@ -54,7 +54,11 @@ func (b Binding) Observe(
 	unlock := b.Serialise(id)
 	defer unlock()
 
-	res, found := st.Get(b.Provider, kind, id)
+	// Peek and not Get: this reads to ACT, and an action is not an observation.
+	// Under eventual consistency a Get here would consume the first step of the
+	// chain the action is about to push, and the client's first read would
+	// answer the second one (#637).
+	res, found := st.Peek(b.Provider, kind, id)
 	if !found {
 		return nil, store.ErrNotFound
 	}
