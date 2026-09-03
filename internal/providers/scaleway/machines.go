@@ -164,6 +164,7 @@ func (p *Pack) machinePlan(res *resource.Resource) machine.Plan {
 		Boot:     p.attachmentsOf(res),
 		Publics:  p.publicAddressesOf(res),
 		RouteVia: p.privateNetworkNameOf(res),
+		Egress:   p.egressNetworkOf(res),
 	}
 }
 
@@ -214,4 +215,70 @@ func (p *Pack) logger() *slog.Logger {
 		return p.env.Log
 	}
 	return slog.Default()
+}
+
+// egressNetworkOf answers the runtime network a default route leaves through,
+// and empty when this server has no way out (#647).
+//
+// It is Scaleway's rule, transcribed:
+//
+//   - a server holding a public address reaches the Internet;
+//   - a server on a Private Network whose Public Gateway attachment declares
+//     `push_default_route` reaches it through that gateway;
+//   - a server with neither does not, and that is not a gap. It is what a
+//     client provisioning a machine has to know, and the reason this returns
+//     empty rather than picking something.
+//
+// Measured under `--vm incus-ovn` on 2026-09-03, which is what made this worth
+// serving rather than documenting: the OVN network NATs over the emulator's own
+// uplink, and one `ip route add default via <the network's gateway>` inside a
+// machine reached 8.8.8.8 in 13 ms. Nothing was missing but the route — so a
+// machine here could be reached and never provisioned, which is the half of a
+// client's surface a fleet tool spends its time in (#647, reported by a client
+// author whose Ansible runs died on `apt-get update` after every SSH hop
+// worked).
+//
+// The network it names is the runtime's, not the API's: the driver needs
+// something it can ask a gateway address of.
+//
+// TestAServerWithAPublicAddressLeavesThroughItsOwnNetwork and
+// TestAPushedDefaultRouteIsTheOnlyWayOutForAPrivateServer fail without this.
+func (p *Pack) egressNetworkOf(server *resource.Resource) string {
+	// A public address first: it is the server's own way out, and it rides the
+	// network its NIC is on — the same one RouteVia names, for the same reason.
+	if len(p.publicAddressesOf(server)) > 0 {
+		return p.privateNetworkNameOf(server)
+	}
+	// Otherwise the gateway's, and only when the attachment pushes it. A
+	// gateway that masquerades for a network without pushing a default route is
+	// a gateway whose clients were told to route another way, and the emulator
+	// has no business deciding for them.
+	for _, nic := range p.privateNICsOf(server.ID) {
+		privateNetworkID := nic.Runtime[runtimePrivateNetworkKey]
+		if privateNetworkID == "" {
+			continue
+		}
+		if !p.gatewayPushesDefaultRoute(privateNetworkID) {
+			continue
+		}
+		pn, found := p.env.Store.Get(Name, kindPrivateNetwork, privateNetworkID)
+		if found && pn.Runtime[runtimeNetworkKey] != "" {
+			return pn.Runtime[runtimeNetworkKey]
+		}
+	}
+	return ""
+}
+
+// gatewayPushesDefaultRoute reports whether a Public Gateway is attached to this
+// Private Network with push_default_route set.
+func (p *Pack) gatewayPushesDefaultRoute(privateNetworkID string) bool {
+	for _, gn := range p.env.Store.List(kindGatewayNetwork, resource.Tenant{Provider: Name}) {
+		if textOf(gn.Attrs["private_network_id"]) != privateNetworkID {
+			continue
+		}
+		if pushed, _ := gn.Attrs["push_default_route"].(bool); pushed {
+			return true
+		}
+	}
+	return false
 }
