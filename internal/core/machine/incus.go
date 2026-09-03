@@ -1356,6 +1356,43 @@ func (d *Incus) EnsureNetwork(ctx context.Context, spec NetworkSpec) error {
 		"ipv4.nat="+strconv.FormatBool(spec.NAT),
 		"ipv6.address=none",
 	)
+	if d.OVN {
+		// The network announces no gateway, so no machine gets a default route
+		// it was not entitled to (#647).
+		//
+		// This is the half a default route inside the machine cannot do on its
+		// own. Measured 2026-09-03: an OVN network hands every machine that
+		// BOOTS on it a `default via <gateway> proto dhcp`, whatever the cloud's
+		// rule says — so a Scaleway server with no public address and no Public
+		// Gateway reached the Internet here, and one whose gateway attachment
+		// was removed went on reaching it, because the next boot's DHCP put the
+		// route back over whatever the driver had taken away.
+		//
+		// `none` is the documented way to stop it (Incus network_ovn reference,
+		// ipv4.dhcp.gateway: "use none to turn off gateway announcement"), and
+		// it leaves the rest of DHCP alone — the machine still gets its address
+		// and its lease.
+		//
+		// What replaces it is Plan.Egress: the pack says which machines the
+		// cloud lets out, and RouteEgress lays the route for those.
+		//
+		// Silencing the gateway alone would take away more than the way out.
+		// Measured: the announced default route had been carrying the traffic
+		// towards the OTHER subnets of the same VPC as well, and the runtime
+		// leg failed on "10.184.0.2 is unreachable within one VPC; isolation is
+		// separating too much" the first time this line stood alone. So the
+		// network keeps announcing where the private fleet is, and stops
+		// announcing where the Internet is, which is the split the cloud makes:
+		// a Scaleway server with no public address reaches its VPC and nothing
+		// beyond it.
+		//
+		// TestAnOVNNetworkAnnouncesNoGateway and
+		// TestAnOVNNetworkAnnouncesItsPrivateRoutes fail without this.
+		args = append(args,
+			"ipv4.dhcp.gateway=none",
+			"ipv4.dhcp.routes="+announcedPrivateRoutes(address),
+		)
+	}
 	for k, v := range spec.Labels {
 		args = append(args, "user."+k+"="+v)
 	}

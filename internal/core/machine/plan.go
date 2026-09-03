@@ -46,6 +46,26 @@ type Plan struct {
 	// the two others let the driver pick, and changing that would change what
 	// the runtime is asked without an upstream difference demanding it.
 	RouteVia string
+	// Egress names the network a default route leaves through, empty when the
+	// machine has none (#647).
+	//
+	// Empty is the ordinary answer and that is the point. A machine started
+	// under OVN reaches its own subnet and, through the router, the peered
+	// ones — the network announces the three RFC 1918 aggregates over DHCP for
+	// that (announcedPrivateRoutes) — and nothing else. Measured: the OVN network NATs (`ipv4.nat=true`
+	// over the emulator's own uplink) and a `ip route add default via <the
+	// network's gateway>` from inside a machine reaches 8.8.8.8 in 13 ms. So
+	// the way out exists; what decides is whether this machine is entitled to
+	// it.
+	//
+	// That entitlement is the pack's to state, because it is the cloud's rule
+	// rather than the runtime's. On Scaleway a machine reaches the Internet
+	// when it holds a public address, or when a public gateway attached to its
+	// private network pushes a default route — and a machine with neither has
+	// no way out, which a client provisioning one has to know. Laying a default
+	// route for every machine would be the emulator being more permissive than
+	// the cloud, in the one direction that teaches a client something false.
+	Egress string
 }
 
 // Reconciler executes a declared Plan in the one order — addresses, then
@@ -147,6 +167,14 @@ func (r Reconciler) PowerOn(ctx context.Context, res *resource.Resource, boot Bo
 	for _, m := range plan.Memberships {
 		_ = r.attach(ctx, res, m)
 	}
+	// And the way out, after the interfaces exist: a default route needs the
+	// device of the network it leaves through (#647). On the boot path and not
+	// only in ReplayAddresses, because a machine's entitlement changes without
+	// its addresses doing so — a Public Gateway attached to its Private Network
+	// pushes the route, and detaching that gateway takes it back. Measured: with
+	// this call only in ReplayAddresses, a server whose gateway pushed the route
+	// never got it, because it has no public address for that loop to replay.
+	r.ReplayEgress(ctx, res)
 	// What the two loops above delivered is read back before the firewall,
 	// because the record written at the boot is older than they are (#548):
 	// the addresses the plan promised are installed here, not there. The
@@ -217,6 +245,50 @@ func (r Reconciler) ReplayAddresses(ctx context.Context, res *resource.Resource)
 	}
 	for _, address := range plan.Publics {
 		r.route(ctx, res, plan, address)
+	}
+	r.ReplayEgress(ctx, res)
+}
+
+// ReplayEgress gives the machine the way out its plan entitles it to, and takes
+// away the one it no longer does (#647).
+//
+// Run beside ReplayAddresses on every path that changes what a machine has —
+// a boot, an interface joined, an address routed — because all three change the
+// answer: an address makes a machine entitled, a NIC on a gateway's network
+// makes it entitled, and losing either takes it back.
+//
+// The removal half matters as much as the laying half. A machine that keeps a
+// default route after its address is released reaches the Internet the cloud
+// would have cut off, which is the emulator being more permissive in the
+// direction that teaches a client something false.
+//
+// Idempotent, and silent for a driver that cannot route egress: under a bridge
+// the host already routes for the machine, and there is nothing to lay.
+func (r Reconciler) ReplayEgress(ctx context.Context, res *resource.Resource) {
+	driver := r.binding().driver
+	router, ok := driver.(EgressRouter)
+	if !ok {
+		return
+	}
+	name := res.Runtime[r.binding().RuntimeKey]
+	if name == "" {
+		return
+	}
+	plan, declared := r.plan(res)
+	if !declared {
+		return
+	}
+	if plan.Egress == "" {
+		if err := router.DropEgress(ctx, name); err != nil {
+			r.binding().logger().Error("could not take back the machine's default route",
+				"provider", r.binding().Provider, "machine", name, "resource", res.ID, "error", err)
+		}
+		return
+	}
+	if err := router.RouteEgress(ctx, name, plan.Egress); err != nil {
+		r.binding().logger().Error("could not give the machine its default route",
+			"provider", r.binding().Provider, "machine", name, "network", plan.Egress,
+			"resource", res.ID, "error", err)
 	}
 }
 

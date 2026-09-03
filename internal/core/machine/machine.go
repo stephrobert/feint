@@ -190,6 +190,30 @@ type driver interface {
 	RemoveNetwork(ctx context.Context, name string) error
 }
 
+// EgressRouter is the optional half of a driver that can give a machine a
+// default route, and take one away (#647).
+//
+// Optional like Capable and Waiter, and for the same reason: a driver that
+// cannot do it counts as not doing it, so the replay skips rather than
+// asserting what nobody promised. The bridge driver does not implement it —
+// its machines sit on a bridge the host already routes — and OVN does, because
+// under OVN a machine reaches its own subnet and the peered ones and nothing
+// else until something lays a default route.
+//
+// Whether a machine is ENTITLED to one is not asked here. That is the cloud's
+// rule and the pack states it in Plan.Egress; this is only the driver saying it
+// knows how.
+type EgressRouter interface {
+	// RouteEgress lays the machine's default route through the gateway of the
+	// named network. It must be idempotent: the replay runs on every boot and
+	// on every interface a machine gains.
+	RouteEgress(ctx context.Context, machine, network string) error
+	// DropEgress takes the default route away, for a machine that had one and
+	// no longer qualifies — an address released, a gateway detached. It must
+	// succeed when there is nothing to remove.
+	DropEgress(ctx context.Context, machine string) error
+}
+
 // Waiter is the optional half of a driver that can tell when a machine is
 // ready. Start never waits, because an API call must not block for the tens of
 // seconds a virtual machine takes to boot; a caller that needs to reach the
