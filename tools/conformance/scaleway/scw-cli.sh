@@ -1096,6 +1096,20 @@ lb_ip="$(scw lb ip create is-ipv6=false zone="$ZONE" -o json 2>&1)" || fail "lb 
 lb_ip_id="$(printf '%s' "$lb_ip" | jq -r '.id // empty')"
 [ -n "$lb_ip_id" ] || fail "no id in the lb ip response: $lb_ip"
 
+# The offer table, read by the client before the create that uses it (#658).
+# Driven from here rather than declared undriven, because that is the question
+# the issue turned on: the decline said no measured client reads it, and this is
+# a measured client reading it. The assertion is the join, not the row count: the
+# type the create below names has to be one the table offered, or the emulator is
+# publishing a menu of its own.
+offer="$(scw lb lb-types list zone="$ZONE" -o json 2>&1)" || fail "lb-types list rejected: $offer"
+printf '%s' "$offer" | jq -e 'length > 0' >/dev/null || fail "the offer table is empty: $offer"
+printf '%s' "$offer" | jq -e 'any(.[]; .name == "lb-s")' >/dev/null \
+  || fail "the offer table does not carry lb-s, the type this suite creates: $offer"
+printf '%s' "$offer" | jq -e 'all(.[]; has("bandwidth") and has("stock_status") and has("multicloud"))' >/dev/null \
+  || fail "an offer entry is missing a field the SDK decodes: $offer"
+ok "the offer table lists lb-s, and the create below names it"
+
 lb="$(scw lb lb create name=conformance-lb type=LB-S ip-ids.0="$lb_ip_id" zone="$ZONE" -o json 2>&1)" \
   || fail "lb create rejected: $lb"
 lb_id="$(printf '%s' "$lb" | jq -r '.id // empty')"

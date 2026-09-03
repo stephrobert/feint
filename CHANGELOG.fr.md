@@ -19,6 +19,24 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Ajouté
 
+- **La table d'offre du Load Balancer est servie** (`lb/v1/ZonedAPI.ListLBTypes`,
+  #658). Quatre types lus sur un vrai compte, paginés, et pilotés par `scw lb
+  lb-types list` dans la suite de conformance.
+
+  Elle était déclinée au motif qu'« aucun client mesuré ne la lit avant de
+  créer ». Une collection Ansible générée le fait désormais : elle écrit un
+  module `_info` par opération de liste, et répondre à *ce qui est proposé* est
+  toute la raison d'être de ce module.
+
+  L'issue rapportait aussi que l'offre de l'émulateur était fermée et appliquée.
+  Elle ne l'était pas : les refus du rapport venaient d'une seule IP flexible
+  réutilisée sur trois créations, et avec une IP neuve à chaque fois,
+  `LB-INEXISTANT` passait comme les autres. Fermer l'offre a été écrit puis
+  retiré, parce que le corpus versionné rejoue `CreateLB` avec un type expurgé
+  et qu'un contrôle de valeur refuse le rejeu lui-même. `lbtypes.go` porte tout
+  l'argument, et il borne tout futur refus portant sur une valeur : un pack ne
+  peut refuser que sur ce que l'anonymiseur préserve.
+
 - **`serve --consistency eventual` : l'attente d'un client a enfin quelque chose
   à observer** (#637, et le mécanisme que demandait #124). Éteint par défaut,
   donc rien ne change tant qu'on ne le demande pas.

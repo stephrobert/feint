@@ -367,6 +367,10 @@ func (p *Pack) Routes() []emulator.Route {
 		// what kubic, terraform-talos and Scaleway's own LB module call, plus
 		// the lists `scw lb` reads. The measurement and the shapes live in
 		// loadbalancer.go; the rest of the family is declined below by name.
+		// The offer table, served since #658: a generated Ansible collection
+		// reads it through an `_info` module, which is a client the decline's
+		// "nobody reads it" no longer covered.
+		{Method: "GET", Path: lbZones + "/lb-types", Operation: "lb/v1/ZonedAPI.ListLBTypes", Handler: p.listLBTypes},
 		{Method: "GET", Path: lbZones + "/lbs", Operation: "lb/v1/ZonedAPI.ListLBs", Handler: p.listLBs},
 		{Method: "POST", Path: lbZones + "/lbs", Operation: "lb/v1/ZonedAPI.CreateLB", Handler: p.createLB},
 		{Method: "GET", Path: lbZones + "/lbs/{lbID}", Operation: "lb/v1/ZonedAPI.GetLB", Handler: p.getLB},
@@ -956,9 +960,6 @@ func (p *Pack) Declined() []emulator.Decline {
 
 		emulator.Because("migrating changes the commercial offer of the balancer, and an emulated balancer has no capacity to move: answering would confirm a resize nothing performed",
 			"lb/v1/ZonedAPI.MigrateLB"),
-
-		emulator.Because("the offer table is the provider's inventory and no measured client reads it before creating — the Terraform provider sends the type the configuration names — so a served list would be an invented catalogue (the ListVolumesTypes argument)",
-			"lb/v1/ZonedAPI.ListLBTypes"),
 
 		emulator.Because("nothing here terminates TLS: a certificate served by this emulator would be an ID over key material that signs nothing, and the Let's Encrypt half issues against domains this emulator does not hold",
 			"lb/v1/ZonedAPI.CreateCertificate",

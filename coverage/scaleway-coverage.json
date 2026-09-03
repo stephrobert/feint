@@ -1,8 +1,8 @@
 {
   "provider": "scaleway",
   "total": 498,
-  "implemented": 182,
-  "declined": 316,
+  "implemented": 183,
+  "declined": 315,
   "unknown": 0,
   "orphans": null,
   "products": [
@@ -110,15 +110,15 @@
     {
       "product": "lb",
       "total": 107,
-      "implemented": 35,
-      "declined": 72,
+      "implemented": 36,
+      "declined": 71,
       "unknown": 0,
       "versions": [
         {
           "version": "v1",
           "total": 107,
-          "implemented": 35,
-          "declined": 72,
+          "implemented": 36,
+          "declined": 71,
           "unknown": 0
         }
       ]
@@ -218,8 +218,8 @@
     {
       "group": "lb",
       "total": 107,
-      "implemented": 35,
-      "declined": 72,
+      "implemented": 36,
+      "declined": 71,
       "unknown": 0
     },
     {
@@ -2695,9 +2695,8 @@
     {
       "operation": "lb/v1/ZonedAPI.ListLBTypes",
       "product": "lb",
-      "reason": "the offer table is the provider's inventory and no measured client reads it before creating — the Terraform provider sends the type the configuration names — so a served list would be an invented catalogue (the ListVolumesTypes argument)",
       "version": "v1",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "lb/v1/ZonedAPI.ListLBs",

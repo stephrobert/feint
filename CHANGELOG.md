@@ -17,6 +17,22 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Added
 
+- **The Load Balancer offer table is served** (`lb/v1/ZonedAPI.ListLBTypes`,
+  #658). Four types read off a real account, paged, and driven by `scw lb
+  lb-types list` in the conformance suite.
+
+  It was declined because "no measured client reads it before creating". A
+  generated Ansible collection now does: it writes an `_info` module per list
+  operation, and answering *what is on offer* is that module's whole purpose.
+
+  The issue also reported the emulator's offer as closed and enforced. It was
+  not: the refusals in the report came from one flexible IP reused across three
+  creates, and with a fresh IP each time `LB-INEXISTANT` was accepted like the
+  rest. Closing the offer was written and reverted, because the committed corpus
+  replays `CreateLB` with a redacted type and a value check refuses the replay
+  itself. `lbtypes.go` carries the whole argument, and it bounds every future
+  refusal of a value: a pack may only refuse on what the anonymiser preserves.
+
 - **`serve --consistency eventual`: a client's waiter finally has something to
   observe** (#637, and the mechanism #124 asked for). Off by default, so nothing
   changes unless it is asked for.

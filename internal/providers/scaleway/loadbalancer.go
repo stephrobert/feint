@@ -345,6 +345,9 @@ func (p *Pack) createLB(w http.ResponseWriter, r *http.Request) {
 		writeInvalidArguments(w, ArgumentError{ArgumentName: "type", Reason: "required"})
 		return
 	}
+	// The type is NOT checked against the offer table, and that is a decision
+	// with a measurement behind it rather than an oversight. See lbtypes.go,
+	// "Why the create stays open".
 	requested := ""
 	if req.ProjectID != nil {
 		requested = *req.ProjectID
