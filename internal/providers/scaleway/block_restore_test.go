@@ -170,6 +170,15 @@ func TestAnInstanceSnapshotOfARestoredVolumeInheritsItsSize(t *testing.T) {
 	if volumeID == "" {
 		t.Fatalf("no volume id in %v", created)
 	}
+	// Attached before the snapshot is taken, because a disk nothing was ever
+	// attached to has nothing to snapshot (#650) — and because that mark living
+	// in Runtime is exactly what this test is about: it has to survive the store
+	// snapshot below, like the size does.
+	holder, _ := serverWith(t, ts, `{"name":"holder","commercial_type":"DEV1-S"}`)
+	if status, out := do(t, ts, "POST", instanceZone+"/servers/"+holder+"/attach-volume",
+		`{"volume_id":"`+volumeID+`"}`); status != http.StatusOK {
+		t.Fatalf("attach the volume: status %d, %v", status, out)
+	}
 
 	var saved bytes.Buffer
 	if err := env.Store.Snapshot(&saved); err != nil {

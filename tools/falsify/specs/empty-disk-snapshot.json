@@ -1,0 +1,33 @@
+{
+  "package": "./internal/providers/scaleway/",
+  "mutations": [
+    {
+      "label": "a disk nothing was ever attached to is snapshotted again, which is what made the published stack fail against the real cloud",
+      "file": "internal/providers/scaleway/snapshots.go",
+      "find": "\t\tif volume.Kind == kindVolume && volume.Runtime[runtimeAttachedKey] == \"\" {",
+      "replace": "\t\tif volume.Kind == kindVolume && volume.Runtime[runtimeAttachedKey] == \"\" && false {",
+      "test": "TestASnapshotOfAVolumeNothingEverWroteToIsRefused"
+    },
+    {
+      "label": "the mark is cleared when a server is deleted, so a disk keeps nothing of what its machine wrote",
+      "file": "internal/providers/scaleway/volumes.go",
+      "find": "\t\tdelete(stored.Runtime, runtimeServerKey)\n\t\tdelete(stored.Attrs, \"server_name\")",
+      "replace": "\t\tdelete(stored.Runtime, runtimeServerKey)\n\t\tdelete(stored.Runtime, runtimeAttachedKey)\n\t\tdelete(stored.Attrs, \"server_name\")",
+      "test": "TestASnapshotOfAVolumeNothingEverWroteToIsRefused"
+    },
+    {
+      "label": "only one of the two attach doors sets the mark, so a volume attached through attach-volume still reads as empty",
+      "file": "internal/providers/scaleway/volumes.go",
+      "find": "\t\tstored.Runtime[runtimeAttachedKey] = stored.ID",
+      "replace": "\t\tstored.Runtime[runtimeAttachedKey] = \"\"",
+      "test": "TestASnapshotOfAVolumeNothingEverWroteToIsRefused"
+    },
+    {
+      "label": "the refusal carries an argument_name the cloud does not send",
+      "file": "internal/providers/scaleway/snapshots.go",
+      "find": "\t\t\twriteInvalidArguments(w, ArgumentError{\n\t\t\t\tReason:      \"constraint\",",
+      "replace": "\t\t\twriteInvalidArguments(w, ArgumentError{\n\t\t\t\tArgumentName: \"volume_id\",\n\t\t\t\tReason:      \"constraint\",",
+      "test": "TestASnapshotOfAVolumeNothingEverWroteToIsRefused"
+    }
+  ]
+}

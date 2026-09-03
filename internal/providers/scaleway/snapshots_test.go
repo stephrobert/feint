@@ -32,6 +32,15 @@ func instanceVolumeOf(t *testing.T, ts *httptest.Server) string {
 	if id == "" {
 		t.Fatalf("create an instance volume: no id in %v", created)
 	}
+	// Attached, because a disk nothing was ever attached to has nothing to
+	// snapshot and fr-par refuses it (#650). The server is the cheapest way to
+	// give the disk a history; it is never started, which the measurement says
+	// is enough.
+	serverID, _ := serverWith(t, ts, `{"name":"snapshot-host","commercial_type":"DEV1-S"}`)
+	if status, out := do(t, ts, "POST", zoneURL+"/servers/"+serverID+"/attach-volume",
+		`{"volume_id":"`+id+`"}`); status != http.StatusOK {
+		t.Fatalf("attach the volume: expected 200, got %d (%v)", status, out)
+	}
 	return id
 }
 
@@ -175,5 +184,85 @@ func TestASnapshotAnImageIsCutFromDoesNotDelete(t *testing.T) {
 	}
 	if status, got := do(t, ts, "DELETE", zoneURL+"/snapshots/"+snapshotID, ""); status != http.StatusNoContent {
 		t.Errorf("delete snapshot after its image: expected 204, got %d (%v)", status, got)
+	}
+}
+
+// A disk nothing was ever attached to has nothing to snapshot, and the cloud
+// says so in those words (#650).
+//
+// Measured on fr-par, 2026-09-03, three ways, because the line between accepted
+// and refused is not where it first looks:
+//
+//	a volume created and never attached          400 "cannot create a RO disk from an empty disk"
+//	the root disk of a server that never started 201
+//	a disk detached from a deleted server        201
+//
+// So the question is not whether the machine ran. It is whether the disk was
+// ever anybody's — which is why the mark is set on attach and never cleared on
+// detach.
+//
+// Why it is worth a refusal rather than a shrug: the published example stack
+// built its golden image exactly this way, so the pattern it teaches did not
+// survive contact with the real cloud. The reporter found out by running their
+// copy of it there.
+func TestASnapshotOfAVolumeNothingEverWroteToIsRefused(t *testing.T) {
+	ts := newTestServer(t)
+
+	status, created := do(t, ts, "POST", zoneURL+"/volumes",
+		`{"name":"empty","volume_type":"l_ssd","size":10000000000}`)
+	if status != http.StatusCreated {
+		t.Fatalf("create a volume: %d (%v)", status, created)
+	}
+	volume, _ := created["volume"].(map[string]any)
+	volumeID, _ := volume["id"].(string)
+
+	status, body := do(t, ts, "POST", zoneURL+"/snapshots",
+		`{"name":"of-nothing","volume_id":"`+volumeID+`"}`)
+	if status != http.StatusBadRequest {
+		t.Fatalf("a snapshot of a never-attached volume answered %d, want 400 (%v)", status, body)
+	}
+	if body["type"] != "invalid_arguments" {
+		t.Errorf("type is %v, want invalid_arguments", body["type"])
+	}
+	details, _ := body["details"].([]any)
+	if len(details) != 1 {
+		t.Fatalf("details holds %d entries, want 1 (%v)", len(details), body)
+	}
+	d, _ := details[0].(map[string]any)
+	if d["help_message"] != "cannot create a RO disk from an empty disk" {
+		t.Errorf("help_message is %v, want the cloud's own sentence", d["help_message"])
+	}
+	if d["reason"] != "constraint" {
+		t.Errorf("reason is %v, want constraint", d["reason"])
+	}
+	// No argument_name at all in that entry, which is why ArgumentError omits
+	// the field when it is empty. A `"argument_name": ""` is a field the cloud
+	// does not send.
+	if _, carries := d["argument_name"]; carries {
+		t.Errorf("the details entry carries an argument_name and fr-par sends none: %v", d)
+	}
+
+	// Attached once, and it can be snapshotted — the accepting half, without
+	// which a guard that refused every snapshot would satisfy everything above.
+	serverID, _ := serverWith(t, ts, `{"name":"holder","commercial_type":"DEV1-S"}`)
+	if status, out := do(t, ts, "POST", zoneURL+"/servers/"+serverID+"/attach-volume",
+		`{"volume_id":"`+volumeID+`"}`); status != http.StatusOK {
+		t.Fatalf("attach the volume: %d (%v)", status, out)
+	}
+	if status, out := do(t, ts, "POST", zoneURL+"/snapshots",
+		`{"name":"of-something","volume_id":"`+volumeID+`"}`); status != http.StatusCreated {
+		t.Fatalf("a snapshot of an attached volume answered %d, want 201 (%v)", status, out)
+	}
+
+	// And still after it is detached: the disk keeps what the machine wrote, so
+	// deleting the server does not empty it. Measured — this is the half that
+	// makes the mark a history rather than a current state.
+	if status, out := do(t, ts, "DELETE", zoneURL+"/servers/"+serverID, ""); status != http.StatusNoContent {
+		t.Fatalf("delete the server: %d (%v)", status, out)
+	}
+	if status, out := do(t, ts, "POST", zoneURL+"/snapshots",
+		`{"name":"after-detach","volume_id":"`+volumeID+`"}`); status != http.StatusCreated {
+		t.Fatalf("a snapshot of a detached volume answered %d, want 201: the mark is a current "+
+			"state where it must be a history (%v)", status, out)
 	}
 }

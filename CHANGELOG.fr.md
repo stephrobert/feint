@@ -86,6 +86,55 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Corrigé
 
+- **Un instantané d'un disque auquel rien n'a jamais été attaché était accepté,
+  et la stack d'exemple publiée en dépendait** (#650, #646).
+
+  Le cloud le refuse : `cannot create a RO disk from an empty disk`. Le motif de
+  l'image dorée que démontre la stack Scaleway, un volume puis son instantané
+  puis une image taillée dedans, **ne pouvait donc pas s'appliquer contre la
+  vraie API Scaleway**, et le rapporteur l'a découvert en y lançant sa copie.
+
+  Où passe la ligne a été mesuré de trois façons, parce qu'elle n'est pas où on
+  la croit :
+
+  | sujet | `fr-par` |
+  |---|---|
+  | un volume créé et jamais attaché | 400, `cannot create a RO disk from an empty disk` |
+  | le disque système d'un serveur jamais démarré | 201 |
+  | un disque détaché d'un serveur supprimé | 201 |
+
+  La question n'est donc pas de savoir si la machine a tourné, ni si le disque
+  est attaché maintenant. C'est **s'il a déjà appartenu à quelqu'un**, ce qui est
+  la raison pour laquelle la marque est posée à l'attachement et jamais effacée
+  au détachement.
+
+  Le refus porte une entrée `details` avec une raison et un message d'aide, et
+  **aucun `argument_name`** : `ArgumentError` omet donc ce champ quand il est
+  vide plutôt que d'envoyer `""`.
+
+  **La stack d'exemple construit désormais son image dorée depuis un disque porté
+  par une machine de construction**, ce qu'un client doit faire face au cloud, et
+  le motif qu'elle enseigne survit au contact.
+
+- **La stack Scaleway d'exemple disait une chose et en faisait une autre, et
+  n'était pas routable telle qu'écrite** (#646). Son `vpc_route` était commentée
+  « joindre la plage de management par le réseau **admin** » et pointait `app`,
+  et c'est le code qui avait raison : le prochain saut d'une route est un réseau
+  privé de son propre VPC, et `admin` est dans l'autre.
+
+  En dessous, la topologie ne peut pas porter ce que l'en-tête annonce : deux VPC
+  qui ne partagent rien ne se joignent pas, donc le bastion décrit comme « la
+  seule porte publique » n'ouvre sur rien. Sous `mode: off`, rien ne démarre et
+  la différence ne se voit jamais. Le rapporteur l'a rencontrée en lançant
+  Ansible à travers ce bastion sous `--vm incus-ovn`, et a passé un moment à
+  soupçonner son propre `ProxyCommand`.
+
+  L'en-tête le dit désormais, dans le fichier que le lecteur copie et pas
+  seulement dans le `feint.yaml` d'à côté. Rendre la stack routable, un seul VPC
+  et plusieurs réseaux privés, n'est délibérément **pas** fait ici : cela
+  échangerait l'isolation que cette stack démontre contre une accessibilité
+  qu'elle ne démontre pas, et c'est un choix sur ce à quoi l'exemple sert.
+
 - **Deux entrées que le cloud refuse et que cet émulateur acceptait, et une qu'il
   accepte et que cet émulateur refusait** (#648, signalé par une exécution
   différentielle : la même stack Terraform contre `main` et contre

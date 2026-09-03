@@ -80,6 +80,55 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Fixed
 
+- **A snapshot of a disk nothing was ever attached to was accepted, and the
+  published example stack depended on it** (#650, #646).
+
+  The cloud refuses it: `cannot create a RO disk from an empty disk`. So the
+  golden-image pattern the Scaleway example stack demonstrates — a volume, a
+  snapshot of it, an image cut from the snapshot — **could not apply against the
+  real Scaleway API**, and the reporter found out by running their copy of it
+  there.
+
+  Where the line falls was measured three ways, because it is not where it first
+  looks:
+
+  | subject | `fr-par` |
+  |---|---|
+  | a volume created and never attached | 400, `cannot create a RO disk from an empty disk` |
+  | the root disk of a server that never started | 201 |
+  | a disk detached from a deleted server | 201 |
+
+  So the question is not whether the machine ran, and not whether the disk is
+  attached now. It is **whether the disk was ever anybody's** — which is why the
+  mark is set on attach and never cleared on detach.
+
+  The refusal carries a `details` entry with a reason and a help message and **no
+  `argument_name` at all**, so `ArgumentError` omits that field when it is empty
+  rather than sending `""`.
+
+  **The example stack now builds its golden image from a disk a builder machine
+  carries**, which is what a client has to do against the cloud, and the pattern
+  it teaches survives contact.
+
+- **The Scaleway example stack said one thing and did another, and was not
+  routable as written** (#646). Its `vpc_route` was commented "reach the
+  management range through the **admin** network" and pointed at `app` — and the
+  code was the half that was right: a route's next hop is a private network of
+  its own VPC, and `admin` is in the other one.
+
+  Underneath that, the topology cannot carry what the header advertises: two VPCs
+  that share nothing cannot reach each other, so the bastion described as "the
+  only public door" opens onto nothing. Under `mode: off` nothing boots and the
+  difference never shows — the reporter met it by running Ansible through that
+  bastion under `--vm incus-ovn`, and spent a while suspecting their own
+  `ProxyCommand`.
+
+  The header says so now, in the file a reader copies rather than only in the
+  `feint.yaml` beside it. Making the stack routable — one VPC, several private
+  networks — is deliberately **not** done here: it would trade the isolation this
+  stack demonstrates for reachability it does not, and that is a choice about
+  what the example is for.
+
 - **Two inputs the cloud refuses and this emulator accepted, and one it accepts
   that this emulator refused** (#648, reported with a differential run: the same
   Terraform stack against `main` and against `api.scaleway.com`).
