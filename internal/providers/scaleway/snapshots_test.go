@@ -13,6 +13,28 @@ import (
 // because a comment saying "this case is refused" is the defect this repository
 // has met three times: the sentence survives, the guard does not.
 
+// instanceVolumeOf makes a volume instance/v1 owns, which is the only kind it
+// snapshots.
+//
+// The tests here used to hand rootVolumeOf(server) to snapshotOfVolume, and that
+// disk lives in BLOCK since #365. fr-par answers 404 `instance_volume` to an
+// instance/v1 snapshot of a block volume (#648), so those tests were exercising
+// a route the cloud does not have.
+func instanceVolumeOf(t *testing.T, ts *httptest.Server) string {
+	t.Helper()
+	status, created := do(t, ts, "POST", zoneURL+"/volumes",
+		`{"name":"snapshot-subject","volume_type":"l_ssd","size":10000000000}`)
+	if status != http.StatusCreated {
+		t.Fatalf("create an instance volume: expected 201, got %d (%v)", status, created)
+	}
+	volume, _ := created["volume"].(map[string]any)
+	id, _ := volume["id"].(string)
+	if id == "" {
+		t.Fatalf("create an instance volume: no id in %v", created)
+	}
+	return id
+}
+
 // snapshotOfVolume takes a snapshot and returns its id.
 func snapshotOfVolume(t *testing.T, ts *httptest.Server, name, volumeID string) string {
 	t.Helper()
@@ -29,25 +51,14 @@ func snapshotOfVolume(t *testing.T, ts *httptest.Server, name, volumeID string) 
 	return id
 }
 
-// rootVolumeOf reads the id of the root volume a server carries.
-func rootVolumeOf(t *testing.T, server map[string]any) string {
-	t.Helper()
-	volumes, _ := server["volumes"].(map[string]any)
-	root, _ := volumes["0"].(map[string]any)
-	id, _ := root["id"].(string)
-	if id == "" {
-		t.Fatalf("the server carries no root volume: %v", server["volumes"])
-	}
-	return id
-}
-
 // The sequence a client walks, end to end: what a create answers, the following
 // read answers identically. A create whose GET disagrees is the most common
 // cause of "Provider produced inconsistent result after apply".
 func TestASnapshotReadsBackAsItWasCreated(t *testing.T) {
 	ts := newTestServer(t)
-	_, server := serverWith(t, ts, `{"name":"golden","commercial_type":"DEV1-S"}`)
-	volumeID := rootVolumeOf(t, server)
+	// An instance volume, not a server's root disk: that one lives in block
+	// since #365, and instance/v1 does not snapshot what it does not own (#648).
+	volumeID := instanceVolumeOf(t, ts)
 
 	status, created := do(t, ts, "POST", zoneURL+"/snapshots",
 		`{"name":"golden-snap","volume_id":"`+volumeID+`"}`)
@@ -136,8 +147,7 @@ func TestASnapshotImportedFromABucketIsRefused(t *testing.T) {
 // naming a snapshot that is gone, and the client has no signal to retry.
 func TestASnapshotAnImageIsCutFromDoesNotDelete(t *testing.T) {
 	ts := newTestServer(t)
-	_, server := serverWith(t, ts, `{"name":"golden","commercial_type":"DEV1-S"}`)
-	snapshotID := snapshotOfVolume(t, ts, "golden-snap", rootVolumeOf(t, server))
+	snapshotID := snapshotOfVolume(t, ts, "golden-snap", instanceVolumeOf(t, ts))
 
 	status, created := do(t, ts, "POST", zoneURL+"/images",
 		`{"name":"golden-img","root_volume":"`+snapshotID+`"}`)
