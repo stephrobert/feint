@@ -343,10 +343,26 @@ func TestTheBlockCatalogueAnswers(t *testing.T) {
 	if len(types) == 0 {
 		t.Fatal("the catalogue answered no volume type, and a client reads it before creating")
 	}
-	entry, _ := types[0].(map[string]any)
-	if entry["type"] != "sbs" {
-		t.Errorf("the catalogue offers %v, and the volumes this pack creates are sbs", entry["type"])
+	// The catalogue and the volumes this pack mints have to name the same
+	// thing, and the check is the join rather than a literal: the pair went out
+	// of step once already, the catalogue offering "sbs" where a real account
+	// answers "sbs_5k" for both (measured 2026-09-03).
+	offered := map[string]bool{}
+	for _, listed := range types {
+		entry, _ := listed.(map[string]any)
+		name, _ := entry["type"].(string)
+		offered[name] = true
 	}
+	// 200, not 201: block/v1 answers a create that way, and blockCreateStatus
+	// carries the measurement.
+	status, made := do(t, ts, "POST", blockURL+"/volumes", `{"name":"catalogue","from_empty":{"size":5000000000}}`)
+	if status != http.StatusOK {
+		t.Fatalf("create a volume: expected 200, got %d (%v)", status, made)
+	}
+	if got, _ := made["type"].(string); !offered[got] {
+		t.Errorf("this pack mints %q, which its own catalogue does not offer (%v)", got, offered)
+	}
+	entry, _ := types[0].(map[string]any)
 	if entry["pricing"] == nil {
 		t.Error("the entry carries no pricing, and the SDK decodes a Money there")
 	}

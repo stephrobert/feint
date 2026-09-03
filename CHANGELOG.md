@@ -17,6 +17,46 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Added
 
+- **`serve --consistency eventual`: a client's waiter finally has something to
+  observe** (#637, and the mechanism #124 asked for). Off by default, so nothing
+  changes unless it is asked for.
+
+  A reboot's target state is the state it started from, so `state == "running"`
+  proves nothing to a client waiting on one. Without task support the only signal
+  available is watching the machine **leave** its initial state — and this
+  emulator answered `running` from the first read to the last. So `poweron`,
+  `poweroff` and `stop_in_place` could all be exercised here, and `reboot`, the
+  one action where waiting is subtle, could not be exercised at all. The author
+  of #637 had to prove their own waiting guard by unit test, because running it
+  against feint failed for a reason that had nothing to do with their client.
+
+  With the mode on, a Scaleway server walks the states `fr-par` walks, measured
+  2026-09-03 by polling a real DEV1-S through each action:
+
+  | action | states answered, in order |
+  |---|---|
+  | `poweron` | `starting`, then `running` |
+  | `reboot` | `stopping`, `starting`, then `running` |
+  | `poweroff` | `stopping`, then `stopped` |
+
+  **States advance on reads, never on a clock**, and that is the design rather
+  than a shortcut: the emulator's clock is injected, so a transient state timed
+  on a wall clock would either never end under a frozen test clock or turn every
+  suite into a wait. A four-second suite stays four seconds.
+
+  Two consequences worth knowing. **An action is not an observation** — the read
+  a lifecycle action makes in order to change a resource does not advance it, or
+  the action would consume the first state it just pushed (that defect happened,
+  and the reboot answered `starting, running` where the cloud answers `stopping,
+  starting, running`). And **a failed action walks no chain**: a start that
+  failed answers its failed state, because narrating a path towards a `running`
+  it never reached is the plausible-wrong answer this project exists to avoid.
+
+  What this does not yet cover is the rest of #124: the Outscale `creating →
+  available` and `in-queue → completed` chains, and the `409 InvalidVolumeState`
+  refusal that was reverted for want of a reachable state. The mechanism those
+  need is this one; what is missing is the chains and the guard.
+
 - **A project is a register now, and `account/v3` can write to it** (#391).
   `account/v3/ProjectAPI.CreateProject`, `account/v3/ProjectAPI.UpdateProject`
   and `account/v3/ProjectAPI.DeleteProject` are served — `POST
@@ -39,6 +79,95 @@ what this project is judged on: **a response shape a client can observe**, and
   packs.
 
 ### Fixed
+
+- **A snapshot of a disk nothing was ever attached to was accepted, and the
+  published example stack depended on it** (#650, #646).
+
+  The cloud refuses it: `cannot create a RO disk from an empty disk`. So the
+  golden-image pattern the Scaleway example stack demonstrates — a volume, a
+  snapshot of it, an image cut from the snapshot — **could not apply against the
+  real Scaleway API**, and the reporter found out by running their copy of it
+  there.
+
+  Where the line falls was measured three ways, because it is not where it first
+  looks:
+
+  | subject | `fr-par` |
+  |---|---|
+  | a volume created and never attached | 400, `cannot create a RO disk from an empty disk` |
+  | the root disk of a server that never started | 201 |
+  | a disk detached from a deleted server | 201 |
+
+  So the question is not whether the machine ran, and not whether the disk is
+  attached now. It is **whether the disk was ever anybody's** — which is why the
+  mark is set on attach and never cleared on detach.
+
+  The refusal carries a `details` entry with a reason and a help message and **no
+  `argument_name` at all**, so `ArgumentError` omits that field when it is empty
+  rather than sending `""`.
+
+  **The example stack now builds its golden image from a disk a builder machine
+  carries**, which is what a client has to do against the cloud, and the pattern
+  it teaches survives contact.
+
+- **The Scaleway example stack said one thing and did another, and was not
+  routable as written** (#646). Its `vpc_route` was commented "reach the
+  management range through the **admin** network" and pointed at `app` — and the
+  code was the half that was right: a route's next hop is a private network of
+  its own VPC, and `admin` is in the other one.
+
+  Underneath that, the topology cannot carry what the header advertises: two VPCs
+  that share nothing cannot reach each other, so the bastion described as "the
+  only public door" opens onto nothing. Under `mode: off` nothing boots and the
+  difference never shows — the reporter met it by running Ansible through that
+  bastion under `--vm incus-ovn`, and spent a while suspecting their own
+  `ProxyCommand`.
+
+  The header says so now, in the file a reader copies rather than only in the
+  `feint.yaml` beside it. Making the stack routable — one VPC, several private
+  networks — is deliberately **not** done here: it would trade the isolation this
+  stack demonstrates for reachability it does not, and that is a choice about
+  what the example is for.
+
+- **Two inputs the cloud refuses and this emulator accepted, and one it accepts
+  that this emulator refused** (#648, reported with a differential run: the same
+  Terraform stack against `main` and against `api.scaleway.com`).
+
+  The reported pair, both in the direction that costs — a client green here
+  learns nothing about the real cloud:
+
+  | input | `fr-par` | before |
+  |---|---|---|
+  | an ACL rule whose `dst_port_high` is below `dst_port_low` | 400, and it names **both** bounds | 200 |
+  | `instance/v1 CreateSnapshot` on a block (SBS) volume | 404 `not_found`, `resource: instance_volume` | 201 |
+
+  The first is not an exotic input: **it is what the Terraform provider sends for
+  the commonest rule there is**, one port opened, since a rule that names only
+  `dst_port_low` leaves the high bound at zero. Three rules out of three in the
+  reporter's stack were that shape.
+
+  The second is the golden-image pattern. A server's root disk lives in `block`
+  since #365 — which is what the cloud gives a DEV1-S — and a block volume is not
+  an `instance_volume`, so instance/v1 does not snapshot it. This pack resolved
+  both products there on purpose (#571) and the measurement reverses that: the
+  reason it was written has been served differently since, and the conformance
+  suite had already stopped taking that route.
+
+  **Measuring it turned up two more divergences on the same route**, and one goes
+  the other way:
+
+  - `argument_name` is `rules[0]dst_port_high` — no dot before the index, none
+    before the field. This pack wrote `rules.0.dst_port_high`, wrong for every
+    rule error rather than for one of them. The `reason` differs per field too:
+    `unknown` for `action` and `source`, `constraint` for the ports.
+  - **an unknown protocol is normalised to `ANY`, not refused.** `NONSENSE`
+    answers 200 and reads back as `ANY`. This pack refused it — the rarer
+    direction, stricter than the cloud, and a client that would have worked
+    against `fr-par` met a 400 here. Being stricter is still being different.
+
+  One detail is copied rather than tidied because nobody would invent it: in the
+  same body, the high bound's `min` is the **string** `"443"` and the low bound's
+  is the **number** `0`.
 
 - **The `organization` filter was ignored, so an organization that owns nothing
   here answered the whole fleet** (#638). Seven of `ListServers`' eight declared
@@ -69,6 +198,27 @@ what this project is judged on: **a response shape a client can observe**, and
   a client configured from `feint env` is clear of it. `feint env scaleway`
   publishes `SCW_DEFAULT_ORGANIZATION_ID` as this emulator's own constant, and the
   conformance suite's `fake-credentials.env` carries the same value.
+
+- **A package install ran under the cap made for a control command, and the
+  nightly runtime proof died on it** (#641). Every `incus` call went through one
+  120-second cap — the right bound for `info`, `start` or `network create`, where
+  a control plane slower than that is broken rather than busy. `incus exec
+  <builder> -- dnf install -y -q openssh-server` went through it too, and on
+  2026-09-03 it was killed at exactly that limit while building `almalinux/9`,
+  taking the whole scheduled run with it. The night before, the same command had
+  finished just under.
+
+  A step inside a build instance now runs under its own cap, ten minutes, and the
+  build as a whole is still bounded by the twenty minutes that stop a wedged
+  download from holding the lock for ever. An operator who set `Timeout` because
+  their station is slow gets both scaled, since a station that needs a longer
+  control cap needs a longer install cap by the same measure.
+
+  The cap is asserted rather than described: the deadline is set before the
+  runner seam as well as before the real binary, so a test reads
+  `ctx.Deadline()` and says which cap a call ran under. Both halves are held —
+  a guard that gave everything ten minutes would break what the control cap is
+  for.
 
 - **Two refusals answered the wrong status, and a client branches on exactly
   that** (#394). A 404 says "create the parent first", a 400 says "your body is

@@ -224,9 +224,18 @@ func (d *Incus) waitForBuilderAddress(ctx context.Context, builder string, deadl
 		"package fetch below would fail on the network rather than on the package")
 }
 
+// execInBuilder runs one step of a build inside the builder instance.
+//
+// Under the build cap and not the control cap (#641). `dnf install -y -q
+// openssh-server` on almalinux/9 was killed at the control cap's 120 s on
+// 2026-09-03 and took the nightly runtime proof with it; the night before, the
+// same command had finished just under it. A package install waits on a mirror,
+// which is not the thing 120 seconds was chosen to bound.
+//
+// TestABuildStepRunsUnderTheBuildCapAndNotTheControlCap fails without this.
 func (d *Incus) execInBuilder(ctx context.Context, builder string, command []string) error {
 	args := append([]string{"exec", builder, "--"}, command...)
-	if _, err := d.run(ctx, args...); err != nil {
+	if _, err := d.runWithin(ctx, d.buildTimeout(), args...); err != nil {
 		return fmt.Errorf("%s in the build instance: %w", strings.Join(command, " "), err)
 	}
 	return nil

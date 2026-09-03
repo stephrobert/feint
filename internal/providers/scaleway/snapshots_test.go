@@ -13,6 +13,37 @@ import (
 // because a comment saying "this case is refused" is the defect this repository
 // has met three times: the sentence survives, the guard does not.
 
+// instanceVolumeOf makes a volume instance/v1 owns, which is the only kind it
+// snapshots.
+//
+// The tests here used to hand rootVolumeOf(server) to snapshotOfVolume, and that
+// disk lives in BLOCK since #365. fr-par answers 404 `instance_volume` to an
+// instance/v1 snapshot of a block volume (#648), so those tests were exercising
+// a route the cloud does not have.
+func instanceVolumeOf(t *testing.T, ts *httptest.Server) string {
+	t.Helper()
+	status, created := do(t, ts, "POST", zoneURL+"/volumes",
+		`{"name":"snapshot-subject","volume_type":"l_ssd","size":10000000000}`)
+	if status != http.StatusCreated {
+		t.Fatalf("create an instance volume: expected 201, got %d (%v)", status, created)
+	}
+	volume, _ := created["volume"].(map[string]any)
+	id, _ := volume["id"].(string)
+	if id == "" {
+		t.Fatalf("create an instance volume: no id in %v", created)
+	}
+	// Attached, because a disk nothing was ever attached to has nothing to
+	// snapshot and fr-par refuses it (#650). The server is the cheapest way to
+	// give the disk a history; it is never started, which the measurement says
+	// is enough.
+	serverID, _ := serverWith(t, ts, `{"name":"snapshot-host","commercial_type":"DEV1-S"}`)
+	if status, out := do(t, ts, "POST", zoneURL+"/servers/"+serverID+"/attach-volume",
+		`{"volume_id":"`+id+`"}`); status != http.StatusOK {
+		t.Fatalf("attach the volume: expected 200, got %d (%v)", status, out)
+	}
+	return id
+}
+
 // snapshotOfVolume takes a snapshot and returns its id.
 func snapshotOfVolume(t *testing.T, ts *httptest.Server, name, volumeID string) string {
 	t.Helper()
@@ -29,25 +60,14 @@ func snapshotOfVolume(t *testing.T, ts *httptest.Server, name, volumeID string) 
 	return id
 }
 
-// rootVolumeOf reads the id of the root volume a server carries.
-func rootVolumeOf(t *testing.T, server map[string]any) string {
-	t.Helper()
-	volumes, _ := server["volumes"].(map[string]any)
-	root, _ := volumes["0"].(map[string]any)
-	id, _ := root["id"].(string)
-	if id == "" {
-		t.Fatalf("the server carries no root volume: %v", server["volumes"])
-	}
-	return id
-}
-
 // The sequence a client walks, end to end: what a create answers, the following
 // read answers identically. A create whose GET disagrees is the most common
 // cause of "Provider produced inconsistent result after apply".
 func TestASnapshotReadsBackAsItWasCreated(t *testing.T) {
 	ts := newTestServer(t)
-	_, server := serverWith(t, ts, `{"name":"golden","commercial_type":"DEV1-S"}`)
-	volumeID := rootVolumeOf(t, server)
+	// An instance volume, not a server's root disk: that one lives in block
+	// since #365, and instance/v1 does not snapshot what it does not own (#648).
+	volumeID := instanceVolumeOf(t, ts)
 
 	status, created := do(t, ts, "POST", zoneURL+"/snapshots",
 		`{"name":"golden-snap","volume_id":"`+volumeID+`"}`)
@@ -136,8 +156,7 @@ func TestASnapshotImportedFromABucketIsRefused(t *testing.T) {
 // naming a snapshot that is gone, and the client has no signal to retry.
 func TestASnapshotAnImageIsCutFromDoesNotDelete(t *testing.T) {
 	ts := newTestServer(t)
-	_, server := serverWith(t, ts, `{"name":"golden","commercial_type":"DEV1-S"}`)
-	snapshotID := snapshotOfVolume(t, ts, "golden-snap", rootVolumeOf(t, server))
+	snapshotID := snapshotOfVolume(t, ts, "golden-snap", instanceVolumeOf(t, ts))
 
 	status, created := do(t, ts, "POST", zoneURL+"/images",
 		`{"name":"golden-img","root_volume":"`+snapshotID+`"}`)
@@ -165,5 +184,85 @@ func TestASnapshotAnImageIsCutFromDoesNotDelete(t *testing.T) {
 	}
 	if status, got := do(t, ts, "DELETE", zoneURL+"/snapshots/"+snapshotID, ""); status != http.StatusNoContent {
 		t.Errorf("delete snapshot after its image: expected 204, got %d (%v)", status, got)
+	}
+}
+
+// A disk nothing was ever attached to has nothing to snapshot, and the cloud
+// says so in those words (#650).
+//
+// Measured on fr-par, 2026-09-03, three ways, because the line between accepted
+// and refused is not where it first looks:
+//
+//	a volume created and never attached          400 "cannot create a RO disk from an empty disk"
+//	the root disk of a server that never started 201
+//	a disk detached from a deleted server        201
+//
+// So the question is not whether the machine ran. It is whether the disk was
+// ever anybody's — which is why the mark is set on attach and never cleared on
+// detach.
+//
+// Why it is worth a refusal rather than a shrug: the published example stack
+// built its golden image exactly this way, so the pattern it teaches did not
+// survive contact with the real cloud. The reporter found out by running their
+// copy of it there.
+func TestASnapshotOfAVolumeNothingEverWroteToIsRefused(t *testing.T) {
+	ts := newTestServer(t)
+
+	status, created := do(t, ts, "POST", zoneURL+"/volumes",
+		`{"name":"empty","volume_type":"l_ssd","size":10000000000}`)
+	if status != http.StatusCreated {
+		t.Fatalf("create a volume: %d (%v)", status, created)
+	}
+	volume, _ := created["volume"].(map[string]any)
+	volumeID, _ := volume["id"].(string)
+
+	status, body := do(t, ts, "POST", zoneURL+"/snapshots",
+		`{"name":"of-nothing","volume_id":"`+volumeID+`"}`)
+	if status != http.StatusBadRequest {
+		t.Fatalf("a snapshot of a never-attached volume answered %d, want 400 (%v)", status, body)
+	}
+	if body["type"] != "invalid_arguments" {
+		t.Errorf("type is %v, want invalid_arguments", body["type"])
+	}
+	details, _ := body["details"].([]any)
+	if len(details) != 1 {
+		t.Fatalf("details holds %d entries, want 1 (%v)", len(details), body)
+	}
+	d, _ := details[0].(map[string]any)
+	if d["help_message"] != "cannot create a RO disk from an empty disk" {
+		t.Errorf("help_message is %v, want the cloud's own sentence", d["help_message"])
+	}
+	if d["reason"] != "constraint" {
+		t.Errorf("reason is %v, want constraint", d["reason"])
+	}
+	// No argument_name at all in that entry, which is why ArgumentError omits
+	// the field when it is empty. A `"argument_name": ""` is a field the cloud
+	// does not send.
+	if _, carries := d["argument_name"]; carries {
+		t.Errorf("the details entry carries an argument_name and fr-par sends none: %v", d)
+	}
+
+	// Attached once, and it can be snapshotted — the accepting half, without
+	// which a guard that refused every snapshot would satisfy everything above.
+	serverID, _ := serverWith(t, ts, `{"name":"holder","commercial_type":"DEV1-S"}`)
+	if status, out := do(t, ts, "POST", zoneURL+"/servers/"+serverID+"/attach-volume",
+		`{"volume_id":"`+volumeID+`"}`); status != http.StatusOK {
+		t.Fatalf("attach the volume: %d (%v)", status, out)
+	}
+	if status, out := do(t, ts, "POST", zoneURL+"/snapshots",
+		`{"name":"of-something","volume_id":"`+volumeID+`"}`); status != http.StatusCreated {
+		t.Fatalf("a snapshot of an attached volume answered %d, want 201 (%v)", status, out)
+	}
+
+	// And still after it is detached: the disk keeps what the machine wrote, so
+	// deleting the server does not empty it. Measured — this is the half that
+	// makes the mark a history rather than a current state.
+	if status, out := do(t, ts, "DELETE", zoneURL+"/servers/"+serverID, ""); status != http.StatusNoContent {
+		t.Fatalf("delete the server: %d (%v)", status, out)
+	}
+	if status, out := do(t, ts, "POST", zoneURL+"/snapshots",
+		`{"name":"after-detach","volume_id":"`+volumeID+`"}`); status != http.StatusCreated {
+		t.Fatalf("a snapshot of a detached volume answered %d, want 201: the mark is a current "+
+			"state where it must be a history (%v)", status, out)
 	}
 }

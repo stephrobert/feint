@@ -19,8 +19,8 @@
     {
       "label": "a missing target no longer stops the change, and the runtime works for a resource nobody stores",
       "file": "internal/core/machine/observe.go",
-      "find": "\tres, found := st.Get(b.Provider, kind, id)\n\tif !found {\n\t\treturn nil, store.ErrNotFound\n\t}",
-      "replace": "\tres, found := st.Get(b.Provider, kind, id)\n\tif !found {\n\t\tres = &resource.Resource{ID: id, Kind: kind, Attrs: map[string]any{}}\n\t\t_ = store.ErrNotFound\n\t}",
+      "find": "\tres, found := st.Peek(b.Provider, kind, id)\n\tif !found {\n\t\treturn nil, store.ErrNotFound\n\t}",
+      "replace": "\tres, found := st.Peek(b.Provider, kind, id)\n\tif !found {\n\t\tres = &resource.Resource{ID: id, Kind: kind, Attrs: map[string]any{}}\n\t\t_ = store.ErrNotFound\n\t}",
       "test": "TestTransitionRefusesAMissingTargetBeforeTheChange"
     }
   ],

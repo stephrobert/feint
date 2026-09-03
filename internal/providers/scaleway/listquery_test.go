@@ -595,6 +595,13 @@ func TestInstanceListsHonourTheirRemainingFilters(t *testing.T) {
 	volumes, _ := out["volumes"].([]any)
 	volume, _ := volumes[0].(map[string]any)
 	volumeID, _ := volume["id"].(string)
+	// Attached first: a disk nothing was ever attached to has nothing to
+	// snapshot, and the cloud refuses it (#650).
+	holder, _ := serverWith(t, ts, `{"name":"snapshot-holder","commercial_type":"DEV1-S"}`)
+	if status, out := do(t, ts, "POST", zone+"/servers/"+holder+"/attach-volume",
+		`{"volume_id":"`+volumeID+`"}`); status != http.StatusOK {
+		t.Fatalf("attach the volume before snapshotting it: status %d, %v", status, out)
+	}
 	for _, name := range []string{"s1", "s2"} {
 		body := fmt.Sprintf(`{"name":%q,"volume_id":%q}`, name, volumeID)
 		if status, _ := do(t, ts, "POST", zone+"/snapshots", body); status != http.StatusCreated {

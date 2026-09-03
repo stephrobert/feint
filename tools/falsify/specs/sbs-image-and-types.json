@@ -1,0 +1,68 @@
+{
+  "mutations": [
+    {
+      "label": "an image cut from a block snapshot is described as an instance snapshot's volume type, so a client reads a type the cloud never answers there",
+      "file": "internal/providers/scaleway/images.go",
+      "package": "./internal/providers/scaleway/",
+      "find": "\t\t\"volume_type\": sbsSnapshotType,",
+      "replace": "\t\t\"volume_type\": sbsSnapshotType[:0],",
+      "test": "TestAnImageIsCutFromAnSBSSnapshot"
+    },
+    {
+      "label": "the image repeats the snapshot's name, where the real cloud answers an empty one",
+      "file": "internal/providers/scaleway/images.go",
+      "package": "./internal/providers/scaleway/",
+      "find": "\t\t\"name\":        \"\",",
+      "replace": "\t\t\"name\":        \"reference\",",
+      "test": "TestAnImageIsCutFromAnSBSSnapshot"
+    },
+    {
+      "label": "the block snapshot is no longer resolvable, so the only path left to a golden image answers 404 again",
+      "file": "internal/providers/scaleway/images.go",
+      "package": "./internal/providers/scaleway/",
+      "find": "\tsnapshot, found := p.env.Store.Get(Name, kindBlockSnapshot, id)\n\tif !found {",
+      "replace": "\tsnapshot, found := p.env.Store.Get(Name, kindBlockSnapshot, id)\n\tif !found || true {",
+      "test": "TestAnImageIsCutFromAnSBSSnapshot"
+    },
+    {
+      "label": "a 15k volume answers the 5k type, so the type stops naming the performance a client picked",
+      "file": "internal/providers/scaleway/block.go",
+      "package": "./internal/providers/scaleway/",
+      "find": "\tif resource.Number(iops) >= blockIOPS15k {",
+      "replace": "\tif resource.Number(iops) >= blockIOPS15k && false {",
+      "test": "TestABlockVolumeCarriesItsPerformanceType"
+    },
+    {
+      "label": "the snapshot's parent volume answers a type of its own rather than the parent's",
+      "file": "internal/providers/scaleway/block.go",
+      "package": "./internal/providers/scaleway/",
+      "find": "\t\t\t\"type\":   blockVolumeTypeOf(volume.Attrs[\"perf_iops\"]),",
+      "replace": "\t\t\t\"type\":   blockVolumeTypeOf(volume.Attrs[\"perf_iops\"])[:0],",
+      "test": "TestABlockVolumeCarriesItsPerformanceType"
+    },
+    {
+      "label": "the snapshot stops answering the public it was asked, so a required field of block-v1.yml goes missing",
+      "file": "internal/providers/scaleway/block.go",
+      "package": "./internal/providers/scaleway/",
+      "find": "\t\t\"public\":        res.Attrs[\"public\"],",
+      "replace": "\t\t\"public\":        res.Attrs[\"public\"] != nil,",
+      "test": "TestABlockSnapshotAnswersThePublicItWasAsked"
+    },
+    {
+      "label": "both catalogue entries answer the same type, so the window repeats instead of sliding",
+      "file": "internal/providers/scaleway/block.go",
+      "package": "./internal/providers/scaleway/",
+      "find": "\t\t\"type\":             blockType15k,",
+      "replace": "\t\t\"type\":             blockType5k + blockType15k[:0],",
+      "test": "TestBlockVolumeTypesArePaged"
+    },
+    {
+      "label": "the type is read back with a type assertion again, so a restored 15k volume comes back as 5k",
+      "file": "internal/providers/scaleway/block.go",
+      "package": "./internal/providers/scaleway/",
+      "find": "\tif resource.Number(iops) >= blockIOPS15k {",
+      "replace": "\tif n, _ := iops.(uint32); float64(n)*resource.Number(1) >= blockIOPS15k {",
+      "test": "TestARestoredVolumeKeepsItsPerformanceType"
+    }
+  ]
+}

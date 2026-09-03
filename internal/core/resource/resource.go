@@ -72,6 +72,44 @@ type Resource struct {
 	// must never reach a client: the backing container name, for instance. Packs
 	// read it; views never serialize it.
 	Runtime map[string]string
+	// Pending are the states this resource passes through before it settles, in
+	// order, one consumed per observation. Empty for a settled resource, which
+	// is every resource unless a pack pushed a transition and the operator asked
+	// for eventual consistency (#124, #637).
+	//
+	// Why states and not a duration. The emulator's clock is injected — tests
+	// freeze it — so a transient state timed on a wall clock would either never
+	// end under a frozen clock or turn every suite into a wait. Observations are
+	// the one cursor that advances in both. A four-second suite stays four
+	// seconds.
+	//
+	// Neutral: a list of state names is the vocabulary of whatever pack wrote
+	// it, and this core knows none of them. What varies is the content, which is
+	// a field rather than a convention.
+	//
+	// It survives a snapshot on purpose: a reboot in flight when the state is
+	// saved is a reboot still in flight when it is loaded. That also makes it
+	// untrusted input on the way back in, which is why Restore treats it as one.
+	Pending []string
+	// PendingOnlySignal marks a chain whose arrival is its departure: the
+	// action settles on the state it started from, so a client watching the
+	// state has nothing else to go on. The store walks such a chain whatever
+	// the consistency mode, where an ordinary one is walked only under eventual
+	// consistency (#654).
+	//
+	// The distinction is a property of the chain, not of a provider: a pack
+	// says what it pushed and from where, and the core never learns that the
+	// action was called "reboot". Measured on this emulator before the flag
+	// existed: poweron and poweroff stayed observable with the mode off,
+	// because their state changes; reboot answered `running` on every read of
+	// a six-read poll, indistinguishable from an action that never happened.
+	//
+	// It survives a snapshot for the reason Pending does, and it has to: a
+	// chain restored without it would be walked by no mode at all, leaving the
+	// resource with states to pass through that nothing ever consumes. Same
+	// consequence as Pending on the way back in, and the same treatment: what
+	// Restore accepts here it accepts as untrusted input.
+	PendingOnlySignal bool
 }
 
 // New returns a resource stamped at now, with Created and Updated aligned and
@@ -114,6 +152,13 @@ func (r *Resource) Clone() *Resource {
 			out.Runtime[k] = v
 		}
 	}
+	// Copied rather than shared: a caller that consumes a pending state must not
+	// consume it out of the store's own copy, which is the whole reason the
+	// store hands out clones.
+	if r.Pending != nil {
+		out.Pending = append([]string(nil), r.Pending...)
+	}
+	out.PendingOnlySignal = r.PendingOnlySignal
 	return &out
 }
 

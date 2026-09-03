@@ -297,11 +297,28 @@ func barrageCycle(ts *httptest.Server, tag string, problems chan<- string) {
 	}
 
 	// A second path on the same resources, which is where a cross-path defect
-	// would live: snapshotting the root volume while other workers create and
-	// delete servers.
-	if rootID != "" {
-		if status, _ := doRaw(ts, "POST", zoneURL+"/snapshots",
-			`{"name":"barrage-`+tag+`","volume_id":"`+rootID+`"}`); status != http.StatusCreated {
+	// would live: snapshotting a volume while other workers create and delete
+	// servers.
+	//
+	// An instance volume, attached to this server and then snapshotted, which is
+	// the only subject the cloud takes. The root lives in block since #365 and
+	// instance/v1 answers 404 instance_volume for a volume it does not own
+	// (#648); a volume never attached to anything is refused for having nothing
+	// on it (#650). What the barrage stresses is unchanged: the snapshot handler
+	// under concurrency.
+	_ = rootID
+	status, made := doRaw(ts, "POST", zoneURL+"/volumes",
+		`{"name":"barrage-`+tag+`","volume_type":"l_ssd","size":10000000000}`)
+	if status != http.StatusCreated {
+		problems <- fmt.Sprintf("%s: volume create answered %d", tag, status)
+	} else {
+		volume, _ := made["volume"].(map[string]any)
+		diskID, _ := volume["id"].(string)
+		if status, _ := doRaw(ts, "POST", zoneURL+"/servers/"+serverID+"/attach-volume",
+			`{"volume_id":"`+diskID+`"}`); status != http.StatusOK {
+			problems <- fmt.Sprintf("%s: attach-volume answered %d", tag, status)
+		} else if status, _ := doRaw(ts, "POST", zoneURL+"/snapshots",
+			`{"name":"barrage-`+tag+`","volume_id":"`+diskID+`"}`); status != http.StatusCreated {
 			problems <- fmt.Sprintf("%s: snapshot create answered %d", tag, status)
 		}
 	}

@@ -218,11 +218,26 @@ const (
 // contain them. Two additions to one existing verb; nothing was removed, no exit
 // code moved, and a pipeline keyed on version 21 keeps working.
 //
+// Version 23 adds `serve --consistency` (#637, #124): the one dial that decides
+// whether an action settles at once or walks the states a real cloud passes
+// through. It defaults to `immediate`, which is what this emulator has always
+// done and what docs/limits.md documents, so a pipeline keyed on version 22 sees
+// no change in any answer.
+//
+// It exists because "immediate" has a cost that only showed up when a client
+// author hit it: a reboot's target state is the state it started from, so a
+// waiter watching for `running` proves nothing, and the only signal available
+// without task support — watching the machine LEAVE its initial state — was
+// unobservable here. The mode makes it observable without a wall clock: states
+// advance on reads, so a four-second suite stays four seconds and a frozen test
+// clock does not strand a resource mid-chain. One addition to one existing verb;
+// nothing was removed, no exit code moved.
+//
 // The surface itself is frozen in testdata/frozen/cli.json, compared by
 // TestTheFrozenSurfacesStillMatchTheirFixture, and a fixture regenerated
 // without bumping this constant fails TestASurfaceChangeDemandsItsVersionBump.
 // The procedure for a deliberate change is in RELEASING.md ("Frozen surfaces").
-const cliSurfaceVersion = 22
+const cliSurfaceVersion = 23
 
 // Run executes one command and returns the process exit code.
 func Run(args []string, stdout, stderr io.Writer) int {
@@ -322,11 +337,16 @@ Usage:
                     [--cleanup] [--contracts <dir>] [--coverage <dir>] [--shapes <dir>]
                     [--log-level info|debug] [--expose-to-network]
                     [--projects <name>[,<name>...]]
+                    [--consistency immediate|eventual]
                     Serve the three emulated clouds on one port, in the
                     foreground. --expose-to-network is the only way off
                     loopback, and it disarms the anti-rebinding guard: this
                     emulator accepts every credential and, under --vm, starts
                     containers with your privileges. Read SECURITY.md first.
+                    --consistency eventual walks the states a real cloud passes
+                    through, one per read, so a client waiting on a reboot has
+                    something to observe; immediate is the default and settles
+                    every action at once.
 
   feint up         [--file feint.yaml] [--runtime off|incus|incus-vm|incus-ovn|auto]
                     [--timeout 2m] [--no-iac]
@@ -925,6 +945,7 @@ func serve(args []string, stdout io.Writer) error {
 	shapesDir := fs.String("shapes", "shapes", "directory of observed real-cloud shapes; the evidence record's shape axis reads it (empty to disable)")
 	coverageDir := fs.String("coverage", "coverage", "directory holding the versioned coverage artefacts the page reads")
 	expose := fs.Bool("expose-to-network", false, "listen off loopback, which disarms the browser guard: read what it costs before setting it")
+	consistency := fs.String("consistency", "immediate", "immediate settles every action at once; eventual walks the states a real cloud passes through, one per read, so a client's waiter has something to observe")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -1023,6 +1044,25 @@ func serve(args []string, stdout io.Writer) error {
 		}
 		fmt.Fprintf(stdout, "projects declared by the operator: %s\n", strings.Join(named, ", "))
 	}
+	// Transient states, and the default is the decision rather than an
+	// oversight. docs/limits.md's "Lifecycle transitions are immediate" is a
+	// good answer for a local emulator: waiting on `starting` here would be
+	// waiting for information no runtime is producing. What it costs is that
+	// reboot — whose target state is the state it started from — cannot be
+	// exercised at all, which a client author measured and filed (#637).
+	//
+	// So it is asked for, never assumed. With it off the emulator is
+	// byte-identical to one that never had the mode.
+	switch *consistency {
+	case "immediate":
+	case "eventual":
+		env.Store.Eventual(true)
+		fmt.Fprintln(stdout, "consistency: eventual — an action's states are walked one per read, "+
+			"so a client waiting on a reboot has something to observe")
+	default:
+		return fmt.Errorf("--consistency %q: the modes are immediate and eventual", *consistency)
+	}
+
 	// Set after newServer, which cannot know the flag. At debug the runtime's
 	// own lifecycle events come through, which is what makes a machine that
 	// will not start explainable without leaving the emulator's log.

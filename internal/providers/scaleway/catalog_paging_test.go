@@ -64,19 +64,42 @@ func TestBlockVolumeTypesArePaged(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("unpaged: expected 200, got %d (%v)", status, all)
 	}
-	if types, _ := all["volume_types"].([]any); len(types) != 1 {
-		t.Fatalf("the catalogue answers %d volume types, want 1", len(types))
+	// Two, measured on a real account: sbs_5k and sbs_15k (#651). The first
+	// version of this catalogue served one, which is a stock that cannot
+	// answer what a 15k volume is on a product where the type is what a client
+	// picks.
+	if types, _ := all["volume_types"].([]any); len(types) != 2 {
+		t.Fatalf("the catalogue answers %d volume types, want 2", len(types))
 	}
 
-	// One entry, so page 2 must be empty — it answered the same entry again.
-	status, past := do(t, ts, "GET", url+"?page=2&page_size=1", "")
+	// A window of one over two entries: page 2 carries the OTHER one, and page
+	// 99 is empty. The single-entry table could not tell a window that slides
+	// from one that repeats itself, which is the defect #271 names.
+	_, firstPage := do(t, ts, "GET", url+"?page=1&page_size=1", "")
+	_, secondPage := do(t, ts, "GET", url+"?page=2&page_size=1", "")
+	one, _ := firstPage["volume_types"].([]any)
+	two, _ := secondPage["volume_types"].([]any)
+	if len(one) != 1 || len(two) != 1 {
+		t.Fatalf("a window of one answered %d then %d entries", len(one), len(two))
+	}
+	a, _ := one[0].(map[string]any)
+	b, _ := two[0].(map[string]any)
+	first, _ := a["type"].(string)
+	second, _ := b["type"].(string)
+	if first == second {
+		t.Errorf("page 1 and page 2 both answer %q: the window repeats instead of sliding", first)
+	}
+
+	// Past the stock the window is empty, which is how the SDK's loop stops.
+	status, past := do(t, ts, "GET", url+"?page=99&page_size=1", "")
 	if status != http.StatusOK {
 		t.Fatalf("paged: expected 200, got %d", status)
 	}
 	if types, _ := past["volume_types"].([]any); len(types) != 0 {
-		t.Errorf("page 2 of a one-entry catalogue answers %d entries", len(types))
+		t.Errorf("page 99 of the catalogue answers %d entries", len(types))
 	}
-	if got := int(past["total_count"].(float64)); got != 1 {
-		t.Errorf("the page reports total_count %d, want 1", got)
+	// The count is the stock, not the window: an empty page still reports two.
+	if got := int(past["total_count"].(float64)); got != 2 {
+		t.Errorf("the page reports total_count %d, want 2", got)
 	}
 }

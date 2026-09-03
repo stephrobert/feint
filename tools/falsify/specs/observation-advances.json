@@ -1,0 +1,26 @@
+{
+  "package": "./internal/core/store/",
+  "mutations": [
+    {
+      "label": "the mode is on by default, so every existing client and the whole conformance suite meet transient states nobody asked for",
+      "file": "internal/core/store/store.go",
+      "find": "func New() *Store {\n\treturn &Store{items: make(map[string]*resource.Resource)}\n}",
+      "replace": "func New() *Store {\n\treturn &Store{items: make(map[string]*resource.Resource), eventual: true}\n}",
+      "test": "TestAPendingChainIsIgnoredUntilTheOperatorAsksForIt"
+    },
+    {
+      "label": "the chain advances on the caller's clone instead of the stored resource, so every read answers the same first state for ever",
+      "file": "internal/core/store/store.go",
+      "find": "\t\tif ok {\n\t\t\ts.advance(r)\n\t\t\tout = r.Clone()\n\t\t}",
+      "replace": "\t\tif ok {\n\t\t\tout = r.Clone()\n\t\t\ts.advance(out)\n\t\t}",
+      "test": "TestAnObservationAdvancesTheStoredResourceAndNotTheClone"
+    },
+    {
+      "label": "Peek advances too, so an action consumes the first state of the chain it just pushed",
+      "file": "internal/core/store/store.go",
+      "find": "func (s *Store) Peek(provider, kind, id string) (*resource.Resource, bool) {\n\ts.mu.RLock()\n\tr, ok := s.items[key(provider, kind, id)]\n\tvar out *resource.Resource\n\tif ok {\n\t\tout = r.Clone()\n\t}\n\ts.mu.RUnlock()",
+      "replace": "func (s *Store) Peek(provider, kind, id string) (*resource.Resource, bool) {\n\ts.mu.Lock()\n\tr, ok := s.items[key(provider, kind, id)]\n\tvar out *resource.Resource\n\tif ok {\n\t\ts.advance(r)\n\t\tout = r.Clone()\n\t}\n\ts.mu.Unlock()",
+      "test": "TestPeekDoesNotAdvanceAChain"
+    }
+  ]
+}

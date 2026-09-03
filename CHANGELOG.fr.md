@@ -19,6 +19,49 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Ajouté
 
+- **`serve --consistency eventual` : l'attente d'un client a enfin quelque chose
+  à observer** (#637, et le mécanisme que demandait #124). Éteint par défaut,
+  donc rien ne change tant qu'on ne le demande pas.
+
+  L'état visé par un redémarrage est celui d'où il part, donc `state == "running"`
+  ne prouve rien à un client qui l'attend. Sans support des tâches, le seul signal
+  disponible est de voir la machine **quitter** son état initial, et cet émulateur
+  répondait `running` de la première lecture à la dernière. `poweron`, `poweroff`
+  et `stop_in_place` étaient donc exerçables ici, et `reboot`, la seule action où
+  l'attente est subtile, ne l'était pas du tout. L'auteur de #637 a dû prouver sa
+  propre garde d'attente par test unitaire, parce que la jouer contre feint
+  échouait pour une raison étrangère à son client.
+
+  Avec le mode actif, un serveur Scaleway parcourt les états que parcourt
+  `fr-par`, mesurés le 2026-09-03 en interrogeant un vrai DEV1-S à chaque action :
+
+  | action | états répondus, dans l'ordre |
+  |---|---|
+  | `poweron` | `starting`, puis `running` |
+  | `reboot` | `stopping`, `starting`, puis `running` |
+  | `poweroff` | `stopping`, puis `stopped` |
+
+  **Les états avancent sur les lectures, jamais sur une horloge**, et c'est la
+  conception et non un raccourci : l'horloge de l'émulateur est injectée, donc un
+  état transitoire minuté sur une horloge murale ne finirait jamais sous une
+  horloge de test figée, ou transformerait chaque suite en attente. Une suite de
+  quatre secondes reste de quatre secondes.
+
+  Deux conséquences à connaître. **Une action n'est pas une observation** : la
+  lecture qu'une action du cycle de vie fait pour modifier une ressource ne la
+  fait pas avancer, sinon l'action consommerait le premier état qu'elle vient de
+  pousser (le défaut a eu lieu, et le redémarrage répondait `starting, running`
+  là où le cloud répond `stopping, starting, running`). Et **une action échouée
+  ne parcourt aucune chaîne** : un démarrage qui a échoué répond son état
+  d'échec, parce que raconter un chemin vers un `running` jamais atteint est la
+  réponse plausible et fausse que ce projet existe pour éviter.
+
+  Ce que cela ne couvre pas encore, c'est le reste de #124 : les chaînes Outscale
+  `creating → available` et `in-queue → completed`, et le refus `409
+  InvalidVolumeState` qui avait été annulé faute d'un état atteignable. Le
+  mécanisme dont elles ont besoin est celui-ci ; ce qui manque, ce sont les
+  chaînes et la garde.
+
 - **Un projet est désormais un registre, et `account/v3` sait y écrire** (#391).
   `account/v3/ProjectAPI.CreateProject`, `account/v3/ProjectAPI.UpdateProject`
   et `account/v3/ProjectAPI.DeleteProject` sont servis, c'est-à-dire `POST
@@ -42,6 +85,98 @@ change ni l'un ni l'autre a sa place dans `git log`.
   les trois packs.
 
 ### Corrigé
+
+- **Un instantané d'un disque auquel rien n'a jamais été attaché était accepté,
+  et la stack d'exemple publiée en dépendait** (#650, #646).
+
+  Le cloud le refuse : `cannot create a RO disk from an empty disk`. Le motif de
+  l'image dorée que démontre la stack Scaleway, un volume puis son instantané
+  puis une image taillée dedans, **ne pouvait donc pas s'appliquer contre la
+  vraie API Scaleway**, et le rapporteur l'a découvert en y lançant sa copie.
+
+  Où passe la ligne a été mesuré de trois façons, parce qu'elle n'est pas où on
+  la croit :
+
+  | sujet | `fr-par` |
+  |---|---|
+  | un volume créé et jamais attaché | 400, `cannot create a RO disk from an empty disk` |
+  | le disque système d'un serveur jamais démarré | 201 |
+  | un disque détaché d'un serveur supprimé | 201 |
+
+  La question n'est donc pas de savoir si la machine a tourné, ni si le disque
+  est attaché maintenant. C'est **s'il a déjà appartenu à quelqu'un**, ce qui est
+  la raison pour laquelle la marque est posée à l'attachement et jamais effacée
+  au détachement.
+
+  Le refus porte une entrée `details` avec une raison et un message d'aide, et
+  **aucun `argument_name`** : `ArgumentError` omet donc ce champ quand il est
+  vide plutôt que d'envoyer `""`.
+
+  **La stack d'exemple construit désormais son image dorée depuis un disque porté
+  par une machine de construction**, ce qu'un client doit faire face au cloud, et
+  le motif qu'elle enseigne survit au contact.
+
+- **La stack Scaleway d'exemple disait une chose et en faisait une autre, et
+  n'était pas routable telle qu'écrite** (#646). Son `vpc_route` était commentée
+  « joindre la plage de management par le réseau **admin** » et pointait `app`,
+  et c'est le code qui avait raison : le prochain saut d'une route est un réseau
+  privé de son propre VPC, et `admin` est dans l'autre.
+
+  En dessous, la topologie ne peut pas porter ce que l'en-tête annonce : deux VPC
+  qui ne partagent rien ne se joignent pas, donc le bastion décrit comme « la
+  seule porte publique » n'ouvre sur rien. Sous `mode: off`, rien ne démarre et
+  la différence ne se voit jamais. Le rapporteur l'a rencontrée en lançant
+  Ansible à travers ce bastion sous `--vm incus-ovn`, et a passé un moment à
+  soupçonner son propre `ProxyCommand`.
+
+  L'en-tête le dit désormais, dans le fichier que le lecteur copie et pas
+  seulement dans le `feint.yaml` d'à côté. Rendre la stack routable, un seul VPC
+  et plusieurs réseaux privés, n'est délibérément **pas** fait ici : cela
+  échangerait l'isolation que cette stack démontre contre une accessibilité
+  qu'elle ne démontre pas, et c'est un choix sur ce à quoi l'exemple sert.
+
+- **Deux entrées que le cloud refuse et que cet émulateur acceptait, et une qu'il
+  accepte et que cet émulateur refusait** (#648, signalé par une exécution
+  différentielle : la même stack Terraform contre `main` et contre
+  `api.scaleway.com`).
+
+  La paire signalée, toutes deux dans la direction qui coûte, puisqu'un client
+  vert ici n'apprend rien sur le vrai cloud :
+
+  | entrée | `fr-par` | avant |
+  |---|---|---|
+  | une règle d'ACL dont `dst_port_high` est sous `dst_port_low` | 400, et il nomme **les deux** bornes | 200 |
+  | `instance/v1 CreateSnapshot` sur un volume block (SBS) | 404 `not_found`, `resource: instance_volume` | 201 |
+
+  La première n'est pas une entrée exotique : **c'est ce que le fournisseur
+  Terraform envoie pour la règle la plus courante qui soit**, un port ouvert,
+  puisqu'une règle qui ne nomme que `dst_port_low` laisse la borne haute à zéro.
+  Trois règles sur trois dans la stack du rapporteur avaient cette forme.
+
+  La seconde est le motif de l'image dorée. Le disque système d'un serveur vit
+  dans `block` depuis #365, ce que le cloud donne à un DEV1-S, et un volume block
+  n'est pas un `instance_volume` : instance/v1 n'en prend donc pas d'instantané.
+  Ce pack résolvait les deux produits là exprès (#571), et la mesure renverse ce
+  choix : la raison qui l'avait motivé est servie autrement depuis, et la suite
+  de conformance avait déjà cessé d'emprunter ce chemin.
+
+  **La mesure a fait apparaître deux écarts de plus sur la même route**, dont un
+  en sens inverse :
+
+  - `argument_name` s'écrit `rules[0]dst_port_high`, sans point avant l'indice ni
+    avant le champ. Ce pack écrivait `rules.0.dst_port_high`, faux pour toutes
+    les erreurs de règle et pas seulement pour l'une d'elles. Le `reason` diffère
+    aussi selon le champ : `unknown` pour `action` et `source`, `constraint` pour
+    les ports.
+  - **un protocole inconnu est normalisé en `ANY`, pas refusé.** `NONSENSE`
+    répond 200 et se relit en `ANY`. Ce pack le refusait, ce qui est la direction
+    la plus rare, plus stricte que le cloud : un client qui aurait fonctionné
+    contre `fr-par` rencontrait un 400 ici. Être plus strict, c'est encore être
+    différent.
+
+  Un détail est recopié plutôt que rangé, parce que personne ne l'inventerait :
+  dans le même corps, le `min` de la borne haute est la **chaîne** `"443"` et
+  celui de la borne basse le **nombre** `0`.
 
 - **Le filtre `organization` était ignoré, donc une organisation qui ne possède
   rien ici répondait toute la flotte** (#638). Sept des huit filtres déclarés de
@@ -73,6 +208,30 @@ change ni l'un ni l'autre a sa place dans `git log`.
   exposé. `feint env scaleway` publie `SCW_DEFAULT_ORGANIZATION_ID` avec la
   constante de cet émulateur, et le `fake-credentials.env` de la suite de
   conformance porte la même valeur.
+
+- **Une installation de paquets tournait sous le plafond prévu pour une commande
+  de contrôle, et la preuve d'exécution nocturne en est morte** (#641). Tous les
+  appels `incus` passaient par un plafond unique de 120 secondes, qui est la
+  bonne borne pour `info`, `start` ou `network create`, où un plan de contrôle
+  plus lent que ça est cassé et non occupé. `incus exec <builder> -- dnf install
+  -y -q openssh-server` y passait aussi, et le 2026-09-03 il a été tué exactement
+  à cette limite pendant la construction d'`almalinux/9`, emportant toute
+  l'exécution planifiée. La nuit précédente, la même commande avait fini juste en
+  dessous.
+
+  Une étape à l'intérieur d'une instance de construction a désormais son propre
+  plafond, dix minutes, et la construction entière reste bornée par les vingt
+  minutes qui empêchent un téléchargement bloqué de garder le verrou pour
+  toujours. Un opérateur qui a réglé `Timeout` parce que sa station est lente
+  obtient les deux mis à l'échelle : une station qui demande un plafond de
+  contrôle plus long demande un plafond d'installation plus long dans la même
+  proportion.
+
+  Le plafond est affirmé plutôt que décrit : l'échéance est posée avant la
+  couture du runner autant qu'avant le vrai binaire, de sorte qu'un test lit
+  `ctx.Deadline()` et dit sous quel plafond un appel a tourné. Les deux moitiés
+  sont tenues : un garde qui donnerait dix minutes à tout casserait ce à quoi
+  sert le plafond de contrôle.
 
 - **Deux refus répondaient le mauvais statut, et c'est exactement là-dessus qu'un
   client branche** (#394). Un 404 dit « crée le parent d'abord », un 400 dit

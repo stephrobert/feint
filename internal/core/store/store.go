@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"reflect"
+	"slices"
 	"sort"
 	"sync"
 	"time"
@@ -26,6 +27,85 @@ type Store struct {
 	items map[string]*resource.Resource
 	// observe, when set, is told about every touch a caller makes. See Observe.
 	observe func(Event)
+	// eventual turns the ordinary pending chains on. Off is the default: a
+	// chain a client can do without is not walked, which is what keeps a local
+	// emulator from making anyone wait for information no runtime is producing
+	// (#124).
+	//
+	// It does not govern the chains marked PendingOnlySignal, which are walked
+	// in both modes. See onlySignal.
+	eventual bool
+	// onlySignal counts the resources carrying a chain whose arrival is its
+	// departure. Kept rather than searched for, because Get and List consult it
+	// on the way in to decide which lock to take, and scanning the store to
+	// answer that would cost more than the chains do.
+	onlySignal int
+}
+
+// countOnlySignal adjusts the tally when a stored resource is replaced. Called
+// under the write lock, with what was there and what replaces it; either may be
+// nil, which is a create or a delete.
+func (s *Store) countOnlySignal(before, after *resource.Resource) {
+	if walkable(before) {
+		s.onlySignal--
+	}
+	if walkable(after) {
+		s.onlySignal++
+	}
+}
+
+// walkable reports whether a resource carries a chain the store must walk
+// whatever the mode.
+func walkable(r *resource.Resource) bool {
+	return r != nil && r.PendingOnlySignal && len(r.Pending) > 0
+}
+
+// Eventual turns transient states on, so a resource carrying a pending chain
+// advances one step per observation instead of settling at once.
+//
+// Off by default, and the default is the decision. docs/limits.md's "Lifecycle
+// transitions are immediate" is a good answer for a local emulator: a client
+// that waits on `starting` here would be waiting for information no runtime is
+// producing. What it costs is that the one action where waiting is subtle —
+// reboot, whose target state is the state it started from — cannot be exercised
+// at all: "the state equals running" proves nothing when it was running before
+// (#637, reported by a client author whose own guard could not be tested here).
+//
+// So this is opt-in rather than a new default: `feint serve --consistency
+// eventual`. With it off nothing changes; with it on, a client's waiter has
+// something to observe.
+func (s *Store) Eventual(on bool) {
+	s.mu.Lock()
+	s.eventual = on
+	s.mu.Unlock()
+}
+
+// advance consumes one pending state, under the caller's write lock.
+//
+// It mutates the STORED resource and returns nothing: the caller clones after
+// this, so what it hands back is what the next reader would also see. A version
+// that advanced the clone instead would answer the same first state for ever,
+// which is the defect this exists to avoid rather than a subtlety of it.
+func (s *Store) advance(r *resource.Resource) {
+	if r == nil || len(r.Pending) == 0 {
+		return
+	}
+	// Two kinds of chain, and the difference is what the client can observe
+	// without it. An ordinary chain narrates a change the state already shows
+	// — stopped becomes running whether or not anyone watched it pass through
+	// `starting` — so the mode decides. A chain marked PendingOnlySignal
+	// settles where it started, so skipping it leaves an action that answered
+	// success and changed nothing observable: measured on a reboot, six reads
+	// of `running` before and after (#654).
+	if !s.eventual && !r.PendingOnlySignal {
+		return
+	}
+	r.State = r.Pending[0]
+	r.Pending = r.Pending[1:]
+	if len(r.Pending) == 0 && r.PendingOnlySignal {
+		r.PendingOnlySignal = false
+		s.onlySignal--
+	}
 }
 
 // Event is one observed touch of the store: something was created, read,
@@ -93,8 +173,10 @@ func key(provider, kind, id string) string {
 func (s *Store) Put(r *resource.Resource) {
 	s.mu.Lock()
 	k := key(r.Tenant.Provider, r.Kind, r.ID)
-	_, existed := s.items[k]
-	s.items[k] = r.Clone()
+	before, existed := s.items[k]
+	stored := r.Clone()
+	s.items[k] = stored
+	s.countOnlySignal(before, stored)
 	s.mu.Unlock()
 
 	action := EventCreated
@@ -105,7 +187,56 @@ func (s *Store) Put(r *resource.Resource) {
 }
 
 // Get returns a clone of the resource, or false when it does not exist.
+//
+// It takes the write lock rather than the read lock when eventual consistency is
+// on, because an observation is what advances a pending state (#124). With the
+// mode off — the default — the lock is the read lock it always was and nothing
+// about this call changed.
 func (s *Store) Get(provider, kind, id string) (*resource.Resource, bool) {
+	if s.advancing() {
+		s.mu.Lock()
+		r, ok := s.items[key(provider, kind, id)]
+		var out *resource.Resource
+		if ok {
+			s.advance(r)
+			out = r.Clone()
+		}
+		s.mu.Unlock()
+		if !ok {
+			return nil, false
+		}
+		s.notify(Event{Action: EventRead, Provider: provider, Kind: kind, ID: id})
+		return out, true
+	}
+	s.mu.RLock()
+	r, ok := s.items[key(provider, kind, id)]
+	var out *resource.Resource
+	if ok {
+		out = r.Clone()
+	}
+	s.mu.RUnlock()
+
+	if !ok {
+		return nil, false
+	}
+	s.notify(Event{Action: EventRead, Provider: provider, Kind: kind, ID: id})
+	return out, true
+}
+
+// Peek returns a clone without counting as an observation, so a pending chain
+// does not advance.
+//
+// The distinction it draws is "read to act" against "read to serve", and it is
+// not a nicety: Binding.Observe reads a resource in order to run a lifecycle
+// action on it, and that read is the emulator's own, not a client looking. With
+// Get, the action that PUSHED a chain consumed its own first step, and the
+// client's first read answered the second one — a reboot that went
+// `starting, running` where fr-par answers `stopping, starting, running`
+// (scaleway's TestARebootIsObservableUnderEventualConsistency caught it).
+//
+// Everything a client is served still goes through Get and List. This exists for
+// the paths that hold a resource to change it.
+func (s *Store) Peek(provider, kind, id string) (*resource.Resource, bool) {
 	s.mu.RLock()
 	r, ok := s.items[key(provider, kind, id)]
 	var out *resource.Resource
@@ -157,6 +288,7 @@ func (s *Store) Update(provider, kind, id string, change func(*resource.Resource
 			return err
 		}
 		s.items[key(provider, kind, id)] = draft
+		s.countOnlySignal(r, draft)
 		return nil
 	}()
 	if err != nil {
@@ -214,6 +346,21 @@ func (s *Store) Commit(base, res *resource.Resource, now time.Time) bool {
 			stored.Runtime = map[string]string{}
 		}
 		mergeRuntime(stored.Runtime, base.Runtime, res.Runtime)
+		// A chain the caller pushed while it worked outside the lock, on the
+		// same terms as the state above: written when the caller changed it,
+		// left alone when it did not. Without this the chain never reaches the
+		// store and a reboot answers its settled state from the first read —
+		// which is the defect, arriving one layer further in
+		// (scaleway's TestARebootIsObservableUnderEventualConsistency).
+		if !slices.Equal(base.Pending, res.Pending) {
+			stored.Pending = append([]string(nil), res.Pending...)
+			// The chain and what it means travel together: a chain that is an
+			// action's only signal, merged without its mark, is a chain the
+			// store walks in one mode out of two (#654). Carried on the same
+			// condition as the chain itself, so a caller that did not touch
+			// either leaves both alone.
+			stored.PendingOnlySignal = res.PendingOnlySignal
+		}
 		stored.Updated = now
 		return nil
 	})
@@ -257,8 +404,9 @@ func mergeRuntime(stored, base, res map[string]string) {
 func (s *Store) Delete(provider, kind, id string) bool {
 	s.mu.Lock()
 	k := key(provider, kind, id)
-	_, ok := s.items[k]
+	before, ok := s.items[k]
 	delete(s.items, k)
+	s.countOnlySignal(before, nil)
 	s.mu.Unlock()
 
 	if ok {
@@ -272,6 +420,20 @@ func (s *Store) Delete(provider, kind, id string) bool {
 // Terraform and the CLIs page through these lists and a shuffling order would
 // produce phantom diffs.
 func (s *Store) List(kind string, t resource.Tenant) []*resource.Resource {
+	if s.advancing() {
+		s.mu.Lock()
+		out := make([]*resource.Resource, 0, len(s.items))
+		for _, r := range s.items {
+			if r.Kind == kind && r.Matches(t) {
+				s.advance(r)
+				out = append(out, r.Clone())
+			}
+		}
+		s.mu.Unlock()
+		sortByCreation(out)
+		s.notify(Event{Action: EventListed, Provider: t.Provider, Kind: kind})
+		return out
+	}
 	s.mu.RLock()
 	out := make([]*resource.Resource, 0, len(s.items))
 	for _, r := range s.items {
@@ -281,14 +443,33 @@ func (s *Store) List(kind string, t resource.Tenant) []*resource.Resource {
 	}
 	s.mu.RUnlock()
 
+	sortByCreation(out)
+	s.notify(Event{Action: EventListed, Provider: t.Provider, Kind: kind})
+	return out
+}
+
+// sortByCreation is the stable order every list answers in, oldest first and the
+// identifier breaking a tie. Named because two branches of List apply it now,
+// and a comparator written twice is one that will one day compare differently.
+func sortByCreation(out []*resource.Resource) {
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].Created.Equal(out[j].Created) {
 			return out[i].ID < out[j].ID
 		}
 		return out[i].Created.Before(out[j].Created)
 	})
-	s.notify(Event{Action: EventListed, Provider: t.Provider, Kind: kind})
-	return out
+}
+
+// advancing reports whether observations move states, read under the lock it
+// needs and no more.
+//
+// It is asked before the read path chooses its lock, which is why it is its own
+// method: with eventual consistency off — the default — Get and List keep the
+// read lock they always took, and a concurrent fleet listing stays concurrent.
+func (s *Store) advancing() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.eventual || s.onlySignal > 0
 }
 
 // All returns a clone of every resource, whatever its provider or kind, in the
@@ -463,7 +644,9 @@ func (s *Store) Restore(r io.Reader) error {
 		if res == nil {
 			continue
 		}
-		s.items[key(res.Tenant.Provider, res.Kind, res.ID)] = res
+		k := key(res.Tenant.Provider, res.Kind, res.ID)
+		s.countOnlySignal(s.items[k], res)
+		s.items[k] = res
 	}
 	return nil
 }

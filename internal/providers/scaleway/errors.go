@@ -26,7 +26,11 @@ type APIError struct {
 
 // ArgumentError is one entry of an invalid_arguments error.
 type ArgumentError struct {
-	ArgumentName string `json:"argument_name"`
+	// Omitted when empty, because one measured refusal carries none: fr-par's
+	// "cannot create a RO disk from an empty disk" answers a details entry with
+	// a reason and a help message and no argument at all (#650). An
+	// `"argument_name": ""` would be a field the cloud does not send.
+	ArgumentName string `json:"argument_name,omitempty"`
 	Reason       string `json:"reason"`
 	HelpMessage  string `json:"help_message,omitempty"`
 }

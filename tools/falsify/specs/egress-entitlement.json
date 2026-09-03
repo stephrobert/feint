@@ -1,0 +1,76 @@
+{
+  "mutations": [
+    {
+      "label": "the OVN network announces its gateway again, so every machine that boots gets a way out the cloud never gave it",
+      "file": "internal/core/machine/incus.go",
+      "package": "./internal/core/machine/",
+      "find": "\t\t\t\"ipv4.dhcp.gateway=none\",\n",
+      "replace": "\t\t\t\"ipv4.nat=\"+strconv.FormatBool(spec.NAT),\n",
+      "test": "TestAnOVNNetworkAnnouncesNoGateway"
+    },
+    {
+      "label": "the bridge mode is silenced too, taking away a way out that mode does provide",
+      "file": "internal/core/machine/incus.go",
+      "package": "./internal/core/machine/",
+      "find": "\tif d.OVN {\n\t\t// The network announces no gateway, so no machine gets a default route",
+      "replace": "\tif d.OVN || true {\n\t\t// The network announces no gateway, so no machine gets a default route",
+      "test": "TestAnOVNNetworkAnnouncesNoGateway"
+    },
+    {
+      "label": "the default route is added rather than replaced, so it loses to the routed NIC's own and the bastion stays without a way out",
+      "file": "internal/core/machine/incus_ovn.go",
+      "package": "./internal/core/machine/",
+      "find": "\t\t\"ip\", \"route\", \"replace\", \"default\", \"via\", gateway.Addr().String(), \"dev\", device); err != nil {",
+      "replace": "\t\t\"ip\", \"route\", \"add\", \"default\", \"via\", gateway.Addr().String(), \"dev\", device); err != nil {",
+      "test": "TestADefaultRouteIsLaidOnlyForAMachineEntitledToOne"
+    },
+    {
+      "label": "the route rides whatever interface came first instead of the one carrying the network the pack named",
+      "file": "internal/core/machine/incus_ovn.go",
+      "package": "./internal/core/machine/",
+      "find": "\t\tif cfg[\"type\"] == \"nic\" && cfg[\"network\"] == network {",
+      "replace": "\t\tif cfg[\"type\"] == \"nic\" || cfg[\"network\"] == network {",
+      "test": "TestADefaultRouteIsLaidOnlyForAMachineEntitledToOne"
+    },
+    {
+      "label": "a gateway that masquerades without pushing the route is read as a way out, which is the emulator deciding for a client that chose otherwise",
+      "file": "internal/providers/scaleway/machines.go",
+      "package": "./internal/providers/scaleway/",
+      "find": "\t\tif pushed, _ := gn.Attrs[\"push_default_route\"].(bool); pushed {",
+      "replace": "\t\tif pushed, _ := gn.Attrs[\"push_default_route\"].(bool); pushed || true {",
+      "test": "TestAPushedDefaultRouteIsTheOnlyWayOutForAPrivateServer"
+    },
+    {
+      "label": "a public address stops entitling its server, so the bastion loses the way out the cloud gives it",
+      "file": "internal/providers/scaleway/machines.go",
+      "package": "./internal/providers/scaleway/",
+      "find": "\tif len(p.publicAddressesOf(server)) > 0 {",
+      "replace": "\tif len(p.publicAddressesOf(server)) > 0 && false {",
+      "test": "TestAServerWithAPublicAddressLeavesThroughItsOwnNetwork"
+    },
+    {
+      "label": "the network stops announcing where the private fleet is, so silencing its gateway takes the VPC away with it and two machines of one VPC stop reaching each other",
+      "file": "internal/core/machine/incus.go",
+      "package": "./internal/core/machine/",
+      "find": "\t\t\t\"ipv4.dhcp.routes=\"+announcedPrivateRoutes(address),\n",
+      "replace": "\t\t\t\"ipv4.dhcp.routes=\"+announcedPrivateRoutes(address)[:0],\n",
+      "test": "TestAnOVNNetworkAnnouncesItsPrivateRoutes"
+    },
+    {
+      "label": "the announced gateway keeps the prefix of the CIDR it came from, which Incus refuses at network create time",
+      "file": "internal/core/machine/incus_ovn.go",
+      "package": "./internal/core/machine/",
+      "find": "\tif host, _, ok := strings.Cut(address, \"/\"); ok {",
+      "replace": "\tif host, _, ok := strings.Cut(address, \"/\"); ok && false {",
+      "test": "TestTheAnnouncedRoutesNameTheirGatewayWithoutItsPrefix"
+    },
+    {
+      "label": "the aggregates are announced with no gateway at all, so the guest learns of the blocks and not of the router that reaches them",
+      "file": "internal/core/machine/incus_ovn.go",
+      "package": "./internal/core/machine/",
+      "find": "\t\tpairs = append(pairs, block+\",\"+gateway)",
+      "replace": "\t\tpairs = append(pairs, block+\",\"+gateway[:0])",
+      "test": "TestTheAnnouncedRoutesNameTheirGatewayWithoutItsPrefix"
+    }
+  ]
+}

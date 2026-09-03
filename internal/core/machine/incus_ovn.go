@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -996,6 +997,39 @@ func (d *Incus) networkGateway(ctx context.Context, network string) (netip.Prefi
 // which is exactly where the isolation verdict belongs.
 var privateAggregates = []string{"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"}
 
+// announcedPrivateRoutes is what an OVN network tells every machine that boots
+// on it about the rest of the emulated fleet: the three aggregates above, each
+// via the network's own router, in the ipv4.dhcp.routes syntax Incus serves as
+// DHCP option 121.
+//
+// This exists because a route written from OUTSIDE the guest does not survive
+// the guest. Measured 2026-09-03 under --vm incus-ovn: the three execs of
+// installGuestPrivateRoutes all returned nil, and thirty seconds later the
+// table held nothing but a connected route reading `proto dhcp`, on an
+// interface whose address the driver had pinned by hand. The guest's DHCP
+// client configures the interface after the driver does and flushes what it
+// finds, and a lease renewal would flush it again later. An announcement is
+// laid by the client itself, so a renewal rewrites it rather than erasing it.
+//
+// The address arrives as the gateway CIDR the network carries (10.0.0.1/24),
+// and what the option needs is the host part alone.
+//
+// TestAnOVNNetworkAnnouncesItsPrivateRoutes fails without this, and the
+// runtime leg fails with "10.184.0.2 is unreachable within one VPC" — two
+// machines of one VPC that had always reached each other, because the default
+// route the network used to announce had been carrying the peered subnets too.
+func announcedPrivateRoutes(address string) string {
+	gateway := address
+	if host, _, ok := strings.Cut(address, "/"); ok {
+		gateway = host
+	}
+	pairs := make([]string, 0, len(privateAggregates))
+	for _, block := range privateAggregates {
+		pairs = append(pairs, block+","+gateway)
+	}
+	return strings.Join(pairs, ",")
+}
+
 // guestRoutePoll and guestRouteWait bound the wait for a restarted guest to
 // have configured its interface again. A container's DHCP client answers in a
 // second or two, a virtual machine's in tens of them; past a minute and a half
@@ -1181,6 +1215,12 @@ func (d *Incus) settleFirstBoot(ctx context.Context, machine string) error {
 			// A managed bridge has no router and no peerings, so there is
 			// nothing of this kind to lay there — the same mode split
 			// restoreGuestNetwork makes, for the same reason.
+			//
+			// These are also what the network announces over DHCP now
+			// (announcedPrivateRoutes), and the redundancy is deliberate: this
+			// call reaches a guest that has not renewed its lease yet, and the
+			// announcement reaches one this call cannot, a DHCP-owned interface
+			// whose client flushes whatever the driver writes.
 			if err := d.installGuestPrivateRoutes(ctx, machine, devices.own[device]["network"], device); err != nil {
 				return fmt.Errorf("settle the first boot of %s: %w", machine, err)
 			}
@@ -1266,6 +1306,117 @@ func (d *Incus) installGuestPrivateRoutes(ctx context.Context, machine, network,
 			!strings.Contains(strings.ToLower(err.Error()), "file exists") {
 			return fmt.Errorf("route %s of %s via %s: %w", block, machine, gateway.Addr(), err)
 		}
+	}
+	return nil
+}
+
+// RouteEgress implements EgressRouter: the machine's default route leaves
+// through the gateway of the network the pack named (#647).
+//
+// Under a bridge there is nothing to do — the host already routes for the
+// machine — so this is the OVN half alone, and a bridge-mode driver answers
+// nil rather than laying a route the mode does not need.
+//
+// The device is looked up by network rather than passed in, because the caller
+// is the Reconciler and it knows the pack's vocabulary, not the runtime's: the
+// plan names a network, and which interface carries it is the runtime's own
+// answer. A machine that has not joined that network yet is not an error — the
+// interface arrives with the next attach, and the replay runs again then.
+func (d *Incus) RouteEgress(ctx context.Context, machine, network string) error {
+	if !d.OVN {
+		return nil
+	}
+	device, err := d.deviceOnNetwork(ctx, machine, network)
+	if err != nil || device == "" {
+		return err
+	}
+	return d.installGuestDefaultRoute(ctx, machine, network, device)
+}
+
+// DropEgress implements EgressRouter: the machine loses the way out it no
+// longer qualifies for.
+//
+// Silent about a machine that has none, and about one that is gone: a delete
+// path runs twice more often than anyone expects, which is the rule Detach
+// states for this whole layer.
+func (d *Incus) DropEgress(ctx context.Context, machine string) error {
+	if !d.OVN {
+		return nil
+	}
+	if _, err := d.run(ctx, "exec", machine, "--", "ip", "route", "del", "default"); err != nil {
+		msg := strings.ToLower(err.Error())
+		if isNotFound(err) || isNotRunning(err) ||
+			strings.Contains(msg, "no such process") || strings.Contains(msg, "cannot find device") {
+			return nil
+		}
+		return fmt.Errorf("drop the default route of %s: %w", machine, err)
+	}
+	return nil
+}
+
+// deviceOnNetwork answers the machine's interface on a network, empty when it
+// has none.
+func (d *Incus) deviceOnNetwork(ctx context.Context, machine, network string) (string, error) {
+	devices, err := d.instanceDevices(ctx, machine)
+	if err != nil {
+		if isNotFound(err) {
+			return "", nil
+		}
+		return "", fmt.Errorf("inspect %s: %w", machine, err)
+	}
+	// In name order, so two runs of the same question answer the same device.
+	// A map range would pick either of a machine's interfaces and this is the
+	// input to a route: the answer has to be a property of the machine, not of
+	// the iteration.
+	names := make([]string, 0, len(devices.own))
+	for device := range devices.own {
+		names = append(names, device)
+	}
+	sort.Strings(names)
+	for _, device := range names {
+		cfg := devices.own[device]
+		if cfg["type"] == "nic" && cfg["network"] == network {
+			return device, nil
+		}
+	}
+	return "", nil
+}
+
+// installGuestDefaultRoute gives a machine its way out, through the gateway of
+// the network the plan named (#647).
+//
+// Why it is not laid for everyone. Under OVN a machine reaches its own subnet
+// and the peered ones — installGuestPrivateRoutes above — and the network NATs,
+// so a default route is all that stands between it and the Internet. Measured
+// 2026-09-03: `ip route add default via <the network's gateway>` inside a
+// machine that had none reached 8.8.8.8 in 13 ms, with nothing else changed. So
+// the route is a decision, not a repair, and the decision is the cloud's:
+//
+//	scaleway-openapi/public-gateway-v2.yml, push_default_route:
+//	  "Enabling the default route also enables masquerading."
+//
+// A machine reaches out when it holds a public address, or when a Public Gateway
+// attached to its Private Network pushes the default route. A machine with
+// neither does not — and an emulator that gave it one anyway would teach a
+// client that its fleet can be provisioned when the real one cannot. Which of
+// the three a machine is, is the pack's to say: Plan.Egress.
+//
+// TestADefaultRouteIsLaidOnlyForAMachineEntitledToOne fails without this.
+func (d *Incus) installGuestDefaultRoute(ctx context.Context, machine, network, device string) error {
+	gateway, err := d.networkGateway(ctx, network)
+	if err != nil {
+		return err
+	}
+	// Replaced rather than added, and that is the half the bastion needed. A
+	// server created with its flexible IP boots on a routed NIC, whose default
+	// route leaves through a device #548 then takes the address off — so the
+	// machine kept a default route out of an interface with no address, and
+	// `ip route add` would have answered "file exists" over it. Measured
+	// 2026-09-03: eth0 bare with `default via 169.254.0.1`, the address on
+	// eth1, and no way out.
+	if _, err := d.run(ctx, "exec", machine, "--",
+		"ip", "route", "replace", "default", "via", gateway.Addr().String(), "dev", device); err != nil {
+		return fmt.Errorf("default route of %s via %s: %w", machine, gateway.Addr(), err)
 	}
 	return nil
 }

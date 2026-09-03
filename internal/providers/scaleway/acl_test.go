@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 )
@@ -154,22 +155,30 @@ func TestSetACLRefusesWhatTheEnumsRefuse(t *testing.T) {
 	ts := newTestServer(t)
 	vpc := newVPC(t, ts, "refusals")
 
+	// The names are the cloud's: `rules[0]field`, no dot before the index and
+	// none before the field. This pack wrote `rules.0.field` until #648, which
+	// was wrong for every rule error rather than for one of them.
 	cases := map[string]struct{ body, names string }{
-		"an unknown protocol": {
-			body:  `{"is_ipv6":false,"default_policy":"accept","rules":[{"protocol":"SCTP","source":"0.0.0.0/0","destination":"0.0.0.0/0","action":"accept"}]}`,
-			names: "rules.0.protocol",
-		},
 		"an unknown action": {
 			body:  `{"is_ipv6":false,"default_policy":"accept","rules":[{"protocol":"TCP","source":"0.0.0.0/0","destination":"0.0.0.0/0","action":"maybe"}]}`,
-			names: "rules.0.action",
+			names: "rules[0]action",
 		},
 		"a source that is not a CIDR": {
 			body:  `{"is_ipv6":false,"default_policy":"accept","rules":[{"protocol":"TCP","source":"not-a-cidr","destination":"0.0.0.0/0","action":"accept"}]}`,
-			names: "rules.0.source",
+			names: "rules[0]source",
 		},
 		"a port range the wrong way round": {
 			body:  `{"is_ipv6":false,"default_policy":"accept","rules":[{"protocol":"TCP","source":"0.0.0.0/0","destination":"0.0.0.0/0","action":"accept","dst_port_low":443,"dst_port_high":80}]}`,
-			names: "rules.0.dst_port_high",
+			names: "rules[0]dst_port_high",
+		},
+		// The case #648 is about, and the one a client meets by accident: the
+		// Terraform provider sends dst_port_high 0 for a rule that names only a
+		// low port — one port, opened, the commonest rule there is — and fr-par
+		// refuses it. This emulator answered 200, so three rules out of three in
+		// the reporter's stack were green here and refused there.
+		"a high port left at zero beside a real low port": {
+			body:  `{"is_ipv6":false,"default_policy":"accept","rules":[{"protocol":"TCP","source":"10.0.0.0/8","destination":"10.0.0.0/8","action":"accept","dst_port_low":22,"dst_port_high":0}]}`,
+			names: "rules[0]dst_port_high",
 		},
 		"a default policy outside the enum": {
 			body:  `{"is_ipv6":false,"default_policy":"unknown_action","rules":[]}`,
@@ -197,6 +206,64 @@ func TestSetACLRefusesWhatTheEnumsRefuse(t *testing.T) {
 	if got, _ := read["rules"].([]any); len(got) != 0 {
 		t.Errorf("a refused set left %d rule(s) behind: %v", len(got), read["rules"])
 	}
+
+	// An invalid range names the PAIR, not one bound: the constraint is on the
+	// two together and fr-par answers two details for it. Their order is not
+	// stable between two runs of the same request, so this asks that both are
+	// there rather than where each one sits.
+	t.Run("an invalid range names both bounds", func(t *testing.T) {
+		_, body := do(t, ts, "PUT", aclURL(vpc),
+			`{"is_ipv6":false,"default_policy":"accept","rules":[{"protocol":"TCP","source":"10.0.0.0/8","destination":"10.0.0.0/8","action":"accept","dst_port_low":443,"dst_port_high":80}]}`)
+		for _, want := range []string{"rules[0]dst_port_low", "rules[0]dst_port_high"} {
+			if !bodyNames(body, want) {
+				t.Errorf("the refusal does not name %s: %v", want, body)
+			}
+		}
+		// And the high bound's min is the low bound's value, rendered as a
+		// string where the low bound's is the number 0. Nobody would invent
+		// that, which is why it is copied rather than tidied.
+		details, _ := body["details"].([]any)
+		for _, entry := range details {
+			d, _ := entry.(map[string]any)
+			if d["argument_name"] != "rules[0]dst_port_high" {
+				continue
+			}
+			if help, _ := d["help_message"].(string); !strings.Contains(help, `"min": "443"`) {
+				t.Errorf("the high bound's help_message is %q, want the low port as a string", help)
+			}
+		}
+	})
+
+	// The one this pack used to refuse and the cloud does not. An unknown
+	// protocol is NORMALISED to ANY, measured: `NONSENSE` answers 200 and reads
+	// back as ANY. Refusing it was the rarer direction of divergence — stricter
+	// than the cloud — and a client that would have worked against fr-par met a
+	// 400 here.
+	t.Run("an unknown protocol is normalised rather than refused", func(t *testing.T) {
+		status, body := do(t, ts, "PUT", aclURL(vpc),
+			`{"is_ipv6":false,"default_policy":"accept","rules":[{"protocol":"SCTP","source":"0.0.0.0/0","destination":"0.0.0.0/0","action":"accept"}]}`)
+		if status != http.StatusOK {
+			t.Fatalf("an unknown protocol answered %d, want 200 (%v)", status, body)
+		}
+		rules, _ := body["rules"].([]any)
+		if len(rules) != 1 {
+			t.Fatalf("the answer carries %d rule(s) (%v)", len(rules), body)
+		}
+		rule, _ := rules[0].(map[string]any)
+		if rule["protocol"] != "ANY" {
+			t.Errorf("the rule read back as %v, want ANY", rule["protocol"])
+		}
+	})
+
+	// A range the pair agrees on still passes, without which a guard that
+	// refused every range would satisfy the table above and break the product.
+	t.Run("a range whose bounds agree is accepted", func(t *testing.T) {
+		status, body := do(t, ts, "PUT", aclURL(vpc),
+			`{"is_ipv6":false,"default_policy":"accept","rules":[{"protocol":"TCP","source":"10.0.0.0/8","destination":"10.0.0.0/8","action":"accept","dst_port_low":22,"dst_port_high":22}]}`)
+		if status != http.StatusOK {
+			t.Fatalf("dst_port_low 22 / dst_port_high 22 answered %d, want 200 (%v)", status, body)
+		}
+	})
 }
 
 // bodyNames reports whether an invalid-arguments body names this argument. The

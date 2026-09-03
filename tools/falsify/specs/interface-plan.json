@@ -33,8 +33,8 @@
       "label": "one pack stops declaring its promised addresses, and the cross-pack equivalence names the divergence (#510, #515)",
       "package": "./internal/providers/",
       "file": "internal/providers/scaleway/machines.go",
-      "find": "\treturn machine.Plan{\n\t\tBoot:     p.attachmentsOf(res),\n\t\tPublics:  p.publicAddressesOf(res),\n\t\tRouteVia: p.privateNetworkNameOf(res),\n\t}",
-      "replace": "\treturn machine.Plan{\n\t\tBoot:     p.attachmentsOf(res),\n\t\tPublics:  p.publicAddressesOf(res)[:0],\n\t\tRouteVia: p.privateNetworkNameOf(res),\n\t}",
+      "find": "\treturn machine.Plan{\n\t\tBoot:     p.attachmentsOf(res),\n\t\tPublics:  p.publicAddressesOf(res),\n\t\tRouteVia: p.privateNetworkNameOf(res),\n\t\tEgress:   p.egressNetworkOf(res),\n\t}",
+      "replace": "\treturn machine.Plan{\n\t\tBoot:     p.attachmentsOf(res),\n\t\tPublics:  p.publicAddressesOf(res)[:0],\n\t\tRouteVia: p.privateNetworkNameOf(res),\n\t\tEgress:   p.egressNetworkOf(res),\n\t}",
       "test": "TestSameIntentSameRuntimeSequenceAcrossPacks"
     }
   ]

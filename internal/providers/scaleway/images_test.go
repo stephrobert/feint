@@ -13,8 +13,7 @@ import (
 // apply"; `scw instance image get` simply describes the wrong object.
 func TestAnImageReadsBackAsItWasCreated(t *testing.T) {
 	ts := newTestServer(t)
-	_, server := serverWith(t, ts, `{"name":"golden","commercial_type":"DEV1-S"}`)
-	snapshotID := snapshotOfVolume(t, ts, "golden-snap", rootVolumeOf(t, server))
+	snapshotID := snapshotOfVolume(t, ts, "golden-snap", instanceVolumeOf(t, ts))
 
 	status, created := do(t, ts, "POST", zoneURL+"/images",
 		`{"name":"golden-img","root_volume":"`+snapshotID+`","tags":["release"]}`)
@@ -90,8 +89,7 @@ func TestListingImagesCarriesTheCatalogueAndTheClients(t *testing.T) {
 		t.Fatal("listing images answered nothing, and the catalogue is never empty")
 	}
 
-	_, server := serverWith(t, ts, `{"name":"golden","commercial_type":"DEV1-S"}`)
-	snapshotID := snapshotOfVolume(t, ts, "golden-snap", rootVolumeOf(t, server))
+	snapshotID := snapshotOfVolume(t, ts, "golden-snap", instanceVolumeOf(t, ts))
 	if status, got := do(t, ts, "POST", zoneURL+"/images",
 		`{"name":"golden-img","root_volume":"`+snapshotID+`"}`); status != http.StatusCreated {
 		t.Fatalf("create image: expected 201, got %d (%v)", status, got)

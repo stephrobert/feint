@@ -50,6 +50,15 @@ var (
 	serverVolumeTypes = map[string]bool{"l_ssd": true, "scratch": true, "sbs_volume": true}
 )
 
+// sbsSnapshotType is how instance/v1 describes the root volume of an image cut
+// from an SBS snapshot. In the SDK's enum as VolumeVolumeTypeSbsSnapshot, and
+// measured on a real account's own image, 2026-09-03 (#651).
+//
+// Here rather than inline in images.go, because this file is where a fact
+// about a volume type lives: the one written in three places is the one that
+// gets corrected in one.
+const sbsSnapshotType = "sbs_snapshot"
+
 // volumeTypeError names what POST /volumes answers for a volume_type, or nil
 // when the cloud creates it.
 //
