@@ -57,6 +57,18 @@ const (
 	// available in stock, and the emulated catalogue offers the first: a number
 	// nothing measures, published because a client reads it back and compares.
 	blockDefaultIOPS = 5000
+	// The two types the real cloud serves, and they are the performance class
+	// rather than the storage class. Measured 2026-09-03 on a real account:
+	// `scw block volume get` answers `"type": "sbs_5k"` with
+	// `"specs": {"perf_iops": 5000, "class": "sbs"}`, and volume-type list
+	// answers exactly these two. The emulator answered "sbs" for the type,
+	// which is the class, at both places.
+	//
+	// Upstream names them too, in another product's SDK: documentdb/v1beta1
+	// declares VolumeTypeSbs5k and VolumeTypeSbs15k, and nothing else in sbs.
+	blockType5k  = "sbs_5k"
+	blockType15k = "sbs_15k"
+	blockIOPS15k = 15000
 )
 
 // blockCreateStatus is what a successful block/v1alpha1 create answers with.
@@ -214,11 +226,27 @@ func iopsOf(asked *uint32) uint32 {
 // resource bare where instance/v1 wraps it in {"volume": ...} — two products of
 // one cloud that do not agree, and copying the neighbouring product's habit here
 // would have broken every decode.
+// blockVolumeTypeOf answers the type a volume of these IOPS carries.
+//
+// resource.Number rather than a type assertion, and the gate of #542 caught
+// this one before a client did: Attrs crosses encoding/json on every snapshot,
+// so the uint32 a create stores comes back float64, an assertion yields zero,
+// and a restored 15k volume would answer sbs_5k.
+//
+// TestABlockVolumeCarriesItsPerformanceType and
+// TestARestoredVolumeKeepsItsPerformanceType fail without this.
+func blockVolumeTypeOf(iops any) string {
+	if resource.Number(iops) >= blockIOPS15k {
+		return blockType15k
+	}
+	return blockType5k
+}
+
 func (p *Pack) blockVolumeView(res *resource.Resource) map[string]any {
 	view := map[string]any{
 		"id":         res.ID,
 		"name":       textOf(res.Attrs["name"]),
-		"type":       blockStorageClass,
+		"type":       blockVolumeTypeOf(res.Attrs["perf_iops"]),
 		"size":       res.Attrs["size"],
 		"project_id": textOf(res.Attrs["project"]),
 		"created_at": res.Created.Format(time.RFC3339),
@@ -522,7 +550,20 @@ type createBlockSnapshotRequest struct {
 	Name      string    `json:"name"`
 	ProjectID *string   `json:"project_id"`
 	Tags      *[]string `json:"tags"`
-	Public    bool      `json:"public"`
+	// Sent by `scw block snapshot create` on every call without being an
+	// argument of it, and answered back: block-v1.yml declares `public` on the
+	// Snapshot schema and lists it among the REQUIRED fields, "True if the
+	// snapshot can be used by anyone to create a volume".
+	//
+	// Worth the paragraph because a measurement said the opposite and was
+	// wrong: `scw block snapshot get -o json` on a real account answers no
+	// such field, since the CLI serialises the SDK struct it decodes into and
+	// the vendored block SDK (v1alpha1) has no Public. That is what the CLI
+	// sees, not what the cloud sent, and taking one for the other removed a
+	// required field here for the length of two conformance legs.
+	//
+	// TestABlockSnapshotAnswersThePublicItWasAsked fails without this.
+	Public bool `json:"public"`
 }
 
 // createBlockSnapshot records a snapshot of a block volume.
@@ -565,9 +606,12 @@ func (p *Pack) createBlockSnapshot(w http.ResponseWriter, r *http.Request) {
 		"zone":    zone,
 		"public":  req.Public,
 		"parent_volume": map[string]any{
-			"id":     volume.ID,
-			"name":   textOf(volume.Attrs["name"]),
-			"type":   blockStorageClass,
+			"id":   volume.ID,
+			"name": textOf(volume.Attrs["name"]),
+			// The parent's own type, and the SDK says as much: "volume type of
+			// the parent volume". Measured sbs_5k on a real account where this
+			// answered sbs.
+			"type":   blockVolumeTypeOf(volume.Attrs["perf_iops"]),
 			"status": volume.State,
 		},
 	}
@@ -778,13 +822,33 @@ func (p *Pack) listBlockVolumeTypes(w http.ResponseWriter, r *http.Request) {
 	// that never ends to the SDK's own pagination loop.
 	//
 	// TestBlockVolumeTypesArePaged fails without it.
+	// Both types the real cloud serves, measured 2026-09-03: sbs_5k and
+	// sbs_15k, each with its own perf_iops and the same class. One entry was a
+	// catalogue that could not answer what a 15k volume is, on a product where
+	// the type is what a client picks.
+	//
+	// The zone stays on the entry: block-v1.yml declares it on VolumeType, and
+	// the Go SDK's struct not having it is a fact about the SDK, not about the
+	// answer. Reading `scw -o json` as the body is the mistake that took it off
+	// for a while, alongside `public` above.
+	//
+	// TestBlockVolumeTypesArePaged fails without both entries.
 	types := []map[string]any{{
-		"type":             blockStorageClass,
+		"type":             blockType5k,
 		"pricing":          price(),
 		"snapshot_pricing": price(),
 		"specs": map[string]any{
 			"class":     blockStorageClass,
 			"perf_iops": blockDefaultIOPS,
+		},
+		"zone": zone,
+	}, {
+		"type":             blockType15k,
+		"pricing":          price(),
+		"snapshot_pricing": price(),
+		"specs": map[string]any{
+			"class":     blockStorageClass,
+			"perf_iops": blockIOPS15k,
 		},
 		"zone": zone,
 	}}
