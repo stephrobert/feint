@@ -255,6 +255,55 @@ type createImageRequest struct {
 // missing volume — the client named a resource, and answering success about an
 // image of nothing is the half-success this project exists to avoid.
 // TestAnImageCutFromNothingIsRefused fails without this.
+// imageRoot resolves what an image is cut from, and renders the root_volume
+// the API publishes for it. The second answer is the point: the two kinds of
+// snapshot are described differently, and the difference is measured rather
+// than chosen.
+//
+// An SBS snapshot is the path #651 reports, and it is now the ONLY path to a
+// golden image: b_ssd is retired (#393), so every root volume is SBS, and an
+// instance snapshot of an SBS root volume is refused upstream (#648). An
+// emulator that accepts only instance snapshots here accepts nothing a current
+// stack can produce.
+//
+// What the real cloud does with such an id, measured 2026-09-03 on a real
+// account whose own image was cut this way:
+//
+//	"root_volume": {"id": "<the block snapshot's id>", "name": "",
+//	                "size": 10000000000, "volume_type": "sbs_snapshot"}
+//
+// The name is EMPTY, on an image whose block snapshot carried one, and the
+// type is `sbs_snapshot` — in the SDK's own enum,
+// VolumeVolumeTypeSbsSnapshot. Both are copied here rather than guessed.
+//
+// And the reverse direction stays as it is, deliberately: the issue asks for
+// the same id to resolve through `GET /instance/v1/…/snapshots/{id}`, and the
+// real cloud answers 404 there, with an empty instance listing beside it. Both
+// were measured the same day. Serving it would be a divergence, not a fix.
+//
+// TestAnImageIsCutFromAnSBSSnapshot fails without this.
+func (p *Pack) imageRoot(id string) (*resource.Resource, map[string]any, bool) {
+	if snapshot, found := p.env.Store.Get(Name, kindSnapshot, id); found {
+		return snapshot, map[string]any{
+			"id":          snapshot.ID,
+			"name":        textOf(snapshot.Attrs["name"]),
+			"size":        snapshot.Attrs["size"],
+			"volume_type": textOf(snapshot.Attrs["volume_type"]),
+		}, true
+	}
+	snapshot, found := p.env.Store.Get(Name, kindBlockSnapshot, id)
+	if !found {
+		return nil, nil, false
+	}
+	return snapshot, map[string]any{
+		"id": snapshot.ID,
+		// Empty, as measured, and not the snapshot's name.
+		"name":        "",
+		"size":        snapshot.Attrs["size"],
+		"volume_type": sbsSnapshotType,
+	}, true
+}
+
 func (p *Pack) createImage(w http.ResponseWriter, r *http.Request) {
 	zone, ok := zoneOf(w, r)
 	if !ok {
@@ -277,7 +326,7 @@ func (p *Pack) createImage(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	snapshot, found := p.env.Store.Get(Name, kindSnapshot, req.RootVolume)
+	snapshot, root, found := p.imageRoot(req.RootVolume)
 	if !found {
 		writeNotFound(w, "snapshot", req.RootVolume)
 		return
@@ -300,12 +349,7 @@ func (p *Pack) createImage(w http.ResponseWriter, r *http.Request) {
 		// The server the snapshot's volume came from, when there was one.
 		// A string rather than null, which is what a real account returns.
 		"from_server": textOf(snapshot.Attrs["from_server"]),
-		"root_volume": map[string]any{
-			"id":          snapshot.ID,
-			"name":        textOf(snapshot.Attrs["name"]),
-			"size":        snapshot.Attrs["size"],
-			"volume_type": textOf(snapshot.Attrs["volume_type"]),
-		},
+		"root_volume": root,
 	}
 	p.env.Store.Put(res)
 	emulator.WriteJSON(w, http.StatusCreated, map[string]any{"image": p.clientImageView(res)})
