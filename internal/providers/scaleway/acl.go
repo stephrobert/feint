@@ -168,8 +168,8 @@ func (p *Pack) setACL(w http.ResponseWriter, r *http.Request) {
 	stored := make([]any, 0, len(req.Rules))
 	for i, rule := range req.Rules {
 		normalised, bad := validateACLRule(rule, i)
-		if bad != nil {
-			writeInvalidArguments(w, *bad)
+		if len(bad) > 0 {
+			writeInvalidArguments(w, bad...)
 			return
 		}
 		stored = append(stored, normalised)
@@ -214,30 +214,70 @@ func (p *Pack) setACL(w http.ResponseWriter, r *http.Request) {
 // a rule no real API accepts, and answering 200 to it is the "a 200 that lies"
 // family this repository measures. The index is carried into the argument name
 // so a client with twenty rules is told which one.
-func validateACLRule(rule aclRule, index int) (map[string]any, *ArgumentError) {
+// What fr-par answers to a rule it will not take, measured 2026-09-03 on a VPC
+// made for the occasion and deleted after (#648).
+//
+//	rules[0]action        "maybe"      400 unknown    action: {"must_match_one_of": "Accept, Drop"}
+//	rules[0]source        "not-a-cidr" 400 unknown    network: {}
+//	rules[0]src_port_low  100          400 constraint range: {"min": 0, "max": 65535}
+//	rules[0]src_port_high 50           400 constraint range: {"max": 65535, "min": "100"}
+//	rules[0]protocol      "NONSENSE"   200, and the rule reads back as ANY
+//
+// Four things this pack had wrong, and they pull in both directions.
+//
+//  1. THE PORT RANGE WAS NOT CHECKED AT ALL when the high port was zero. The
+//     comment here said so and said why: "whether the real API narrows this
+//     further is unmeasured, and being permissive where the measurement is
+//     missing is the safe side". That was the right call with no measurement and
+//     it is the wrong answer with one. The cloud refuses `dst_port_high: 0`
+//     beside a non-zero low, and that is exactly what the Terraform provider
+//     sends for the commonest rule there is — one port, opened. Three rules out
+//     of three in the reporter's stack were that shape, green here and refused
+//     there.
+//
+//  2. AN INVALID RANGE ANSWERS TWO DETAILS, not one: the low and the high
+//     together, because the constraint is on the pair. Their order is not
+//     stable between two runs of the same request, so nothing here depends on
+//     it.
+//
+//  3. THE MIN OF THE HIGH PORT IS A STRING and the min of the low port is a
+//     number, in the same body. Nobody would invent that, which is why it is
+//     copied rather than tidied.
+//
+//  4. argument_name IS `rules[0]field`, with no dot and no dot before the
+//     field. This pack wrote `rules.0.field`, which is wrong for every rule
+//     error and not only for the ports.
+//
+// And one refusal REMOVED. An unknown protocol is normalised to ANY by the
+// cloud, not refused — measured, `NONSENSE` answers 200 and reads back as ANY.
+// This pack refused it, which is the rarer direction of divergence and the
+// harmless-looking one: a client that would have worked against fr-par met a
+// 400 here. Being stricter than the cloud is still being different from it.
+//
+// TestSetACLRefusesWhatTheEnumsRefuse fails without this.
+func validateACLRule(rule aclRule, index int) (map[string]any, []ArgumentError) {
 	at := func(field string) string {
-		return "rules." + strconv.Itoa(index) + "." + field
+		return "rules[" + strconv.Itoa(index) + "]" + field
 	}
 	protocol := strings.ToUpper(strings.TrimSpace(rule.Protocol))
-	if protocol == "" {
-		// ACLRuleProtocol.String() answers ANY for the empty value, so an
-		// omitted protocol is ANY rather than an error. Read from the SDK
-		// (vpc_sdk.go, ACLRuleProtocol.String), not assumed.
+	// ACLRuleProtocol.String() answers ANY for the empty value, so an omitted
+	// protocol is ANY rather than an error (vpc_sdk.go). And so is a protocol
+	// nobody declares: the cloud normalises rather than refuses, measured.
+	if !aclProtocols[protocol] {
 		protocol = "ANY"
 	}
-	if !aclProtocols[protocol] {
-		return nil, &ArgumentError{ArgumentName: at("protocol"), Reason: "constraint",
-			HelpMessage: "protocol must be one of ANY, TCP, UDP, ICMP"}
-	}
 	if !aclActions[rule.Action] {
-		return nil, &ArgumentError{ArgumentName: at("action"), Reason: "constraint",
-			HelpMessage: "action must be accept or drop"}
+		return nil, []ArgumentError{{
+			ArgumentName: at("action"),
+			Reason:       "unknown",
+			HelpMessage:  `action: {"must_match_one_of": "Accept, Drop"}`,
+		}}
 	}
 	if _, err := network.ParseCIDR(rule.Source); err != nil {
-		return nil, &ArgumentError{ArgumentName: at("source"), Reason: "format", HelpMessage: err.Error()}
+		return nil, []ArgumentError{{ArgumentName: at("source"), Reason: "unknown", HelpMessage: "network: {}"}}
 	}
 	if _, err := network.ParseCIDR(rule.Destination); err != nil {
-		return nil, &ArgumentError{ArgumentName: at("destination"), Reason: "format", HelpMessage: err.Error()}
+		return nil, []ArgumentError{{ArgumentName: at("destination"), Reason: "unknown", HelpMessage: "network: {}"}}
 	}
 	for _, port := range []struct {
 		lowName, highName string
@@ -246,21 +286,22 @@ func validateACLRule(rule aclRule, index int) (map[string]any, *ArgumentError) {
 		{lowName: "src_port_low", highName: "src_port_high", low: rule.SrcPortLow, high: rule.SrcPortHigh},
 		{lowName: "dst_port_low", highName: "dst_port_high", low: rule.DstPortLow, high: rule.DstPortHigh},
 	} {
-		if port.low > 65535 || port.high > 65535 {
-			return nil, &ArgumentError{ArgumentName: at(port.lowName), Reason: "constraint",
-				HelpMessage: "a port is between 0 and 65535"}
-		}
-		// A high of zero is "unset", not "port 0": both ports are non-pointer
-		// uint32 in the SDK, so a client that names only the low port sends a
-		// zero high, and refusing that pair would refuse the commonest rule
-		// there is. What this catches is the inverted range a client wrote by
-		// hand. Whether the real API narrows this further is unmeasured, and
-		// being permissive where the measurement is missing is the safe side:
-		// a refusal invented here is a defect a client meets, an acceptance is
-		// a check this emulator does not make.
-		if port.high != 0 && port.low > port.high {
-			return nil, &ArgumentError{ArgumentName: at(port.highName), Reason: "constraint",
-				HelpMessage: "the high port of a range is not below its low port"}
+		if port.low > 65535 || port.high > 65535 || port.low > port.high {
+			// Both bounds, because the constraint is on the pair and the cloud
+			// names both. The high port's min is the low port's value, rendered
+			// as a string; the low port's is the number 0.
+			return nil, []ArgumentError{
+				{
+					ArgumentName: at(port.lowName),
+					Reason:       "constraint",
+					HelpMessage:  `range: {"min": 0, "max": 65535}`,
+				},
+				{
+					ArgumentName: at(port.highName),
+					Reason:       "constraint",
+					HelpMessage:  `range: {"min": "` + strconv.FormatUint(uint64(port.low), 10) + `", "max": 65535}`,
+				},
+			}
 		}
 	}
 	out := map[string]any{

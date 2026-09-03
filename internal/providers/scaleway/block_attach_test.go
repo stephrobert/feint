@@ -211,31 +211,33 @@ func TestACreateNamingABlockVolumeAttachesIt(t *testing.T) {
 	}
 }
 
-// An instance snapshot of a block volume works, and does not promise the block
-// product.
+// An instance/v1 snapshot of a block volume is REFUSED, and the refusal names
+// which product answered.
 //
-// The route resolved kindVolume alone, so it answered 404 on the disk the same
-// emulator published under the server's volumes["0"]. It answers now — and the
-// TYPE it answers was got wrong once, in this same change, which is why the
-// assertion below is about what the value must NOT be.
+// This test asserted the opposite until 2026-09-03, and the reason it did was
+// sound when it was written: the route resolved kindVolume alone and answered
+// 404 on the disk the same emulator published under the server's volumes["0"]
+// (#571). Making it resolve both products fixed that 404 and introduced a
+// different one — the emulator accepting what fr-par refuses.
 //
-// sbs_snapshot was the first answer, read straight off the SDK's
-// VolumeVolumeType enum, and it broke a command: `scw instance image list` calls
-// block.GetSnapshot for every image whose root_volume.volume_type is
-// sbs_snapshot and fails the WHOLE listing on error (scaleway-cli 2.56.3,
-// internal/namespaces/instance/v1/custom_image.go:222). Cutting an image from
-// such a snapshot made `scw instance image list` answer "cannot find resource
-// 'snapshot'" for the entire zone — measured 2026-08-28, against the emulator
-// this test runs in.
+// Measured (#648):
 //
-// So the invariant is not "the type is unified". It is: **a type that promises
-// the block product must be answerable by the block product**, and this test
-// asserts the promise rather than the spelling, so it keeps holding the day a
-// snapshot really does cross the two.
+//	POST /instance/v1/zones/fr-par-1/snapshots  {"volume_id": "<a block volume>"}
+//	  404 {"type": "not_found", "message": "resource is not found",
+//	       "resource": "instance_volume", "resource_id": "<the id>"}
 //
-// What a client asks for still wins, because the request field "overrides the
-// volume_type of the snapshot" in the SDK's own words.
-func TestAnInstanceSnapshotOfABlockVolumeDoesNotPromiseTheBlockProduct(t *testing.T) {
+// A block volume is not an instance_volume, and `resource` is the field a client
+// reads to know WHICH thing was not found. The permissive version was the
+// direction that costs: a golden-image path built on it is green here and fails
+// against the cloud, which is what the reporter met.
+//
+// The type question this test used to carry is settled elsewhere and stays
+// settled: an instance snapshot must not promise the block product, because
+// `scw instance image list` calls block.GetSnapshot for every image whose
+// root_volume.volume_type is sbs_snapshot and fails the WHOLE listing on error
+// (scaleway-cli 2.56.3, custom_image.go:222). Nothing here can promise it any
+// more, since nothing here can be taken of a block volume.
+func TestAnInstanceSnapshotRefusesAVolumeItDoesNotOwn(t *testing.T) {
 	ts := newTestServer(t)
 	_, body := serverWith(t, ts,
 		`{"name":"sbs","commercial_type":"DEV1-S","volumes":{"0":{"volume_type":"sbs_volume","size":20000000000}}}`)
@@ -244,37 +246,49 @@ func TestAnInstanceSnapshotOfABlockVolumeDoesNotPromiseTheBlockProduct(t *testin
 	rootID, _ := root["id"].(string)
 
 	status, out := do(t, ts, "POST", zone+"/snapshots", `{"name":"snap","volume_id":"`+rootID+`"}`)
+	if status != http.StatusNotFound {
+		t.Fatalf("an instance snapshot of a block volume answered %d, want 404: %v", status, out)
+	}
+	if out["resource"] != "instance_volume" {
+		t.Errorf("resource is %v, want instance_volume: it is the field that says which product "+
+			"did not hold the id", out["resource"])
+	}
+	if out["resource_id"] != rootID {
+		t.Errorf("resource_id is %v, want the volume that was named", out["resource_id"])
+	}
+	if out["type"] != "not_found" {
+		t.Errorf("type is %v, want not_found", out["type"])
+	}
+
+	// The accepting half, without which a guard that refused every snapshot
+	// would satisfy the assertions above and break the product: a volume
+	// instance/v1 DOES own is snapshotted, and the snapshot names it.
+	status, made := do(t, ts, "POST", zone+"/volumes",
+		`{"name":"owned","volume_type":"l_ssd","size":10000000000}`)
 	if status != http.StatusCreated {
-		t.Fatalf("snapshot of a block volume answered %d, want 201: %v", status, out)
+		t.Fatalf("create an instance volume: %d (%v)", status, made)
+	}
+	volume, _ := made["volume"].(map[string]any)
+	volumeID, _ := volume["id"].(string)
+
+	status, out = do(t, ts, "POST", zone+"/snapshots", `{"name":"snap","volume_id":"`+volumeID+`"}`)
+	if status != http.StatusCreated {
+		t.Fatalf("an instance snapshot of an instance volume answered %d, want 201: %v", status, out)
 	}
 	snap, _ := out["snapshot"].(map[string]any)
-	snapID, _ := snap["id"].(string)
 	base, _ := snap["base_volume"].(map[string]any)
-	if base == nil || base["id"] != rootID {
+	if base == nil || base["id"] != volumeID {
 		t.Errorf("the snapshot does not name the volume it was taken of: %v", snap["base_volume"])
 	}
 	// The size comes from the volume, not from the catalogue default: a
-	// snapshot that reports 20 GB of a 40 GB disk is a lie a client stores.
-	if size, _ := snap["size"].(float64); size != 20000000000 {
-		t.Errorf("the snapshot reports size %v, want the volume's 20000000000", snap["size"])
+	// snapshot that reports 20 GB of a 10 GB disk is a lie a client stores.
+	if size, _ := snap["size"].(float64); size != 10000000000 {
+		t.Errorf("the snapshot reports size %v, want the volume's 10000000000", snap["size"])
 	}
-	// b_ssd would name the product it was NOT taken from.
-	if snap["volume_type"] != "unified" {
-		t.Errorf("the snapshot of a block volume is typed %v, want unified: the fallback names the "+
-			"instance product, and stating the value keeps this test discriminating whatever that "+
-			"fallback becomes (it was b_ssd until #393)", snap["volume_type"])
-	}
-	// And the promise: sbs_snapshot means "this id resolves in block/v1alpha1".
-	if snap["volume_type"] == "sbs_snapshot" {
-		if status, _ := do(t, ts, "GET", blockURL+"/snapshots/"+snapID, ""); status != http.StatusOK {
-			t.Errorf("the snapshot is typed sbs_snapshot and block answers %d for it: "+
-				"`scw instance image list` reads block.GetSnapshot on exactly that type and fails the whole listing", status)
-		}
-	}
-
-	// A named type wins, because the request field overrides.
+	// And a named type still wins, because the request field overrides the
+	// volume's in the SDK's own words.
 	status, out = do(t, ts, "POST", zone+"/snapshots",
-		`{"name":"unified","volume_id":"`+rootID+`","volume_type":"unified"}`)
+		`{"name":"unified","volume_id":"`+volumeID+`","volume_type":"unified"}`)
 	if status != http.StatusCreated {
 		t.Fatalf("snapshot with an explicit type answered %d: %v", status, out)
 	}

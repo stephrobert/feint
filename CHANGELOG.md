@@ -80,6 +80,46 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Fixed
 
+- **Two inputs the cloud refuses and this emulator accepted, and one it accepts
+  that this emulator refused** (#648, reported with a differential run: the same
+  Terraform stack against `main` and against `api.scaleway.com`).
+
+  The reported pair, both in the direction that costs — a client green here
+  learns nothing about the real cloud:
+
+  | input | `fr-par` | before |
+  |---|---|---|
+  | an ACL rule whose `dst_port_high` is below `dst_port_low` | 400, and it names **both** bounds | 200 |
+  | `instance/v1 CreateSnapshot` on a block (SBS) volume | 404 `not_found`, `resource: instance_volume` | 201 |
+
+  The first is not an exotic input: **it is what the Terraform provider sends for
+  the commonest rule there is**, one port opened, since a rule that names only
+  `dst_port_low` leaves the high bound at zero. Three rules out of three in the
+  reporter's stack were that shape.
+
+  The second is the golden-image pattern. A server's root disk lives in `block`
+  since #365 — which is what the cloud gives a DEV1-S — and a block volume is not
+  an `instance_volume`, so instance/v1 does not snapshot it. This pack resolved
+  both products there on purpose (#571) and the measurement reverses that: the
+  reason it was written has been served differently since, and the conformance
+  suite had already stopped taking that route.
+
+  **Measuring it turned up two more divergences on the same route**, and one goes
+  the other way:
+
+  - `argument_name` is `rules[0]dst_port_high` — no dot before the index, none
+    before the field. This pack wrote `rules.0.dst_port_high`, wrong for every
+    rule error rather than for one of them. The `reason` differs per field too:
+    `unknown` for `action` and `source`, `constraint` for the ports.
+  - **an unknown protocol is normalised to `ANY`, not refused.** `NONSENSE`
+    answers 200 and reads back as `ANY`. This pack refused it — the rarer
+    direction, stricter than the cloud, and a client that would have worked
+    against `fr-par` met a 400 here. Being stricter is still being different.
+
+  One detail is copied rather than tidied because nobody would invent it: in the
+  same body, the high bound's `min` is the **string** `"443"` and the low bound's
+  is the **number** `0`.
+
 - **The `organization` filter was ignored, so an organization that owns nothing
   here answered the whole fleet** (#638). Seven of `ListServers`' eight declared
   filters partitioned the set exactly, `project` included and with the same

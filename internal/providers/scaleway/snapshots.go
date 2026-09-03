@@ -83,16 +83,37 @@ func (p *Pack) createSnapshot(w http.ResponseWriter, r *http.Request) {
 	size := uint64(rootVolumeSize)
 	base := map[string]any{"id": "", "name": ""}
 	if req.VolumeID != nil && *req.VolumeID != "" {
-		// Both products. A server's root disk lives in block as soon as the
-		// client asks for sbs_volume, and this resolved kindVolume alone — so
-		// `scw instance snapshot create volume-id=<that root>` answered 404 on
-		// the disk the same emulator had just published in the server's own
-		// volumes map (#571). The conformance suite's golden-image path takes
-		// exactly that route: it snapshots volumes["0"] and cuts an image from
-		// the snapshot.
-		volume, found := p.anyVolume(*req.VolumeID)
+		// instance/v1 alone, and the resource name in the refusal says which
+		// product answered (#648).
+		//
+		// This resolved BOTH products until 2026-09-03, and the reason was
+		// sound when it was written: a server's root disk lives in block since
+		// #365, and resolving kindVolume alone answered 404 on the disk the same
+		// emulator had just published in the server's own volumes map (#571).
+		//
+		// The measurement reverses it. Against fr-par, an instance/v1
+		// CreateSnapshot naming a block volume answers:
+		//
+		//	404 {"type": "not_found", "message": "resource is not found",
+		//	     "resource": "instance_volume", "resource_id": "<the id>"}
+		//
+		// A block volume is not an instance_volume, and the cloud says so in the
+		// one field a client reads to know WHICH thing was not found. The
+		// emulator was more permissive than the cloud in the direction that
+		// costs: a golden-image path built this way is green here and fails
+		// there.
+		//
+		// Nothing in this repository needed the permissive version any more.
+		// The conformance suite already stopped taking that route — its own
+		// comment says `scw instance snapshot create volume-id=<a block volume>`
+		// cannot be the subject, because the CLI calls instance.GetVolume itself
+		// before it sends anything — and it snapshots a block volume through
+		// block/v1, the product that owns it.
+		//
+		// TestAnInstanceSnapshotRefusesAVolumeItDoesNotOwn fails without this.
+		volume, found := p.env.Store.Get(Name, kindVolume, *req.VolumeID)
 		if !found {
-			writeNotFound(w, "volume", *req.VolumeID)
+			writeNotFound(w, "instance_volume", *req.VolumeID)
 			return
 		}
 		base = map[string]any{
@@ -102,44 +123,27 @@ func (p *Pack) createSnapshot(w http.ResponseWriter, r *http.Request) {
 		if volumeType == "" {
 			volumeType = textOf(volume.Attrs["volume_type"])
 		}
-		// A block volume carries no volume_type attribute — its product has one
-		// class, "sbs" — so the reading above leaves it empty and the default
-		// below would call the snapshot b_ssd, which is a different product.
+		// The `unified` branch that stood here is gone with its subject (#648).
 		//
-		// `unified` rather than `sbs_snapshot`, and the difference was MEASURED
-		// rather than reasoned. sbs_snapshot was the first answer here, read
-		// straight off the SDK's VolumeVolumeType enum, and it broke a command:
-		// `scw instance image list` calls block.GetSnapshot for every image whose
-		// root_volume.volume_type is sbs_snapshot and fails the WHOLE listing on
-		// error (scaleway-cli 2.56.3,
-		// internal/namespaces/instance/v1/custom_image.go:222). Cutting an image
-		// from such a snapshot therefore made `scw instance image list` answer
-		// "cannot find resource 'snapshot'" for the entire zone — measured
-		// 2026-08-28. sbs_snapshot is a promise that the id resolves in the
-		// BLOCK product, and this snapshot lives in instance/v1.
+		// It typed the snapshot of a BLOCK volume, and this route no longer takes
+		// one: fr-par answers 404 instance_volume for that request, and so does
+		// this pack now. A branch for an input that cannot arrive is a control
+		// that can never fire, which is the defect this repository names.
 		//
-		// `unified` is the value the CLI itself sends for this very input: with
-		// `unified=true` it skips the volume lookup entirely and asks for
-		// SnapshotVolumeTypeUnified, whatever the volume is. And without that
-		// flag it reads the volume through instance.GetVolume and gives up on a
-		// 404 — so unified is the ONLY instance snapshot of a block volume any
-		// scw user can ask for.
+		// What it was protecting is worth keeping written down, because it is
+		// measured and it will matter again the day an instance snapshot really
+		// can cross into block. `sbs_snapshot` is a PROMISE that the id resolves
+		// in the block product: `scw instance image list` calls block.GetSnapshot
+		// for every image whose root_volume.volume_type is sbs_snapshot and fails
+		// the WHOLE listing on error (scaleway-cli 2.56.3,
+		// internal/namespaces/instance/v1/custom_image.go:222). Answering it for
+		// a snapshot block cannot resolve made `scw instance image list` say
+		// "cannot find resource 'snapshot'" for an entire zone, measured
+		// 2026-08-28. So: a type that names the block product must be answerable
+		// by the block product.
 		//
-		// What is not settled, and is not this change's to settle: whether the
-		// cloud makes such a snapshot readable through block/v1alpha1 as well.
-		// If it does, the honest answer is sbs_snapshot AND a snapshot that
-		// answers on both doors — which is the volume work of #571 done again
-		// for snapshots, and nothing here has measured it.
-		//
-		// TestAnInstanceSnapshotOfABlockVolumeDoesNotPromiseTheBlockProduct
-		// fails without this.
-		//
-		// Only when the client named none: the request field "overrides the
-		// volume_type of the snapshot", which is the SDK's own wording, so a
-		// client that asked for one keeps it.
-		if volumeType == "" && volume.Kind == kindBlockVolume {
-			volumeType = "unified"
-		}
+		// TestAnInstanceSnapshotRefusesAVolumeItDoesNotOwn holds the refusal that
+		// replaced the branch.
 		// Through the shared reader: the assertion this replaces answered
 		// ok=false on a volume that had crossed a snapshot, so a snapshot taken
 		// after a `feint snapshot load` recorded a size of zero (#542).

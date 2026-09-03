@@ -1,0 +1,47 @@
+{
+  "package": "./internal/providers/scaleway/",
+  "mutations": [
+    {
+      "label": "a high port left at zero is accepted again, so the commonest Terraform rule is green here and refused by the cloud",
+      "file": "internal/providers/scaleway/acl.go",
+      "find": "\t\tif port.low > 65535 || port.high > 65535 || port.low > port.high {",
+      "replace": "\t\tif port.low > 65535 || port.high > 65535 || (port.low > port.high && port.high != 0) {",
+      "test": "TestSetACLRefusesWhatTheEnumsRefuse"
+    },
+    {
+      "label": "the refusal names rules.0.field again, which is a shape the cloud never sends",
+      "file": "internal/providers/scaleway/acl.go",
+      "find": "\t\treturn \"rules[\" + strconv.Itoa(index) + \"]\" + field",
+      "replace": "\t\treturn \"rules.\" + strconv.Itoa(index) + \".\" + field",
+      "test": "TestSetACLRefusesWhatTheEnumsRefuse"
+    },
+    {
+      "label": "an invalid range names one bound instead of the pair the cloud names",
+      "file": "internal/providers/scaleway/acl.go",
+      "find": "\t\t\treturn nil, []ArgumentError{\n\t\t\t\t{\n\t\t\t\t\tArgumentName: at(port.lowName),",
+      "replace": "\t\t\treturn nil, []ArgumentError{\n\t\t\t\t{\n\t\t\t\t\tArgumentName: at(port.highName),",
+      "test": "TestSetACLRefusesWhatTheEnumsRefuse"
+    },
+    {
+      "label": "an unknown protocol is refused again, which is stricter than the cloud and turns a working client away",
+      "file": "internal/providers/scaleway/acl.go",
+      "find": "\tif !aclProtocols[protocol] {\n\t\tprotocol = \"ANY\"\n\t}",
+      "replace": "\tif !aclProtocols[protocol] {\n\t\treturn nil, []ArgumentError{{ArgumentName: at(\"protocol\"), Reason: \"constraint\", HelpMessage: \"unknown protocol\"}}\n\t}",
+      "test": "TestSetACLRefusesWhatTheEnumsRefuse"
+    },
+    {
+      "label": "instance/v1 resolves a block volume again, so a golden-image path built on it is green here and fails against the cloud",
+      "file": "internal/providers/scaleway/snapshots.go",
+      "find": "\t\tvolume, found := p.env.Store.Get(Name, kindVolume, *req.VolumeID)\n\t\tif !found {\n\t\t\twriteNotFound(w, \"instance_volume\", *req.VolumeID)",
+      "replace": "\t\tvolume, found := p.env.Store.Get(Name, kindVolume, *req.VolumeID)\n\t\tif !found {\n\t\t\tvolume, found = p.anyVolume(*req.VolumeID)\n\t\t}\n\t\tif !found {\n\t\t\twriteNotFound(w, \"instance_volume\", *req.VolumeID)",
+      "test": "TestAnInstanceSnapshotRefusesAVolumeItDoesNotOwn"
+    },
+    {
+      "label": "the refusal says `volume` where the cloud says `instance_volume`, so a client cannot tell which product did not hold the id",
+      "file": "internal/providers/scaleway/snapshots.go",
+      "find": "\t\t\twriteNotFound(w, \"instance_volume\", *req.VolumeID)",
+      "replace": "\t\t\twriteNotFound(w, \"volume\", *req.VolumeID)",
+      "test": "TestAnInstanceSnapshotRefusesAVolumeItDoesNotOwn"
+    }
+  ]
+}

@@ -86,6 +86,49 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Corrigé
 
+- **Deux entrées que le cloud refuse et que cet émulateur acceptait, et une qu'il
+  accepte et que cet émulateur refusait** (#648, signalé par une exécution
+  différentielle : la même stack Terraform contre `main` et contre
+  `api.scaleway.com`).
+
+  La paire signalée, toutes deux dans la direction qui coûte, puisqu'un client
+  vert ici n'apprend rien sur le vrai cloud :
+
+  | entrée | `fr-par` | avant |
+  |---|---|---|
+  | une règle d'ACL dont `dst_port_high` est sous `dst_port_low` | 400, et il nomme **les deux** bornes | 200 |
+  | `instance/v1 CreateSnapshot` sur un volume block (SBS) | 404 `not_found`, `resource: instance_volume` | 201 |
+
+  La première n'est pas une entrée exotique : **c'est ce que le fournisseur
+  Terraform envoie pour la règle la plus courante qui soit**, un port ouvert,
+  puisqu'une règle qui ne nomme que `dst_port_low` laisse la borne haute à zéro.
+  Trois règles sur trois dans la stack du rapporteur avaient cette forme.
+
+  La seconde est le motif de l'image dorée. Le disque système d'un serveur vit
+  dans `block` depuis #365, ce que le cloud donne à un DEV1-S, et un volume block
+  n'est pas un `instance_volume` : instance/v1 n'en prend donc pas d'instantané.
+  Ce pack résolvait les deux produits là exprès (#571), et la mesure renverse ce
+  choix : la raison qui l'avait motivé est servie autrement depuis, et la suite
+  de conformance avait déjà cessé d'emprunter ce chemin.
+
+  **La mesure a fait apparaître deux écarts de plus sur la même route**, dont un
+  en sens inverse :
+
+  - `argument_name` s'écrit `rules[0]dst_port_high`, sans point avant l'indice ni
+    avant le champ. Ce pack écrivait `rules.0.dst_port_high`, faux pour toutes
+    les erreurs de règle et pas seulement pour l'une d'elles. Le `reason` diffère
+    aussi selon le champ : `unknown` pour `action` et `source`, `constraint` pour
+    les ports.
+  - **un protocole inconnu est normalisé en `ANY`, pas refusé.** `NONSENSE`
+    répond 200 et se relit en `ANY`. Ce pack le refusait, ce qui est la direction
+    la plus rare, plus stricte que le cloud : un client qui aurait fonctionné
+    contre `fr-par` rencontrait un 400 ici. Être plus strict, c'est encore être
+    différent.
+
+  Un détail est recopié plutôt que rangé, parce que personne ne l'inventerait :
+  dans le même corps, le `min` de la borne haute est la **chaîne** `"443"` et
+  celui de la borne basse le **nombre** `0`.
+
 - **Le filtre `organization` était ignoré, donc une organisation qui ne possède
   rien ici répondait toute la flotte** (#638). Sept des huit filtres déclarés de
   `ListServers` partitionnaient l'ensemble exactement, `project` compris et avec
