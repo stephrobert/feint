@@ -171,3 +171,41 @@ func TestCommitKeepsAConcurrentWriteToAnotherField(t *testing.T) {
 		t.Fatalf("the acknowledged tag was erased by a writer that never touched it: %v", stored.Attrs["tags"])
 	}
 }
+
+// Commit carries the only-signal mark with the chain it merges (#654).
+//
+// The pack pushes both on a clone it holds outside the lock, and Commit is the
+// door back in. A chain that arrives without its mark is a chain the store
+// walks in one mode out of two, so the action it was the only signal of becomes
+// invisible again in the default mode — the exact defect, one layer further in.
+//
+// Merged on the same condition as the chain, which the second half asserts: a
+// caller that touched neither leaves the stored mark alone.
+func TestCommitCarriesTheOnlySignalMarkWithTheChain(t *testing.T) {
+	s := store.New()
+	base := resource.New("id-1", "server", resource.Tenant{Provider: "p"}, "running",
+		time.Unix(1700000000, 0).UTC())
+	s.Put(base)
+
+	held, _ := s.Get("p", "server", "id-1")
+	before, _ := s.Get("p", "server", "id-1")
+	held.Pending = []string{"stopping", "starting", "running"}
+	held.PendingOnlySignal = true
+	if !s.Commit(before, held, time.Unix(1700000001, 0).UTC()) {
+		t.Fatal("commit refused")
+	}
+	// The store walks it now, which is only true if the mark came through.
+	if got, _ := s.Get("p", "server", "id-1"); got.State != "stopping" {
+		t.Errorf("after a commit the resource answers %q, want stopping: the mark did not travel", got.State)
+	}
+
+	// And a commit that touched neither leaves what is stored alone.
+	stored, _ := s.Get("p", "server", "id-1")
+	again, _ := s.Get("p", "server", "id-1")
+	if !s.Commit(stored, again, time.Unix(1700000002, 0).UTC()) {
+		t.Fatal("second commit refused")
+	}
+	if got, _ := s.Get("p", "server", "id-1"); got.State != "running" {
+		t.Errorf("the chain answers %q, want running: a commit that changed nothing disturbed it", got.State)
+	}
+}

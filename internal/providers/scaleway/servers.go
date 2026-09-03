@@ -897,6 +897,12 @@ func (p *Pack) serverAction(w http.ResponseWriter, r *http.Request) {
 // answers something other than the accepted task.
 func (p *Pack) applyServerAction(w http.ResponseWriter, r *http.Request, req serverActionRequest,
 	res *resource.Resource, id, zone string, now time.Time, reply *func()) bool {
+	// Where the action starts, read before anything below moves it. Captured
+	// here rather than beside each chain, because two of the cases set the
+	// state themselves first: a value read after that is the state the action
+	// ARRIVED at, and a chain built from it would say every action settles
+	// where it began (#654).
+	before := res.State
 	switch req.Action {
 	case "poweron":
 		// A poweron on a server that is already running is not a second launch.
@@ -926,7 +932,7 @@ func (p *Pack) applyServerAction(w http.ResponseWriter, r *http.Request, req ser
 			// them. Pushed after the machine call, so a start that FAILED keeps
 			// the failed state it earned rather than walking a chain towards a
 			// running it never reached.
-			transitionTo(res, res.State, "starting")
+			transitionTo(res, before, res.State, "starting")
 		}
 		res.Attrs["allowed_actions"] = allowedActions(res.State, protectedServer(res))
 	case "reboot":
@@ -952,7 +958,7 @@ func (p *Pack) applyServerAction(w http.ResponseWriter, r *http.Request, req ser
 		// proves nothing to a client waiting on it: the only signal available
 		// without task support is watching the machine LEAVE its initial state,
 		// and there was nothing to see.
-		transitionTo(res, res.State, "stopping", "starting")
+		transitionBackTo(res, before, res.State, "stopping", "starting")
 		res.Attrs["allowed_actions"] = allowedActions(res.State, protectedServer(res))
 	case "poweroff", "stop_in_place":
 		// Two actions, two states, and the difference is not cosmetic: the SDK
@@ -975,7 +981,7 @@ func (p *Pack) applyServerAction(w http.ResponseWriter, r *http.Request, req ser
 		// the whole difference between dynamic and flexible.
 		p.releaseDynamicAddress(r.Context(), res)
 		p.stopMachine(r.Context(), res)
-		transitionTo(res, res.State, "stopping")
+		transitionTo(res, before, res.State, "stopping")
 	case "terminate":
 		p.releaseDynamicAddress(r.Context(), res)
 		p.removeMachine(r.Context(), res)
@@ -1933,7 +1939,28 @@ func (p *Pack) nextVolumeKey(res *resource.Resource) string {
 // this project exists to avoid.
 //
 // TestARebootIsObservableUnderEventualConsistency fails without this.
-func transitionTo(res *resource.Resource, settled string, through ...string) {
+// transitionBackTo is transitionTo for an action that means to settle where it
+// started, which today is exactly one: a reboot.
+//
+// The chain it pushes is the action's only signal, so the store walks it in
+// both consistency modes (#654). The mark is still conditional on the action
+// having come back: a reboot of a STOPPED server is a start, arrives somewhere
+// new, and gets an ordinary chain like any other.
+//
+// The intent is declared here rather than inferred from `from == settled`
+// alone, because a failed action also settles where it started. A poweron that
+// could not boot stays `stopped`, and marking that chain would have the API
+// narrate a `starting` that never happened, one read at a time.
+// TestAnUnknownImageDoesNotBootASubstitute caught exactly that.
+//
+// TestOnlyAChainThatSettlesWhereItStartedIsTheOnlySignal and
+// TestARebootIsObservableWithoutEventualConsistency fail without this.
+func transitionBackTo(res *resource.Resource, from, settled string, through ...string) {
+	transitionTo(res, from, settled, through...)
+	res.PendingOnlySignal = len(res.Pending) > 0 && from == settled
+}
+
+func transitionTo(res *resource.Resource, from, settled string, through ...string) {
 	if len(through) == 0 {
 		return
 	}
@@ -1945,8 +1972,13 @@ func transitionTo(res *resource.Resource, settled string, through ...string) {
 	}
 	res.State = settled
 	res.Pending = append(append([]string(nil), through...), settled)
+	// An ordinary chain narrates a change the state already carries, so the
+	// consistency mode governs it. transitionBackTo is where a chain becomes
+	// the only signal an action happened.
+	res.PendingOnlySignal = false
 	// The first state a reader sees is the first of the chain, so the resource
 	// as stored has to be the one BEFORE the chain runs. Pending carries the
 	// settled state as its last step; State holds it too, so a store with the
-	// mode off answers exactly what it answered before.
+	// mode off answers exactly what it answered before — unless the chain is
+	// the action's only signal, and then it is walked in both modes.
 }

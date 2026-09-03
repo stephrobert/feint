@@ -114,29 +114,76 @@ func TestARebootIsObservableUnderEventualConsistency(t *testing.T) {
 	}
 }
 
-// With the mode off — the default — nothing about a reboot changed, which is
-// what keeps every other test in this package and the conformance suite
-// untouched.
+// A reboot is observable with the mode OFF, which is the default (#654).
 //
-// The accepting half of the guard above: a mechanism that made every emulator
-// walk chains would pass that test and change what every existing client sees.
-func TestARebootIsStillInstantWithoutEventualConsistency(t *testing.T) {
+// This test replaces one that asserted the opposite, and the reversal is the
+// decision #654 asked for. The old property was "with the mode off nothing
+// about a reboot changed", and it was true: measured on main, six reads of
+// `running` after a reboot that answered success. A Day-2 client cannot build
+// on that — an action that was ACCEPTED is not an action that HAPPENED, so a
+// waiter watches the state leave `running`, and here it never did. The reporter's
+// module timed out at 300 s against an emulator whose reboot had worked.
+//
+// poweron and poweroff stay observable in this mode by accident of arriving
+// somewhere else. Reboot is the one action whose target state is its starting
+// state, so it is the one the mode made invisible, and PendingOnlySignal is
+// what singles it out without the core learning the word.
+//
+// What does NOT change: the settled state. The chain still ends at `running`,
+// and a client that reads twice more sees it.
+func TestARebootIsObservableWithoutEventualConsistency(t *testing.T) {
 	ts := newTestServer(t)
 	id, _ := serverWith(t, ts, `{"name":"rebooter","commercial_type":"DEV1-S"}`)
 
 	if status, _ := do(t, ts, "POST", zoneURL+"/servers/"+id+"/action", `{"action":"poweron"}`); status != http.StatusAccepted {
 		t.Fatalf("poweron: %d", status)
 	}
+	// The accepting half, and it is not decoration: a mechanism that walked
+	// every chain in every mode would pass the reboot assertions below and
+	// change what every existing client sees of a poweron.
 	if got := state(t, ts, id); got != "running" {
-		t.Fatalf("poweron answered %q rather than settling at running", got)
+		t.Fatalf("poweron answered %q rather than settling at running, with the mode off", got)
 	}
 	if status, _ := do(t, ts, "POST", zoneURL+"/servers/"+id+"/action", `{"action":"reboot"}`); status != http.StatusAccepted {
 		t.Fatalf("reboot: %d", status)
 	}
-	for i := 0; i < 3; i++ {
+	want := []string{"stopping", "starting", "running"}
+	for i, expect := range want {
+		if got := state(t, ts, id); got != expect {
+			t.Fatalf("read %d after a reboot answered %q, want %q: the chain a client waits on", i, got, expect)
+		}
+	}
+	// And it settles: a client that keeps reading is not left walking for ever.
+	if got := state(t, ts, id); got != "running" {
+		t.Errorf("the reboot settled at %q, want running", got)
+	}
+}
+
+// A poweroff is NOT given the reboot's treatment, and neither is a poweron.
+//
+// Their chains narrate a change the state already carries, so the consistency
+// mode governs them as it did before #654. Without this the fix would be "walk
+// every chain always", which is the change nobody asked for: it would make a
+// local emulator answer `starting` to clients that have waited for nothing
+// since #124 settled that question.
+func TestAPoweronAndAPoweroffStaySettledWithoutEventualConsistency(t *testing.T) {
+	ts := newTestServer(t)
+	id, _ := serverWith(t, ts, `{"name":"plain","commercial_type":"DEV1-S"}`)
+
+	if status, _ := do(t, ts, "POST", zoneURL+"/servers/"+id+"/action", `{"action":"poweron"}`); status != http.StatusAccepted {
+		t.Fatalf("poweron: %d", status)
+	}
+	for i := 0; i < 2; i++ {
 		if got := state(t, ts, id); got != "running" {
-			t.Fatalf("read %d after a reboot answered %q, and with the mode off the state must "+
-				"never leave running", i, got)
+			t.Fatalf("read %d after a poweron answered %q, and with the mode off it settles at once", i, got)
+		}
+	}
+	if status, _ := do(t, ts, "POST", zoneURL+"/servers/"+id+"/action", `{"action":"poweroff"}`); status != http.StatusAccepted {
+		t.Fatalf("poweroff: %d", status)
+	}
+	for i := 0; i < 2; i++ {
+		if got := state(t, ts, id); got != "stopped" {
+			t.Fatalf("read %d after a poweroff answered %q, and with the mode off it settles at once", i, got)
 		}
 	}
 }

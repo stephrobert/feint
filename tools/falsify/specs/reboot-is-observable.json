@@ -1,0 +1,52 @@
+{
+  "mutations": [
+    {
+      "label": "a reboot's chain is no longer its only signal, so the default mode answers running on every read again",
+      "file": "internal/providers/scaleway/servers.go",
+      "package": "./internal/providers/scaleway/",
+      "find": "\tres.PendingOnlySignal = len(res.Pending) > 0 && from == settled",
+      "replace": "\tres.PendingOnlySignal = len(res.Pending) > 0 && from == settled && false",
+      "test": "TestARebootIsObservableWithoutEventualConsistency"
+    },
+    {
+      "label": "every chain becomes an only signal, so a poweron narrates `starting` to clients that never asked for it",
+      "file": "internal/core/store/store.go",
+      "package": "./internal/core/store/",
+      "find": "\tif !s.eventual && !r.PendingOnlySignal {",
+      "replace": "\tif !s.eventual && !r.PendingOnlySignal && false {",
+      "test": "TestAChainThatIsAnActionsOnlySignalIsWalkedInAnyMode"
+    },
+    {
+      "label": "the store keeps the read lock, so the chain it must walk is never walked",
+      "file": "internal/core/store/store.go",
+      "package": "./internal/core/store/",
+      "find": "\treturn s.eventual || s.onlySignal > 0\n}",
+      "replace": "\treturn s.eventual || (s.onlySignal > 0 && false)\n}",
+      "test": "TestAChainThatIsAnActionsOnlySignalIsWalkedInAnyMode"
+    },
+    {
+      "label": "the mark does not travel with the chain through Commit, so the pack's reboot loses it on the way to the store",
+      "file": "internal/core/store/store.go",
+      "package": "./internal/core/store/",
+      "find": "\t\t\tstored.PendingOnlySignal = res.PendingOnlySignal",
+      "replace": "\t\t\tstored.PendingOnlySignal = res.PendingOnlySignal && false",
+      "test": "TestCommitCarriesTheOnlySignalMarkWithTheChain"
+    },
+    {
+      "label": "an ordinary chain is marked when the action happens to end where it began, so a poweron that could not boot narrates a `starting` that never happened",
+      "file": "internal/providers/scaleway/servers.go",
+      "package": "./internal/providers/scaleway/",
+      "find": "\tres.PendingOnlySignal = false",
+      "replace": "\tres.PendingOnlySignal = from == settled",
+      "test": "TestAnUnknownImageDoesNotBootASubstitute"
+    },
+    {
+      "label": "the store stops counting the chains it must walk, so the lock it takes never lets one advance",
+      "file": "internal/core/store/store.go",
+      "package": "./internal/core/store/",
+      "find": "\tif walkable(after) {\n\t\ts.onlySignal++\n\t}",
+      "replace": "\tif walkable(after) && false {\n\t\ts.onlySignal++\n\t}",
+      "test": "TestAChainThatIsAnActionsOnlySignalIsWalkedInAnyMode"
+    }
+  ]
+}

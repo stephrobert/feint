@@ -64,9 +64,22 @@ ok "read back identical"
 # tools/conformance/functional.sh, which compares the runtime process across the call.
 echo "- reboot"
 scw instance server reboot "$id" zone="$ZONE" >/dev/null || fail "reboot rejected"
-state="$(scw instance server get "$id" zone="$ZONE" -o json | jq -r '.state')"
-[ "$state" = "running" ] || fail "expected the server to be running after a reboot, got '$state'"
-ok "rebooted, and still running"
+# Read until it settles, which is what a Day-2 client does, and record that it
+# LEFT running on the way (#654). A single read right after the call used to be
+# the check here, and it asserted the wrong thing: fr-par answers stopping then
+# starting to that read, so the assertion would have failed against the real
+# cloud and passed against an emulator that did nothing at all. An action that
+# was ACCEPTED is not an action that HAPPENED, and the transition is the only
+# thing that tells them apart from out here.
+left=""
+for _ in $(seq 1 10); do
+  state="$(scw instance server get "$id" zone="$ZONE" -o json | jq -r '.state')"
+  [ "$state" = "running" ] && break
+  left="$state"
+done
+[ -n "$left" ] || fail "the reboot never left running: nothing distinguishes it from an action that did not happen"
+[ "$state" = "running" ] || fail "the reboot did not settle back to running, got '$state'"
+ok "rebooted: left running through '$left', and settled back"
 
 # The CLI starts the server right after creating it, and the API refuses to delete a running
 # server. Powering off first is what a real user does, so the suite does it too.

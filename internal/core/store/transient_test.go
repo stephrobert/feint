@@ -1,6 +1,7 @@
 package store_test
 
 import (
+	"bytes"
 	"testing"
 	"time"
 
@@ -107,5 +108,71 @@ func TestPeekDoesNotAdvanceAChain(t *testing.T) {
 	got, _ := s.Get("p", "server", "id-1")
 	if got.State != "stopping" {
 		t.Errorf("the first observation after three peeks answered %q, want stopping", got.State)
+	}
+}
+
+// A chain marked as an action's only signal is walked with the mode off (#654).
+//
+// The distinction the store reads is a property of the chain, not of a
+// provider: PendingOnlySignal says "this action settles where it started, so
+// nothing else tells the client it happened". A reboot is the case that exists
+// today, and this core never learns the word.
+//
+// Both halves are asserted, because a store that walked everything would pass
+// the first one and undo #124: the ordinary chain beside it must stay inert.
+func TestAChainThatIsAnActionsOnlySignalIsWalkedInAnyMode(t *testing.T) {
+	s := store.New()
+
+	only := pendingServer()
+	only.ID = "only-signal"
+	only.PendingOnlySignal = true
+	s.Put(only)
+	s.Put(pendingServer()) // id-1, an ordinary chain
+
+	for i, want := range []string{"stopping", "starting", "running"} {
+		got, ok := s.Get("p", "server", "only-signal")
+		if !ok {
+			t.Fatal("the resource went missing")
+		}
+		if got.State != want {
+			t.Fatalf("read %d answers %q, want %q: a chain nothing else signals must walk in any mode", i, got.State, want)
+		}
+		if plain, _ := s.Get("p", "server", "id-1"); plain.State != "running" {
+			t.Fatalf("read %d moved the ordinary chain to %q: the mode still governs those", i, plain.State)
+		}
+	}
+	// Settled, and it stays settled rather than walking for ever.
+	if got, _ := s.Get("p", "server", "only-signal"); got.State != "running" {
+		t.Errorf("the chain settled at %q, want running", got.State)
+	}
+	// And the mark is spent with the chain: what is left is an ordinary
+	// resource, not one the store keeps taking the write lock for.
+	if got, _ := s.Get("p", "server", "only-signal"); got.PendingOnlySignal {
+		t.Error("a spent chain still carries its mark")
+	}
+}
+
+// The mark survives a snapshot, for the reason the chain does (#654).
+//
+// A reboot in flight when the state is saved is a reboot still in flight when
+// it is loaded. Restoring the states without the mark would leave a resource
+// with a chain no mode ever walks: it would answer the first state of the chain
+// for ever, which is worse than either behaviour this flag chooses between.
+func TestTheOnlySignalMarkSurvivesASnapshot(t *testing.T) {
+	s := store.New()
+	r := pendingServer()
+	r.PendingOnlySignal = true
+	s.Put(r)
+
+	var saved bytes.Buffer
+	if err := s.Snapshot(&saved); err != nil {
+		t.Fatalf("snapshot: %v", err)
+	}
+	loaded := store.New()
+	if err := loaded.Restore(bytes.NewReader(saved.Bytes())); err != nil {
+		t.Fatalf("restore: %v", err)
+	}
+	if got, ok := loaded.Get("p", "server", "id-1"); !ok || got.State != "stopping" {
+		t.Errorf("a restored chain answers %v, want stopping: the reboot was still in flight", got)
 	}
 }
