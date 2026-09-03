@@ -116,6 +116,34 @@ func (p *Pack) createSnapshot(w http.ResponseWriter, r *http.Request) {
 			writeNotFound(w, "instance_volume", *req.VolumeID)
 			return
 		}
+		// A disk nothing ever wrote to has nothing to snapshot, and fr-par says
+		// so in those words (#650):
+		//
+		//	400 {"type": "invalid_arguments", "message": "invalid argument(s)",
+		//	     "details": [{"reason": "constraint",
+		//	                  "help_message": "cannot create a RO disk from an empty disk"}]}
+		//
+		// No argument_name in that details entry, which is why ArgumentError
+		// omits the field when it is empty.
+		//
+		// ATTACHMENT is the line, measured rather than assumed: a volume never
+		// attached to anything is refused, and the root disk of a server that was
+		// created and never started is ACCEPTED. So the question is not whether
+		// the machine ran, it is whether the disk was ever anybody's.
+		//
+		// This is the third of the same shape in one report: the emulator more
+		// permissive than the cloud, so a green run here says nothing. It cost
+		// the reporter a real apply — the published example stack builds its
+		// golden image exactly this way, and the cloud refused it.
+		//
+		// TestASnapshotOfAVolumeNothingEverWroteToIsRefused fails without this.
+		if volume.Kind == kindVolume && volume.Runtime[runtimeAttachedKey] == "" {
+			writeInvalidArguments(w, ArgumentError{
+				Reason:      "constraint",
+				HelpMessage: "cannot create a RO disk from an empty disk",
+			})
+			return
+		}
 		base = map[string]any{
 			"id":   volume.ID,
 			"name": textOf(volume.Attrs["name"]),

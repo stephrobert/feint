@@ -300,11 +300,12 @@ func barrageCycle(ts *httptest.Server, tag string, problems chan<- string) {
 	// would live: snapshotting a volume while other workers create and delete
 	// servers.
 	//
-	// An INSTANCE volume, made here, and not the server's root disk. That one
-	// lives in block since #365, and instance/v1 answers 404 instance_volume for
-	// a volume it does not own (#648) — so the barrage would report forty
-	// refusals that are the API working. What it stresses is unchanged: the
-	// snapshot handler under concurrency.
+	// An instance volume, attached to this server and then snapshotted, which is
+	// the only subject the cloud takes. The root lives in block since #365 and
+	// instance/v1 answers 404 instance_volume for a volume it does not own
+	// (#648); a volume never attached to anything is refused for having nothing
+	// on it (#650). What the barrage stresses is unchanged: the snapshot handler
+	// under concurrency.
 	_ = rootID
 	status, made := doRaw(ts, "POST", zoneURL+"/volumes",
 		`{"name":"barrage-`+tag+`","volume_type":"l_ssd","size":10000000000}`)
@@ -312,11 +313,13 @@ func barrageCycle(ts *httptest.Server, tag string, problems chan<- string) {
 		problems <- fmt.Sprintf("%s: volume create answered %d", tag, status)
 	} else {
 		volume, _ := made["volume"].(map[string]any)
-		if id, _ := volume["id"].(string); id != "" {
-			if status, _ := doRaw(ts, "POST", zoneURL+"/snapshots",
-				`{"name":"barrage-`+tag+`","volume_id":"`+id+`"}`); status != http.StatusCreated {
-				problems <- fmt.Sprintf("%s: snapshot create answered %d", tag, status)
-			}
+		diskID, _ := volume["id"].(string)
+		if status, _ := doRaw(ts, "POST", zoneURL+"/servers/"+serverID+"/attach-volume",
+			`{"volume_id":"`+diskID+`"}`); status != http.StatusOK {
+			problems <- fmt.Sprintf("%s: attach-volume answered %d", tag, status)
+		} else if status, _ := doRaw(ts, "POST", zoneURL+"/snapshots",
+			`{"name":"barrage-`+tag+`","volume_id":"`+diskID+`"}`); status != http.StatusCreated {
+			problems <- fmt.Sprintf("%s: snapshot create answered %d", tag, status)
 		}
 	}
 

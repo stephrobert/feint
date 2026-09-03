@@ -25,6 +25,21 @@ const kindVolume = "instance/volume"
 // carries the server as an object, not as a bare ID.
 const runtimeServerKey = "server"
 
+// runtimeAttachedKey marks a volume that has been attached to a server at some
+// point, which is what fr-par uses to decide whether there is anything to
+// snapshot (#650).
+//
+// A mark rather than a look at the current owner, because the question is about
+// history: a volume detached from a dead server still carries what that server
+// wrote. runtimeServerKey answers "who holds it now" and goes on a detach; this
+// one answers "was it ever held" and does not.
+//
+// In Runtime and not in Attrs: it is emulator bookkeeping, and Attrs is the
+// provider's wire shape. It survives a snapshot for the same reason the backing
+// machine name does — a volume that was attached before the state was saved is
+// still a volume that was attached.
+const runtimeAttachedKey = "attached-once"
+
 type createVolumeRequest struct {
 	Name         string   `json:"name"`
 	Project      string   `json:"project"`
@@ -241,6 +256,19 @@ func (p *Pack) attachVolume(vol *resource.Resource, server *resource.Resource, s
 		vol.Runtime = map[string]string{}
 	}
 	vol.Runtime[runtimeServerKey] = server.ID
+	// Set here and never cleared: detachVolume drops the owner and leaves this,
+	// because the disk keeps whatever the machine wrote to it. Measured: a disk
+	// detached from a deleted server still snapshots on fr-par (201), so the
+	// question is "was it ever anybody's", not "is it attached now".
+	//
+	// The value is the volume's OWN identifier rather than a flag, and that is
+	// not decoration. storetest.Sweep holds that a runtime value naming
+	// something is an object exactly one resource owns — a container, a bridge —
+	// and a shared "1" made every marked volume claim the same object. An
+	// identifier the store already holds is excused by that invariant
+	// (isStoredIdentifier) and is unique per volume, which is both properties
+	// this mark needs.
+	vol.Runtime[runtimeAttachedKey] = vol.ID
 	vol.Attrs["server_name"] = serverName
 	return nil
 }
@@ -280,6 +308,12 @@ func (p *Pack) attachStoredVolume(vol *resource.Resource, server *resource.Resou
 			stored.Runtime = map[string]string{}
 		}
 		stored.Runtime[runtimeServerKey] = server.ID
+		// The same mark attachVolume sets, on the other door into this: a volume
+		// attached here has been somebody's, so it has something to snapshot
+		// (#650). Written twice would be written differently one day, which is
+		// why both doors set the same key to the same thing — the volume's own
+		// identifier.
+		stored.Runtime[runtimeAttachedKey] = stored.ID
 		stored.Attrs["server_name"] = serverName
 		// The mirror of what detachStoredVolume does on the way out, and the
 		// same asymmetry: block/v1's `status` IS res.State, so a volume a server

@@ -12,6 +12,21 @@
 # It exists to be run against Feint with no cloud account. Everything here is
 # ordinary Terraform: if it applies, re-plans empty and destroys, the emulator
 # held up under something that looks like production rather than under a test.
+#
+# WHAT THIS ASSERTS, AND WHAT IT DOES NOT (#646). It asserts the control plane:
+# the shapes, the ordering, the read-backs, the second plan being empty. It is
+# NOT routable as written, and that is a property of the topology rather than of
+# the emulator: two VPCs that share nothing cannot reach each other, so the
+# bastion in the workload VPC opens onto nothing in the management one. Under
+# `mode: off` — which is what feint.yaml declares, and why — nothing boots and
+# the difference never shows.
+#
+# It is written here because a reader who copies the Terraform without the yaml
+# has no other way to learn it. Somebody did, ran Ansible through the bastion
+# under `--vm incus-ovn`, and spent a while suspecting their own ProxyCommand.
+# If you want a topology packets actually cross, collapse to one VPC with
+# several private networks and attach the bastion to all of them — which trades
+# the isolation this stack demonstrates for reachability it does not.
 
 terraform {
   required_version = ">= 1.7.0"
@@ -135,8 +150,18 @@ resource "scaleway_vpc_private_network" "admin" {
   }
 }
 
-# A route a platform team really writes: reach the management range through the
-# admin network.
+# A route a platform team really writes, and the next hop is `app` on purpose.
+#
+# The comment here used to say "through the admin network", which is in the
+# OTHER VPC and cannot be a next hop for a route in this one — the two disagreed
+# and the code was the half that was right (#646). A route's next hop is a
+# private network of its own VPC; `app` is the workload VPC's, `admin` is the
+# management VPC's.
+#
+# So what this route demonstrates is the API — a destination, a next hop, a
+# read-back, an empty second plan — and not a path a packet takes. Nothing in
+# the workload VPC reaches 10.40.0.0/16, because that is what "two VPCs that do
+# not share a network" means. See the header.
 resource "scaleway_vpc_route" "to_management" {
   vpc_id                     = scaleway_vpc.workload.id
   description                = "management range"
@@ -261,9 +286,36 @@ resource "scaleway_instance_volume" "golden" {
   size_in_gb = 10
 }
 
+# The disk has to have been somebody's before it can be snapshotted, and this
+# machine is why (#650). Measured on fr-par: a volume created and never attached
+# answers `cannot create a RO disk from an empty disk`, while the same volume
+# attached to a server — even one that never started — snapshots fine, and goes
+# on doing so after it is detached.
+#
+# This stack used to snapshot the volume straight after creating it, so the
+# golden-image pattern it teaches did not survive contact with the real cloud.
+# The reporter found out by running their copy of it there.
+resource "scaleway_instance_server" "golden_builder" {
+  name                  = "platform-golden-builder"
+  type                  = "DEV1-S"
+  image                 = "ubuntu_jammy"
+  zone                  = "fr-par-1"
+  additional_volume_ids = [scaleway_instance_volume.golden.id]
+
+  root_volume {
+    volume_type = "sbs_volume"
+    size_in_gb  = 20
+  }
+}
+
 resource "scaleway_instance_snapshot" "golden" {
   name      = "platform-golden-snap"
   volume_id = scaleway_instance_volume.golden.id
+
+  # The disk must carry the builder's attachment before the snapshot is asked
+  # for; without this Terraform is free to order the two the other way and the
+  # apply fails on a disk the cloud calls empty.
+  depends_on = [scaleway_instance_server.golden_builder]
 }
 
 resource "scaleway_instance_image" "golden" {

@@ -419,6 +419,15 @@ img_vol="$(scw instance volume create name=conformance-golden-vol volume-type=l_
 img_vol_id="$(printf '%s' "$img_vol" | jq -r '(.volume // .).id')"
 [ -n "$img_vol_id" ] && [ "$img_vol_id" != null ] || fail "no id in the volume create response: $img_vol"
 
+# Attached before it is snapshotted, which is what a client has to do against the
+# cloud: fr-par refuses an instance snapshot of a disk nothing was ever attached
+# to with "cannot create a RO disk from an empty disk", and so does this emulator
+# since #650. Attaching is enough — the machine is never started, and a disk
+# detached later still snapshots.
+attached="$(scw instance server attach-volume server-id="$img_server_id" volume-id="$img_vol_id" \
+             zone="$ZONE" -o json 2>&1)" \
+  || fail "attaching the golden volume before snapshotting it was rejected: $attached"
+
 snap="$(scw instance snapshot create name=conformance-snap volume-id="$img_vol_id" zone="$ZONE" -o json)" \
   || fail "snapshot create rejected: $snap"
 snap_id="$(printf '%s' "$snap" | jq -r '(.snapshot // .).id')"
@@ -455,6 +464,11 @@ prove_end "$neg"
 scw instance image delete "$img_id" zone="$ZONE" >/dev/null || fail "image delete rejected"
 scw instance snapshot delete "$snap_id" zone="$ZONE" >/dev/null \
   || fail "snapshot delete rejected once its image was gone"
+# Detached before it is deleted, because it has been attached since #650: a
+# volume a server still holds refuses its own delete, which is the API working.
+detached="$(scw instance server detach-volume server-id="$img_server_id" volume-id="$img_vol_id" \
+             zone="$ZONE" -o json 2>&1)" \
+  || fail "detaching the golden volume before deleting it was rejected: $detached"
 scw instance volume delete "$img_vol_id" zone="$ZONE" >/dev/null \
   || fail "delete of the snapshotted volume rejected"
 scw instance server stop "$img_server_id" zone="$ZONE" >/dev/null || fail "cleanup: poweroff rejected"
@@ -1020,6 +1034,17 @@ ivol_id="$(printf '%s' "$ivol" | jq -r '.volume.id // .id // empty')"
 scw instance volume update "$ivol_id" name=conformance-iv-2 zone="$ZONE" -o json \
   | jq -e '(.volume.name // .name) == "conformance-iv-2"' >/dev/null || fail "instance volume update did not carry the name"
 
+# A machine to carry the disk, because a snapshot of one nothing was ever
+# attached to is refused — "cannot create a RO disk from an empty disk", which is
+# fr-par's own sentence (#650). The server exists for that and nothing else.
+ivol_host="$(scw instance server create name=conformance-iv-host type=DEV1-S zone="$ZONE" -o json 2>&1)" \
+  || fail "create of the host for the instance volume rejected: $ivol_host"
+ivol_host_id="$(printf '%s' "$ivol_host" | jq -r '(.server // .).id')"
+[ -n "$ivol_host_id" ] && [ "$ivol_host_id" != null ] || fail "no id in the host response: $ivol_host"
+iattached="$(scw instance server attach-volume server-id="$ivol_host_id" volume-id="$ivol_id" \
+              zone="$ZONE" -o json 2>&1)" \
+  || fail "attaching the instance volume before snapshotting it was rejected: $iattached"
+
 isnap="$(scw instance snapshot create name=conformance-is volume-id="$ivol_id" \
           zone="$ZONE" -o json 2>&1)" || fail "instance snapshot create rejected: $isnap"
 isnap_id="$(printf '%s' "$isnap" | jq -r '.snapshot.id // .id // empty')"
@@ -1036,7 +1061,14 @@ scw instance image update "$iimg_id" name=conformance-ii-2 zone="$ZONE" -o json 
 
 scw instance image delete "$iimg_id" zone="$ZONE" >/dev/null || fail "instance image delete rejected"
 scw instance snapshot delete "$isnap_id" zone="$ZONE" >/dev/null || fail "instance snapshot delete rejected"
+idetached="$(scw instance server detach-volume server-id="$ivol_host_id" volume-id="$ivol_id" \
+              zone="$ZONE" -o json 2>&1)" \
+  || fail "detaching the instance volume before deleting it was rejected: $idetached"
 scw instance volume delete "$ivol_id" zone="$ZONE" >/dev/null || fail "instance volume delete rejected"
+scw instance server stop "$ivol_host_id" zone="$ZONE" >/dev/null \
+  || fail "cleanup: poweroff of the volume host rejected"
+scw instance server delete "$ivol_host_id" zone="$ZONE" >/dev/null \
+  || fail "cleanup: delete of the volume host rejected"
 prove_end "$span"
 ok "three lists paged, three renames carried back"
 

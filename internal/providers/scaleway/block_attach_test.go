@@ -270,6 +270,14 @@ func TestAnInstanceSnapshotRefusesAVolumeItDoesNotOwn(t *testing.T) {
 	}
 	volume, _ := made["volume"].(map[string]any)
 	volumeID, _ := volume["id"].(string)
+	// Attached, because a disk nothing was ever attached to has nothing to
+	// snapshot (#650). Two separate refusals live on this route now, and this
+	// test is about the other one.
+	serverID, _ := serverWith(t, ts, `{"name":"holder","commercial_type":"DEV1-S"}`)
+	if status, out := do(t, ts, "POST", zone+"/servers/"+serverID+"/attach-volume",
+		`{"volume_id":"`+volumeID+`"}`); status != http.StatusOK {
+		t.Fatalf("attach the volume: %d (%v)", status, out)
+	}
 
 	status, out = do(t, ts, "POST", zone+"/snapshots", `{"name":"snap","volume_id":"`+volumeID+`"}`)
 	if status != http.StatusCreated {
