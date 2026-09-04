@@ -222,12 +222,20 @@ d2_resolve_scaleway() { # state_file
 }
 
 # A field set and read back, then set back and read back: one pair.
+# A RED READ-BACK REDDENS THE LEG, and it did not (measured 2026-09-04 on
+# 116d181): d2_says fails inside the subshell of `d2_read | d2_says`, its
+# `fail` left the pipeline and nothing else, the leg went on through 43 more
+# writes, the shape compare, the verification counters and the stack gate, and
+# exited 0 with one FAIL printed on the way. Every read-back pipeline of a step
+# now ends the leg on failure (`|| exit 1`, the trap sweeps), and the catalogue
+# refuses to go past a step that returned 1. TestARedReadBackReddensTheLeg and
+# TestAStepThatFailsStopsTheCatalogue fail without this.
 d2_pair() { # step method path field(jq) set_body set_want back_body back_want
 	D2_STEP="$1"
 	d2_write "$2" "$3" "$5" >/dev/null
-	d2_read "$3" | d2_says "$1" "$4" "$6"
+	d2_read "$3" | d2_says "$1" "$4" "$6" || exit 1
 	d2_write "$2" "$3" "$7" >/dev/null
-	d2_read "$3" | d2_says "$1 (undone)" "$4" "$8"
+	d2_read "$3" | d2_says "$1 (undone)" "$4" "$8" || exit 1
 }
 
 d2_step_server_rename() {
@@ -252,8 +260,14 @@ d2_step_ip_tags() {
 # reverse on null is a measurement nobody here has made, so this step does not
 # assert it; it is recorded in the commit that added it.
 d2_step_ip_reverse() {
+	# Undone with null, read back as null: measured on a real account (#676,
+	# fr-par-1, 2026-09-04), {"reverse": null} and {"reverse": ""} both clear
+	# the reverse and the read answers null. The step used to undo with ""
+	# and expect "" back, which is what this emulator answered before #676
+	# fixed it; the leg went red on exactly that line the day #676 reached
+	# main, as #676's commit message had said it would.
 	d2_pair "set the reverse of platform-web-0's address" PATCH "/instance/v1/zones/$D2_ZONE/ips/$D2_IPWEB0" .ip.reverse \
-		'{"reverse":"web0.platform.example"}' web0.platform.example '{"reverse":""}' ""
+		'{"reverse":"web0.platform.example"}' web0.platform.example '{"reverse":null}' null
 }
 d2_step_sg_rename() {
 	d2_pair "rename the web security group" PATCH "/instance/v1/zones/$D2_ZONE/security_groups/$D2_SGWEB" .security_group.name \
@@ -307,10 +321,10 @@ d2_step_backend_servers() {
 	local path="/lb/v1/zones/$D2_ZONE/backends/$D2_BACKEND"
 	D2_STEP="add a server to the web backend"
 	d2_write PUT "$path/servers" '{"server_ip":["10.30.1.10","10.30.1.11","10.30.1.99"]}' >/dev/null
-	d2_read "$path" | d2_says "$D2_STEP" '.pool | index("10.30.1.99") != null' true
+	d2_read "$path" | d2_says "$D2_STEP" '.pool | index("10.30.1.99") != null' true || exit 1
 	D2_STEP="remove that server from the web backend"
 	d2_write PUT "$path/servers" '{"server_ip":["10.30.1.10","10.30.1.11"]}' >/dev/null
-	d2_read "$path" | d2_says "$D2_STEP" '.pool | index("10.30.1.99") != null' false
+	d2_read "$path" | d2_says "$D2_STEP" '.pool | index("10.30.1.99") != null' false || exit 1
 }
 # A rule added and removed: the read is the rule list, not the 201.
 d2_step_sg_rule() {
@@ -318,10 +332,10 @@ d2_step_sg_rule() {
 	D2_STEP="add a rule to the web security group"
 	rule="$(d2_write POST "$path" '{"protocol":"TCP","direction":"inbound","action":"accept","ip_range":"10.0.0.0/8","dest_port_from":9999,"dest_port_to":9999}' | jq -r '.rule.id // ""')" || exit 1
 	[ -n "$rule" ] || fail "$D2_STEP: the create answered no rule id"
-	d2_read "$path" | d2_says "$D2_STEP" "[.rules[] | select(.id == \"$rule\")] | length" 1
+	d2_read "$path" | d2_says "$D2_STEP" "[.rules[] | select(.id == \"$rule\")] | length" 1 || exit 1
 	D2_STEP="remove that rule"
 	d2_write DELETE "$path/$rule" >/dev/null
-	d2_read "$path" | d2_says "$D2_STEP" "[.rules[] | select(.id == \"$rule\")] | length" 0
+	d2_read "$path" | d2_says "$D2_STEP" "[.rules[] | select(.id == \"$rule\")] | length" 0 || exit 1
 }
 # A public address created, attached, detached and deleted: under a runtime
 # each door routes and unroutes the /32 on the machine, and the layer reads
@@ -333,12 +347,12 @@ d2_step_ip_attach_detach() {
 	[ -n "$ip" ] || fail "$D2_STEP: the create answered no ip id"
 	D2_STEP="attach it to platform-web-0"
 	d2_write PATCH "$ips/$ip" "{\"server\":\"$D2_WEB0\"}" >/dev/null
-	d2_read "$ips/$ip" | d2_says "$D2_STEP" '.ip.server.id' "$D2_WEB0"
-	d2_read "$server" | d2_says "$D2_STEP (seen from the server)" "[.server.public_ips[] | select(.id == \"$ip\")] | length" 1
+	d2_read "$ips/$ip" | d2_says "$D2_STEP" '.ip.server.id' "$D2_WEB0" || exit 1
+	d2_read "$server" | d2_says "$D2_STEP (seen from the server)" "[.server.public_ips[] | select(.id == \"$ip\")] | length" 1 || exit 1
 	D2_STEP="detach it"
 	d2_write PATCH "$ips/$ip" '{"server":null}' >/dev/null
-	d2_read "$ips/$ip" | d2_says "$D2_STEP" '.ip.server' null
-	d2_read "$server" | d2_says "$D2_STEP (seen from the server)" "[.server.public_ips[] | select(.id == \"$ip\")] | length" 0
+	d2_read "$ips/$ip" | d2_says "$D2_STEP" '.ip.server' null || exit 1
+	d2_read "$server" | d2_says "$D2_STEP (seen from the server)" "[.server.public_ips[] | select(.id == \"$ip\")] | length" 0 || exit 1
 	D2_STEP="delete it"
 	d2_write DELETE "$ips/$ip" >/dev/null
 	d2_gone "$ips/$ip"
@@ -350,17 +364,17 @@ d2_step_nic_join_leave() {
 	D2_STEP="join platform-web-0 to the app network"
 	nic="$(d2_write POST "$path" "{\"private_network_id\":\"$D2_PNAPP\"}" | jq -r '.private_nic.id // ""')" || exit 1
 	[ -n "$nic" ] || fail "$D2_STEP: the create answered no nic id"
-	d2_read "$path" | d2_says "$D2_STEP" "[.private_nics[] | select(.private_network_id == \"$D2_PNAPP\")] | length" 1
+	d2_read "$path" | d2_says "$D2_STEP" "[.private_nics[] | select(.private_network_id == \"$D2_PNAPP\")] | length" 1 || exit 1
 	D2_STEP="leave the app network"
 	d2_write DELETE "$path/$nic" >/dev/null
-	d2_read "$path" | d2_says "$D2_STEP" "[.private_nics[] | select(.private_network_id == \"$D2_PNAPP\")] | length" 0
+	d2_read "$path" | d2_says "$D2_STEP" "[.private_nics[] | select(.private_network_id == \"$D2_PNAPP\")] | length" 0 || exit 1
 }
 d2_step_volume_create_delete() {
 	local path="/instance/v1/zones/$D2_ZONE/volumes" volume
 	D2_STEP="create a scratch volume"
 	volume="$(d2_write POST "$path" "{\"name\":\"platform-day2-scratch\",\"volume_type\":\"l_ssd\",\"size\":10000000000,\"project\":\"$D2_PROJECT\"}" | jq -r '.volume.id // ""')" || exit 1
 	[ -n "$volume" ] || fail "$D2_STEP: the create answered no volume id"
-	d2_read "$path/$volume" | d2_says "$D2_STEP" '.volume.size' 10000000000
+	d2_read "$path/$volume" | d2_says "$D2_STEP" '.volume.size' 10000000000 || exit 1
 	D2_STEP="delete the scratch volume"
 	d2_write DELETE "$path/$volume" >/dev/null
 	d2_gone "$path/$volume"
@@ -370,7 +384,7 @@ d2_step_snapshot_create_delete() {
 	D2_STEP="snapshot platform-web-data-0"
 	snapshot="$(d2_write POST "$path" "{\"name\":\"platform-day2-snap\",\"volume_id\":\"$D2_VOL0\",\"project\":\"$D2_PROJECT\"}" | jq -r '.snapshot.id // ""')" || exit 1
 	[ -n "$snapshot" ] || fail "$D2_STEP: the create answered no snapshot id"
-	d2_read "$path/$snapshot" | d2_says "$D2_STEP" '.snapshot.base_volume.id' "$D2_VOL0"
+	d2_read "$path/$snapshot" | d2_says "$D2_STEP" '.snapshot.base_volume.id' "$D2_VOL0" || exit 1
 	D2_STEP="delete the snapshot"
 	d2_write DELETE "$path/$snapshot" >/dev/null
 	d2_gone "$path/$snapshot"
@@ -386,10 +400,10 @@ d2_step_user_data() {
 	d2_count_read
 	[ "$(curl -sf "$D2_ENDPOINT$path/day2")" = "day2 was here" ] \
 		|| fail "$D2_STEP: the read after the write does not carry the text that was written"
-	d2_read "$path" | d2_says "$D2_STEP" '.user_data | index("day2") != null' true
+	d2_read "$path" | d2_says "$D2_STEP" '.user_data | index("day2") != null' true || exit 1
 	D2_STEP="remove that key"
 	d2_write DELETE "$path/day2" >/dev/null
-	d2_read "$path" | d2_says "$D2_STEP" '.user_data | index("day2") != null' false
+	d2_read "$path" | d2_says "$D2_STEP" '.user_data | index("day2") != null' false || exit 1
 }
 # The reboot, and the argument of #654 in one step: the first read after the
 # action must NOT say running — that is what it said before, and an action
@@ -425,7 +439,7 @@ D2_SCALEWAY_STEPS=(
 d2_catalogue_scaleway() {
 	local step
 	for step in "${D2_SCALEWAY_STEPS[@]}"; do
-		"d2_step_$step"
+		"d2_step_$step" || exit 1
 	done
 }
 

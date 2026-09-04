@@ -1,0 +1,33 @@
+{
+  "package": "./tools/conformance/",
+  "mutations": [
+    {
+      "label": "a red read-back on the set prints and moves on (#673)",
+      "file": "tools/conformance/day2lib.sh",
+      "find": "\td2_read \"$3\" | d2_says \"$1\" \"$4\" \"$6\" || exit 1",
+      "replace": "\td2_read \"$3\" | d2_says \"$1\" \"$4\" \"$6\" || exit 0",
+      "test": "TestARedReadBackReddensTheLeg"
+    },
+    {
+      "label": "a red read-back on the undo prints and moves on, the leg that exited 0 with a FAIL on the way (#673, 2026-09-04)",
+      "file": "tools/conformance/day2lib.sh",
+      "find": "\td2_read \"$3\" | d2_says \"$1 (undone)\" \"$4\" \"$8\" || exit 1",
+      "replace": "\td2_read \"$3\" | d2_says \"$1 (undone)\" \"$4\" \"$8\" || exit 0",
+      "test": "TestARedReadBackReddensTheLeg"
+    },
+    {
+      "label": "the catalogue goes past a step that failed (#673)",
+      "file": "tools/conformance/day2lib.sh",
+      "find": "\t\t\"d2_step_$step\" || exit 1",
+      "replace": "\t\t\"d2_step_$step\" || exit 0",
+      "test": "TestAStepThatFailsStopsTheCatalogue"
+    },
+    {
+      "label": "the undo clears the reverse with \"\", the body this emulator wanted before #676, and the step no longer sends what the cloud reads back as null (#673)",
+      "file": "tools/conformance/day2lib.sh",
+      "find": "\t\t'{\"reverse\":\"web0.platform.example\"}' web0.platform.example '{\"reverse\":null}' null",
+      "replace": "\t\t'{\"reverse\":\"web0.platform.example\"}' web0.platform.example '{\"reverse\":\"\"}' null",
+      "test": "TestTheReverseStepUndoesWithNullAndExpectsNull"
+    }
+  ]
+}

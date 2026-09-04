@@ -201,3 +201,90 @@ func TestTheStackGateJudgesAStackAnotherSuiteBroughtUp(t *testing.T) {
 		}
 	}
 }
+
+// TestARedReadBackReddensTheLeg: a read after a write that does not say the
+// change happened must end the leg, not print and move on. Measured on
+// 2026-09-04 on 116d181: the reverse step printed FAIL, the leg played 43
+// more writes and exited 0. The write and the read are planted; the read
+// answers null where the step wants "wanted", and nothing may run after it.
+func TestARedReadBackReddensTheLeg(t *testing.T) {
+	// Both read-backs of a pair, each on its own: the planted read answers
+	// null, so wanting "wanted" on the set fails the first pipeline, and
+	// wanting null on the set then "wanted" on the undo fails the second.
+	for _, half := range []struct {
+		name, setWant, backWant, step string
+	}{
+		{name: "set", setWant: "wanted", backWant: "null", step: "FAIL: probe: the read after"},
+		{name: "undo", setWant: "null", backWant: "wanted", step: "FAIL: probe (undone): the read after"},
+	} {
+		t.Run(half.name, func(t *testing.T) {
+			code, out := runDay2(t, `
+D2_STEP=probe
+d2_write() { :; }
+d2_read() { printf '%s' '{"ip":{"reverse":null}}'; }
+d2_pair "probe" PATCH /p .ip.reverse '{}' `+half.setWant+` '{}' `+half.backWant+`
+echo "CONTINUED"
+`)
+			if code == 0 {
+				t.Errorf("a red read-back on the %s left the leg green (exit 0):\n%s", half.name, out)
+			}
+			if !strings.Contains(out, half.step) {
+				t.Errorf("the red read-back on the %s was not reported as such:\n%s", half.name, out)
+			}
+			if strings.Contains(out, "CONTINUED") {
+				t.Errorf("the leg went on after a red read-back on the %s:\n%s", half.name, out)
+			}
+		})
+	}
+}
+
+// TestAStepThatFailsStopsTheCatalogue is the second net: a step that returns
+// non-zero for any other reason stops the catalogue where it stands.
+func TestAStepThatFailsStopsTheCatalogue(t *testing.T) {
+	code, out := runDay2(t, `
+d2_step_planted() { echo "planted step ran"; return 1; }
+d2_step_after() { echo "AFTER-RAN"; }
+D2_SCALEWAY_STEPS=(planted after)
+d2_catalogue_scaleway
+echo "CONTINUED"
+`)
+	if code == 0 || strings.Contains(out, "AFTER-RAN") || strings.Contains(out, "CONTINUED") {
+		t.Errorf("the catalogue went past a step that failed (exit %d):\n%s", code, out)
+	}
+	if !strings.Contains(out, "planted step ran") {
+		t.Errorf("the planted step did not run at all:\n%s", out)
+	}
+}
+
+// TestTheReverseStepUndoesWithNullAndExpectsNull holds the step against the
+// measurement of #676: the undo sends null and expects null back. A read that
+// answers "" on the undo — what this emulator answered before #676 — must fail
+// the step, and one that answers null must pass it.
+func TestTheReverseStepUndoesWithNullAndExpectsNull(t *testing.T) {
+	prelude := `
+D2_ZONE=fr-par-1; D2_IPWEB0=ip-web0
+d2_write() { printf '%s\n' "$3" >>"$DIR/writes"; }
+`
+	code, out := runDay2(t, prelude+`
+: >"$DIR/reads"
+d2_read() { echo x >>"$DIR/reads"; if [ "$(wc -l <"$DIR/reads")" = 1 ]; then printf '%s' '{"ip":{"reverse":"web0.platform.example"}}'; else printf '%s' '{"ip":{"reverse":null}}'; fi; }
+d2_step_ip_reverse
+echo "PASSED-NULL"
+cat "$DIR/writes"
+`)
+	if code != 0 || !strings.Contains(out, "PASSED-NULL") {
+		t.Errorf("the reverse step refused a cloud that clears to null (exit %d):\n%s", code, out)
+	}
+	if !strings.Contains(out, `{"reverse":null}`) {
+		t.Errorf("the undo did not send null:\n%s", out)
+	}
+	code, out = runDay2(t, prelude+`
+: >"$DIR/reads"
+d2_read() { echo x >>"$DIR/reads"; if [ "$(wc -l <"$DIR/reads")" = 1 ]; then printf '%s' '{"ip":{"reverse":"web0.platform.example"}}'; else printf '%s' '{"ip":{"reverse":""}}'; fi; }
+d2_step_ip_reverse
+echo "PASSED-EMPTY"
+`)
+	if code == 0 || strings.Contains(out, "PASSED-EMPTY") {
+		t.Errorf("the reverse step accepted a reverse that reads \"\" after being cleared, the pre-#676 answer (exit %d):\n%s", code, out)
+	}
+}
