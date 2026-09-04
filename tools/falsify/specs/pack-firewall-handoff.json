@@ -4,8 +4,8 @@
     {
       "label": "the Outscale boot stops handing the worn groups to the runtime, which is the whole of #475",
       "file": "internal/core/machine/plan.go",
-      "find": "\tr.Groups.AfterBoot(ctx, res)\n\treturn true",
-      "replace": "\tif false {\n\t\tr.Groups.AfterBoot(ctx, res)\n\t}\n\treturn true",
+      "find": "\t// is what holds it now.\n\tr.Groups.AfterBoot(ctx, res)\n}",
+      "replace": "\t// is what holds it now.\n\tif false {\n\t\tr.Groups.AfterBoot(ctx, res)\n\t}\n}",
       "test": "TestAnOutscaleGroupReachesTheHostWhenItsVmBoots"
     },
     {
@@ -19,8 +19,8 @@
       "label": "the Exoscale boot stops handing the worn groups to the runtime",
       "package": "./internal/providers/exoscale/",
       "file": "internal/core/machine/plan.go",
-      "find": "\tr.Groups.AfterBoot(ctx, res)\n\treturn true",
-      "replace": "\tif false {\n\t\tr.Groups.AfterBoot(ctx, res)\n\t}\n\treturn true",
+      "find": "\t// is what holds it now.\n\tr.Groups.AfterBoot(ctx, res)\n}",
+      "replace": "\t// is what holds it now.\n\tif false {\n\t\tr.Groups.AfterBoot(ctx, res)\n\t}\n}",
       "test": "TestAnExoscaleGroupReachesTheHostWhenAnInstanceBoots"
     },
     {
@@ -35,8 +35,8 @@
       "label": "a network attached after the boot leaves its interface without the instance's rule sets",
       "package": "./internal/providers/exoscale/",
       "file": "internal/core/machine/plan.go",
-      "find": "\terr := r.attach(ctx, res, att)\n\tr.ReplayAddresses(ctx, res)\n\tr.Groups.AfterBoot(ctx, res)\n\treturn err",
-      "replace": "\terr := r.attach(ctx, res, att)\n\tr.ReplayAddresses(ctx, res)\n\tif false {\n\t\tr.Groups.AfterBoot(ctx, res)\n\t}\n\treturn err",
+      "find": "\terr := r.attach(ctx, res, att)\n\tr.ReplayAddresses(ctx, res)\n\tr.Groups.AfterBoot(ctx, res)\n\tr.check(ctx, res)\n\treturn err",
+      "replace": "\terr := r.attach(ctx, res, att)\n\tr.ReplayAddresses(ctx, res)\n\tif false {\n\t\tr.Groups.AfterBoot(ctx, res)\n\t}\n\tr.check(ctx, res)\n\treturn err",
       "test": "TestALateNetworkAttachCarriesTheRuleSets"
     },
     {

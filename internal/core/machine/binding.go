@@ -45,6 +45,12 @@ type Binding struct {
 	// internal/cli's TestNoPackReachesPastTheDeclaredDriverSurface holds what
 	// typing cannot.
 	driver driver
+	// tally is where this binding's verifications are counted (#670): the
+	// Runtime handle's, handed over with the driver by WithRuntime, so every
+	// pack bound into one emulator counts into the same four numbers and
+	// /_feint/health reads them off the handle. Nil for a binding built
+	// without a runtime, which counts nowhere.
+	tally *tally
 	// Provider labels everything this binding creates, so a sweep can find its
 	// own work and an operator's machines are never touched.
 	Provider string
@@ -132,6 +138,7 @@ type Binding struct {
 // carry one and hand it over without ever naming what is inside it.
 func (b Binding) WithRuntime(r Runtime) Binding {
 	b.driver = r.d
+	b.tally = r.tally
 	return b
 }
 
