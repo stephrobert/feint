@@ -419,7 +419,12 @@ func (p *Pack) readVmTypes(w http.ResponseWriter, r *http.Request) {
 // imageFilters are what an image can answer. ImageIds is the one a client
 // actually sends on the path to a create — it resolves the image it was given
 // before posting anything.
-var imageFilters = stringFilters("ImageIds", "ImageNames", "AccountIds", "States", "Architectures", "RootDeviceTypes")
+var imageFilters = joinFilters(
+	stringFilters("ImageIds", "ImageNames", "AccountIds", "States", "Architectures", "RootDeviceTypes"),
+	// The three tag filters, accepted by the real account on every one of
+	// these reads (#618).
+	taggableFilters,
+)
 
 // readImages serves the fixed catalogue and everything a client registered on
 // top of it. Both, always: an image a client made and could not then read back
@@ -461,6 +466,9 @@ func (p *Pack) readImages(w http.ResponseWriter, r *http.Request) {
 // imageMatches filters a rendered image, so a catalogue entry and a registered
 // one are filtered by exactly the same rules.
 func imageMatches(image map[string]any, f filterSet) bool {
+	if !matchesTagsView(f, image) {
+		return false
+	}
 	accountID, _ := image["AccountId"].(string)
 	return matchesStrings(f, "ImageIds", stringOf(image["ImageId"])) &&
 		matchesStrings(f, "ImageNames", stringOf(image["ImageName"])) &&

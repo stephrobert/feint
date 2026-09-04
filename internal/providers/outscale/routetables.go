@@ -88,6 +88,8 @@ var routeTableFilters = joinFilters(
 	),
 	// FiltersRouteTable declares this one as a bare boolean, not a list.
 	boolFilters("LinkRouteTableMain"),
+	// The three tag filters (#618).
+	taggableFilters,
 )
 
 func (p *Pack) readRouteTables(w http.ResponseWriter, r *http.Request) {
@@ -121,6 +123,9 @@ func (p *Pack) readRouteTables(w http.ResponseWriter, r *http.Request) {
 // carries the value asked for, which is the semantics the API describes and the
 // provider relies on.
 func (p *Pack) routeTableMatches(res *resource.Resource, f filterSet) bool {
+	if !matchesTags(f, res) {
+		return false
+	}
 	if !matchesStrings(f, "RouteTableIds", res.ID) ||
 		!matchesStrings(f, "NetIds", stringOf(res.Attrs["NetId"])) {
 		return false

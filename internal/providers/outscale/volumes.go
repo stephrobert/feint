@@ -121,6 +121,8 @@ var volumeFilters = joinFilters(
 	// reading it as strings reported every value as "filter absent" (#566).
 	intFilters("VolumeSizes"),
 	boolFilters("LinkVolumeDeleteOnVmDeletion"),
+	// The three tag filters (#618).
+	taggableFilters,
 )
 
 func (p *Pack) readVolumes(w http.ResponseWriter, r *http.Request) {
@@ -356,6 +358,9 @@ func (p *Pack) unlinkVolume(w http.ResponseWriter, r *http.Request) {
 // the volume holds — which is where the Terraform provider waits for an attach
 // and a detach.
 func volumeMatches(res *resource.Resource, f filterSet) bool {
+	if !matchesTags(f, res) {
+		return false
+	}
 	linkedVM := stringOf(res.Attrs["LinkedVmId"])
 	device := stringOf(res.Attrs["DeviceName"])
 	// The link state, in the same words volumeView publishes: one fact, one

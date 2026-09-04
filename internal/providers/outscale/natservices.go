@@ -104,7 +104,12 @@ func (p *Pack) createNatService(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-var natServiceFilters = stringFilters("NatServiceIds", "NetIds", "SubnetIds", "States")
+var natServiceFilters = joinFilters(
+	stringFilters("NatServiceIds", "NetIds", "SubnetIds", "States"),
+	// The three tag filters, accepted by the real account on every one of
+	// these reads (#618).
+	taggableFilters,
+)
 
 func (p *Pack) readNatServices(w http.ResponseWriter, r *http.Request) {
 	var req struct {
@@ -128,7 +133,8 @@ func (p *Pack) readNatServices(w http.ResponseWriter, r *http.Request) {
 		if !matchesStrings(req.Filters, "NatServiceIds", res.ID) ||
 			!matchesStrings(req.Filters, "NetIds", stringOf(res.Attrs["NetId"])) ||
 			!matchesStrings(req.Filters, "SubnetIds", stringOf(res.Attrs["SubnetId"])) ||
-			!matchesStrings(req.Filters, "States", res.State) {
+			!matchesStrings(req.Filters, "States", res.State) ||
+			!matchesTags(req.Filters, res) {
 			continue
 		}
 		out = append(out, natServiceView(res))
