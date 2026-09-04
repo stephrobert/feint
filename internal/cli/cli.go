@@ -237,7 +237,7 @@ const (
 // TestTheFrozenSurfacesStillMatchTheirFixture, and a fixture regenerated
 // without bumping this constant fails TestASurfaceChangeDemandsItsVersionBump.
 // The procedure for a deliberate change is in RELEASING.md ("Frozen surfaces").
-const cliSurfaceVersion = 23
+const cliSurfaceVersion = 24
 
 // Run executes one command and returns the process exit code.
 func Run(args []string, stdout, stderr io.Writer) int {
@@ -334,7 +334,7 @@ func usage(w io.Writer) {
 
 Usage:
   feint serve      [--addr 127.0.0.1:4599] [--state <file>] [--vm off|incus|incus-vm|incus-ovn|auto]
-                    [--cleanup] [--contracts <dir>] [--coverage <dir>] [--shapes <dir>]
+                    [--cleanup] [--resolver <ip>] [--contracts <dir>] [--coverage <dir>] [--shapes <dir>]
                     [--log-level info|debug] [--expose-to-network]
                     [--projects <name>[,<name>...]]
                     [--consistency immediate|eventual]
@@ -367,7 +367,7 @@ Usage:
                     needs the API that is about to stop.
 
   feint start      [--addr :4599] [--state <file>] [--vm off|incus|incus-vm|incus-ovn|auto]
-                    [--cleanup] [--contracts <dir>] [--log-level info|debug]
+                    [--cleanup] [--resolver <ip>] [--contracts <dir>] [--log-level info|debug]
                     [--projects <name>[,<name>...]]
                     [--timeout 30s] [--detach] [--foreground]
                     Same, detached: records the instance, waits until it
@@ -695,6 +695,18 @@ Every one of these is also a mise task: run "mise tasks" to list them.
 // bridge. What is chosen is printed, because a runtime selected in silence is a
 // runtime nobody can reason about.
 func machineDriver(mode string, stdout io.Writer) (machine.Runtime, error) {
+	return machineDriverWith(mode, machine.DefaultResolver, stdout)
+}
+
+// machineDriverWith is machineDriver with the resolver an OVN network
+// announces (#660): the flag's value, set on each Incus driver this builds.
+// The uplink's own address is refused by the driver at network creation, not
+// here, so the refusal has one home.
+func machineDriverWith(mode, resolver string, stdout io.Writer) (machine.Runtime, error) {
+	incus := func(d *machine.Incus) *machine.Incus {
+		d.Resolver = resolver
+		return d
+	}
 	ctx := context.Background()
 
 	// verify asks the host what it delivers, once, before anything is published.
@@ -731,16 +743,16 @@ func machineDriver(mode string, stdout io.Writer) (machine.Runtime, error) {
 	case "off", "none", "":
 		return machine.Use(machine.Noop{}), nil
 	case "incus":
-		return requested(machine.Use(machine.NewIncus()))
+		return requested(machine.Use(incus(machine.NewIncus())))
 	case "incus-vm", "kvm":
-		return requested(machine.Use(machine.NewIncusVM()))
+		return requested(machine.Use(incus(machine.NewIncusVM())))
 	case "incus-ovn", "ovn":
-		return requested(machine.Use(machine.NewIncusOVN()))
+		return requested(machine.Use(incus(machine.NewIncusOVN())))
 	case "auto":
 		// Most capable first. Never incus-vm: a virtual machine costs tens of
 		// seconds to boot where a container costs seconds, and that is a trade
 		// an operator makes on purpose rather than one auto makes for them.
-		for _, d := range []machine.Runtime{machine.Use(machine.NewIncusOVN()), machine.Use(machine.NewIncus())} {
+		for _, d := range []machine.Runtime{machine.Use(incus(machine.NewIncusOVN())), machine.Use(incus(machine.NewIncus()))} {
 			if !d.Available(ctx) {
 				continue
 			}
@@ -938,6 +950,7 @@ func serve(args []string, stdout io.Writer) error {
 	addr := fs.String("addr", DefaultAddr, "listen address")
 	state := fs.String("state", "", "load and persist the store to this JSON file")
 	vm := fs.String("vm", "off", "back powered-on servers with real machines: off, incus, incus-vm, incus-ovn, auto")
+	resolver := fs.String("resolver", machine.DefaultResolver, "the name server an OVN network announces to its machines; never the uplink's own address (#660)")
 	cleanup := fs.Bool("cleanup", false, "remove the machines and networks this run created before exiting")
 	logLevel := fs.String("log-level", "info", "log verbosity: error, warn, info, debug")
 	contracts := fs.String("contracts", "", "directory of API contracts; every response is checked against them and /_feint/conformance reports what failed")
@@ -1001,7 +1014,7 @@ func serve(args []string, stdout io.Writer) error {
 		}
 	}
 
-	rt, err := machineDriver(*vm, stdout)
+	rt, err := machineDriverWith(*vm, *resolver, stdout)
 	if err != nil {
 		return err
 	}

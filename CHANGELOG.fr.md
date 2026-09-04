@@ -190,6 +190,31 @@ change ni l'un ni l'autre a sa place dans `git log`.
   n'épingle ni ne route, et remet ce qu'il épingle, le next-hop link-local et
   la route par défaut qui passe par lui.
 
+- **Un réseau OVN annonce un résolveur public, jamais l'adresse de l'uplink**
+  (#660). Incus annonce l'adresse de l'uplink comme serveur DNS, et cette
+  adresse est aussi la source depuis laquelle la station appelle une adresse
+  publique dès que celle-ci vit sur une NIC OVN (#548) ; dans l'invité,
+  `RoutesToDNS=` de systemd-networkd pose une `/32` on-link vers chaque
+  serveur DNS que le bail nomme, plus spécifique que les agrégats vers le
+  routeur, et la réponse vers la station fait un ARP sur le switch pour une
+  adresse que rien n'y porte. Mesuré le 2026-09-04 sous `incus-ovn` :
+  `platform-web-0` servait 443 à l'intérieur et ne répondait rien sur
+  `203.0.113.3:443` ; `ip route del 10.209.83.1 dev eth1` faisait passer
+  l'appel de 000 à 200, `ip route add` le remettait à 000. Le réseau annonce
+  désormais `dns.nameservers` (`feint serve --resolver`, `1.1.1.1` par défaut,
+  un champ pour qu'une station sans Internet ou avec son propre résolveur
+  puisse le dire), et l'adresse de l'uplink est refusée quoi que dise le
+  champ. `RoutesToDNS=` est le mécanisme ordinaire de l'invité, pas un défaut
+  contourné : l'annonce supprime la collision qui le rendait nuisible. Non
+  établi, mesuré le même jour : qu'une machine avec sortie résolve par le
+  résolveur annoncé ; l'annonce était sur le fil et le `resolved` de l'invité
+  ne tenait aucun serveur sur aucun lien, résolvant dès qu'un serveur était
+  posé à la main ; un défaut à part, suivi à part. Reste ouvert sur #660 :
+  une machine avec une adresse publique et une NIC privée se retrouve encore,
+  dans certains ordres, sans aucune route par défaut (recoupe #678). `feint serve
+  --resolver` et `feint start --resolver` sont de nouveaux drapeaux : surface
+  CLI version 24.
+
 - **Un instantané d'un disque auquel rien n'a jamais été attaché était accepté,
   et la stack d'exemple publiée en dépendait** (#650, #646).
 

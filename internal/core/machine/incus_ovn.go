@@ -47,6 +47,15 @@ const (
 	// collision with a block already routed on the operator's host makes the
 	// create fail, and failing is better than capturing someone's traffic.
 	DefaultUplinkCIDR = "10.209.83.0/24"
+	// DefaultResolver is the name server an OVN network announces when the
+	// operator names none (#660): a public one, as a public cloud announces
+	// (a Scaleway instance receives 51.159.47.28), and the address this
+	// repository already uses as its witness of public reachability
+	// (tools/images/verify.sh). Any public address does the job the decision
+	// asks — the /32 RoutesToDNS= lays towards it goes through the network's
+	// router, measured — and this one answers queries from anywhere, so a
+	// machine WITH a way out still resolves.
+	DefaultResolver = "1.1.1.1"
 )
 
 // queueUplinkRoute registers one block as waiting for delegation. Called
@@ -194,6 +203,27 @@ func (d *Incus) uplinkName() string {
 	return DefaultUplinkName
 }
 
+// resolver is the name server OVN networks announce: the field, or the
+// default.
+func (d *Incus) resolver() string {
+	if d.Resolver != "" {
+		return d.Resolver
+	}
+	return DefaultResolver
+}
+
+// uplinkGateway is the address the host answers on inside the uplink block,
+// derived once: ensureUplink gives it to the uplink, and EnsureNetwork refuses
+// to announce it as a resolver (#660). Two derivations would let the refusal
+// compare against a copy.
+func (d *Incus) uplinkGateway() (netip.Addr, error) {
+	prefix, err := netip.ParsePrefix(d.uplinkCIDR())
+	if err != nil {
+		return netip.Addr{}, fmt.Errorf("parse uplink CIDR %q: %w", d.uplinkCIDR(), err)
+	}
+	return prefix.Masked().Addr().Next(), nil
+}
+
 func (d *Incus) uplinkCIDR() string {
 	if d.UplinkCIDR != "" {
 		return d.UplinkCIDR
@@ -246,7 +276,11 @@ func (d *Incus) ensureUplink(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	gateway := fmt.Sprintf("%s/%d", prefix.Masked().Addr().Next(), prefix.Bits())
+	gw, err := d.uplinkGateway()
+	if err != nil {
+		return err
+	}
+	gateway := fmt.Sprintf("%s/%d", gw, prefix.Bits())
 	// NAT on: outbound traffic from an OVN network is first SNATed to the
 	// uplink by the OVN router, then to the world by the host. Without the
 	// second hop the emulated machines lose outbound access, which is what

@@ -2038,7 +2038,25 @@ Why the routed shape has no route out is #202's decision: a machine carries
 exactly the addresses its provider's API publishes, on a routed NIC with no
 network underneath — and therefore no NAT and no resolver, because the images
 `feint images` builds carry their ssh daemon already (#203) and nothing else
-about the machine needs the internet. The default route inside the guest is
+about the machine needs the internet.
+
+**An OVN network announces a public resolver, never the uplink's address
+(#660).** The machines that boot on it are told `feint serve --resolver`
+(default `1.1.1.1`): the uplink's own address is also the one the station
+dials a public address from, and a guest's `RoutesToDNS=` laid an on-link
+`/32` towards it that killed every reply — measured 2026-09-04, `ip route get
+10.209.83.1` from the guest answered `dev eth1` with the uplink announced and
+`via <gateway> dev eth1` with a public one, and the platform's published
+address answered again. **What that does not establish is name resolution.**
+Measured the same day on the same stack: the announcement was on the wire
+(OVN's `DHCP_Options` row carried `dns_server={1.1.1.1}`), and the guest's
+`resolved` held no server on any link, on a machine with a way out as on one
+without; set by hand, the same machine resolved, so the path is open and the
+guest is not applying the lease's DNS (`networkctl renew eth1`: "not managed
+by systemd-networkd", on an interface carrying a dynamic address). That is a
+defect of its own, followed apart from #660; until it is read, do not write
+here that a machine with a way out resolves, nor that one without does not
+because of the resolver it was told. The default route inside the guest is
 `via 169.254.0.1`, the routed NIC's link-local next hop, and it wins even when
 a private NIC with a NAT-backed network is attached later, which is the
 ordinary Terraform order on Scaleway and Exoscale (server first, NIC after).

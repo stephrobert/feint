@@ -177,6 +177,29 @@ what this project is judged on: **a response shape a client can observe**, and
   every address the device neither pins nor routes, and puts back what it
   does, the link-local next hop and the default route through it.
 
+- **An OVN network announces a public resolver, never the uplink's address**
+  (#660). Incus announces the uplink's own address as the DNS server, and that
+  address is also the source the station dials a public address from once the
+  address rides an OVN NIC (#548); inside the guest, systemd-networkd's
+  `RoutesToDNS=` lays an on-link `/32` towards every DNS server the lease
+  names, more specific than the aggregates towards the router, and the reply
+  to the station ARPs on the switch for an address nothing there carries.
+  Measured 2026-09-04 under `incus-ovn`: `platform-web-0` served 443 inside
+  and answered nothing at `203.0.113.3:443`; `ip route del 10.209.83.1 dev
+  eth1` turned the dial from 000 into 200, `ip route add` turned it back. The
+  network now announces `dns.nameservers` (`feint serve --resolver`, default
+  `1.1.1.1`, a field so a station without Internet or with a resolver of its
+  own can say so), and the uplink's address is refused whatever the field
+  says. `RoutesToDNS=` is the guest's ordinary mechanism, not a defect worked
+  around: the announcement removes the collision that made it harmful. Not
+  established, measured the same day: that a machine with a way out resolves
+  through the announced resolver — the announcement was on the wire and the
+  guest's `resolved` held no server on any link, resolving once one was set
+  by hand; a defect of its own, followed apart. Left open on #660: a machine
+  with a public address and a private NIC still comes up, in some orders,
+  with no default route at all (overlaps #678). `feint serve --resolver` and
+  `feint start --resolver` are new flags: CLI surface version 24.
+
 - **A snapshot of a disk nothing was ever attached to was accepted, and the
   published example stack depended on it** (#650, #646).
 
