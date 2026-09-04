@@ -32,8 +32,8 @@
     {
       "label": "the repair is unbounded: a machine that stays wrong is read a third time (#670)",
       "file": "internal/core/machine/verdicts.go",
-      "find": "\tagain, _ := r.verify(ctx, res)\n\tif anyBroken(again) {\n\t\tr.publish(res, again, nil)\n\t\treturn\n\t}",
-      "replace": "\tagain, _ := r.verify(ctx, res)\n\tif anyBroken(again) {\n\t\tr.replay(ctx, res, plan)\n\t\tagain, _ = r.verify(ctx, res)\n\t\tr.publish(res, again, nil)\n\t\treturn\n\t}",
+      "find": "\tagain, _ := r.verify(ctx, res, extra)\n\tif anyBroken(again) {\n\t\tr.publish(res, again, nil)\n\t\treturn\n\t}",
+      "replace": "\tagain, _ := r.verify(ctx, res, extra)\n\tif anyBroken(again) {\n\t\tr.replay(ctx, res, plan)\n\t\tagain, _ = r.verify(ctx, res, extra)\n\t\tr.publish(res, again, nil)\n\t\treturn\n\t}",
       "test": "TestARepairIsAttemptedOnceAndCounted"
     },
     {
@@ -60,8 +60,8 @@
     {
       "label": "a hot join is not read back (#670)",
       "file": "internal/core/machine/plan.go",
-      "find": "\tr.ReplayAddresses(ctx, res)\n\tr.Groups.AfterBoot(ctx, res)\n\tr.check(ctx, res)\n\treturn err",
-      "replace": "\tr.ReplayAddresses(ctx, res)\n\tr.Groups.AfterBoot(ctx, res)\n\tif err != nil {\n\t\tr.check(ctx, res)\n\t}\n\treturn err",
+      "find": "\tr.ReplayAddresses(ctx, res)\n\tr.Groups.AfterBoot(ctx, res)\n\tr.check(ctx, res, nil)\n\treturn err",
+      "replace": "\tr.ReplayAddresses(ctx, res)\n\tr.Groups.AfterBoot(ctx, res)\n\tif err != nil {\n\t\tr.check(ctx, res, nil)\n\t}\n\treturn err",
       "test": "TestAHotJoinAndAHotRouteAreReadBack"
     },
     {

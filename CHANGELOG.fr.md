@@ -58,6 +58,25 @@ change ni l'un ni l'autre a sa place dans `git log`.
   lb certificate list` et `scw lb subscriber list` dans la suite de
   conformance.
 
+- **Un reboot compare la forme d'après à la forme d'avant, sans table de
+  valeurs attendues** (#669). Rien ne bouge dans le plan de contrôle entre
+  les deux, parce que le reboot tient le verrou par cible d'un bout à
+  l'autre ; ce que la machine portait quand elle était debout est donc ce
+  qu'elle doit porter une fois revenue, interface par interface (réseau,
+  nature, adresses, rule sets, en ensembles), la route par défaut par sa
+  porte, le reste de la table en ensemble. Les revendications empruntent la
+  même lecture que celles du plan, donc un reboot est lu une fois et réparé
+  une fois comme tout démarrage. Sur la régression du 2026-09-04, la réponse
+  tombe au moment du reboot : `restart(default route) want via 169.254.0.1
+  dev eth0, got via 10.77.0.1 dev eth1`, là où la suite runtime attendait
+  soixante secondes deux pas plus loin pour dire « rien ne répond ».
+
+  Un avant illisible est dit, par un `WARN`, et le reboot est jugé sur son
+  plan seul plutôt que sur une devinette ; une machine qui n'était pas debout
+  n'a pas d'avant. Un poweroff puis un poweron en deux actions API ne sont
+  pas un reboot : une NIC attachée à un serveur arrêté change légitimement la
+  forme, et là ce sont les revendications dérivées qui jugent.
+
 - **Un verdict que quelqu'un lit : la vérification est publiée, et la jambe
   runtime en fait un gate** (#670). Après chaque porte du cycle de vie (un
   démarrage, un reboot, une jonction à chaud, une route à chaud, la porte
