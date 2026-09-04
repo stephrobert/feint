@@ -53,6 +53,30 @@ what this project is judged on: **a response shape a client can observe**, and
   Driven by `scw lb backend list-statistics`, `scw lb lb get-stats`, `scw lb
   certificate list` and `scw lb subscriber list` in the conformance suite.
 
+- **A plan that claims the default route twice is refused before the runtime
+  is asked for anything** (#667). `Reconciler.Expect` derives, from the
+  declared plan, who claims which property: a public address owns the way out,
+  `Plan.Egress` claims it, `NoEgress` claims it, and a property with more than
+  one claimant refuses the boot with every claimant named, publishing the
+  pack's own failed state the way a missing plan does. On the hot doors (an
+  address routed, a network joined) the step that would execute the
+  contradiction is refused instead, and the route the machine has is left
+  alone.
+
+  This is the layer's guard for #660: on 2026-09-04 the egress step replaced,
+  with `ip route replace`, the default route the routed address had laid, every
+  exec returned 0, and the machine answered nothing at its published address.
+  The pack-side fix stands; this is what stops a fourth pack, or a change in
+  this one, from writing the same contradiction and no test moving.
+
+  What a consistent plan claims is returned as typed claims, each with its own
+  tolerance (the mask only when the plan said one, any address of the block for
+  a DHCP lease, the aggregates via a gateway of the plan), answered against a
+  `Shape` with three outcomes: held, broken, unreadable. Which door a reply
+  leaves by for a public address is a measurement and one shape has none
+  (#672), so the derivation states no value for it: silence, not a guess. The
+  reading that fills a `Shape` from the runtime is #668.
+
 - **Flexible GPU is served, the whole family** (#619): `osc/Client.ReadFlexibleGpuCatalog`,
   `osc/Client.CreateFlexibleGpu`, `osc/Client.ReadFlexibleGpus`,
   `osc/Client.UpdateFlexibleGpu`, `osc/Client.DeleteFlexibleGpu`,

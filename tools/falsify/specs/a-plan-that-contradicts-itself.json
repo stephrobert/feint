@@ -1,0 +1,75 @@
+{
+  "package": "./internal/core/machine/",
+  "mutations": [
+    {
+      "label": "the ledger never reports a property with two claimants, and a plan that claims the default route twice is started (#667)",
+      "file": "internal/core/machine/claims.go",
+      "find": "\t\tif len(claimants) < 2 {\n\t\t\tcontinue\n\t\t}",
+      "replace": "\t\tif len(claimants) < 2 || true {\n\t\t\tcontinue\n\t\t}",
+      "test": "TestAPlanWithTwoClaimantsToTheDefaultRouteIsRefusedBeforeTheRuntimeIsAsked"
+    },
+    {
+      "label": "PowerOn judges the plan and starts the machine anyway (#667)",
+      "file": "internal/core/machine/plan.go",
+      "find": "\tif !r.consistent(res, plan) {\n\t\tres.State = r.binding().FailedState\n\t\treturn false\n\t}",
+      "replace": "\tif !r.consistent(res, plan) && false {\n\t\tres.State = r.binding().FailedState\n\t\treturn false\n\t}",
+      "test": "TestAPlanWithTwoClaimantsToTheDefaultRouteIsRefusedBeforeTheRuntimeIsAsked"
+    },
+    {
+      "label": "the hot path lays the egress of a contradictory plan, which is the overwrite #660 measured",
+      "file": "internal/core/machine/plan.go",
+      "find": "\tif !r.consistent(res, plan) {\n\t\treturn\n\t}",
+      "replace": "\tif !r.consistent(res, plan) && false {\n\t\treturn\n\t}",
+      "test": "TestAContradictoryPlanNeverReachesTheEgressRouter"
+    },
+    {
+      "label": "silence means take the route away again, which is the pre-#660 reading that cost a machine with a public address its own route",
+      "file": "internal/core/machine/plan.go",
+      "find": "\tif plan.Egress == \"\" && !plan.NoEgress {\n\t\treturn\n\t}",
+      "replace": "\tif plan.Egress == \"\" && !plan.NoEgress && false {\n\t\treturn\n\t}",
+      "test": "TestSilenceLeavesTheRouteAloneAndOnlyARefusalTakesItAway"
+    },
+    {
+      "label": "a public address stops owning the default route, so an egress beside it is no contradiction (#667)",
+      "file": "internal/core/machine/claims.go",
+      "find": "\tif len(publics) > 0 {\n\t\towners.claim(propertyDefaultRoute, \"the public address \"+strings.Join(publics, \", \"))\n\t}",
+      "replace": "\tif len(publics) > 0 && false {\n\t\towners.claim(propertyDefaultRoute, \"the public address \"+strings.Join(publics, \", \"))\n\t}",
+      "test": "TestAPlanWithTwoClaimantsToTheDefaultRouteIsRefusedBeforeTheRuntimeIsAsked"
+    },
+    {
+      "label": "the carries comparator stops judging the mask the plan said (#667)",
+      "file": "internal/core/machine/claims.go",
+      "find": "\t\t\tif p.Addr() == c.Address && (c.Bits == 0 || p.Bits() == c.Bits) {",
+      "replace": "\t\t\tif p.Addr() == c.Address && (c.Bits == 0 || p.Bits() == c.Bits || true) {",
+      "test": "TestCarriesJudgesTheMaskOnlyWhenThePlanSaidOne"
+    },
+    {
+      "label": "the default-route comparator ignores the next hop, which is the half the regression of 2026-09-04 lived in",
+      "file": "internal/core/machine/claims.go",
+      "find": "\tif got.Via == want.Via && got.Dev == want.Dev {\n\t\treturn held(c)\n\t}",
+      "replace": "\tif (got.Via == want.Via || true) && got.Dev == want.Dev {\n\t\treturn held(c)\n\t}",
+      "test": "TestADefaultRouteClaimComparesViaAndDev"
+    },
+    {
+      "label": "the aggregates comparator accepts any next hop, which is the route DHCP replaced in #549",
+      "file": "internal/core/machine/claims.go",
+      "find": "\t\t\tdev, legitimate := doors[r.Via]\n\t\t\treturn r.Dst == block && legitimate && r.Dev == dev",
+      "replace": "\t\t\tdev, legitimate := doors[r.Via]\n\t\t\treturn r.Dst == block && (legitimate || true) && (r.Dev == dev || true)",
+      "test": "TestTheAggregatesMustRideAGatewayOfThePlan"
+    },
+    {
+      "label": "a gateway nobody read is judged anyway, folding the third outcome onto the second",
+      "file": "internal/core/machine/claims.go",
+      "find": "\tgateway, read := s.Gateways[c.Network]\n\tif !read {\n\t\treturn unreadable(c, \"the block of \"+c.Network+\" was not read\")\n\t}",
+      "replace": "\tgateway, read := s.Gateways[c.Network]\n\tif !read && false {\n\t\treturn unreadable(c, \"the block of \"+c.Network+\" was not read\")\n\t}",
+      "test": "TestAClaimNeedingAGatewayNobodyReadIsUnreadable"
+    },
+    {
+      "label": "the OVN dialect stops declaring what the mode lays (#667)",
+      "file": "internal/core/machine/incus_dialect.go",
+      "find": "\tif d.OVN {\n\t\tout.Aggregates = privateAggregatePrefixes()\n\t\tout.LaysDefaultRoute = true\n\t}",
+      "replace": "\tif d.OVN && false {\n\t\tout.Aggregates = privateAggregatePrefixes()\n\t\tout.LaysDefaultRoute = true\n\t}",
+      "test": "TestTheIncusDialectRestatesWhatTheModeLays"
+    }
+  ]
+}

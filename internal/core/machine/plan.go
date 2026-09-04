@@ -160,6 +160,20 @@ func (r Reconciler) router() router {
 	return rt
 }
 
+// consistent reports whether the plan agrees with itself, and logs the
+// contradiction as the failure it is: an ERROR naming every claimant, so an
+// operator reading it learns which two steps of which recipe disagree rather
+// than which port stopped answering. The claims themselves are not kept here;
+// the reading that answers them is #668's.
+func (r Reconciler) consistent(res *resource.Resource, plan Plan) bool {
+	if _, err := r.Expect(plan, r.dialect()); err != nil {
+		r.binding().logger().Error("this plan contradicts itself, so the runtime is not asked to execute it",
+			"provider", r.binding().Provider, "resource", res.ID, "error", err)
+		return false
+	}
+	return true
+}
+
 // PowerOn starts the machine on its declared plan and replays the post-boot
 // order: the promised addresses, the memberships, the firewall last. It
 // reports what PowerOn reported; a machine that did not start is not replayed
@@ -167,6 +181,15 @@ func (r Reconciler) router() router {
 func (r Reconciler) PowerOn(ctx context.Context, res *resource.Resource, boot Boot) bool {
 	plan, declared := r.plan(res)
 	if !declared {
+		return false
+	}
+	// The plan is judged before the runtime is asked for anything (#667): a
+	// plan two of whose steps claim the same property is refused here, and
+	// publishes the pack's own failed state the way a missing plan does. The
+	// alternative is what #660 measured — every step succeeding, and a
+	// machine whose reply left by a door the request had not come in through.
+	if !r.consistent(res, plan) {
+		res.State = r.binding().FailedState
 		return false
 	}
 	boot.Attachments = plan.Boot
@@ -299,7 +322,19 @@ func (r Reconciler) ReplayEgress(ctx context.Context, res *resource.Resource) {
 	if !declared {
 		return
 	}
+	// The hot doors — an address routed, a network joined — reach here on a
+	// machine already running, which a contradiction cannot refuse to start.
+	// What it can refuse is the step that executes the contradiction: with
+	// two claimants to the default route, laying the egress half is exactly
+	// the overwrite #660 measured, so the route the machine has is left alone
+	// and the log carries the error (#667).
+	// TestAContradictoryPlanNeverReachesTheEgressRouter fails without this.
+	if !r.consistent(res, plan) {
+		return
+	}
 	// Silence leaves the route alone; only an explicit refusal removes one.
+	// TestSilenceLeavesTheRouteAloneAndOnlyARefusalTakesItAway holds the
+	// three states.
 	if plan.Egress == "" && !plan.NoEgress {
 		return
 	}

@@ -58,6 +58,32 @@ change ni l'un ni l'autre a sa place dans `git log`.
   lb certificate list` et `scw lb subscriber list` dans la suite de
   conformance.
 
+- **Un plan qui revendique deux fois la route par défaut est refusé avant
+  toute demande au runtime** (#667). `Reconciler.Expect` dérive, du plan
+  déclaré, qui revendique quelle propriété : une adresse publique possède la
+  sortie, `Plan.Egress` la revendique, `NoEgress` la revendique, et une
+  propriété qui a plus d'un revendicateur refuse le démarrage en nommant chacun
+  d'eux, et publie l'état d'échec du pack comme le fait un plan absent. Sur les
+  portes chaudes (une adresse routée, un réseau rejoint), c'est l'étape qui
+  exécuterait la contradiction qui est refusée, et la route que la machine
+  porte est laissée en place.
+
+  C'est la garde de la couche pour #660 : le 2026-09-04, l'étape d'egress a
+  remplacé, par `ip route replace`, la route par défaut que l'adresse routée
+  avait posée, chaque exec a rendu 0, et la machine ne répondait plus à son
+  adresse publiée. Le correctif côté pack reste ; ceci empêche un quatrième
+  pack, ou une évolution de celui-ci, d'écrire la même contradiction sans
+  qu'aucun test ne bouge.
+
+  Ce qu'un plan cohérent revendique est rendu sous forme de revendications
+  typées, chacune avec sa tolérance (le masque seulement si le plan l'a dit,
+  n'importe quelle adresse du bloc pour un bail DHCP, les agrégats via une
+  passerelle du plan), jugées contre une `Shape` à trois issues : tenue, rompue,
+  illisible. La porte par laquelle sort la réponse d'une adresse publique est
+  une mesure et l'une des deux formes n'en a pas (#672) : la dérivation n'en
+  affirme aucune valeur, silence plutôt que devinette. La lecture qui remplit
+  une `Shape` depuis le runtime est #668.
+
 - **Flexible GPU est servi, toute la famille** (#619) : `osc/Client.ReadFlexibleGpuCatalog`,
   `osc/Client.CreateFlexibleGpu`, `osc/Client.ReadFlexibleGpus`,
   `osc/Client.UpdateFlexibleGpu`, `osc/Client.DeleteFlexibleGpu`,

@@ -46,8 +46,8 @@
     {
       "label": "the boot starts a machine on a plan nobody declared and reports success, so the API describes as running a machine on no network (#484, #543)",
       "file": "internal/core/machine/plan.go",
-      "find": "\tplan, declared := r.plan(res)\n\tif !declared {\n\t\treturn false\n\t}\n\tboot.Attachments = plan.Boot",
-      "replace": "\tplan, declared := r.plan(res)\n\tif !declared && false {\n\t\treturn false\n\t}\n\tboot.Attachments = plan.Boot",
+      "find": "\tplan, declared := r.plan(res)\n\tif !declared {\n\t\treturn false\n\t}\n\t// The plan is judged before the runtime is asked for anything (#667)",
+      "replace": "\tplan, declared := r.plan(res)\n\tif !declared && false {\n\t\treturn false\n\t}\n\t// The plan is judged before the runtime is asked for anything (#667)",
       "test": "TestABootWithNoDeclaredPlanIsRefusedRatherThanPanicking"
     }
   ],
