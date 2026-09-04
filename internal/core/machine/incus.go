@@ -597,7 +597,7 @@ func (d *Incus) Start(ctx context.Context, spec Spec) (Machine, error) {
 		}
 	}
 	if primary.Address != "" {
-		if _, err := d.run(ctx, "config", "device", "set", spec.Name, "eth0",
+		if _, err := d.setDevice(ctx, spec.Name, "eth0",
 			"ipv4.address="+primary.Address); err != nil {
 			return Machine{}, d.abandonStart(ctx, spec.Name,
 				fmt.Errorf("pin %s on %s: %w", primary.Address, spec.Name, err))
@@ -618,7 +618,7 @@ func (d *Incus) Start(ctx context.Context, spec Spec) (Machine, error) {
 			}
 			routes = append(routes, address+"/32")
 		}
-		if _, err := d.run(ctx, "config", "device", "set", spec.Name, "eth0",
+		if _, err := d.setDevice(ctx, spec.Name, "eth0",
 			d.publicRouteKey()+"="+strings.Join(routes, ",")); err != nil {
 			return Machine{}, d.abandonStart(ctx, spec.Name, fmt.Errorf("route %s to %s: %w",
 				strings.Join(spec.PublicAddresses, ", "), spec.Name, err))
@@ -809,12 +809,19 @@ func (d *Incus) Attach(ctx context.Context, name string, att Attachment) error {
 		// security ACL ID`. TestAnAddressMoveAndAnIsolationDetachTakeTurns
 		// fails without this.
 		unlock := d.networkLock(att.Network)
-		_, err := d.run(ctx, "config", "device", "set", name, device, "ipv4.address="+att.Address)
+		_, err := d.setDevice(ctx, name, device, "ipv4.address="+att.Address)
 		unlock()
 		if err != nil {
 			return fmt.Errorf("move %s to %s on network %s: %w", name, att.Address, att.Network, err)
 		}
 	}
+
+	// The interface is in place now, by whichever of the two branches above.
+	// An add on a running machine gives the guest a link its stack enumerated
+	// before any configuration matched it, and a set re-plugs one it was
+	// managing: either way the guest is told here, before the two repairs
+	// below, because a reload flushes what they lay (#684).
+	d.settleGuestInterface(ctx, name, device)
 
 	if att.Address != "" && att.PrefixLen > 0 {
 		// The device is attached by now, whatever happens next. Configuring it
@@ -1436,7 +1443,7 @@ func (d *Incus) EnsureNetwork(ctx context.Context, spec NetworkSpec) error {
 		// resolver of its own, can say so; the uplink's address is refused
 		// whatever the field says.
 		//
-		// TestAnOVNNetworkAnnouncesAPublicResolverAndNeverTheUplink and
+		// TestAnOVNNetworkLaysNoRouteTowardsItsResolver and
 		// TestAResolverThatIsTheUplinkIsRefused fail without this.
 		gateway, err := d.uplinkGateway()
 		if err != nil {
@@ -1447,10 +1454,33 @@ func (d *Incus) EnsureNetwork(ctx context.Context, spec NetworkSpec) error {
 			return fmt.Errorf("refusing to create network %s: the resolver %s is the uplink's own address, which is also the address the station reaches this network's machines from; announcing it lays a dead on-link route inside every guest (#660)",
 				spec.Name, resolver)
 		}
+		// The resolver is NOT announced over DHCP, and that is measured
+		// rather than a simplification (#684). A guest whose stack manages the
+		// interface answers a DHCP-announced name server by laying an on-link
+		// /32 towards it — systemd's RoutesToDNS=, on by default — and a public
+		// resolver is not on the subnet, so the guest ARPs for it on its own
+		// segment and reaches nothing. Read from a machine entitled to egress,
+		// 2026-09-04 under `--vm incus-ovn`:
+		//
+		//	1.1.1.1 dev eth0 proto dhcp scope link src 10.188.0.5 metric 100
+		//	ip route get 1.1.1.1 -> 1.1.1.1 dev eth0 src 10.188.0.5
+		//	ping 1.1.1.1 -> unreachable, resolvectl -> No route to host
+		//
+		// Delete that one route and the same machine reaches 1.1.1.1; put the
+		// resolver back on the link by hand and `getent hosts deb.debian.org`
+		// answers. So the announcement is what breaks the way out, and the
+		// resolver reaches the guest through resolvectl instead
+		// (settleGuestInterface), which configures a name server without laying
+		// a route to it.
+		//
+		// This was invisible until #684: with the interface managed by nobody,
+		// no lease was applied and no route was laid, so the machine had no
+		// resolver AND its way out. Fixing one exposed the other.
+		//
+		// TestAnOVNNetworkLaysNoRouteTowardsItsResolver fails without this.
 		args = append(args,
 			"ipv4.dhcp.gateway=none",
 			"ipv4.dhcp.routes="+announcedPrivateRoutes(address),
-			"dns.nameservers="+resolver,
 		)
 	}
 	for k, v := range spec.Labels {

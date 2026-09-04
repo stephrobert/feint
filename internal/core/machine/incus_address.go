@@ -218,7 +218,7 @@ func (d *Incus) releaseFromRoutedNIC(ctx context.Context, machine, device, addre
 			kept = append(kept, entry)
 		}
 	}
-	if _, err := d.run(ctx, "config", "device", "set", machine, device,
+	if _, err := d.setDevice(ctx, machine, device,
 		"ipv4.address="+strings.Join(kept, ",")); err != nil {
 		return fmt.Errorf("release %s from %s/%s: %w", address, machine, device, err)
 	}
@@ -369,7 +369,7 @@ func (d *Incus) routeOntoRoutedNIC(ctx context.Context, machine, device, address
 	}
 	route := address + "/32"
 	if !routeListContains(cfg["ipv4.routes"], route) {
-		if _, err := d.run(ctx, "config", "device", "set", machine, device,
+		if _, err := d.setDevice(ctx, machine, device,
 			"ipv4.routes="+appendRoute(cfg["ipv4.routes"], route)); err != nil {
 			return fmt.Errorf("route %s to %s/%s: %w", address, machine, device, err)
 		}
@@ -493,7 +493,7 @@ func (d *Incus) setDeviceRoutes(ctx context.Context, machine, device, address st
 		kept = append(kept, route)
 	}
 
-	if _, err := d.run(ctx, "config", "device", "set", machine, device,
+	if _, err := d.setDevice(ctx, machine, device,
 		"ipv4.routes="+strings.Join(kept, ",")); err != nil {
 		return fmt.Errorf("set routes of %s/%s: %w", machine, device, err)
 	}

@@ -1,0 +1,52 @@
+{
+  "mutations": [
+    {
+      "label": "a device set no longer tells the guest, so the interface it re-plugged comes back managed by nobody and the announced resolver never arrives",
+      "file": "internal/core/machine/incus_resolver.go",
+      "package": "./internal/core/machine/",
+      "find": "\td.settleGuestInterface(ctx, machine, device)\n\treturn out, nil",
+      "replace": "\tif false {\n\t\td.settleGuestInterface(ctx, machine, device)\n\t}\n\treturn out, nil",
+      "test": "TestADeviceSetGivesTheGuestBackItsInterface"
+    },
+    {
+      "label": "the guest is told without waiting for the link, which is the gap that leaves a re-plugged NIC unmanaged",
+      "file": "internal/core/machine/incus_resolver.go",
+      "package": "./internal/core/machine/",
+      "find": "\td.waitForGuestLink(ctx, machine, device)\n\tif err := d.reloadGuestNetwork(ctx, machine); err != nil {",
+      "replace": "\tif false {\n\t\td.waitForGuestLink(ctx, machine, device)\n\t}\n\tif err := d.reloadGuestNetwork(ctx, machine); err != nil {",
+      "test": "TestADeviceSetWaitsForTheLinkBeforeTellingTheGuest"
+    },
+    {
+      "label": "the guest is told even when the set was refused, which hides a failure behind a command that succeeds",
+      "file": "internal/core/machine/incus_resolver.go",
+      "package": "./internal/core/machine/",
+      "find": "\tout, err := d.run(ctx, args...)\n\tif err != nil {\n\t\treturn out, err\n\t}",
+      "replace": "\tout, err := d.run(ctx, args...)\n\tif err != nil && false {\n\t\treturn out, err\n\t}",
+      "test": "TestASetThatFailedTellsNobody"
+    },
+    {
+      "label": "every refusal is swallowed, so a guest that really could not reload is reported as one that has no networkd",
+      "file": "internal/core/machine/incus_resolver.go",
+      "package": "./internal/core/machine/",
+      "find": "\t\tif isNotRunning(err) || isNotFound(err) || guestHasNoNetworkd(err) {\n\t\t\treturn nil\n\t\t}",
+      "replace": "\t\tif isNotRunning(err) || isNotFound(err) || guestHasNoNetworkd(err) || true {\n\t\t\treturn nil\n\t\t}",
+      "test": "TestAGuestThatRefusesTheReloadIsReported"
+    },
+    {
+      "label": "no refusal is swallowed, so an Alpine guest that has no networkctl at all fails the operation that caused the set",
+      "file": "internal/core/machine/incus_resolver.go",
+      "package": "./internal/core/machine/",
+      "find": "\t\tif isNotRunning(err) || isNotFound(err) || guestHasNoNetworkd(err) {\n\t\t\treturn nil\n\t\t}",
+      "replace": "\t\tif isNotRunning(err) && isNotFound(err) && guestHasNoNetworkd(err) && false {\n\t\t\treturn nil\n\t\t}",
+      "test": "TestAGuestWithoutNetworkctlIsNotARefusal"
+    },
+    {
+      "label": "a hot attach no longer tells the guest, so the machine without a public address never applies the announced resolver",
+      "file": "internal/core/machine/incus.go",
+      "package": "./internal/core/machine/",
+      "find": "\td.settleGuestInterface(ctx, name, device)\n",
+      "replace": "\tif false {\n\t\td.settleGuestInterface(ctx, name, device)\n\t}\n",
+      "test": "TestAHotAttachGivesTheGuestItsNewInterface"
+    }
+  ]
+}

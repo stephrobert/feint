@@ -11,8 +11,8 @@
     {
       "label": "the address move takes its network's lock only after the set has run, so the remove-and-re-add the OVN NIC turns the set into plugs with nothing holding the detach back",
       "file": "internal/core/machine/incus.go",
-      "find": "\t\tunlock := d.networkLock(att.Network)\n\t\t_, err := d.run(ctx, \"config\", \"device\", \"set\", name, device, \"ipv4.address=\"+att.Address)\n\t\tunlock()",
-      "replace": "\t\t_, err := d.run(ctx, \"config\", \"device\", \"set\", name, device, \"ipv4.address=\"+att.Address)\n\t\tunlock := d.networkLock(att.Network)\n\t\tunlock()",
+      "find": "\t\tunlock := d.networkLock(att.Network)\n\t\t_, err := d.setDevice(ctx, name, device, \"ipv4.address=\"+att.Address)\n\t\tunlock()",
+      "replace": "\t\t_, err := d.setDevice(ctx, name, device, \"ipv4.address=\"+att.Address)\n\t\tunlock := d.networkLock(att.Network)\n\t\tunlock()",
       "test": "TestAnAddressMoveAndAnIsolationDetachTakeTurns"
     }
   ],

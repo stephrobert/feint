@@ -839,7 +839,7 @@ func (d *Incus) routeAddressOVN(ctx context.Context, spec AddressSpec) error {
 	route := spec.Address + "/32"
 	if !routeListContains(devices.own[device]["ipv4.routes.external"], route) {
 		merged := appendRoute(devices.own[device]["ipv4.routes.external"], route)
-		if _, err := d.run(ctx, "config", "device", "set", spec.Machine, device,
+		if _, err := d.setDevice(ctx, spec.Machine, device,
 			"ipv4.routes.external="+merged); err != nil {
 			return fmt.Errorf("route %s to %s/%s: %w", spec.Address, spec.Machine, device, err)
 		}
@@ -932,7 +932,7 @@ func (d *Incus) unrouteOVNDevice(ctx context.Context, machine, device, network, 
 		return nil
 	}
 	kept := removeRoute(cfg["ipv4.routes.external"], route)
-	if _, err := d.run(ctx, "config", "device", "set", machine, device,
+	if _, err := d.setDevice(ctx, machine, device,
 		"ipv4.routes.external="+kept); err != nil {
 		return fmt.Errorf("unroute %s from %s/%s: %w", address, machine, device, err)
 	}
@@ -1317,6 +1317,31 @@ func (d *Incus) settleFirstBoot(ctx context.Context, machine string) error {
 				return fmt.Errorf("settle the first boot of %s: %w", machine, err)
 			}
 		}
+		// The resolver, on a machine whose NIC was attached before it was
+		// powered on — the ordinary Terraform order, where Attach ran against a
+		// stopped guest and its settle was a no-op. Measured 2026-09-04: that
+		// shape came up with the uplink's own address as its only name server,
+		// which is #660's dead on-link route wearing Incus's default rather
+		// than ours.
+		//
+		// Only this call, not the whole settle: setting a resolver lays no
+		// route and flushes nothing, so it is safe after the repairs above,
+		// where a reload would undo them.
+		//
+		// WHAT THIS DOES NOT FIX, and it is measured rather than hoped: on a
+		// machine whose NIC was attached before the poweron, the lease lands
+		// after this call and REPLACES what it sets, with whatever Incus falls
+		// back to — the host's own resolvers, which is the uplink's address.
+		// That shape came up holding 10.209.83.1 alone on 2026-09-04, twice,
+		// with this call in place. Two attempts at it were measured and
+		// removed rather than left in as lines that read like controls:
+		// `dns.nameservers=` empty on the network, which Incus ignores, and a
+		// wait for the interface to carry an address, which the driver's own
+		// static address satisfies immediately while the lease is still coming.
+		// Followed as its own defect.
+		//
+		// TestAFirstBootGivesTheGuestItsResolver fails without this.
+		d.setGuestResolver(ctx, machine, device)
 	}
 	return nil
 }
