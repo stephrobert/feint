@@ -37,24 +37,47 @@ import (
 // value Incus's own routed-NIC guide uses.
 const routedNextHop = "169.254.0.1"
 
-// routedNetworkConfig renders the netplan a machine on a routed NIC needs.
+// routedDeviceName is the interface routedDevice adds, and the only routed
+// NIC the restart path reconciles (#674): a routed NIC an operator added by
+// hand to one of our machines is theirs, under whatever name they gave it.
+const routedDeviceName = "eth0"
+
+// routedNetworkConfig renders the netplan a machine on a routed NIC boots with.
 //
 // The guest must be told: a routed NIC hands the kernel a static address and
 // Incus's generated config says `dhcp` regardless, so without this the interface
 // comes up with nothing on it. Measured — the address was declared on the device
 // and the guest carried none.
 //
+// AND THE GUEST MUST MANAGE THE INTERFACE ITSELF (#674). A first attempt at
+// #674 took eth0 out of this file and had the driver lay it after `incus
+// start`, so that nothing inside the guest could put a migrated address back.
+// Measured on 2026-09-04 under `--vm incus-ovn`, Ubuntu jammy, against the
+// ssh suite: with no interface matched by the guest's own network config,
+// systemd-networkd manages nothing, systemd-networkd-wait-online stays
+// `activating` to its 120 s ceiling, network-online.target and with it
+// cloud-init's network stage wait behind it, and the ssh module that
+// generates the host keys and starts sshd ran at 181 s of uptime — 90 s after
+// the suite had given up. The same suite against main's driver logged in
+// within twenty seconds. The default route the driver had laid was also gone
+// at 91 s and at 181 s. So eth0 stays declared here, with the addresses the
+// launch pinned, and the driver's answer to the migrated address is on the
+// other side of the boot: restoreGuestNetwork reconciles the interface to the
+// device once the guest's own config has laid it (reconcileRoutedNICs).
+//
 // Every address is parsed before it is rendered, and an unparseable one is a
 // refusal rather than an escape. This file renders a structured format by
 // concatenation, which the cloud-init templates already show is a way to hand
 // somebody a key in the document; the answer here is that nothing but a valid IP
 // can reach the rendering at all.
+//
+// TestTheRoutedNetplanDeclaresTheLaunchAddress fails without this.
 func routedNetworkConfig(addresses []string) (string, error) {
 	if len(addresses) == 0 {
 		return "", fmt.Errorf("a routed interface needs at least one address")
 	}
 	var b strings.Builder
-	b.WriteString("network:\n  version: 2\n  ethernets:\n    eth0:\n      addresses:\n")
+	b.WriteString("network:\n  version: 2\n  ethernets:\n    " + routedDeviceName + ":\n      addresses:\n")
 	for _, address := range addresses {
 		parsed, err := netip.ParseAddr(address)
 		if err != nil {
@@ -115,7 +138,7 @@ func routedDevice(name string, addresses []string) ([]string, error) {
 		}
 	}
 	return []string{
-		"config", "device", "add", name, "eth0", "nic",
+		"config", "device", "add", name, routedDeviceName, "nic",
 		"nictype=routed",
 		"ipv4.address=" + strings.Join(addresses, ","),
 		"ipv4.host_address=" + routedNextHop,

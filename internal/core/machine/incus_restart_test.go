@@ -27,6 +27,14 @@ import (
 // stack builds: a routed NIC carrying the public address, and one OVN NIC on a
 // network the emulator owns.
 func restartedInstance(f *fakeRuntime, devices string) {
+	restartedInstanceCarrying(f, devices, "203.0.113.4")
+}
+
+// restartedInstanceCarrying is restartedInstance with the address the guest's
+// own boot-time config laid on the routed NIC (#674): what netplan remembered
+// from the launch, whatever the device pins now. Empty means the guest never
+// lays anything there.
+func restartedInstanceCarrying(f *fakeRuntime, devices, onRouted string) {
 	f.hook = func(_ int, args []string) ([]byte, error, bool) {
 		switch args[0] {
 		case "list":
@@ -40,9 +48,16 @@ func restartedInstance(f *fakeRuntime, devices string) {
 				return []byte("10.30.1.1/24\n"), nil, true
 			}
 		case "exec":
-			// The guest answers that its interface is configured, which is what
-			// the wait is looking for.
-			if strings.Contains(strings.Join(args, " "), "-o addr show dev") {
+			// The guest answers what each interface carries, which is what
+			// the waits and the reconciliation read.
+			joined := strings.Join(args, " ")
+			if strings.Contains(joined, "-o addr show dev eth0") {
+				if onRouted == "" {
+					return []byte(""), nil, true
+				}
+				return []byte("2: eth0    inet " + onRouted + "/32 scope global eth0\n"), nil, true
+			}
+			if strings.Contains(joined, "-o addr show dev") {
 				return []byte("2: eth1    inet 10.30.1.10/24 scope global eth1\n"), nil, true
 			}
 		}
@@ -110,12 +125,16 @@ func TestARestartedMachineGetsItsPinnedAddressBack(t *testing.T) {
 		t.Errorf("a restarted machine was not given back the address its device reserves:\n%s",
 			strings.Join(f.commands(), "\n"))
 	}
-	// And the routed NIC is not one of these: it has no network to read a mask
-	// from, its address is the launch's own, and the guest's boot-time config
-	// declares it.
-	if got := f.matching("ip address add 203.0.113.4"); len(got) != 0 {
-		t.Errorf("the restart path configured the routed NIC's address inside the guest:\n%s",
-			strings.Join(got, "\n"))
+	// The routed NIC used to be the exception here — "the guest's boot-time
+	// config declares it" — and that config is what #674 measured putting a
+	// migrated address back on eth0 at every reboot, beside the one this
+	// driver had moved. The guest still lays it (it must, see
+	// routedNetworkConfig); the restart then reconciles the interface to the
+	// device, and the address the device still pins is put back idempotently.
+	// TestARestartReconcilesTheRoutedNICToItsDevice holds the other half.
+	if len(f.matching("exec srv -- ip address add 203.0.113.4/32 dev eth0")) == 0 {
+		t.Errorf("the restart path did not reconcile the routed NIC to its device:\n%s",
+			strings.Join(f.commands(), "\n"))
 	}
 }
 
@@ -198,6 +217,11 @@ func TestRestoringRoutesLeavesAForeignNICAlone(t *testing.T) {
 // to put back there. Asserted rather than assumed: the aggregates point at an
 // OVN router, and laying them on a bridge would send a guest's private traffic
 // at an address that answers nothing.
+//
+// The aggregates, and only them: the routed NIC's own door — the link-local
+// next hop and the default route through it — is laid in both modes since
+// #674, as the guest's netplan laid it in both modes before, and it goes
+// through the veth, not through any router.
 func TestABridgeModeRestartLaysNoAggregates(t *testing.T) {
 	f := &fakeRuntime{}
 	restartedInstance(f, routedPlusPrivate)
@@ -206,8 +230,12 @@ func TestABridgeModeRestartLaysNoAggregates(t *testing.T) {
 	if _, err := d.Start(context.Background(), Spec{Name: "srv", Image: "ubuntu:22.04"}); err != nil {
 		t.Fatalf("start: %v", err)
 	}
-	if got := f.matching("ip route add"); len(got) != 0 {
+	if got := f.matching("via 10.30.1.1"); len(got) != 0 {
 		t.Errorf("bridge mode laid OVN aggregates:\n%s", strings.Join(got, "\n"))
+	}
+	if len(f.matching("exec srv -- ip route add default via 169.254.0.1 dev eth0")) == 0 {
+		t.Errorf("bridge mode took the routed NIC's door away with the aggregates:\n%s",
+			strings.Join(f.commands(), "\n"))
 	}
 }
 

@@ -55,8 +55,8 @@
     {
       "label": "a restarted machine is left waiting for a lease nobody offers, so it comes back with neither its private address nor its routes",
       "file": "internal/core/machine/incus_ovn.go",
-      "find": "\t\tif err := d.restorePinnedAddress(ctx, machine, device, devices.own[device]); err != nil {\n\t\t\treturn err\n\t\t}",
-      "replace": "\t\tif false {\n\t\t\tif err := d.restorePinnedAddress(ctx, machine, device, devices.own[device]); err != nil {\n\t\t\t\treturn err\n\t\t\t}\n\t\t}",
+      "find": "\t\tif err := d.restorePinnedAddress(ctx, machine, device, devices.own[device]); err != nil {\n\t\t\treturn errors.Join(routed, err)\n\t\t}",
+      "replace": "\t\tif false {\n\t\t\tif err := d.restorePinnedAddress(ctx, machine, device, devices.own[device]); err != nil {\n\t\t\t\treturn errors.Join(routed, err)ors.Join(routed, err)\n\t\t\t}\n\t\t}",
       "test": "TestARestartedMachineGetsItsPinnedAddressBack"
     },
     {

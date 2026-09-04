@@ -168,6 +168,28 @@ change ni l'un ni l'autre a sa place dans `git log`.
   NIC n'était pas le défaut et un test le tient, pour que personne n'ait à le
   déduire de nouveau.
 
+- **Un redémarrage réconcilie la NIC routed sur son device, et la config
+  propre de l'invité continue de poser la forme de lancement** (#674). Un
+  serveur créé avec une adresse publique et sans réseau démarre sur une NIC
+  `routed` (#202), déclarée en statique dans la network-config remise à
+  cloud-init : l'adresse en `/32`, la route par défaut on-link via
+  `169.254.0.1`. cloud-init la rend une fois, au premier boot, dans le
+  `/etc/netplan/50-cloud-init.yaml` de l'invité, et ce fichier survit à toute
+  édition du device par le pilote : mesuré le 2026-09-04 sous `incus-ovn`, un
+  serveur dont la NIC privée est arrivée à chaud et a emporté l'adresse (#548)
+  déclarait encore `203.0.113.3/32` sur `eth0` dans l'invité alors que le
+  device n'épinglait plus rien, et un reboot par l'API remettait l'adresse sur
+  `eth0` à côté de celle que le pilote avait posée sur `eth1`. Deux écrivains
+  pour une interface, désormais dans un ordre fixe : la config de l'invité la
+  pose à chaque boot, et le doit, mesuré le même jour : une première tentative
+  qui retirait `eth0` de cette config laissait systemd-networkd sans rien à
+  gérer, `systemd-networkd-wait-online` attendre jusqu'à son plafond de 120 s
+  et sshd démarrer 90 s après que la suite ssh eut abandonné, là où `main` se
+  connecte en vingt secondes ; puis le chemin de redémarrage attend, borné,
+  que l'invité ait posé l'interface, retire toute adresse que le device
+  n'épingle ni ne route, et remet ce qu'il épingle, le next-hop link-local et
+  la route par défaut qui passe par lui.
+
 - **Un instantané d'un disque auquel rien n'a jamais été attaché était accepté,
   et la stack d'exemple publiée en dépendait** (#650, #646).
 

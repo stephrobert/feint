@@ -1,0 +1,47 @@
+{
+  "package": "./internal/core/machine/",
+  "mutations": [
+    {
+      "label": "the first boot lays the routed NIC again, and the guest's network stack manages nothing while it waits (#674, measured 2026-09-04)",
+      "file": "internal/core/machine/incus_ovn.go",
+      "find": "\t// TestAFirstBootLeavesTheRoutedNICToTheGuestsOwnConfig fails without this.\n\tfor _, device := range names {",
+      "replace": "\t// TestAFirstBootLeavesTheRoutedNICToTheGuestsOwnConfig fails without this.\n\tif err := d.reconcileRoutedNICs(ctx, machine, devices); err != nil {\n\t\treturn err\n\t}\n\tfor _, device := range names {",
+      "test": "TestAFirstBootLeavesTheRoutedNICToTheGuestsOwnConfig"
+    },
+    {
+      "label": "the guest's boot-time config names eth0 without its address, so the interface comes up bare (#674)",
+      "file": "internal/core/machine/incus_routed.go",
+      "find": "\t\tfmt.Fprintf(&b, \"        - %s/32\\n\", parsed.String())",
+      "replace": "\t\tfmt.Fprintf(&b, \"        - %s/32\\n\"[:0], parsed.String())",
+      "test": "TestTheRoutedNetplanDeclaresTheLaunchAddress"
+    },
+    {
+      "label": "the restart never reconciles the routed NIC, and the migrated address the guest put back stays (#674)",
+      "file": "internal/core/machine/incus_ovn.go",
+      "find": "\tif err := d.reconcileRoutedNICs(ctx, machine, devices); err != nil {\n\t\trouted = fmt.Errorf(\"reconcile the routed interface of %s: %w\", machine, err)\n\t}",
+      "replace": "\tif err := d.reconcileRoutedNICs(ctx, machine, instanceView{}); err != nil && devices.own != nil {\n\t\trouted = fmt.Errorf(\"reconcile the routed interface of %s: %w\", machine, err)\n\t}",
+      "test": "TestARestartReconcilesTheRoutedNICToItsDevice"
+    },
+    {
+      "label": "every address the guest carries reads as wanted, so nothing migrated is ever taken off (#674)",
+      "file": "internal/core/machine/incus_ovn.go",
+      "find": "\t\tif wanted[address] {\n\t\t\tcontinue\n\t\t}",
+      "replace": "\t\tif wanted[address] || true {\n\t\t\tcontinue\n\t\t}",
+      "test": "TestARestartReconcilesTheRoutedNICToItsDevice"
+    },
+    {
+      "label": "the reconciliation does not wait for the guest to lay the interface, reads it bare, and takes nothing off (#674)",
+      "file": "internal/core/machine/incus_ovn.go",
+      "find": "\t\twaited := d.waitForGuestInterface(ctx, machine, device)",
+      "replace": "\t\twaited := func() error { _ = d.waitForGuestInterface; _, _, _ = ctx, machine, device; return nil }()",
+      "test": "TestARestartWaitsForTheGuestToLayItsRoutedNICBeforeReconciling"
+    },
+    {
+      "label": "the restart reconciles every routed NIC, an operator's included (#674)",
+      "file": "internal/core/machine/incus_ovn.go",
+      "find": "\t\tif cfg[\"type\"] != \"nic\" || cfg[\"nictype\"] != \"routed\" || device != routedDeviceName {\n\t\t\tcontinue\n\t\t}",
+      "replace": "\t\tif cfg[\"type\"] != \"nic\" || cfg[\"nictype\"] != \"routed\" || (device != routedDeviceName && false) {\n\t\t\tcontinue\n\t\t}",
+      "test": "TestARestartLeavesAForeignRoutedNICAlone"
+    }
+  ]
+}
