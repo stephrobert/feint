@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# BSD paste needs a file operand; - is stdin; -d and -sd take the next argument
+files=0; skip=0
+for a in "$@"; do
+  if [ "$skip" = 1 ]; then skip=0; continue; fi
+  case "$a" in
+    -) files=$((files+1)) ;;
+    -d|-*d) skip=1 ;;
+    -*) ;;
+    *) files=$((files+1)) ;;
+  esac
+done
+if [ "$files" = 0 ]; then echo "usage: paste [-s] [-d delimiters] file ..." >&2; exit 1; fi
+exec /usr/bin/paste "$@"

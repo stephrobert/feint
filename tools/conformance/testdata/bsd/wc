@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# BSD wc pads a bare count to width 8
+out="$(/usr/bin/wc "$@")"
+case "$out" in
+  *[!0-9]*) printf "%s\n" "$out" ;;
+  *) printf "%8s\n" "$out" ;;
+esac

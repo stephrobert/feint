@@ -250,7 +250,7 @@ func TestTheDay2LegDeclaresAnEmulatorThatCleansUpAfterItself(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, out := runDay2(t, `
-sed -i "s|127.0.0.1:4599|127.0.0.1:4596|g" "`+copyPath+`"
+d2_declare_endpoint "`+copyPath+`" 127.0.0.1:4596 || echo "DECLARE-FAILED"
 d2_declare_cleanup "`+copyPath+`" || echo "DECLARE-FAILED"
 d2_declare_cleanup "`+copyPath+`" || echo "DECLARE-FAILED"
 `)
@@ -281,5 +281,47 @@ d2_declare_cleanup "`+copyPath+`" || echo "DECLARE-FAILED"
 	at, up := strings.Index(string(leg), `d2_declare_cleanup "$WORK/feint.yaml"`), strings.Index(string(leg), `"$FEINT" up --runtime`)
 	if at < 0 || up < 0 || at > up {
 		t.Error("day2.sh does not declare cleanup on its copy before it brings the stack up")
+	}
+	if strings.Contains(string(leg), "sed -i") || !strings.Contains(string(leg), `d2_declare_endpoint "$WORK/feint.yaml" "$ADDR"`) {
+		t.Error("day2.sh rewrites its copy's endpoint with sed -i, which BSD sed reads as a backup suffix")
+	}
+}
+
+// TestTheDay2LibraryHoldsUnderBSDTools replays the two library paths that
+// went red on macOS-15 (CI run 33893151746) with BSD-behaving wc, paste and
+// sed first in PATH: paste refusing to run without a file operand, sed -i
+// eating the next argument as a backup suffix, wc padding its count. The
+// shims live in testdata/bsd and mimic the one difference each; the test
+// reproduced all three failures on Linux before the fix and holds them
+// closed after it.
+func TestTheDay2LibraryHoldsUnderBSDTools(t *testing.T) {
+	shims, err := filepath.Abs(filepath.Join("testdata", "bsd"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", shims+string(os.PathListSeparator)+os.Getenv("PATH"))
+	// A paste with no operand is a usage error under these shims: the shim
+	// is doing its job, or the rest of this test measures nothing.
+	_, probe := runDay2(t, `printf 'x\ny\n' | paste -sd ' ' >/dev/null 2>&1 && echo "SHIM-INERT"`)
+	if strings.Contains(probe, "SHIM-INERT") {
+		t.Fatal("the BSD paste shim accepted a paste with no file operand, so this test cannot see what macOS sees")
+	}
+
+	_, out := runDay2(t, fakeFeint+`
+mkdir -p "$FEINT_RUN_DIR/127.0.0.1_1" "$FEINT_RUN_DIR/127.0.0.1_4690"
+d2_still_answers() { [ "$1" = "http://127.0.0.1:4690" ]; }
+if d2_sweep "$DIR/gone" yes "$DIR/feint" 127.0.0.1:1 incus-ovn; then echo "SWEEP-CLAIMED"; fi
+`)
+	if !strings.Contains(out, "another emulator answers on 127.0.0.1:4690") || strings.Contains(out, "SWEEP-CLAIMED") {
+		t.Errorf("under BSD paste the sweep no longer sees a foreign emulator:\n%s", out)
+	}
+
+	_, out = runDay2(t, `
+printf 'emulator:\n  addr: 127.0.0.1:4599\n' >"$DIR/feint.yaml"
+d2_declare_endpoint "$DIR/feint.yaml" 127.0.0.1:4596 || echo "DECLARE-FAILED"
+cat "$DIR/feint.yaml"
+`)
+	if !strings.Contains(out, "addr: 127.0.0.1:4596") || strings.Contains(out, "DECLARE-FAILED") {
+		t.Errorf("under BSD sed the endpoint rewrite lost the address:\n%s", out)
 	}
 }

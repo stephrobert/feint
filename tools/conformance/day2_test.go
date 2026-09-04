@@ -267,7 +267,7 @@ d2_write() { printf '%s\n' "$3" >>"$DIR/writes"; }
 `
 	code, out := runDay2(t, prelude+`
 : >"$DIR/reads"
-d2_read() { echo x >>"$DIR/reads"; if [ "$(wc -l <"$DIR/reads")" = 1 ]; then printf '%s' '{"ip":{"reverse":"web0.platform.example"}}'; else printf '%s' '{"ip":{"reverse":null}}'; fi; }
+d2_read() { echo x >>"$DIR/reads"; if [ "$(grep -c '' "$DIR/reads")" = 1 ]; then printf '%s' '{"ip":{"reverse":"web0.platform.example"}}'; else printf '%s' '{"ip":{"reverse":null}}'; fi; }
 d2_step_ip_reverse
 echo "PASSED-NULL"
 cat "$DIR/writes"
@@ -280,7 +280,7 @@ cat "$DIR/writes"
 	}
 	code, out = runDay2(t, prelude+`
 : >"$DIR/reads"
-d2_read() { echo x >>"$DIR/reads"; if [ "$(wc -l <"$DIR/reads")" = 1 ]; then printf '%s' '{"ip":{"reverse":"web0.platform.example"}}'; else printf '%s' '{"ip":{"reverse":""}}'; fi; }
+d2_read() { echo x >>"$DIR/reads"; if [ "$(grep -c '' "$DIR/reads")" = 1 ]; then printf '%s' '{"ip":{"reverse":"web0.platform.example"}}'; else printf '%s' '{"ip":{"reverse":""}}'; fi; }
 d2_step_ip_reverse
 echo "PASSED-EMPTY"
 `)
