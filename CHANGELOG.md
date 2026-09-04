@@ -53,6 +53,33 @@ what this project is judged on: **a response shape a client can observe**, and
   Driven by `scw lb backend list-statistics`, `scw lb lb get-stats`, `scw lb
   certificate list` and `scw lb subscriber list` in the conformance suite.
 
+- **The runtime reads back what a machine actually carries, and every claim
+  of its plan is answered with three outcomes** (#668). The Incus driver
+  implements `Observer`: one `query` for the machine's own devices, one
+  `network get` per emulated network it sits on, and three execs into the
+  guest for the addresses, the table and, per door a claim asks about, `ip
+  route get <to> from <from>`. The text of both `ip` implementations is parsed
+  (iproute2 on Debian, Ubuntu and the RHEL family, busybox on Alpine), and what
+  does not compare never enters the `Shape`: connected routes, the link-local
+  block, metrics, `proto`, `src`, loopback, the operator's profile devices and
+  their networks' gateways.
+
+  `held`, `broken`, `unreadable`, never two: a read that failed answers
+  unreadable on every claim, counted, and a runtime with no reading half is a
+  fourth state, not asked, so "nobody looked" cannot pass as "nothing was
+  wrong". The rule sets a machine wears are claimed on its filtered interfaces
+  from the same fields the firewall step reads, bare on the networks a pack
+  declared outside its groups' reach, and not at all on a host that withdrew
+  the firewall capability.
+
+  Two controls hold the instrument, both required by `measurement-integrity`:
+  a divergence planted one digit off is reported as itself, and a failed read
+  is neither held nor broken. And the regression of 2026-09-04 is reproduced
+  through the fake runtime: the reply from the public address leaves through
+  the private gateway, and a door claim is broken with both doors named. The
+  door comparator exists; nothing derives a door claim yet (#672). Publishing
+  the verdicts is #670, comparing a reboot's before and after is #669.
+
 - **A plan that claims the default route twice is refused before the runtime
   is asked for anything** (#667). `Reconciler.Expect` derives, from the
   declared plan, who claims which property: a public address owns the way out,
