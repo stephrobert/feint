@@ -8,7 +8,7 @@
   "generated_from": {
     "contracts": "b1c322d461683911",
     "shapes": "cac046c206cc9fc8",
-    "suites": "9bf12fc1453a0cee"
+    "suites": "687027b6542a52a1"
   },
   "operations": {
     "account/v3/ProjectAPI.CreateProject": {
@@ -2171,6 +2171,15 @@
       "behaviour": true,
       "negative": true
     },
+    "lb/v1/ZonedAPI.ListLBTypes": {
+      "driven": true,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": false,
+      "negative": false
+    },
     "lb/v1/ZonedAPI.ListLBs": {
       "driven": true,
       "probed": "response",
@@ -3127,7 +3136,7 @@
     },
     "vpc/v2/API.CreateRoute": {
       "driven": true,
-      "probed": "response",
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": true,
       "shape": "observed",
@@ -3154,7 +3163,7 @@
     },
     "vpc/v2/API.DeleteRoute": {
       "driven": true,
-      "probed": "response",
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": true,
       "shape": "unobserved",
@@ -3208,7 +3217,7 @@
     },
     "vpc/v2/API.GetRoute": {
       "driven": true,
-      "probed": "response",
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": true,
       "shape": "observed",
@@ -3271,7 +3280,7 @@
     },
     "vpc/v2/API.UpdateRoute": {
       "driven": true,
-      "probed": "response",
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": true,
       "shape": "observed",

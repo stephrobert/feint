@@ -1,0 +1,34 @@
+{
+  "comment": [
+    "No mutation accompanies TestEveryOfferedLBTypeIsOneTheCreateAccepts, and",
+    "the reason is the test's own subject: the create accepts every type, so no",
+    "change to the table can make a listed type fail to create. The mutation was",
+    "written (renaming lb-s to a type nothing takes) and reported TEST STILL",
+    "PASSED, which is the harness saying the guard has no teeth yet rather than",
+    "the guard being wrong.",
+    "",
+    "It is kept as a test because it bites the day the create closes on a list,",
+    "which is what lbtypes.go's 'Why the create stays open' says is blocked on",
+    "the anonymiser preserving the field. A mutation that cannot bite would be",
+    "worse than none: falsify would report it green for ever and nobody would",
+    "know which of the two it meant."
+  ],
+  "mutations": [
+    {
+      "label": "the page is the whole table every time, so the SDK's pagination loop never ends",
+      "file": "internal/providers/scaleway/lbtypes.go",
+      "package": "./internal/providers/scaleway/",
+      "find": "\tstart, end := parsePage(r).slice(len(publishedLBTypes))",
+      "replace": "\tstart, end := parsePage(r).slice(len(publishedLBTypes))\n\tstart, end = 0, len(publishedLBTypes)",
+      "test": "TestTheLBOfferTableIsServedAndPaged"
+    },
+    {
+      "label": "the bandwidth is invented rather than measured, so a client sizing on it reads a number nobody published",
+      "file": "internal/providers/scaleway/lbtypes.go",
+      "package": "./internal/providers/scaleway/",
+      "find": "\t\t\t\"bandwidth\":    offered.Bandwidth,",
+      "replace": "\t\t\t\"bandwidth\":    offered.Bandwidth + 1,",
+      "test": "TestTheLBOfferTableIsServedAndPaged"
+    }
+  ]
+}
