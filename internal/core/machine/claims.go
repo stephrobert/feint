@@ -479,3 +479,72 @@ func prefixes(blocks []netip.Prefix) string {
 	}
 	return strings.Join(out, ", ")
 }
+
+// door claims which door a reply sent from an address leaves by, towards a
+// destination: the answer to `ip route get <To> from <From>`, compared on
+// `via` and `dev` alone. The comparator exists for the reading half (#668);
+// nothing derives a door claim yet, because the value is a measurement per
+// machine shape and one of the two shapes has none (#672).
+type door struct {
+	From, To netip.Addr
+	Via      netip.Addr
+	Dev      string
+}
+
+func (c door) String() string { return "door(" + c.From.String() + ")" }
+
+// door is what the reading half asks the runtime for on this claim's behalf.
+func (c door) door() (from, to netip.Addr) { return c.From, c.To }
+
+func (c door) Check(s Shape) Verdict {
+	got, read := s.Doors[c.From]
+	if !read {
+		return unreadable(c, "the door of "+c.From.String()+" was not read")
+	}
+	want := Route{Via: c.Via, Dev: c.Dev}
+	if got.Dev == "" {
+		return broken(c, want.String(), "no route")
+	}
+	if got.Via == c.Via && got.Dev == c.Dev {
+		return held(c)
+	}
+	return broken(c, want.String(), got.String())
+}
+
+// wears claims the rule sets the interface on a network carries: exactly Sets,
+// and none at all when Sets is empty — an interface on a network the pack
+// declared outside its security groups' reach (Attachment.Unfiltered, #574).
+// The contents of the sets are EnsureFirewall's and the network suites';
+// this compares the binding alone.
+type wears struct {
+	Network string
+	Sets    []string
+}
+
+func (c wears) String() string { return "wears(" + c.Network + ")" }
+
+func (c wears) want(dev string) string {
+	if len(c.Sets) == 0 {
+		return "no rule set on " + dev
+	}
+	return strings.Join(c.Sets, ", ") + " on " + dev
+}
+
+func (c wears) Check(s Shape) Verdict {
+	dev := s.interfaceOn(c.Network)
+	if dev == "" {
+		return broken(c, c.want("the interface of "+c.Network), "no interface on "+c.Network)
+	}
+	got := s.Interfaces[dev].RuleSets
+	if len(got) == 0 && len(c.Sets) == 0 {
+		return held(c)
+	}
+	if slices.Equal(got, c.Sets) {
+		return held(c)
+	}
+	rendered := "none"
+	if len(got) > 0 {
+		rendered = strings.Join(got, ", ")
+	}
+	return broken(c, c.want(dev), rendered+" on "+dev)
+}
