@@ -391,6 +391,15 @@ func (p *Pack) Routes() []emulator.Route {
 		{Method: "GET", Path: lbZones + "/backends/{backendID}", Operation: "lb/v1/ZonedAPI.GetBackend", Handler: p.getLBBackend},
 		{Method: "PUT", Path: lbZones + "/backends/{backendID}", Operation: "lb/v1/ZonedAPI.UpdateBackend", Handler: p.updateLBBackend},
 		{Method: "DELETE", Path: lbZones + "/backends/{backendID}", Operation: "lb/v1/ZonedAPI.DeleteBackend", Handler: p.deleteLBBackend},
+		// Four reads a Day-2 client asks and a provisioning client never does
+		// (#666): the stats report the servers a backend names, with the one
+		// health nobody here measures left at the contract's own `unknown`,
+		// and the two lists are empty because that is what a balancer here
+		// holds. lbstats.go carries the line none of them crosses.
+		{Method: "GET", Path: lbZones + "/lbs/{lbID}/stats", Operation: "lb/v1/ZonedAPI.GetLBStats", Handler: p.getLBStats},
+		{Method: "GET", Path: lbZones + "/lbs/{lbID}/backend-stats", Operation: "lb/v1/ZonedAPI.ListBackendStats", Handler: p.listLBBackendStats},
+		{Method: "GET", Path: lbZones + "/lbs/{lbID}/certificates", Operation: "lb/v1/ZonedAPI.ListCertificates", Handler: p.listLBCertificates},
+		{Method: "GET", Path: lbZones + "/subscribers", Operation: "lb/v1/ZonedAPI.ListSubscriber", Handler: p.listLBSubscribers},
 		{Method: "PUT", Path: lbZones + "/backends/{backendID}/servers", Operation: "lb/v1/ZonedAPI.SetBackendServers", Handler: p.setLBBackendServers},
 		// One member at a time, the Day-2 client's way (#676); the measured
 		// semantics are on the handlers.
@@ -951,27 +960,21 @@ func (p *Pack) Declined() []emulator.Decline {
 
 		// ---- lb/v1, the part the measured clients do not call (#282) ----------
 
-		emulator.Because("nothing here probes a backend or forwards a packet, so stats would report a health nothing measured — a backend published UP that nothing checked is the lie this emulator exists to refuse (#315 measured the same for the Outscale LBU)",
-			"lb/v1/ZonedAPI.GetLBStats",
-			"lb/v1/ZonedAPI.ListBackendStats"),
-
 		emulator.Because("the Terraform provider reconciles a frontend's ACLs one by one — CreateACL, ListACLs, UpdateACL, DeleteACL, measured in its services/lb/frontend.go — and never calls the bulk set",
 			"lb/v1/ZonedAPI.SetACLs"),
 
 		emulator.Because("migrating changes the commercial offer of the balancer, and an emulated balancer has no capacity to move: answering would confirm a resize nothing performed",
 			"lb/v1/ZonedAPI.MigrateLB"),
 
-		emulator.Because("nothing here terminates TLS: a certificate served by this emulator would be an ID over key material that signs nothing, and the Let's Encrypt half issues against domains this emulator does not hold",
+		emulator.Because("nothing here terminates TLS: a certificate served by this emulator would be an ID over key material that signs nothing, and the Let's Encrypt half issues against domains this emulator does not hold; the list is served since #666, and it is empty, because that is what a balancer here holds",
 			"lb/v1/ZonedAPI.CreateCertificate",
-			"lb/v1/ZonedAPI.ListCertificates",
 			"lb/v1/ZonedAPI.GetCertificate",
 			"lb/v1/ZonedAPI.UpdateCertificate",
 			"lb/v1/ZonedAPI.DeleteCertificate"),
 
-		emulator.Because("subscribers are an alerting channel, and an emulator whose balancer never degrades has no event to deliver: a subscription recorded here would be a promise nothing can keep",
+		emulator.Because("subscribers are an alerting channel, and an emulator whose balancer never degrades has no event to deliver: a subscription recorded here would be a promise nothing can keep; the list is served since #666, and it is empty, for the same reason",
 			"lb/v1/ZonedAPI.CreateSubscriber",
 			"lb/v1/ZonedAPI.GetSubscriber",
-			"lb/v1/ZonedAPI.ListSubscriber",
 			"lb/v1/ZonedAPI.UpdateSubscriber",
 			"lb/v1/ZonedAPI.DeleteSubscriber",
 			"lb/v1/ZonedAPI.SubscribeToLB",

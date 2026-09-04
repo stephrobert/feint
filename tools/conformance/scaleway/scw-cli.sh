@@ -1177,6 +1177,22 @@ scw lb backend add-servers "$backend_id" server-ip.0=172.16.8.12 zone="$ZONE" -o
   | jq -e '.pool == ["172.16.8.12","172.16.8.11"]' >/dev/null || fail "add-servers did not put the new address first"
 scw lb backend remove-servers "$backend_id" server-ip.0=172.16.8.12 zone="$ZONE" -o json \
   | jq -e '.pool == ["172.16.8.11"]' >/dev/null || fail "remove-servers did not leave the other address"
+
+# The four reads a Day-2 client asks and a provisioning client never does
+# (#666): the stats name the pool's address with the one health nobody here
+# measures left at `unknown`, and the two lists are the empty ones a balancer
+# here holds.
+scw lb backend list-statistics "$lb_id" zone="$ZONE" -o json \
+  | jq -e 'length == 1 and .[0].ip == "172.16.8.11" and .[0].last_health_check_status == "unknown"' >/dev/null \
+  || fail "backend list-statistics did not name the pool's address with an unknown health"
+scw lb lb get-stats "$lb_id" zone="$ZONE" -o json \
+  | jq -e '.backend_servers_stats | length == 1' >/dev/null || fail "lb get-stats did not carry the backend's one server"
+scw lb certificate list lb-id="$lb_id" zone="$ZONE" -o json | jq -e 'length == 0' >/dev/null \
+  || fail "certificate list on a balancer holding none is not the empty list"
+# `name` is required by the CLI, not by the API: measured on 2026-09-04, the
+# command refuses to run without it, before any request leaves.
+scw lb subscriber list name=conformance zone="$ZONE" -o json | jq -e 'length == 0' >/dev/null \
+  || fail "subscriber list is not the empty list"
 scw lb backend update-healthcheck backend-id="$backend_id" port=8081 check-max-retries=3 check-delay=3s check-timeout=1s zone="$ZONE" -o json \
   | jq -e '.port == 8081' >/dev/null || fail "update-healthcheck did not carry the port"
 scw lb frontend list lb-id="$lb_id" zone="$ZONE" -o json \

@@ -1,8 +1,8 @@
 {
   "provider": "scaleway",
   "total": 498,
-  "implemented": 185,
-  "declined": 313,
+  "implemented": 189,
+  "declined": 309,
   "unknown": 0,
   "orphans": null,
   "products": [
@@ -110,15 +110,15 @@
     {
       "product": "lb",
       "total": 107,
-      "implemented": 38,
-      "declined": 69,
+      "implemented": 42,
+      "declined": 65,
       "unknown": 0,
       "versions": [
         {
           "version": "v1",
           "total": 107,
-          "implemented": 38,
-          "declined": 69,
+          "implemented": 42,
+          "declined": 65,
           "unknown": 0
         }
       ]
@@ -218,8 +218,8 @@
     {
       "group": "lb",
       "total": 107,
-      "implemented": 38,
-      "declined": 69,
+      "implemented": 42,
+      "declined": 65,
       "unknown": 0
     },
     {
@@ -2505,7 +2505,7 @@
     {
       "operation": "lb/v1/ZonedAPI.CreateCertificate",
       "product": "lb",
-      "reason": "nothing here terminates TLS: a certificate served by this emulator would be an ID over key material that signs nothing, and the Let's Encrypt half issues against domains this emulator does not hold",
+      "reason": "nothing here terminates TLS: a certificate served by this emulator would be an ID over key material that signs nothing, and the Let's Encrypt half issues against domains this emulator does not hold; the list is served since #666, and it is empty, because that is what a balancer here holds",
       "version": "v1",
       "status": "declined"
     },
@@ -2536,7 +2536,7 @@
     {
       "operation": "lb/v1/ZonedAPI.CreateSubscriber",
       "product": "lb",
-      "reason": "subscribers are an alerting channel, and an emulator whose balancer never degrades has no event to deliver: a subscription recorded here would be a promise nothing can keep",
+      "reason": "subscribers are an alerting channel, and an emulator whose balancer never degrades has no event to deliver: a subscription recorded here would be a promise nothing can keep; the list is served since #666, and it is empty, for the same reason",
       "version": "v1",
       "status": "declined"
     },
@@ -2555,7 +2555,7 @@
     {
       "operation": "lb/v1/ZonedAPI.DeleteCertificate",
       "product": "lb",
-      "reason": "nothing here terminates TLS: a certificate served by this emulator would be an ID over key material that signs nothing, and the Let's Encrypt half issues against domains this emulator does not hold",
+      "reason": "nothing here terminates TLS: a certificate served by this emulator would be an ID over key material that signs nothing, and the Let's Encrypt half issues against domains this emulator does not hold; the list is served since #666, and it is empty, because that is what a balancer here holds",
       "version": "v1",
       "status": "declined"
     },
@@ -2580,7 +2580,7 @@
     {
       "operation": "lb/v1/ZonedAPI.DeleteSubscriber",
       "product": "lb",
-      "reason": "subscribers are an alerting channel, and an emulator whose balancer never degrades has no event to deliver: a subscription recorded here would be a promise nothing can keep",
+      "reason": "subscribers are an alerting channel, and an emulator whose balancer never degrades has no event to deliver: a subscription recorded here would be a promise nothing can keep; the list is served since #666, and it is empty, for the same reason",
       "version": "v1",
       "status": "declined"
     },
@@ -2605,7 +2605,7 @@
     {
       "operation": "lb/v1/ZonedAPI.GetCertificate",
       "product": "lb",
-      "reason": "nothing here terminates TLS: a certificate served by this emulator would be an ID over key material that signs nothing, and the Let's Encrypt half issues against domains this emulator does not hold",
+      "reason": "nothing here terminates TLS: a certificate served by this emulator would be an ID over key material that signs nothing, and the Let's Encrypt half issues against domains this emulator does not hold; the list is served since #666, and it is empty, because that is what a balancer here holds",
       "version": "v1",
       "status": "declined"
     },
@@ -2630,9 +2630,8 @@
     {
       "operation": "lb/v1/ZonedAPI.GetLBStats",
       "product": "lb",
-      "reason": "nothing here probes a backend or forwards a packet, so stats would report a health nothing measured — a backend published UP that nothing checked is the lie this emulator exists to refuse (#315 measured the same for the Outscale LBU)",
       "version": "v1",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "lb/v1/ZonedAPI.GetRoute",
@@ -2643,7 +2642,7 @@
     {
       "operation": "lb/v1/ZonedAPI.GetSubscriber",
       "product": "lb",
-      "reason": "subscribers are an alerting channel, and an emulator whose balancer never degrades has no event to deliver: a subscription recorded here would be a promise nothing can keep",
+      "reason": "subscribers are an alerting channel, and an emulator whose balancer never degrades has no event to deliver: a subscription recorded here would be a promise nothing can keep; the list is served since #666, and it is empty, for the same reason",
       "version": "v1",
       "status": "declined"
     },
@@ -2656,9 +2655,8 @@
     {
       "operation": "lb/v1/ZonedAPI.ListBackendStats",
       "product": "lb",
-      "reason": "nothing here probes a backend or forwards a packet, so stats would report a health nothing measured — a backend published UP that nothing checked is the lie this emulator exists to refuse (#315 measured the same for the Outscale LBU)",
       "version": "v1",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "lb/v1/ZonedAPI.ListBackends",
@@ -2669,9 +2667,8 @@
     {
       "operation": "lb/v1/ZonedAPI.ListCertificates",
       "product": "lb",
-      "reason": "nothing here terminates TLS: a certificate served by this emulator would be an ID over key material that signs nothing, and the Let's Encrypt half issues against domains this emulator does not hold",
       "version": "v1",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "lb/v1/ZonedAPI.ListFrontends",
@@ -2712,9 +2709,8 @@
     {
       "operation": "lb/v1/ZonedAPI.ListSubscriber",
       "product": "lb",
-      "reason": "subscribers are an alerting channel, and an emulator whose balancer never degrades has no event to deliver: a subscription recorded here would be a promise nothing can keep",
       "version": "v1",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "lb/v1/ZonedAPI.MigrateLB",
@@ -2751,14 +2747,14 @@
     {
       "operation": "lb/v1/ZonedAPI.SubscribeToLB",
       "product": "lb",
-      "reason": "subscribers are an alerting channel, and an emulator whose balancer never degrades has no event to deliver: a subscription recorded here would be a promise nothing can keep",
+      "reason": "subscribers are an alerting channel, and an emulator whose balancer never degrades has no event to deliver: a subscription recorded here would be a promise nothing can keep; the list is served since #666, and it is empty, for the same reason",
       "version": "v1",
       "status": "declined"
     },
     {
       "operation": "lb/v1/ZonedAPI.UnsubscribeFromLB",
       "product": "lb",
-      "reason": "subscribers are an alerting channel, and an emulator whose balancer never degrades has no event to deliver: a subscription recorded here would be a promise nothing can keep",
+      "reason": "subscribers are an alerting channel, and an emulator whose balancer never degrades has no event to deliver: a subscription recorded here would be a promise nothing can keep; the list is served since #666, and it is empty, for the same reason",
       "version": "v1",
       "status": "declined"
     },
@@ -2777,7 +2773,7 @@
     {
       "operation": "lb/v1/ZonedAPI.UpdateCertificate",
       "product": "lb",
-      "reason": "nothing here terminates TLS: a certificate served by this emulator would be an ID over key material that signs nothing, and the Let's Encrypt half issues against domains this emulator does not hold",
+      "reason": "nothing here terminates TLS: a certificate served by this emulator would be an ID over key material that signs nothing, and the Let's Encrypt half issues against domains this emulator does not hold; the list is served since #666, and it is empty, because that is what a balancer here holds",
       "version": "v1",
       "status": "declined"
     },
@@ -2814,7 +2810,7 @@
     {
       "operation": "lb/v1/ZonedAPI.UpdateSubscriber",
       "product": "lb",
-      "reason": "subscribers are an alerting channel, and an emulator whose balancer never degrades has no event to deliver: a subscription recorded here would be a promise nothing can keep",
+      "reason": "subscribers are an alerting channel, and an emulator whose balancer never degrades has no event to deliver: a subscription recorded here would be a promise nothing can keep; the list is served since #666, and it is empty, for the same reason",
       "version": "v1",
       "status": "declined"
     },
