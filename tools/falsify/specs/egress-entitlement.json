@@ -41,12 +41,20 @@
       "test": "TestAPushedDefaultRouteIsTheOnlyWayOutForAPrivateServer"
     },
     {
-      "label": "a public address stops entitling its server, so the bastion loses the way out the cloud gives it",
+      "label": "a public address stops keeping its server's way out, so NoEgress takes away the route the address laid (#660)",
       "file": "internal/providers/scaleway/machines.go",
       "package": "./internal/providers/scaleway/",
-      "find": "\tif len(p.publicAddressesOf(server)) > 0 {",
-      "replace": "\tif len(p.publicAddressesOf(server)) > 0 && false {",
-      "test": "TestAServerWithAPublicAddressLeavesThroughItsOwnNetwork"
+      "find": "\tif len(p.publicAddressesOf(server)) > 0 {\n\t\treturn false\n\t}",
+      "replace": "\tif len(p.publicAddressesOf(server)) > 0 && false {\n\t\treturn false\n\t}",
+      "test": "TestAServerWithAPublicAddressKeepsTheRouteItsAddressCarries"
+    },
+    {
+      "label": "a public address stops leaving its route alone, and a pushing gateway's network replaces the route the address carries (#660)",
+      "file": "internal/providers/scaleway/machines.go",
+      "package": "./internal/providers/scaleway/",
+      "find": "\tif len(p.publicAddressesOf(server)) > 0 {\n\t\treturn \"\"\n\t}",
+      "replace": "\tif len(p.publicAddressesOf(server)) > 0 && false {\n\t\treturn \"\"\n\t}",
+      "test": "TestAPushedDefaultRouteIsTheOnlyWayOutForAPrivateServer"
     },
     {
       "label": "the network stops announcing where the private fleet is, so silencing its gateway takes the VPC away with it and two machines of one VPC stop reaching each other",

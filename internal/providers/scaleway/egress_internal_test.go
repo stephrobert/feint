@@ -40,28 +40,54 @@ func serverOn(p *Pack, networkName string) *resource.Resource {
 	return server
 }
 
-// A server holding a public address reaches the Internet, through the network
-// its own NIC is on (#647).
+// A server holding a public address KEEPS the route that address carries, and
+// egress asks for nothing (#660, correcting #647).
 //
-// The rule is Scaleway's and the emulator had none of it: measured under
-// --vm incus-ovn, a bastion with a public address and three private NICs kept
-// its default route out of eth0 — the interface #548 takes the address OFF —
-// and could not reach anything, while every SSH hop through it worked. A fleet
-// tool could discover the machine and never provision it.
-func TestAServerWithAPublicAddressLeavesThroughItsOwnNetwork(t *testing.T) {
+// #647 had this return the server's private network, on the reasoning that a
+// public address rides the network its NIC is on. True of a machine whose only
+// NIC is the routed one; false the moment it also joins a Private Network, and
+// the example stacks caught it on the first scheduled night: platform-web-0
+// served 443 inside its machine and answered nothing at its published address.
+//
+// Measured 2026-09-04 under --vm incus-ovn, a server with a public address and
+// one private NIC:
+//
+//	default via 10.77.0.1 dev eth0        <- the private gateway
+//	eth0 carries 10.77.0.2/24 and 203.0.113.2/32
+//	from the station: nothing
+//
+// The reply was leaving by a door the request had not come in through. The same
+// server without the private NIC keeps `default via 169.254.0.1`, which
+// RouteAddress lays for the routed address, and answers. So the route has an
+// owner already, and the only correct thing for egress to do is nothing.
+//
+// Which is why NoEgress exists: an empty network name means "leave it alone"
+// here and "take it away" for the server below, and one string could not say
+// both.
+func TestAServerWithAPublicAddressKeepsTheRouteItsAddressCarries(t *testing.T) {
 	p := egressPack()
 	server := serverOn(p, "fnt-web")
 
+	// With neither address nor gateway: no network, and the route is refused.
 	if got := p.egressNetworkOf(server); got != "" {
 		t.Fatalf("a server with no address and no gateway leaves through %q, want nothing", got)
+	}
+	if !p.hasNoWayOut(server) {
+		t.Error("a server with no address and no gateway is not refused its route")
 	}
 
 	address := resource.New("ip-1", kindIP, resource.Tenant{Provider: Name, Zone: "fr-par-1"}, "available", p.env.Now())
 	address.Attrs = map[string]any{"address": "203.0.113.2", "server": map[string]any{"id": "srv-1"}}
 	p.env.Store.Put(address)
 
-	if got := p.egressNetworkOf(server); got != "fnt-web" {
-		t.Errorf("a server holding a public address leaves through %q, want fnt-web", got)
+	if got := p.egressNetworkOf(server); got != "" {
+		t.Errorf("a server holding a public address asks for egress through %q, and asking for any "+
+			"network here replaces the route its own address carries", got)
+	}
+	// And it is NOT refused: the difference between the two empty answers.
+	if p.hasNoWayOut(server) {
+		t.Error("a server holding a public address is refused its default route, which takes away " +
+			"the route RouteAddress laid and leaves it unreachable at its published address")
 	}
 }
 
@@ -97,10 +123,36 @@ func TestAPushedDefaultRouteIsTheOnlyWayOutForAPrivateServer(t *testing.T) {
 	if got := p.egressNetworkOf(server); got != "" {
 		t.Errorf("a gateway that pushes no default route gave a way out through %q", got)
 	}
+	if !p.hasNoWayOut(server) {
+		t.Error("a gateway that pushes no default route is not read as no way out, so the route is left to whatever DHCP laid")
+	}
 
 	attach(true)
 	if got := p.egressNetworkOf(server); got != "fnt-web" {
 		t.Errorf("a gateway pushing the default route gave %q, want fnt-web", got)
+	}
+	if p.hasNoWayOut(server) {
+		t.Error("a gateway pushing the default route still leaves the server refused one")
+	}
+
+	// A public address beside that gateway owns the route (#660): the answer
+	// is to leave it alone, not to replace it with the gateway's, and the
+	// server is not refused one either. Then the address goes, and the
+	// gateway's network is the way out again — which proves the address, and
+	// not something else, was the reason.
+	address := resource.New("ip-1", kindIP, resource.Tenant{Provider: Name, Zone: "fr-par-1"}, "available", p.env.Now())
+	address.Attrs = map[string]any{"address": "203.0.113.2", "server": map[string]any{"id": "srv-1"}}
+	p.env.Store.Put(address)
+	if got := p.egressNetworkOf(server); got != "" {
+		t.Errorf("a server holding a public address beside a pushing gateway asks for egress through %q, "+
+			"which replaces the route its address carries", got)
+	}
+	if p.hasNoWayOut(server) {
+		t.Error("a server holding a public address beside a pushing gateway is refused its route")
+	}
+	p.env.Store.Delete(Name, kindIP, "ip-1")
+	if got := p.egressNetworkOf(server); got != "fnt-web" {
+		t.Errorf("the address is gone and the gateway's way out did not come back: %q", got)
 	}
 
 	// And it is taken back with the attachment, which is what the driver's
@@ -108,5 +160,8 @@ func TestAPushedDefaultRouteIsTheOnlyWayOutForAPrivateServer(t *testing.T) {
 	p.env.Store.Delete(Name, kindGatewayNetwork, "gn-1")
 	if got := p.egressNetworkOf(server); got != "" {
 		t.Errorf("the attachment is gone and the server still leaves through %q", got)
+	}
+	if !p.hasNoWayOut(server) {
+		t.Error("the attachment is gone and the server is still not refused its route")
 	}
 }

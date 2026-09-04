@@ -278,6 +278,43 @@ station_fetch() { # address port
 	curl -sf --max-time 8 "http://$1:$2/" 2>/dev/null | tr -d '\r\n'
 }
 
+# station_fetch_within is station_fetch with a bounded wait, and it exists
+# because "the service listens inside" and "the station can reach it" are two
+# facts with a gap between them.
+#
+# The gap is the runtime's: after a restart the guest's unit comes up first, and
+# the route that carries its published address back to the station is put in
+# place around the same moment. fnl_service_came_up already waits for the first
+# fact; nothing waited for the second, so the fetch was a single attempt against
+# a race, and it lost one scheduled night in five (#660, the same failure seen
+# before).
+#
+# A bounded wait rather than a retry: the caller is told how long it waited, and
+# a fetch that never succeeds still fails. What a plain retry would buy is a
+# green run over a route that never came back, which is the verdict this whole
+# harness exists to refuse.
+#
+# It prints the body on success and nothing on failure, so every caller reads it
+# the way it read station_fetch. How long it waited goes to stderr, which is the
+# part worth keeping: a window that is 0 s on the station and seconds on a runner
+# is the difference this function exists for, and the next person to read a red
+# night can see whether it is widening instead of guessing.
+station_fetch_within() { # seconds address port
+	local budget="$1" address="$2" port="$3" waited=0 body=""
+	while [ "$waited" -lt "$budget" ]; do
+		body="$(station_fetch "$address" "$port")"
+		if [ -n "$body" ]; then
+			[ "$waited" -gt 0 ] && echo "    (the station reached $address:$port after ${waited}s)" >&2
+			printf '%s' "$body"
+			return 0
+		fi
+		sleep 2
+		waited=$((waited + 2))
+	done
+	echo "    (the station never reached $address:$port in ${budget}s)" >&2
+	return 1
+}
+
 # live_machine_pid answers the runtime process holding a machine, empty when
 # nobody could look. It is the witness #547 was filed on: a reboot that leaves
 # the same process leaves the same kernel and the same uptime. Read from the
@@ -653,8 +690,12 @@ run_stack() { # name
 		address="$(published_address "$provider" "$restart")" \
 			|| fail "cannot look: $provider's API did not answer when asked for $restart's published address"
 		if [ -n "$address" ]; then
-			body="$(station_fetch "$address" "$port")"
-			fnl_service_answers "$name" "$restart (after a restart)" "$rmachine" "$address" "$port" "$body"
+			# 60 s, against a route that is back in a second or two when it
+			# comes back at all. The budget is generous because the cost of
+			# being wrong here is a red night on a working emulator, and the
+			# cost of waiting is two seconds on every green one.
+			body="$(station_fetch_within 60 "$address" "$port")" || body=""
+			fnl_service_answers "$name" "$restart (after a restart, waited up to 60s)" "$rmachine" "$address" "$port" "$body"
 		fi
 
 		# ---- what the restarts must not have cost (#549) ---------------------
@@ -714,7 +755,7 @@ run_stack() { # name
 				skip "$name: $target publishes no public address, so the station leg has nothing to travel; its service was proved listening inside"
 				continue
 			fi
-			body="$(station_fetch "$address" "$port")"
+			body="$(station_fetch_within 60 "$address" "$port")" || body=""
 			fnl_service_answers "$name" "$target" "$smachine" "$address" "$port" "$body"
 
 			# The public pair, on the address a client dials (#548). The open
