@@ -308,9 +308,20 @@ type observingRecorder struct {
 	shape      Shape
 	err        error
 	noFirewall bool
+	// queue, when set, is read one Shape per Observe ahead of shape: how a
+	// test writes a machine that changes between two readings.
+	queue []Shape
+	// reads counts the Observe calls, which is how a test holds a bound.
+	reads int
 }
 
 func (o *observingRecorder) Observe(context.Context, string) (Shape, error) {
+	o.reads++
+	if len(o.queue) > 0 {
+		next := o.queue[0]
+		o.queue = o.queue[1:]
+		return next, o.err
+	}
 	return o.shape, o.err
 }
 

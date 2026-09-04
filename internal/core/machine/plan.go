@@ -3,6 +3,7 @@ package machine
 import (
 	"context"
 	"net/netip"
+	"strings"
 
 	"github.com/stephrobert/feint/internal/core/resource"
 )
@@ -197,12 +198,25 @@ func (r Reconciler) PowerOn(ctx context.Context, res *resource.Resource, boot Bo
 	if !r.binding().PowerOn(ctx, res, boot) {
 		return false
 	}
+	r.replay(ctx, res, plan)
+	// And what the replay produced is read back and published (#670): the
+	// state above is the one the boot produced, the verdict is the one the
+	// reading produced, and neither is allowed to stand in for the other.
+	r.check(ctx, res)
+	return true
+}
+
+// replay is the post-boot order, in the one order — the promised addresses,
+// the memberships, the way out, the record, the pack's bookkeeping, the
+// firewall last. It is PowerOn's second half, and check runs it a second time
+// on a broken reading, which is why it is a function: every step is
+// idempotent, and a machine that needs no repair is a machine this changes
+// nothing on.
+func (r Reconciler) replay(ctx context.Context, res *resource.Resource, plan Plan) {
 	// The launch installed the host half of every public route; this hands
 	// the guest its addresses, and repairs a machine that already existed.
 	// Idempotent, like everything in the replay.
-	for _, address := range plan.Publics {
-		r.route(ctx, res, plan, address)
-	}
+	r.replayAddresses(ctx, res, plan)
 	// The memberships come back as extra interfaces, after the boot rather
 	// than on it. Attach is idempotent by network, so a machine that kept its
 	// devices across a stop is repaired, not doubled. A refusal is already in
@@ -240,7 +254,6 @@ func (r Reconciler) PowerOn(ctx context.Context, res *resource.Resource, boot Bo
 	// packs kept in comments; TestTheReplayRoutesThenJoinsThenAppliesTheFirewall
 	// is what holds it now.
 	r.Groups.AfterBoot(ctx, res)
-	return true
 }
 
 // Reboot takes the machine down and brings it back up on its declared plan.
@@ -287,10 +300,24 @@ func (r Reconciler) ReplayAddresses(ctx context.Context, res *resource.Resource)
 	if !declared {
 		return
 	}
+	r.replayAddresses(ctx, res, plan)
+	r.ReplayEgress(ctx, res)
+	// This door sits on a read path, and an exec per GET would make the
+	// emulator's latency the runtime's. So the reading happens here only
+	// while nothing readable has been published for the machine: the boot of
+	// a virtual machine, whose shape was unreadable until its agent answered.
+	// Once a reading held or broke, this door reads no more (#670).
+	// TestTheLateAddressDoorVerifiesOnceItCanRead fails without the bound.
+	if last := res.Runtime[VerifiedKey]; last == "" || strings.HasPrefix(last, "unreadable") {
+		r.check(ctx, res)
+	}
+}
+
+// replayAddresses routes every promised address, the loop three doors share.
+func (r Reconciler) replayAddresses(ctx context.Context, res *resource.Resource, plan Plan) {
 	for _, address := range plan.Publics {
 		r.route(ctx, res, plan, address)
 	}
-	r.ReplayEgress(ctx, res)
 }
 
 // ReplayEgress gives the machine the way out its plan entitles it to, and takes
@@ -363,6 +390,7 @@ func (r Reconciler) Route(ctx context.Context, res *resource.Resource, address s
 		return
 	}
 	r.route(ctx, res, plan, address)
+	r.check(ctx, res)
 }
 
 func (r Reconciler) route(ctx context.Context, res *resource.Resource, plan Plan, address string) {
@@ -519,6 +547,7 @@ func (r Reconciler) Join(ctx context.Context, res *resource.Resource, att Attach
 	err := r.attach(ctx, res, att)
 	r.ReplayAddresses(ctx, res)
 	r.Groups.AfterBoot(ctx, res)
+	r.check(ctx, res)
 	return err
 }
 

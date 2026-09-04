@@ -53,6 +53,32 @@ what this project is judged on: **a response shape a client can observe**, and
   Driven by `scw lb backend list-statistics`, `scw lb lb get-stats`, `scw lb
   certificate list` and `scw lb subscriber list` in the conformance suite.
 
+- **A verdict somebody reads: the verification is published, and the runtime
+  leg gates on it** (#670). After every lifecycle door — a boot, a reboot, a
+  hot join, a hot route, the late-address door of a virtual machine — what the
+  runtime read back is published where a human looks and where a gate fails:
+  an `ERROR` line per broken claim naming the claim, the wanted value and the
+  one found; `Runtime["verified"]` on the resource, out of every client's view
+  and on `/_feint/state` for whoever asks; and four counters on
+  `/_feint/health`, `verification.{held,broken,unreadable,repaired}`, which
+  moves the health schema to version 8.
+
+  The API state does not move. A machine running with the wrong door is
+  running and unreachable, and publishing it stopped would be the lie in the
+  other direction. One bounded repair: a broken first reading replays the
+  post-boot order once, every step of it idempotent, and reads again; the
+  second reading is what is published, and `repaired` counts how often the
+  first was wrong, because a repair that fires on every boot is a defect
+  hidden behind a retry. An unreadable reading is never replayed onto, and the
+  late-address door reads only while nothing readable was published, so a GET
+  never execs into a verified machine.
+
+  `tools/conformance/guard.sh verification <endpoint>`, called by every leg
+  before its emulator stops: `broken > 0` fails the leg naming each claim from
+  the state, more unreadable than held fails it as a pass that measured its
+  own blindness, absent counters fail it rather than read as zero, and a pass
+  with no runtime is told so rather than judged.
+
 - **The runtime reads back what a machine actually carries, and every claim
   of its plan is answered with three outcomes** (#668). The Incus driver
   implements `Observer`: one `query` for the machine's own devices, one

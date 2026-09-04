@@ -334,6 +334,89 @@ EOF
   fi
 }
 
+# guard_verification refuses a pass whose emulator read back, on any machine,
+# something other than what that machine's plan claimed (#670).
+#
+# The runtime leg watched a machine come back from a restart and asked one
+# question — does the service answer at its published address — and when the
+# answer was no it named the far end, sixty seconds later. Since #668 the
+# emulator itself reads every machine back after every lifecycle action and
+# publishes what it found: four counters on /_feint/health, and the claim under
+# each resource's Runtime on /_feint/state. This is the gate that reads them,
+# asked before the emulator stops, because both payloads die with it.
+#
+# Two refusals, and they are not the same finding:
+#
+#   broken > 0        a machine does not carry what its plan claims; the claim
+#                     is named, with what was wanted and what was found
+#   unreadable > held more claims could not be read than were read: a pass
+#                     that measured its own blindness, which is a different
+#                     fact from success and must not read like it
+#
+# A pass with no machine runtime is not judged: nothing booted, so nothing was
+# read, and a gate that failed the client legs for it would teach `--no-verify`.
+# It says so instead of returning in silence.
+guard_verification() { # endpoint
+  local endpoint="${1:-}" health state
+  health="$(curl -sf "$endpoint/_feint/health" || true)"
+  if [ -z "$health" ]; then
+    echo "FAIL: $endpoint answered no health payload, so nothing here knows what its machines carried" >&2
+    exit 1
+  fi
+  state="$(curl -sf "$endpoint/_feint/state" || true)"
+  guard_verification_from "$health" "$state"
+}
+
+# guard_verification_from is the verdict itself, on payloads the caller
+# captured: a test plants a broken counter and a resource carrying the claim,
+# and requires the refusal — without which a gate that has never seen anything
+# is indistinguishable from a gate that looks nowhere.
+#
+# TestTheVerificationGateRefusesABrokenClaim and
+# TestTheVerificationGateRefusesAPassThatCouldNotRead fail without the two
+# refusals, and TestTheVerificationGateNamesTheClaim holds that the claim is
+# printed rather than the counter alone.
+guard_verification_from() { # health_json state_json
+  local health="$1" state="$2" machines held broken unreadable repaired claims
+  machines="$(printf '%s' "$health" | jq -r '.machines // "none"')"
+  case "$machines" in
+    ''|none|null)
+      echo "  verification: not judged, this emulator runs no machine runtime" >&2
+      return 0 ;;
+  esac
+  # The reader proves it can find before it judges: a payload with no
+  # counters is an emulator that never asked the question, and reading its
+  # absence as zero would pass every build that predates the gate.
+  held="$(printf '%s' "$health" | jq -r '.verification.held // "MISSING"')"
+  broken="$(printf '%s' "$health" | jq -r '.verification.broken // "MISSING"')"
+  unreadable="$(printf '%s' "$health" | jq -r '.verification.unreadable // "MISSING"')"
+  repaired="$(printf '%s' "$health" | jq -r '.verification.repaired // "MISSING"')"
+  for value in "$held" "$broken" "$unreadable" "$repaired"; do
+    case "$value" in
+      ''|*[!0-9]*)
+        echo "FAIL: the health payload carries no verification counters (held=$held broken=$broken unreadable=$unreadable repaired=$repaired): this emulator never read its machines back, and a gate that read that as zero would pass it" >&2
+        exit 1 ;;
+    esac
+  done
+  if [ "$broken" -gt 0 ]; then
+    claims="$(printf '%s' "$state" | jq -r '
+      [ .resources[]?
+        | select(.Runtime != null and (.Runtime.verified // "" | startswith("broken")))
+        | "  \(.Kind) \(.ID): \(.Runtime.verified)" ] | .[]' 2>/dev/null)"
+    [ -n "$claims" ] || claims="  (the resources carrying the claim are gone from the state, or the state could not be read)"
+    cat >&2 <<EOF
+FAIL: $broken claim(s) broken: a machine does not carry what its plan claims, and the emulator said so at the moment it happened (#670).
+$claims
+EOF
+    exit 1
+  fi
+  if [ "$unreadable" -gt "$held" ]; then
+    echo "FAIL: $unreadable claim(s) could not be read against $held held: this pass measured its own blindness, which is a different fact from success and must not read like it (#670)" >&2
+    exit 1
+  fi
+  echo "  verification: held=$held broken=$broken unreadable=$unreadable repaired=$repaired"
+}
+
 # Sourced by the suites above, and runnable for the one caller that has no suite
 # to source it into: `mise run conformance` asks this before `feint start`, so a
 # leg refuses at second zero instead of after every client suite has run.
@@ -344,9 +427,13 @@ if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
     # is gone, so a leg that leaks fails the leg that leaked instead of the one
     # after it — and says so in those words.
     leftovers-after) guard_leftovers_for "${2:-off}" closing ;;
+    # What the emulator read back against every plan, asked while it still
+    # answers: the counters and the claims die with the process (#670).
+    verification) guard_verification "${2:-}" ;;
     *)
       echo "usage: tools/conformance/guard.sh leftovers <machine runtime>        (before a run starts)" >&2
       echo "       tools/conformance/guard.sh leftovers-after <machine runtime>  (after its emulator stopped)" >&2
+      echo "       tools/conformance/guard.sh verification <endpoint>            (before its emulator stops)" >&2
       echo "  (the other guards take an endpoint and are sourced, not run)" >&2
       exit 2 ;;
   esac

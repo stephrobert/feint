@@ -722,6 +722,12 @@ func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 		"machines":       driver,
 		"capabilities":   capabilities,
 		"enforced":       enforcement(s.packs),
+		// What the reading half answered so far (#670): claims held, broken
+		// and unreadable, and verifications repaired by one replay. Counters
+		// rather than claims, because a claim names a resource and this
+		// payload names none; /_feint/state carries the claim under each
+		// resource's Runtime, and tools/conformance/guard.sh reads both.
+		"verification": s.env.machines.Verification(),
 		"instance": map[string]any{
 			"pid":        os.Getpid(),
 			"started_at": s.started.Format(time.RFC3339),
