@@ -180,6 +180,12 @@ func (r Reconciler) consistent(res *resource.Resource, plan Plan) bool {
 // reports what PowerOn reported; a machine that did not start is not replayed
 // onto, and the state the pack publishes is the one the effect produced.
 func (r Reconciler) PowerOn(ctx context.Context, res *resource.Resource, boot Boot) bool {
+	return r.powerOn(ctx, res, boot, nil)
+}
+
+// powerOn is PowerOn with the claims the caller knew before the boot, which
+// a reboot has (#669) and a first boot does not.
+func (r Reconciler) powerOn(ctx context.Context, res *resource.Resource, boot Boot, extra []Claim) bool {
 	plan, declared := r.plan(res)
 	if !declared {
 		return false
@@ -202,7 +208,7 @@ func (r Reconciler) PowerOn(ctx context.Context, res *resource.Resource, boot Bo
 	// And what the replay produced is read back and published (#670): the
 	// state above is the one the boot produced, the verdict is the one the
 	// reading produced, and neither is allowed to stand in for the other.
-	r.check(ctx, res)
+	r.check(ctx, res, extra)
 	return true
 }
 
@@ -285,10 +291,27 @@ func (r Reconciler) Reboot(ctx context.Context, res *resource.Resource, boot Boo
 	// to stop a stopped instance logs a failure for an ordinary case. Which
 	// word means "up" is the pack's, held once here rather than compared to a
 	// literal in three places.
+	var extra []Claim
 	if res.State == r.binding().RunningState {
+		// The shape before, read while the machine is up (#669): what it
+		// carries now is what it must carry once it is back, and the reading
+		// after the boot answers that beside the plan's own claims. A before
+		// that could not be read is said, and the reboot is judged on its
+		// plan alone rather than on a guess.
+		// TestARebootComparesTheShapeAfterWithTheShapeBefore fails without
+		// this.
+		before, err := r.observe(ctx, res)
+		switch {
+		case err != nil:
+			r.binding().logger().Warn("the shape before the reboot could not be read, so the reboot is judged on its plan alone",
+				"provider", r.binding().Provider, "resource", res.ID,
+				"machine", res.Runtime[r.binding().RuntimeKey], "error", err)
+		case before != nil:
+			extra = restartClaims(*before)
+		}
 		r.binding().PowerOff(ctx, res)
 	}
-	return r.PowerOn(ctx, res, boot)
+	return r.powerOn(ctx, res, boot, extra)
 }
 
 // ReplayAddresses re-routes every promised address of a machine that just
@@ -309,7 +332,7 @@ func (r Reconciler) ReplayAddresses(ctx context.Context, res *resource.Resource)
 	// Once a reading held or broke, this door reads no more (#670).
 	// TestTheLateAddressDoorVerifiesOnceItCanRead fails without the bound.
 	if last := res.Runtime[VerifiedKey]; last == "" || strings.HasPrefix(last, "unreadable") {
-		r.check(ctx, res)
+		r.check(ctx, res, nil)
 	}
 }
 
@@ -390,7 +413,7 @@ func (r Reconciler) Route(ctx context.Context, res *resource.Resource, address s
 		return
 	}
 	r.route(ctx, res, plan, address)
-	r.check(ctx, res)
+	r.check(ctx, res, nil)
 }
 
 func (r Reconciler) route(ctx context.Context, res *resource.Resource, plan Plan, address string) {
@@ -547,7 +570,7 @@ func (r Reconciler) Join(ctx context.Context, res *resource.Resource, att Attach
 	err := r.attach(ctx, res, att)
 	r.ReplayAddresses(ctx, res)
 	r.Groups.AfterBoot(ctx, res)
-	r.check(ctx, res)
+	r.check(ctx, res, nil)
 	return err
 }
 

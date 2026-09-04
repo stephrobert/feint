@@ -1,0 +1,47 @@
+{
+  "package": "./internal/core/machine/",
+  "mutations": [
+    {
+      "label": "the reboot reads the shape before and claims nothing from it, so the machine is judged on its plan alone (#669)",
+      "file": "internal/core/machine/plan.go",
+      "find": "\t\tcase before != nil:\n\t\t\textra = restartClaims(*before)",
+      "replace": "\t\tcase before != nil && false:\n\t\t\textra = restartClaims(*before)",
+      "test": "TestARebootComparesTheShapeAfterWithTheShapeBefore"
+    },
+    {
+      "label": "the reading drops the claims the caller knew before the action (#669)",
+      "file": "internal/core/machine/readback.go",
+      "find": "\tclaims = append(claims, extra...)\n",
+      "replace": "\tclaims = append(claims, extra[:0]...)\n",
+      "test": "TestARebootComparesTheShapeAfterWithTheShapeBefore"
+    },
+    {
+      "label": "the default route after the reboot is compared on its device alone, and the regression's door reads as held (#669)",
+      "file": "internal/core/machine/restart.go",
+      "find": "\tif got.Via == c.Was.Via && got.Dev == c.Was.Dev {\n\t\treturn held(c)\n\t}",
+      "replace": "\tif (got.Via == c.Was.Via || true) && got.Dev == c.Was.Dev {\n\t\treturn held(c)\n\t}",
+      "test": "TestTheRestartClaimsCompareWhatCompares"
+    },
+    {
+      "label": "an interface after the reboot is compared on its network alone, and a lost address reads as held (#669)",
+      "file": "internal/core/machine/restart.go",
+      "find": "\t\tslices.Equal(sortedPrefixes(got.Addresses), sortedPrefixes(c.Was.Addresses)) &&",
+      "replace": "\t\t(slices.Equal(sortedPrefixes(got.Addresses), sortedPrefixes(c.Was.Addresses)) || true) &&",
+      "test": "TestTheRestartClaimsCompareWhatCompares"
+    },
+    {
+      "label": "the rest of the table is not compared, and a lost private route reads as held (#669)",
+      "file": "internal/core/machine/restart.go",
+      "find": "\twant, have := routeLines(c.Was), routeLines(got)\n\tif slices.Equal(want, have) {",
+      "replace": "\twant, have := routeLines(c.Was), routeLines(got)\n\tif slices.Equal(want, have) || true {",
+      "test": "TestTheRestartClaimsCompareWhatCompares"
+    },
+    {
+      "label": "a lost interface reads as held (#669)",
+      "file": "internal/core/machine/restart.go",
+      "find": "\tgot, has := s.Interfaces[c.Name]\n\tif !has {\n\t\treturn broken(c, describeInterface(c.Was), \"no interface \"+c.Name)\n\t}",
+      "replace": "\tgot, has := s.Interfaces[c.Name]\n\tif !has && false {\n\t\treturn broken(c, describeInterface(c.Was), \"no interface \"+c.Name)\n\t}",
+      "test": "TestTheRestartClaimsCompareWhatCompares"
+    }
+  ]
+}
