@@ -1,10 +1,15 @@
 package conformance
 
 import (
+	"context"
+	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 )
 
 // The Day-2 leg (#673), held at the level a test can hold it: the read-back
@@ -13,6 +18,14 @@ import (
 // emulator answers to the catalogue is the leg's own business, under
 // `mise run conformance:day2`.
 
+// runDay2 runs a script against day2lib.sh under a bound of its own, and the
+// bound is the point. The library's wait is bounded, and the test that says
+// so used to prove it only by the package timeout: with the bound neutralised
+// the loop diverged, `go test` killed the test binary ten minutes later, and
+// the shell went on sleeping under it — two such shells were found alive on
+// 2026-09-04, forty minutes in, their copies already deleted. A guard proved
+// by a timeout is not proved. Here the process is killed at ten seconds, the
+// exit says so, and nothing outlives the test.
 func runDay2(t *testing.T, script string) (int, string) {
 	t.Helper()
 	requireTool(t, "bash")
@@ -21,7 +34,35 @@ func runDay2(t *testing.T, script string) (int, string) {
 	if err != nil {
 		t.Fatalf("locate day2lib.sh: %v", err)
 	}
-	return runShell(t, t.TempDir(), lib, script)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "bash", "-c", //nolint:gosec // fixed library, test-controlled script
+		`set -uo pipefail
+fail() { echo "FAIL: $*" >&2; exit 1; }
+ok() { echo "  ok: $*"; }
+skip() { echo "  SKIP: $*" >&2; }
+DIR="$1"
+. "$2"
+`+script,
+		"bash", t.TempDir(), lib)
+	// The whole process group goes with the shell, so a `sleep` the loop
+	// forked does not hold the pipe open past the kill.
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }
+	cmd.WaitDelay = time.Second
+	out, err := cmd.CombinedOutput()
+	if ctx.Err() != nil {
+		return -1, string(out) + "\n(killed: the script did not stop on its own within 10s)"
+	}
+	code := 0
+	if err != nil {
+		var exit *exec.ExitError
+		if !errors.As(err, &exit) {
+			t.Fatalf("run the shell script: %v\n%s", err, out)
+		}
+		code = exit.ExitCode()
+	}
+	return code, string(out)
 }
 
 // A 200 is not evidence: the comparator finds the wanted value, refuses a
@@ -44,6 +85,9 @@ func TestTheReadBackComparatorRefusesAWriteThatDidNotHappen(t *testing.T) {
 // The wait is bounded, and it says how long it waited.
 func TestTheDay2WaitIsBoundedAndSaysHowLongItWaited(t *testing.T) {
 	code, out := runDay2(t, `d2_settles 2 "reboot" .a c printf '%s' '{"a":"b"}'`)
+	if code == -1 {
+		t.Fatalf("the wait did not stop on its own: a budget of 2s ran past the runner's 10s, which is the unbounded loop this test exists to refuse:\n%s", out)
+	}
 	if code == 0 || !strings.Contains(out, "is still 'b' after 2s, wanted 'c'") {
 		t.Fatalf("a value that never arrives was waited for and passed (exit %d):\n%s", code, out)
 	}
