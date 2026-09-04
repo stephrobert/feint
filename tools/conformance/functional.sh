@@ -208,7 +208,13 @@ fi
 if ! "$FEINT" images --check --vm "$RUNTIME" >&2; then
 	fail "the $RUNTIME runtime is missing images these stacks boot. Run: $FEINT images --vm $RUNTIME"
 fi
-guard_leftovers_for "$RUNTIME" doorstep
+# A stack another suite brought up is that suite's: it asked the doorstep
+# question before it started, and it will bring the stack down. What this gate
+# does on such a stack is judge it, which is the whole of #673's third
+# property — the platform proved working again after a month of writes.
+if [ -z "${FEINT_STACK_UP:-}" ]; then
+	guard_leftovers_for "$RUNTIME" doorstep
+fi
 
 # ---- the readers prove they can find before anything is judged --------------
 echo "- the readers find their planted witnesses"
@@ -496,16 +502,27 @@ run_stack() { # name
 	[ -n "$provider" ] && [ -n "$kind" ] && [ -n "$running" ] && [ "$floor" -gt 0 ] \
 		|| fail "$name: proof.json must name provider, machine_kind, running_state and a non-zero expect_machines; without the floor, a reader that found nothing would read as a cloud that holds nothing"
 
-	echo "- $name: feint up --runtime $RUNTIME"
-	WORK="$(mktemp -d)"
-	cp "$src"/*.tf "$src/feint.yaml" "$WORK/"
-	[ -d "$src/modules" ] && cp -R "$src/modules" "$WORK/"
-	sed -i "s|127.0.0.1:4599|$ADDR|g" "$WORK/feint.yaml"
+	# FEINT_STACK_UP names the working directory of a stack another suite
+	# already brought up on $ADDR (#673): the verdicts below judge it as they
+	# would a fresh one, and neither the up nor the down is this gate's.
+	# TestTheStackGateJudgesAStackAnotherSuiteBroughtUp fails without it.
+	if [ -n "${FEINT_STACK_UP:-}" ]; then
+		[ -d "$FEINT_STACK_UP" ] || fail "$name: FEINT_STACK_UP names $FEINT_STACK_UP and there is no such directory"
+		echo "- $name: judging the stack already up in $FEINT_STACK_UP (brought up by its owner)"
+		WORK="$FEINT_STACK_UP"
+		UP=""
+	else
+		echo "- $name: feint up --runtime $RUNTIME"
+		WORK="$(mktemp -d)"
+		cp "$src"/*.tf "$src/feint.yaml" "$WORK/"
+		[ -d "$src/modules" ] && cp -R "$src/modules" "$WORK/"
+		sed -i "s|127.0.0.1:4599|$ADDR|g" "$WORK/feint.yaml"
 
-	(cd "$WORK" && "$FEINT" up --runtime "$RUNTIME" --timeout 900s) >"$WORK/up.log" 2>&1 \
-		|| { tail -n 40 "$WORK/up.log" >&2; fail "$name: feint up failed (log above)"; }
-	UP="yes"
-	ok "up, applied, every ready condition confirmed"
+		(cd "$WORK" && "$FEINT" up --runtime "$RUNTIME" --timeout 900s) >"$WORK/up.log" 2>&1 \
+			|| { tail -n 40 "$WORK/up.log" >&2; fail "$name: feint up failed (log above)"; }
+		UP="yes"
+		ok "up, applied, every ready condition confirmed"
+	fi
 
 	local health
 	health="$(curl -sf "$ENDPOINT/_feint/health")" || fail "$name: the emulator does not answer /_feint/health"
@@ -1028,6 +1045,11 @@ run_stack() { # name
 	fi
 
 	# ---- down ---------------------------------------------------------------
+	if [ -n "${FEINT_STACK_UP:-}" ]; then
+		ok "$name: judged; the stack stays up for its owner to bring down"
+		WORK=""
+		return 0
+	fi
 	echo "- $name: feint down"
 	(cd "$WORK" && "$FEINT" down) >"$WORK/down.log" 2>&1 \
 		|| { tail -n 20 "$WORK/down.log" >&2; fail "$name: feint down failed"; }
@@ -1072,7 +1094,7 @@ while [ "$pass" -le "$PASSES" ]; do
 	# exited 0 and the next run paid for it, which is the state #521 fixed in
 	# `mise run conformance` and this file described without doing.
 	# TestTheStackGateEndsOnItsOwnDoorstep fails without the scope.
-	guard_leftovers_for "$RUNTIME" doorstep
+	[ -n "${FEINT_STACK_UP:-}" ] || guard_leftovers_for "$RUNTIME" doorstep
 	pass=$((pass + 1))
 done
 

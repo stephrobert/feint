@@ -209,7 +209,17 @@ func parseRoutes(out []byte) []Route {
 		if dst != defaultDst && linkLocal.Contains(dst.Addr()) {
 			continue
 		}
-		routes = append(routes, Route{Dst: dst.Masked(), Via: via, Dev: dev})
+		route := Route{Dst: dst.Masked(), Via: via, Dev: dev}
+		// A set, not a list. Measured 2026-09-04 on a machine rebooted under
+		// incus-ovn: each private aggregate stood twice in the table, once at
+		// the metric the lease gave it and once at the metric the driver's
+		// own `ip route add` gave it, same destination, same next hop, same
+		// device. Two entries the kernel tells apart by a metric this Shape
+		// deliberately drops are one route here, or a reboot reads as having
+		// gained three routes it already had.
+		if !slices.Contains(routes, route) {
+			routes = append(routes, route)
+		}
 	}
 	return routes
 }

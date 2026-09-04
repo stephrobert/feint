@@ -320,6 +320,25 @@ depends = ["build"]
 # conformance:ssh and the environment suite.
 run = "tools/conformance/witness.sh"
 
+[tasks."conformance:day2"]
+description = "The Day-2 leg (#673): thirty-odd writes on one standing stack, each read back, then the platform proved working again. Control plane under FEINT_VM=off, the data plane needs incus-ovn"
+depends = ["build"]
+# A provisioning client asks whether it got created; a Day-2 client asks
+# whether it is still what it thinks it is, after it changed it. Four defects
+# came from a generated Ansible collection asking the second question (#654,
+# #658, #666, the reboot half of #637) and no gate here asked it. This one
+# plays the catalogue in tools/conformance/day2lib.sh on examples/stacks/scaleway
+# — do/undo pairs, every write read back, a 200 never taken as evidence — and
+# then, under a runtime, compares platform-web-0's own table with its capture
+# from before the writes (#671's comparator), reads the emulator's verification
+# counters (#670), and replays the stack gate's verdicts on the same stack.
+#
+# Its own port and its own emulator, like conformance:functional; with FEINT_VM
+# unset it plays the control-plane half and says, by name, what it did not
+# prove. Not in the `conformance` aggregate for the same reason the stack gate
+# is not: it brings a stack up.
+run = "tools/conformance/day2.sh scaleway"
+
 [tasks."conformance:functional"]
 description = "What each example stack must prove (#503): a live service, a firewall pair, the network, the balancer. Three passes, needs incus-ovn"
 depends = ["build"]

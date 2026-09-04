@@ -58,6 +58,49 @@ change ni l'un ni l'autre a sa place dans `git log`.
   lb certificate list` et `scw lb subscriber list` dans la suite de
   conformance.
 
+- **Une jambe Day-2 : un mois d'écritures d'un opérateur sur une stack
+  debout, chacune relue, puis la plateforme prouvée à nouveau** (#673). `mise
+  run conformance:day2` monte `examples/stacks/scaleway` sur son propre
+  émulateur et joue le catalogue de `tools/conformance/day2lib.sh` :
+  vingt-quatre étapes en paires faire/défaire (renommer, réétiqueter,
+  protéger, les étiquettes et le reverse de l'adresse, une adresse publique
+  créée, attachée, détachée et supprimée, une règle ajoutée puis retirée, la
+  politique par défaut du groupe ouverte puis refermée, le réseau privé, le
+  VPC, le load balancer, le frontend, un serveur de backend ajouté puis
+  retiré, le volume, un volume et un snapshot créés puis supprimés, une clé
+  de user data, le groupe de placement, la gateway, la clé ssh, une NIC jointe
+  puis quittée, et un reboot), une cinquantaine d'écritures, et après chacune
+  une lecture qui doit dire que le changement a eu lieu. Un 200 n'est pas
+  une preuve : le comparateur refuse une valeur fausse et un chemin absent,
+  la première lecture après le reboot ne doit pas dire `running`, et chaque
+  attente est bornée et dit combien elle a attendu.
+
+  Puis la plateforme : sous runtime, la table de platform-web-0 est comparée
+  à sa capture d'avant le catalogue (le comparateur de #671, réutilisé : un
+  catalogue à somme nulle est exactement une comparaison de forme après
+  mutations), les compteurs de vérification de l'émulateur sont lus (#670),
+  et le gate des stacks rejoue ses verdicts sur la même stack via
+  `FEINT_STACK_UP`, cinquante écritures plus tard. Sans runtime, la jambe joue
+  la moitié plan de contrôle et dit, nommément, ce qu'elle n'a pas prouvé.
+
+  Ce que la jambe a trouvé à ses premiers passages, noté plutôt qu'affirmé,
+  et rien de corrigé ici. Sans runtime : `PATCH /ips/{id}` avec `"reverse":
+  null` répond 200 et la relecture porte encore le nom, donc le défaire passe
+  par `""` ; `POST` et `DELETE` sur `/backends/{id}/servers` répondent 501 là
+  où `PUT` sert la liste. Sous `incus-ovn` le 2026-09-04, en jouant le
+  catalogue étape par étape sur platform-web-0 et en comparant sa table après
+  chacune : détacher une seconde adresse publique a retiré à l'invité le `/32`
+  de la première (la réparation du re-plug remet l'adresse épinglée, pas les
+  routes externes qui restent), découvert seulement à la jonction suivante,
+  dont le rejeu l'a remise ; et le reboot a remis sur le routed `eth0` le
+  `/32` migré, depuis la netplan de l'invité, ce que la comparaison de reboot
+  de la couche a rapporté comme `restart(eth0)` sans que sa réparation unique
+  le défasse. La troisième différence était celle de l'instrument : les trois
+  agrégats privés figuraient deux fois dans la table, à la métrique du bail et
+  à celle du pilote, et les deux lecteurs replient désormais une route tenue à
+  deux métriques en une seule. La jambe reste rouge sous runtime tant que les
+  deux défauts ne sont pas corrigés, et dit quelle ligne.
+
 - **La suite runtime regarde la table de la machine elle-même à travers un
   redémarrage, et nomme la ligne** (#671). `tools/conformance/functional.sh`
   capture, depuis l'intérieur de la machine et avant tout redémarrage, ses

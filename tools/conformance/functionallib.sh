@@ -156,7 +156,10 @@ fnl_delivery_addresses() { # record
 # The link-local block is the kernel's own plumbing and never enters; an
 # unreachable, blackhole or local entry is not a route to anywhere. `default`
 # is spelled 0.0.0.0/0 and a bare host address gets its /32, so iproute2 and
-# busybox read the same.
+# busybox read the same. A set, not a list: a route the kernel holds at two
+# metrics — the lease's and the driver's, measured on a rebooted machine on
+# 2026-09-04 — is one route once the metric is dropped, or a reboot reads as
+# having gained three routes it already had.
 #
 # This is the shell spelling of internal/core/machine's parseRoutes (#668), and
 # it is deliberately a second one: this file sees a machine from the station,
@@ -176,7 +179,7 @@ fnl_shape_routes() {
 		}
 		if (via == "" || dev == "") next
 		print "route " dst " via " via " dev " dev
-	}' | sort
+	}' | sort -u
 }
 
 # fnl_shape_addresses reads `ip -4 -o addr show` on stdin and prints, one per
@@ -197,7 +200,7 @@ fnl_shape_addresses() {
 		if (cidr == "" || scope != "global") next
 		if (cidr ~ /^169\.254\./) next
 		print "addr " iface " " cidr
-	}' | sort
+	}' | sort -u
 }
 
 # ---- the controls: each reader finds a planted witness, and only it ---------
@@ -261,6 +264,7 @@ fnl_shape_reader_control() {
 		'10.77.0.0/24 dev eth0 proto kernel scope link src 10.77.0.2 ' \
 		'169.254.169.254 via 10.77.0.1 dev eth0 ' \
 		'10.0.0.0/8 via 10.77.0.1 dev eth0 proto dhcp metric 100 ' \
+		'10.0.0.0/8 via 10.77.0.1 dev eth0 ' \
 		'203.0.113.9 via 10.0.0.1 dev eth1' \
 		'unreachable 198.51.100.0/24 dev lo' \
 		| fnl_shape_routes | tr '\n' '|')"
@@ -641,9 +645,14 @@ fnl_shape_survives_restart() { # stack name machine before_file after_file momen
 	[ -s "$after" ] \
 		|| fail "cannot look: the shape of $name ($machine) could not be read $moment, and a comparison with nothing on one side is not a comparison"
 	changed="$(diff "$before" "$after" | sed -n 's/^< /  before: /p; s/^> /  after:  /p')"
+	# Both captures whole beside the diff: a line present after and absent
+	# before says nothing about what the before held instead, and the first
+	# real run of this verdict left exactly that question open (#673).
 	[ -z "$changed" ] \
 		|| fail "$stack: $name ($machine) does not carry $moment what it carried before the restart; the machine's own table changed, and this is the cause where the effect is (#671, #660):
-$changed"
+$changed
+  the whole capture before: $(paste -sd '|' "$before")
+  the whole capture $moment: $(paste -sd '|' "$after")"
 	ok "$stack: $name carries $moment exactly what it carried before the restart"
 }
 

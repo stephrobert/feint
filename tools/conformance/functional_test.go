@@ -1033,6 +1033,7 @@ const routeTable = `default via 10.77.0.1 dev eth0 proto dhcp src 10.77.0.2 metr
 169.254.0.0/16 dev eth0 scope link metric 1000
 169.254.169.254 via 10.77.0.1 dev eth0 proto static
 10.0.0.0/8 via 10.77.0.1 dev eth0 proto dhcp src 10.77.0.2 metric 100
+10.0.0.0/8 via 10.77.0.1 dev eth0
 203.0.113.9 via 10.0.0.1 dev eth1
 unreachable 198.51.100.0/24 dev lo
 `
@@ -1045,7 +1046,8 @@ const addressList = `1: lo    inet 127.0.0.1/8 scope host lo\       valid_lft fo
 `
 
 // TestTheShapeReadersNormaliseWhatDoesNotCompare: connected routes, the
-// link-local block, an unreachable entry, metrics and proto leave the table;
+// link-local block, an unreachable entry, metrics and proto leave the table,
+// and a route held at two metrics is one route;
 // the loopback and a scope-link address leave the list; default is spelled
 // as a block and a bare host gets its mask.
 func TestTheShapeReadersNormaliseWhatDoesNotCompare(t *testing.T) {
@@ -1076,8 +1078,13 @@ func TestAShapeThatChangedAcrossARestartFailsNamingTheLine(t *testing.T) {
 			t.Errorf("the verdict does not carry %q:\n%s", line, out)
 		}
 	}
-	if strings.Contains(out, "203.0.113.2/32") {
-		t.Errorf("a line that did not change is named:\n%s", out)
+	// The unchanged line is in the whole captures the verdict prints beside
+	// the diff, and in the diff itself it must not be.
+	if strings.Contains(out, "\n  before: addr eth0 203.0.113.2/32") || strings.Contains(out, "\n  after:  addr eth0 203.0.113.2/32") {
+		t.Errorf("a line that did not change is named as changed:\n%s", out)
+	}
+	if !strings.Contains(out, "the whole capture before: addr eth0 203.0.113.2/32|route 0.0.0.0/0 via 169.254.0.1 dev eth0") {
+		t.Errorf("the verdict does not print the whole capture before:\n%s", out)
 	}
 }
 

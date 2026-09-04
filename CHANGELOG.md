@@ -53,6 +53,46 @@ what this project is judged on: **a response shape a client can observe**, and
   Driven by `scw lb backend list-statistics`, `scw lb lb get-stats`, `scw lb
   certificate list` and `scw lb subscriber list` in the conformance suite.
 
+- **A Day-2 leg: a month of an operator's writes on one standing stack, each
+  read back, then the platform proved working again** (#673). `mise run
+  conformance:day2` brings `examples/stacks/scaleway` up on its own emulator
+  and plays the catalogue in `tools/conformance/day2lib.sh`: twenty-four steps
+  in do/undo pairs (rename, retag, protect, the address's tags and reverse, a
+  public address created, attached, detached and deleted, a rule added and
+  removed, the group's default opened and closed, the private network, the
+  VPC, the balancer, the frontend, a backend server added and removed, the
+  volume, a scratch volume and a snapshot created and deleted, a user data
+  key, the placement group, the gateway, the ssh key, a NIC joined and left,
+  and a reboot), fifty-odd writes, and after every one a read that has to
+  say the change happened. A 200 is not evidence: the comparator refuses a
+  wrong value and an absent path, the reboot's first read must not say
+  `running`, and every wait is bounded and says how long it waited.
+
+  Then the platform: under a runtime, platform-web-0's own table is compared
+  with its capture from before the catalogue (#671's comparator, reused: a
+  net-zero catalogue is exactly a comparison of shape after mutations), the
+  emulator's own verification counters are read (#670), and the stack gate
+  replays its verdicts on the same stack through `FEINT_STACK_UP`, fifty
+  writes older. With no runtime the leg plays the control-plane half and
+  says, by name, what it did not prove.
+
+  What the leg found on its first runs, recorded rather than asserted, and
+  none of it fixed here. With no runtime: `PATCH /ips/{id}` with `"reverse":
+  null` answers 200 and the read still carries the name, so the undo uses
+  `""`; `POST` and `DELETE` on `/backends/{id}/servers` answer 501 where `PUT`
+  serves the list. Under `incus-ovn` on 2026-09-04, playing the catalogue step
+  by step on platform-web-0 and diffing its table after each: detaching a
+  second public address took the first one's `/32` off the guest (the re-plug
+  repair restores the pinned address and not the external routes that stay),
+  found only at the next join, whose replay put it back; and the reboot put
+  the migrated `/32` back on the routed `eth0`, from the guest's own netplan,
+  which the layer's reboot comparison reported as `restart(eth0)` and its
+  one repair did not undo. The third difference was the instrument's: the
+  three private aggregates stood twice in the table, at the lease's metric
+  and at the driver's, and both readers now collapse a route held at two
+  metrics into one. The leg stays red under a runtime until the two defects
+  are fixed, and says which line.
+
 - **The runtime suite looks at the machine's own table across a restart, and
   names the line** (#671). `tools/conformance/functional.sh` captures, from
   inside the machine and before anything is restarted, its addresses and every

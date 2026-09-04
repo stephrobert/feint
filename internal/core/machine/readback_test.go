@@ -285,6 +285,12 @@ func TestTheParsersReadBothImplementationsOfIp(t *testing.T) {
 	if got := parseRoutes([]byte("default via 10.30.1.1 dev eth0 proto dhcp metric 100\x20\n")); len(got) != 1 {
 		t.Errorf("a trailing space on a route line: %v", got)
 	}
+	// The same route at two metrics is one route: the metric is dropped, and
+	// so is the second entry (measured on a rebooted machine, 2026-09-04).
+	twice := "10.0.0.0/8 via 10.30.1.1 dev eth1 proto dhcp src 10.30.1.10 metric 100\n10.0.0.0/8 via 10.30.1.1 dev eth1\n"
+	if got := parseRoutes([]byte(twice)); len(got) != 1 {
+		t.Errorf("a route held at two metrics read as %d routes: %v", len(got), got)
+	}
 	// A host route prints its address bare, and a connected door names the
 	// device alone.
 	if got := parseRoutes([]byte("203.0.113.9 via 10.0.0.1 dev eth1\n")); len(got) != 1 || got[0].Dst.String() != "203.0.113.9/32" {
