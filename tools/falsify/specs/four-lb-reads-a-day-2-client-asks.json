@@ -1,0 +1,40 @@
+{
+  "package": "./internal/providers/scaleway/",
+  "mutations": [
+    {
+      "label": "a health nobody measured is published as passed, the lie this emulator exists to refuse (#666)",
+      "file": "internal/providers/scaleway/lbstats.go",
+      "find": "\t\t\"last_health_check_status\": \"unknown\",",
+      "replace": "\t\t\"last_health_check_status\": \"passed\",",
+      "test": "TestAHealthNobodyMeasuredIsNeverPassed"
+    },
+    {
+      "label": "the server behind a pool address is never named, so every entry reads as a machine nobody holds (#666)",
+      "file": "internal/providers/scaleway/lbstats.go",
+      "find": "\tif server != nil {\n\t\tentry[\"instance_id\"] = server.ID",
+      "replace": "\tif server != nil && false {\n\t\tentry[\"instance_id\"] = server.ID",
+      "test": "TestBackendStatsNameTheServerBehindEachPoolAddress"
+    },
+    {
+      "label": "the server's state is not read, so a stopped server behind a pool address reads as running (#666)",
+      "file": "internal/providers/scaleway/lbstats.go",
+      "find": "\tswitch server.State {\n\tcase \"running\", \"starting\", \"stopping\":\n\t\treturn server.State\n\t}\n\treturn \"stopped\"",
+      "replace": "\tswitch server.State {\n\tcase \"running\", \"starting\", \"stopping\":\n\t\treturn server.State\n\t}\n\treturn \"running\"",
+      "test": "TestBackendStatsNameTheServerBehindEachPoolAddress"
+    },
+    {
+      "label": "the backend filter is ignored, and a backend the balancer does not hold answers the whole pool (#666)",
+      "file": "internal/providers/scaleway/lbstats.go",
+      "find": "\t\t\treturn res.Attrs[\"lb_id\"] == lbID && (backendID == \"\" || res.ID == backendID)",
+      "replace": "\t\t\treturn res.Attrs[\"lb_id\"] == lbID && (backendID == \"\" || res.ID == backendID || true)",
+      "test": "TestBackendStatsAreAWindowAndTakeTheBackendFilter"
+    },
+    {
+      "label": "the certificates route stops resolving the balancer its path names, and every balancer's certificates read as a 404 (#666)",
+      "file": "internal/providers/scaleway/lbstats.go",
+      "find": "\tif _, ok := p.zonalResourceOf(w, r, kindLB, \"lbID\", \"lb\"); !ok {\n\t\treturn\n\t}\n\t// The query the contract declares is read, on a list that holds nothing:",
+      "replace": "\tif _, ok := p.zonalResourceOf(w, r, kindLB, \"lbIDx\", \"lb\"); !ok {\n\t\treturn\n\t}\n\t// The query the contract declares is read, on a list that holds nothing:",
+      "test": "TestCertificatesAndSubscribersAreTheEmptyListsABalancerHereHolds"
+    }
+  ]
+}

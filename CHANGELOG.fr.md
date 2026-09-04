@@ -32,6 +32,32 @@ change ni l'un ni l'autre a sa place dans `git log`.
   d'un coup n'a pas été mesuré, et le handler le dit. Piloté par `scw lb
   backend add-servers` et `remove-servers`.
 
+- **Quatre lectures Load Balancer qu'un client Day-2 demande sont servies**
+  (`lb/v1/ZonedAPI.GetLBStats`, `lb/v1/ZonedAPI.ListBackendStats`,
+  `lb/v1/ZonedAPI.ListCertificates`, `lb/v1/ZonedAPI.ListSubscriber`, #666).
+  Mesuré des deux côtés le 2026-09-04 avec une même collection Ansible
+  générée : 39 de ses 46 modules jouent contre un vrai compte, 28 ici, et ces
+  quatre routes faisaient l'essentiel de l'écart.
+
+  Les deux routes de statistiques rapportent sur des serveurs que l'émulateur
+  possède déjà, dans un backend qu'il sert déjà : `backend_id` et
+  `instance_id` sont des identifiants qu'il a frappés, `ip` celle du pool,
+  `server_state` l'état du serveur dont la NIC porte cette adresse (`stopped`
+  pour une adresse que personne ne porte), et `server_state_changed_at` son
+  propre horodatage. Ce qu'aucune route ne rapporte, c'est une santé :
+  `last_health_check_status` vaut toujours `unknown`, la valeur par défaut de
+  l'énumération dans le contrat et la vérité littérale, parce que rien ici ne
+  sonde un backend : le pack Scaleway ne remet aucun balancer au runtime, et
+  la moitié balancing du runtime rapporte ce qu'elle distribue, jamais ce qui
+  a répondu. Un playbook qui affirme `passed` apprend la limite par la valeur
+  plutôt que par un 501. Les deux listes sont vides parce que c'est ce qu'un
+  balancer porte ici ; `CreateCertificate` et `CreateSubscriber` restent
+  refusées, et leurs motifs le disent.
+
+  Pilotées par `scw lb backend list-statistics`, `scw lb lb get-stats`, `scw
+  lb certificate list` et `scw lb subscriber list` dans la suite de
+  conformance.
+
 - **Flexible GPU est servi, toute la famille** (#619) : `osc/Client.ReadFlexibleGpuCatalog`,
   `osc/Client.CreateFlexibleGpu`, `osc/Client.ReadFlexibleGpus`,
   `osc/Client.UpdateFlexibleGpu`, `osc/Client.DeleteFlexibleGpu`,
