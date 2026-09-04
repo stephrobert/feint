@@ -1,0 +1,47 @@
+{
+  "package": "./tools/conformance/",
+  "mutations": [
+    {
+      "label": "the shape comparison never fails, and the regression of 2026-09-04 reads as a table that survived (#671)",
+      "file": "tools/conformance/functionallib.sh",
+      "find": "\t[ -z \"$changed\" ] \\\n\t\t|| fail \"$stack: $name ($machine) does not carry $moment what it carried before the restart",
+      "replace": "\t[ -z \"$changed\" ] || true \\\n\t\t|| fail \"$stack: $name ($machine) does not carry $moment what it carried before the restart",
+      "test": "TestAShapeThatChangedAcrossARestartFailsNamingTheLine"
+    },
+    {
+      "label": "the route reader keeps the connected routes, and the comparison compares the address twice (#671)",
+      "file": "tools/conformance/functionallib.sh",
+      "find": "\t\tif (via == \"\" || dev == \"\") next\n\t\tprint \"route \" dst \" via \" via \" dev \" dev",
+      "replace": "\t\tif ((via == \"\" && 0) || dev == \"\") next\n\t\tprint \"route \" dst \" via \" via \" dev \" dev",
+      "test": "TestTheShapeReadersNormaliseWhatDoesNotCompare"
+    },
+    {
+      "label": "the route reader keeps the link-local block, the kernel's own plumbing (#671)",
+      "file": "tools/conformance/functionallib.sh",
+      "find": "\t\tif (dst ~ /^169\\.254\\./) next\n\t\tvia = \"\"; dev = \"\"",
+      "replace": "\t\tif (dst ~ /^169\\.254\\./ && 0) next\n\t\tvia = \"\"; dev = \"\"",
+      "test": "TestTheShapeReadersNormaliseWhatDoesNotCompare"
+    },
+    {
+      "label": "the address reader ignores the scope, and a scope-link address reads as a change across a restart (#671)",
+      "file": "tools/conformance/functionallib.sh",
+      "find": "\t\tif (cidr == \"\" || scope != \"global\") next",
+      "replace": "\t\tif (cidr == \"\" || (scope != \"global\" && 0)) next",
+      "test": "TestTheShapeReadersNormaliseWhatDoesNotCompare"
+    },
+    {
+      "label": "a capture that failed compares as an empty side, and reads as a table that changed or survived rather than as nobody looking (#671)",
+      "file": "tools/conformance/functionallib.sh",
+      "find": "\t[ -s \"$after\" ] \\\n\t\t|| fail \"cannot look: the shape of $name ($machine) could not be read $moment",
+      "replace": "\t[ -s \"$after\" ] || true \\\n\t\t|| fail \"cannot look: the shape of $name ($machine) could not be read $moment",
+      "test": "TestAShapeThatCouldNotBeReadIsNotAVerdict"
+    },
+    {
+      "label": "the reader control stops checking that the comparison finds a planted difference (#671)",
+      "file": "tools/conformance/functionallib.sh",
+      "find": "\tif (fnl_shape_survives_restart control planted m \"$before\" \"$after\" \"after a planted restart\") >/dev/null 2>&1; then",
+      "replace": "\tif (fnl_shape_survives_restart control planted m \"$before\" \"$after\" \"after a planted restart\") >/dev/null 2>&1 && false; then",
+      "test": "TestTheShapeReaderControlFindsABrokenComparator"
+    }
+  ]
+}
