@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# BSD sed: a bare -i takes the NEXT argument as the backup suffix
+args=()
+while [ $# -gt 0 ]; do
+  if [ "$1" = "-i" ]; then shift; suffix="${1-}"; shift; args+=("-i$suffix"); continue; fi
+  args+=("$1"); shift
+done
+exec /usr/bin/sed "${args[@]}"

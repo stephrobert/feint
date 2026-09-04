@@ -529,7 +529,10 @@ d2_sweep() { # work up feint addr runtime
 	local work="$1" up="$2" feint="$3" addr="$4" runtime="$5" rc=0 foreign=""
 	if [ -n "$up" ]; then
 		if [ "$runtime" != off ]; then
-			foreign="$(d2_foreign_emulators "$addr" | paste -sd ' ')"
+			# The `-` is not decoration: BSD paste refuses to run with no file
+			# operand where GNU reads stdin, and the sweep then saw no foreign
+			# emulator on macOS-15 (CI run 33893151746).
+			foreign="$(d2_foreign_emulators "$addr" | paste -sd ' ' -)"
 		fi
 		if [ -d "$work" ]; then
 			(cd "$work" && "$feint" down) >/dev/null 2>&1 \
@@ -569,6 +572,15 @@ d2_sweep() { # work up feint addr runtime
 		echo "  cleanup: swept, nothing answers on $addr"
 	fi
 	return "$rc"
+}
+
+# d2_declare_endpoint points a copied declaration at the leg's own emulator.
+# Written without `sed -i`: BSD sed takes the argument after -i as a backup
+# suffix, so `sed -i "s|…|" file` rewrites nothing on macOS and the address
+# the leg wrote was lost there (CI run 33893151746). A rewrite into a sibling
+# file and a rename is what both seds do the same way.
+d2_declare_endpoint() { # feint.yaml addr
+	sed "s|127.0.0.1:4599|$2|g" "$1" >"$1.addr" && mv "$1.addr" "$1"
 }
 
 # d2_declare_cleanup makes the copied declaration start its emulator with
