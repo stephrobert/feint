@@ -25,6 +25,29 @@ func (p *Pack) Declined() []emulator.Decline {
 		// so refusing them breaks no plan anybody here runs. An emulator has one implicit
 		// account, no consumption and no price list, and inventing figures
 		// would be worse than answering nothing.
+		//
+		// #619 proposed strengthening this with a second argument, that a real
+		// account refuses these too with code 3019. MEASURED 2026-09-04, IT
+		// DOES NOT. That 3019 came from a call with no dates on it:
+		//
+		//	octl iaas api ReadConsumptionAccount
+		//	  3019 InvalidParameterType "The parameter type of FromDate is unknown."
+		//
+		//	octl iaas api ReadConsumptionAccount --FromDate 2026-09-01 --ToDate 2026-09-03
+		//	  200, with real ConsumptionEntries: account ids, services, and a
+		//	  Value per line.
+		//
+		// So the operation is available on that account, and the refusal here
+		// rests entirely on the argument above. Which the measurement makes
+		// STRONGER rather than weaker: the real cloud answers real money, so an
+		// emulator answering invented figures is exactly the trap named. Writing
+		// "upstream refuses it too" would have put a falsehood in the code where
+		// the next reader would take it for a measurement.
+		//
+		// ReadCO2EmissionAccount answers the same 3019, naming FromMonth, and
+		// no spelling of that flag got through octl to be sure of more. What is
+		// established is that the refusal is about a PARAMETER, not about the
+		// operation being unavailable.
 		emulator.Because("the emulator has one implicit account with no consumption and no price list, so anything here would be a figure it invented and somebody acted on",
 			"osc/Client.ReadCO2EmissionAccount",
 			"osc/Client.CreateProductType",
@@ -77,6 +100,18 @@ func (p *Pack) Declined() []emulator.Decline {
 		// honest answers here are "yes" to everything — a verdict that verifies
 		// nothing — or an invented refusal. Either one describes an
 		// authentication this emulator deliberately does not perform.
+		//
+		// The reads of this family are a different question from its writes, and
+		// #619 is right that a published course drives them. Measured 2026-09-04
+		// on a real account, `ReadAccessKeys` answers four keys, with
+		// AccessKeyId, CreationDate, ExpirationDate, LastModificationDate and
+		// State — so "the account refuses it" is not why they are refused here.
+		//
+		// They stay refused because the shape they would answer is the subject
+		// of the 0.16.0 milestone, "Identity is part of the request". Serving a
+		// fixed user and a fixed access key now means inventing an identity
+		// model that milestone would then have to undo, and a client that read
+		// it in between would have built on the undone one.
 		emulator.Because("the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
 			"osc/Client.CheckAuthentication",
 			"osc/Client.AddUserToUserGroup",
