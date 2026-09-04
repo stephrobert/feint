@@ -151,7 +151,7 @@ func routeLines(routes []Route) []string {
 		out = append(out, r.Dst.String()+" "+r.String())
 	}
 	slices.Sort(out)
-	return out
+	return slices.Compact(out)
 }
 
 func sortedPrefixes(prefixes []netip.Prefix) []string {

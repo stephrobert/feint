@@ -42,6 +42,13 @@
       "find": "\tif (fnl_shape_survives_restart control planted m \"$before\" \"$after\" \"after a planted restart\") >/dev/null 2>&1; then",
       "replace": "\tif (fnl_shape_survives_restart control planted m \"$before\" \"$after\" \"after a planted restart\") >/dev/null 2>&1 && false; then",
       "test": "TestTheShapeReaderControlFindsABrokenComparator"
+    },
+    {
+      "label": "the route reader keeps a route held at two metrics twice, and a reboot reads as a table that changed (#671, #673)",
+      "file": "tools/conformance/functionallib.sh",
+      "find": "\t\tprint \"route \" dst \" via \" via \" dev \" dev\n\t}' | sort -u\n",
+      "replace": "\t\tprint \"route \" dst \" via \" via \" dev \" dev\n\t}' | cat -u | sort\n",
+      "test": "TestTheShapeReadersNormaliseWhatDoesNotCompare"
     }
   ]
 }

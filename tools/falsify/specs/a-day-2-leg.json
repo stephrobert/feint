@@ -1,0 +1,33 @@
+{
+  "package": "./tools/conformance/",
+  "mutations": [
+    {
+      "label": "the read-back comparator passes on a 200 alone, and a write the emulator accepted and dropped reads as done (#654, #673)",
+      "file": "tools/conformance/day2lib.sh",
+      "find": "\t[ \"$got\" = \"$wanted\" ] \\\n\t\t|| fail \"$step: the read after the write does not say the change happened",
+      "replace": "\t[ \"$got\" = \"$wanted\" ] || true \\\n\t\t|| fail \"$step: the read after the write does not say the change happened",
+      "test": "TestTheReadBackComparatorRefusesAWriteThatDidNotHappen"
+    },
+    {
+      "label": "the bounded wait never gives up, and a value that never arrives is waited for until the runner dies (#673)",
+      "file": "tools/conformance/day2lib.sh",
+      "find": "\t\tif [ \"$waited\" -ge \"$budget\" ]; then",
+      "replace": "\t\tif [ \"$waited\" -ge \"$budget\" ] && false; then",
+      "test": "TestTheDay2WaitIsBoundedAndSaysHowLongItWaited"
+    },
+    {
+      "label": "the reader control stops planting a wrong value, so a comparator that passes everything passes the control (#673)",
+      "file": "tools/conformance/day2lib.sh",
+      "find": "\tif (printf '%s' '{\"server\":{\"name\":\"platform-web-0\"}}' | d2_says control .server.name platform-web-1) >/dev/null 2>&1; then",
+      "replace": "\tif (printf '%s' '{\"server\":{\"name\":\"platform-web-0\"}}' | d2_says control .server.name platform-web-1) >/dev/null 2>&1 && false; then",
+      "test": "TestTheDay2ReaderControlFindsABrokenComparator"
+    },
+    {
+      "label": "the catalogue shrinks to a smoke test (#673)",
+      "file": "tools/conformance/day2lib.sh",
+      "find": "d2_catalogue_scaleway() {\n\tlocal step\n\tfor step in \"${D2_SCALEWAY_STEPS[@]}\"; do",
+      "replace": "d2_catalogue_scaleway() {\n\tlocal step\n\tD2_SCALEWAY_STEPS=(\"${D2_SCALEWAY_STEPS[0]}\")\n\tfor step in \"${D2_SCALEWAY_STEPS[@]}\"; do",
+      "test": "TestTheDay2CatalogueIsAMonthOfWrites"
+    }
+  ]
+}

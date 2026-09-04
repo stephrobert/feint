@@ -77,6 +77,13 @@
       "find": "\t\tif slices.Contains(unfiltered, att.Network) {\n\t\t\tclaims = append(claims, wears{Network: att.Network})\n\t\t\tcontinue\n\t\t}",
       "replace": "\t\tif slices.Contains(unfiltered, att.Network) && false {\n\t\t\tclaims = append(claims, wears{Network: att.Network})\n\t\t\tcontinue\n\t\t}",
       "test": "TestTheRuleSetsAMachineWearsAreClaimedOnItsFilteredInterfaces"
+    },
+    {
+      "label": "the table parser keeps a route the kernel holds at two metrics twice, and a reboot reads as having gained routes it already had (#668, #673)",
+      "file": "internal/core/machine/incus_readback.go",
+      "find": "\t\tif !slices.Contains(routes, route) {\n\t\t\troutes = append(routes, route)\n\t\t}",
+      "replace": "\t\tif !slices.Contains(routes, route) || true {\n\t\t\troutes = append(routes, route)\n\t\t}",
+      "test": "TestTheParsersReadBothImplementationsOfIp"
     }
   ]
 }
