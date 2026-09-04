@@ -392,6 +392,10 @@ func (p *Pack) Routes() []emulator.Route {
 		{Method: "PUT", Path: lbZones + "/backends/{backendID}", Operation: "lb/v1/ZonedAPI.UpdateBackend", Handler: p.updateLBBackend},
 		{Method: "DELETE", Path: lbZones + "/backends/{backendID}", Operation: "lb/v1/ZonedAPI.DeleteBackend", Handler: p.deleteLBBackend},
 		{Method: "PUT", Path: lbZones + "/backends/{backendID}/servers", Operation: "lb/v1/ZonedAPI.SetBackendServers", Handler: p.setLBBackendServers},
+		// One member at a time, the Day-2 client's way (#676); the measured
+		// semantics are on the handlers.
+		{Method: "POST", Path: lbZones + "/backends/{backendID}/servers", Operation: "lb/v1/ZonedAPI.AddBackendServers", Handler: p.addLBBackendServers},
+		{Method: "DELETE", Path: lbZones + "/backends/{backendID}/servers", Operation: "lb/v1/ZonedAPI.RemoveBackendServers", Handler: p.removeLBBackendServers},
 		{Method: "PUT", Path: lbZones + "/backends/{backendID}/healthcheck", Operation: "lb/v1/ZonedAPI.UpdateHealthCheck", Handler: p.updateLBHealthCheck},
 
 		{Method: "GET", Path: lbZones + "/lbs/{lbID}/frontends", Operation: "lb/v1/ZonedAPI.ListFrontends", Handler: p.listLBFrontends},
@@ -950,10 +954,6 @@ func (p *Pack) Declined() []emulator.Decline {
 		emulator.Because("nothing here probes a backend or forwards a packet, so stats would report a health nothing measured — a backend published UP that nothing checked is the lie this emulator exists to refuse (#315 measured the same for the Outscale LBU)",
 			"lb/v1/ZonedAPI.GetLBStats",
 			"lb/v1/ZonedAPI.ListBackendStats"),
-
-		emulator.Because("the Terraform provider reconciles a backend's pool through SetBackendServers alone (measured in its services/lb/backend.go, v2.43.0 and v2.81.0), and no surveyed stack edits a pool incrementally",
-			"lb/v1/ZonedAPI.AddBackendServers",
-			"lb/v1/ZonedAPI.RemoveBackendServers"),
 
 		emulator.Because("the Terraform provider reconciles a frontend's ACLs one by one — CreateACL, ListACLs, UpdateACL, DeleteACL, measured in its services/lb/frontend.go — and never calls the bulk set",
 			"lb/v1/ZonedAPI.SetACLs"),

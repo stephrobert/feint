@@ -1903,6 +1903,30 @@ Until then `mise run conformance:parity` runs on demand and is deliberately not
 in the `conformance` aggregate: a red suite inside the gate every other change is
 judged by teaches people to skip the gate.
 
+## A reverse that does not resolve is accepted here and refused upstream (#676)
+
+**Measured on a real account on 2026-09-04** (fr-par-1), on a flexible IP
+created and released in the same minute, while the Day-2 leg's finding that
+`{"reverse": null}` left the reverse in place was being settled:
+
+- a fresh address reads `"reverse": null`;
+- `PATCH {"reverse": null}` answers 200 and reads `null`, and so does
+  `PATCH {"reverse": ""}`: the SDK's `NullableStringValue` sends the first, and
+  the account normalises the second to it. This emulator now does both;
+- `PATCH {"reverse": "feint-676.invalid"}` answers **400** `invalid_arguments`,
+  `argument_name: reverse`, `reason: constraint`, *"Your reverse must resolve.
+  Ensure the command 'dig +short feint-676.invalid' matches your IP address"*.
+
+The last line is the limit. This emulator accepts any reverse: its addresses
+are documentation blocks nothing resolves, a stack that sets a reverse on one
+would fail against a copy of that refusal, and checking DNS from an emulator
+that runs offline would refuse everything or nothing. What it cannot do is
+what follows from that: prove that `null` clears a reverse that was *set*,
+because no reverse can be set on the account without a resolving name. The
+three answers above are the whole of the measurement; the clearing of a set
+reverse is what `TestANullReverseClearsIt` asserts of the emulator on the
+strength of the SDK's own type, and it is marked here as unmeasured upstream.
+
 ## The guest's DHCP client is not how a published address reaches a machine (#587)
 
 The driver reserves the address on the NIC (`ipv4.address`) and, until

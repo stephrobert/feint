@@ -8,7 +8,7 @@
   "generated_from": {
     "contracts": "b1c322d461683911",
     "shapes": "cac046c206cc9fc8",
-    "suites": "e4b8c607e0620c19"
+    "suites": "627a7b14239a87ed"
   },
   "operations": {
     "account/v3/ProjectAPI.CreateProject": {
@@ -1955,6 +1955,15 @@
       "behaviour": true,
       "negative": true
     },
+    "lb/v1/ZonedAPI.AddBackendServers": {
+      "driven": true,
+      "probed": "refusal",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
     "lb/v1/ZonedAPI.AttachPrivateNetwork": {
       "driven": true,
       "probed": "refusal",
@@ -2206,6 +2215,15 @@
       "shape": "unobserved",
       "behaviour": true,
       "negative": true
+    },
+    "lb/v1/ZonedAPI.RemoveBackendServers": {
+      "driven": true,
+      "probed": "refusal",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
     },
     "lb/v1/ZonedAPI.SetBackendServers": {
       "driven": true,

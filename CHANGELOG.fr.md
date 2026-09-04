@@ -19,6 +19,19 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Ajouté
 
+- **Un backend gagne et perd un serveur à la fois** (`lb/v1/ZonedAPI.AddBackendServers`,
+  `lb/v1/ZonedAPI.RemoveBackendServers`, #676). Refusées parce que le provider
+  Terraform réconcilie un pool par `SetBackendServers` seul, ce qui est vrai de
+  Terraform et pas d'un client Day-2, pour qui ajouter un serveur est
+  l'opération ordinaire de la troisième semaine. Mesuré sur un vrai compte le
+  2026-09-04 et copié : une adresse ajoutée passe en tête du pool ; une
+  adresse que le pool porte déjà refuse la requête entière par
+  `invalid_arguments` sur `server_ip`, « server_ip x already exists » ; une
+  adresse retirée laisse les autres, et en retirer une que le pool ne porte pas
+  répond 200 avec le pool inchangé. L'ordre de plusieurs adresses ajoutées
+  d'un coup n'a pas été mesuré, et le handler le dit. Piloté par `scw lb
+  backend add-servers` et `remove-servers`.
+
 - **Flexible GPU est servi, toute la famille** (#619) : `osc/Client.ReadFlexibleGpuCatalog`,
   `osc/Client.CreateFlexibleGpu`, `osc/Client.ReadFlexibleGpus`,
   `osc/Client.UpdateFlexibleGpu`, `osc/Client.DeleteFlexibleGpu`,
@@ -125,6 +138,19 @@ change ni l'un ni l'autre a sa place dans `git log`.
   les trois packs.
 
 ### Corrigé
+
+- **`reverse: null` vide le reverse d'une IP flexible, et la relecture répond
+  `null`** (#676). Le SDK envoie le reverse comme un `NullableStringValue`
+  dont le JSON est un `null` littéral pour vider, et l'émulateur le lisait
+  dans un `*string`, où `null` et champ absent sont la même chose : l'écriture
+  répondait 200 et le reverse restait, la forme de #654 un produit plus loin,
+  trouvée par la relecture après écriture de la jambe Day-2. Mesuré sur un vrai
+  compte le 2026-09-04 : une adresse fraîche lit `null`, `{"reverse": null}`
+  répond 200 et lit `null`, et `{"reverse": ""}` aussi. Ce que le compte
+  répond encore, et pas cet émulateur : un reverse qui ne résout pas est
+  refusé par une contrainte sur `reverse` (`docs/limits.md` garde cette
+  divergence, les reverses d'une stack pointant vers des adresses de
+  documentation que rien ne résout).
 
 - **Un instantané d'un disque auquel rien n'a jamais été attaché était accepté,
   et la stack d'exemple publiée en dépendait** (#650, #646).

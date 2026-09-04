@@ -1,0 +1,40 @@
+{
+  "package": "./internal/providers/scaleway/",
+  "mutations": [
+    {
+      "label": "a null reverse is accepted and ignored again, the write that changes nothing (#654, #676)",
+      "file": "internal/providers/scaleway/ips.go",
+      "find": "\tif reverse, given, clears := nullableStringField(req.Reverse); given {\n\t\tif clears {\n\t\t\tres.Attrs[\"reverse\"] = nil\n\t\t} else {",
+      "replace": "\tif reverse, given, clears := nullableStringField(req.Reverse); given {\n\t\tif clears && false {\n\t\t\tres.Attrs[\"reverse\"] = nil\n\t\t} else {",
+      "test": "TestANullReverseClearsIt"
+    },
+    {
+      "label": "an update that does not name the reverse clears it (#676)",
+      "file": "internal/providers/scaleway/ips.go",
+      "find": "\tif reverse, given, clears := nullableStringField(req.Reverse); given {",
+      "replace": "\tif reverse, given, clears := nullableStringField(req.Reverse); given || true {",
+      "test": "TestANullReverseClearsIt"
+    },
+    {
+      "label": "an added backend server goes last, where the cloud puts it first (#676)",
+      "file": "internal/providers/scaleway/loadbalancer_children.go",
+      "find": "\t\tstored.Attrs[\"pool\"] = orEmpty(append(slices.Clone(req.ServerIP), poolOf(stored)...))",
+      "replace": "\t\tstored.Attrs[\"pool\"] = orEmpty(append(poolOf(stored), slices.Clone(req.ServerIP)...))",
+      "test": "TestAddingABackendServerPutsItFirstAndRefusesADuplicate"
+    },
+    {
+      "label": "a duplicate backend server is added twice rather than refused by name (#676)",
+      "file": "internal/providers/scaleway/loadbalancer_children.go",
+      "find": "\tfor _, ip := range req.ServerIP {\n\t\tif slices.Contains(pool, ip) {",
+      "replace": "\tfor _, ip := range req.ServerIP {\n\t\tif slices.Contains(pool, ip) && false {",
+      "test": "TestAddingABackendServerPutsItFirstAndRefusesADuplicate"
+    },
+    {
+      "label": "a removal keeps the address it was asked to remove (#676)",
+      "file": "internal/providers/scaleway/loadbalancer_children.go",
+      "find": "\t\t\tif !slices.Contains(req.ServerIP, ip) {\n\t\t\t\tkept = append(kept, ip)\n\t\t\t}",
+      "replace": "\t\t\tif !slices.Contains(req.ServerIP, ip) || true {\n\t\t\t\tkept = append(kept, ip)\n\t\t\t}",
+      "test": "TestRemovingABackendServerLeavesTheOthersAndIgnoresAnAbsentOne"
+    }
+  ]
+}

@@ -1171,6 +1171,12 @@ scw lb backend update "$backend_id" name=conformance-be-2 forward-protocol=tcp f
   || fail "backend update did not carry the name"
 scw lb backend set-servers "$backend_id" server-ip.0=172.16.8.11 zone="$ZONE" -o json \
   | jq -e '.pool == ["172.16.8.11"]' >/dev/null || fail "set-servers did not replace the pool"
+# One member at a time, the Day-2 client's way (#676): an added address goes
+# first, as a real account answers, and a removed one leaves the others.
+scw lb backend add-servers "$backend_id" server-ip.0=172.16.8.12 zone="$ZONE" -o json \
+  | jq -e '.pool == ["172.16.8.12","172.16.8.11"]' >/dev/null || fail "add-servers did not put the new address first"
+scw lb backend remove-servers "$backend_id" server-ip.0=172.16.8.12 zone="$ZONE" -o json \
+  | jq -e '.pool == ["172.16.8.11"]' >/dev/null || fail "remove-servers did not leave the other address"
 scw lb backend update-healthcheck backend-id="$backend_id" port=8081 check-max-retries=3 check-delay=3s check-timeout=1s zone="$ZONE" -o json \
   | jq -e '.port == 8081' >/dev/null || fail "update-healthcheck did not carry the port"
 scw lb frontend list lb-id="$lb_id" zone="$ZONE" -o json \

@@ -17,6 +17,18 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Added
 
+- **A backend gains and loses one server at a time** (`lb/v1/ZonedAPI.AddBackendServers`,
+  `lb/v1/ZonedAPI.RemoveBackendServers`, #676). Declined because the Terraform
+  provider reconciles a pool through `SetBackendServers` alone, which is true
+  of Terraform and not of a Day-2 client, for whom adding one server is the
+  ordinary week-three operation. Measured on a real account on 2026-09-04 and
+  copied: an added address goes first in the pool; an address the pool already
+  holds refuses the whole request with `invalid_arguments` on `server_ip`,
+  "server_ip x already exists"; a removed address leaves the others, and
+  removing one the pool does not hold answers 200 with the pool unchanged. The
+  order of several addresses added at once was not measured, and the handler
+  says so. Driven by `scw lb backend add-servers` and `remove-servers`.
+
 - **Flexible GPU is served, the whole family** (#619): `osc/Client.ReadFlexibleGpuCatalog`,
   `osc/Client.CreateFlexibleGpu`, `osc/Client.ReadFlexibleGpus`,
   `osc/Client.UpdateFlexibleGpu`, `osc/Client.DeleteFlexibleGpu`,
@@ -116,6 +128,18 @@ what this project is judged on: **a response shape a client can observe**, and
   packs.
 
 ### Fixed
+
+- **`reverse: null` clears a flexible IP's reverse, and reads back null** (#676).
+  The SDK sends the reverse as a `NullableStringValue` whose JSON is a literal
+  `null` to clear, and the emulator read it into a `*string`, where a null and
+  an absent field are the same thing: the write answered 200 and the reverse
+  stayed, the shape of #654 one product over, found by the Day-2 leg's
+  read-after-write. Measured on a real account on 2026-09-04: a fresh address
+  reads `null`, `{"reverse": null}` answers 200 and reads `null`, and so does
+  `{"reverse": ""}`. What the account also answers, and this emulator does
+  not: a reverse that does not resolve is refused with a constraint on
+  `reverse` (`docs/limits.md` keeps that divergence, since a stack's reverses
+  point at documentation addresses nothing resolves).
 
 - **A snapshot of a disk nothing was ever attached to was accepted, and the
   published example stack depended on it** (#650, #646).

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"math"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -371,6 +372,107 @@ func (p *Pack) setLBBackendServers(w http.ResponseWriter, r *http.Request) {
 	}
 	current, _ := p.env.Store.Get(Name, kindLBBackend, res.ID)
 	emulator.WriteJSON(w, http.StatusOK, p.lbBackendView(current))
+}
+
+// addLBBackendServers and removeLBBackendServers edit a pool one member at a
+// time (#676). They were declined because the Terraform provider reconciles a
+// pool through SetBackendServers alone, which is true of Terraform and not of
+// a Day-2 client: adding one server to a pool is the ordinary week-three
+// operation, and rewriting the pool to add a member is what a client does
+// when the API will not let it do otherwise. The same argument lifted the
+// declines of #658 and #666.
+//
+// Measured on a real account on 2026-09-04 (fr-par-1), and copied rather than
+// designed:
+//
+//	POST   {"server_ip":["10.0.0.2"]} on ["10.0.0.1"]  200, pool ["10.0.0.2","10.0.0.1"]
+//	POST   the same address again                     400 invalid_arguments, server_ip
+//	       "server_ip 10.0.0.2 already exists", reason constraint
+//	POST   ["10.0.0.3","10.0.0.1"], one of them held  400, and the pool is unchanged:
+//	       the batch is refused whole
+//	DELETE {"server_ip":["10.0.0.1"]}                 200, pool ["10.0.0.2"]
+//	DELETE an address the pool does not hold           200, pool unchanged
+//
+// So an added address goes FIRST, a duplicate refuses the whole request by
+// name, and a removal of nothing is a success. What the measurement did not
+// settle is the order of several addresses added at once — the batch that
+// would have shown it was the refused one — so a batch keeps the order it
+// was sent in, ahead of the pool, and this comment says that was not read.
+//
+// TestAddingABackendServerPutsItFirstAndRefusesADuplicate and
+// TestRemovingABackendServerLeavesTheOthersAndIgnoresAnAbsentOne fail without
+// them, and TestSetAddAndRemoveAgreeOnThePool holds the three routes to one
+// register.
+func (p *Pack) addLBBackendServers(w http.ResponseWriter, r *http.Request) {
+	res, ok := p.zonalResourceOf(w, r, kindLBBackend, "backendID", "backend")
+	if !ok {
+		return
+	}
+	var req backendServersRequest
+	if err := emulator.DecodeJSON(r, &req); err != nil {
+		writeInvalidArguments(w, ArgumentError{ArgumentName: "body", Reason: "format", HelpMessage: err.Error()})
+		return
+	}
+	pool := poolOf(res)
+	for _, ip := range req.ServerIP {
+		if slices.Contains(pool, ip) {
+			writeInvalidArguments(w, ArgumentError{ArgumentName: "server_ip", Reason: "constraint",
+				HelpMessage: "server_ip " + ip + " already exists"})
+			return
+		}
+	}
+	err := p.env.Store.Update(Name, kindLBBackend, res.ID, func(stored *resource.Resource) error {
+		stored.Attrs["pool"] = orEmpty(append(slices.Clone(req.ServerIP), poolOf(stored)...))
+		stored.Updated = p.env.Now()
+		return nil
+	})
+	if err != nil {
+		writeNotFound(w, "backend", res.ID)
+		return
+	}
+	current, _ := p.env.Store.Get(Name, kindLBBackend, res.ID)
+	emulator.WriteJSON(w, http.StatusOK, p.lbBackendView(current))
+}
+
+func (p *Pack) removeLBBackendServers(w http.ResponseWriter, r *http.Request) {
+	res, ok := p.zonalResourceOf(w, r, kindLBBackend, "backendID", "backend")
+	if !ok {
+		return
+	}
+	var req backendServersRequest
+	if err := emulator.DecodeJSON(r, &req); err != nil {
+		writeInvalidArguments(w, ArgumentError{ArgumentName: "body", Reason: "format", HelpMessage: err.Error()})
+		return
+	}
+	err := p.env.Store.Update(Name, kindLBBackend, res.ID, func(stored *resource.Resource) error {
+		kept := make([]string, 0)
+		for _, ip := range poolOf(stored) {
+			if !slices.Contains(req.ServerIP, ip) {
+				kept = append(kept, ip)
+			}
+		}
+		stored.Attrs["pool"] = orEmpty(kept)
+		stored.Updated = p.env.Now()
+		return nil
+	})
+	if err != nil {
+		writeNotFound(w, "backend", res.ID)
+		return
+	}
+	current, _ := p.env.Store.Get(Name, kindLBBackend, res.ID)
+	emulator.WriteJSON(w, http.StatusOK, p.lbBackendView(current))
+}
+
+// poolOf reads a backend's pool back as strings.
+func poolOf(res *resource.Resource) []string {
+	entries, _ := res.Attrs["pool"].([]any)
+	out := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if ip := textOf(entry); ip != "" {
+			out = append(out, ip)
+		}
+	}
+	return out
 }
 
 func (p *Pack) updateLBHealthCheck(w http.ResponseWriter, r *http.Request) {
