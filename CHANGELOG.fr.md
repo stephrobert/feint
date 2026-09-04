@@ -19,6 +19,28 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Ajouté
 
+- **Flexible GPU est servi, toute la famille** (#619) : `osc/Client.ReadFlexibleGpuCatalog`,
+  `osc/Client.CreateFlexibleGpu`, `osc/Client.ReadFlexibleGpus`,
+  `osc/Client.UpdateFlexibleGpu`, `osc/Client.DeleteFlexibleGpu`,
+  `osc/Client.LinkFlexibleGpu`, `osc/Client.UnlinkFlexibleGpu`.
+
+  Un cours publié consacre une page entière à ce produit, et le lecteur qui le
+  suivait contre l'émulateur rencontrait six 404 d'affilée. Sur le plan de
+  contrôle, un fGPU a la forme d'un volume et non d'une machine : ce qu'un client
+  en observe, c'est son modèle, sa sous-région et son attachement, trois faits
+  d'enregistrement et non de matériel. C'est la ligne où se tient déjà le Load
+  Balancer, dont le produit est servi et dont `GetLBStats` est décliné parce que
+  rien ici ne mesure un backend.
+
+  Le catalogue est une lecture d'un vrai compte, onze modèles champ par champ :
+  la création peut donc refuser un modèle que le cloud ne propose pas, et une
+  génération incompatible avec le modèle. Toute la famille ou rien : un catalogue
+  dont aucune création n'accepte les entrées est le menu que refuse l'argument
+  `ListVolumesTypes`.
+
+  Les hôtes dédiés, les gabarits et les groupes de VM gardent leur refus, dont
+  l'argument est resserré sur ce qu'il couvre encore.
+
 - **La table d'offre du Load Balancer est servie** (`lb/v1/ZonedAPI.ListLBTypes`,
   #658). Quatre types lus sur un vrai compte, paginés, et pilotés par `scw lb
   lb-types list` dans la suite de conformance.

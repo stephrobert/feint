@@ -1118,6 +1118,55 @@ ok "sixteen reads named the filter they do not apply, instead of answering the w
 # The object has to come back WITH its Tags, which #618 names as the second
 # thing an implementation gets wrong: an object that matched a tag filter and
 # answered without its tags is a shape divergence on top of the missing filter.
+# Flexible GPU, driven end to end (#619). A published course spends a whole page
+# on this product, and the reader following it met six 404s in a row.
+#
+# The catalogue is read BEFORE the create that uses it, and the assertion is the
+# join rather than a row count: the model the create names has to be one the
+# catalogue offered. That is the property #658 settled for the Load Balancer,
+# one product later.
+echo "- the flexible GPU family: catalogue, allocate, attach, detach, delete"
+gpuspan="$(prove_begin behaviour)"
+catalogue="$(osc ReadFlexibleGpuCatalog)" || fail "ReadFlexibleGpuCatalog rejected: $catalogue"
+printf '%s' "$catalogue" | jq -e '.FlexibleGpuCatalog | length > 0' >/dev/null \
+  || fail "the fGPU catalogue is empty: $catalogue"
+gpu_model="$(printf '%s' "$catalogue" | jq -r '.FlexibleGpuCatalog[0].ModelName')"
+gpu_gen="$(printf '%s' "$catalogue" | jq -r '.FlexibleGpuCatalog[0].Generations[0]')"
+printf '%s' "$catalogue" | jq -e 'all(.FlexibleGpuCatalog[]; has("MaxCpu") and has("MaxRam") and has("VRam"))' >/dev/null \
+  || fail "a catalogue entry is missing a field the SDK decodes: $catalogue"
+
+gpu_id="$(osc CreateFlexibleGpu --ModelName "$gpu_model" --Generation "$gpu_gen" \
+  --SubregionName eu-west-2a | jq -r '.FlexibleGpu.FlexibleGpuId')"
+[ -n "$gpu_id" ] || fail "no FlexibleGpuId for a model the catalogue offers ($gpu_model)"
+osc ReadFlexibleGpus --Filters.FlexibleGpuIds "$gpu_id" \
+  | jq -e --arg m "$gpu_model" '.FlexibleGpus | length == 1 and .[0].ModelName == $m and .[0].State == "allocated"' >/dev/null \
+  || fail "the fGPU does not read back as allocated on the model asked for"
+
+osc LinkFlexibleGpu --FlexibleGpuId "$gpu_id" --VmId "$vm_id" >/dev/null \
+  || fail "LinkFlexibleGpu rejected"
+osc ReadFlexibleGpus --Filters.VmIds "$vm_id" \
+  | jq -e --arg id "$gpu_id" '.FlexibleGpus | length == 1 and .[0].FlexibleGpuId == $id and .[0].State == "attached"' >/dev/null \
+  || fail "the attached fGPU is not listed against its machine"
+
+# The two refusals this family owns, on the shape #621 settled for volumes.
+refuse_call 9029 LinkFlexibleGpu --FlexibleGpuId "$gpu_id" --VmId "$vm_id"
+osc UnlinkFlexibleGpu --FlexibleGpuId "$gpu_id" >/dev/null || fail "UnlinkFlexibleGpu rejected"
+refuse_call 9029 UnlinkFlexibleGpu --FlexibleGpuId "$gpu_id"
+
+# As a payload rather than a flag, and for the reason the date filters above
+# travel that way: octl's flag builder does not get this boolean through, and
+# the emulator receives a request without the field. Measured here, not assumed
+# — the assertion failed on the flag form and passes on this one, against the
+# same handler.
+osc UpdateFlexibleGpu --payload '{"FlexibleGpuId":"'"$gpu_id"'","DeleteOnVmDeletion":true}' \
+  | jq -e '.FlexibleGpu.DeleteOnVmDeletion == true' >/dev/null \
+  || fail "UpdateFlexibleGpu did not change the one field it owns"
+osc DeleteFlexibleGpu --FlexibleGpuId "$gpu_id" >/dev/null || fail "DeleteFlexibleGpu rejected"
+osc ReadFlexibleGpus --Filters.FlexibleGpuIds "$gpu_id" \
+  | jq -e '.FlexibleGpus | length == 0' >/dev/null || fail "the deleted fGPU is still listed"
+prove_end "$gpuspan"
+ok "an fGPU from the catalogue: allocated, attached, detached, updated, deleted"
+
 echo "- the tag filters select, exclude, and answer the object with its tags"
 tagspan="$(prove_begin behaviour)"
 tagged_net="$(osc CreateNet --IpRange 10.94.0.0/16 | jq -r '.Net.NetId')"

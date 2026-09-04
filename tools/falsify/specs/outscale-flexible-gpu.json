@@ -1,0 +1,60 @@
+{
+  "mutations": [
+    {
+      "label": "the create takes a model the catalogue does not offer, which is the menu the ListVolumesTypes argument refuses, read backwards",
+      "file": "internal/providers/outscale/flexiblegpu.go",
+      "package": "./internal/providers/outscale/",
+      "find": "\tgenerations, offered := gpuModelOffered(req.ModelName)\n\tif !offered {",
+      "replace": "\tgenerations, offered := gpuModelOffered(req.ModelName)\n\tif !offered && false {",
+      "test": "TestCreatingAnFGpuChecksTheModelAgainstTheCatalogue"
+    },
+    {
+      "label": "the generation is no longer checked against the model's own list, so a v7 p100 is allocated",
+      "file": "internal/providers/outscale/flexiblegpu.go",
+      "package": "./internal/providers/outscale/",
+      "find": "\t\tif !known {",
+      "replace": "\t\tif !known && false {",
+      "test": "TestCreatingAnFGpuChecksTheModelAgainstTheCatalogue"
+    },
+    {
+      "label": "an fGPU already attached is attached again, so two machines claim one device",
+      "file": "internal/providers/outscale/flexiblegpu.go",
+      "package": "./internal/providers/outscale/",
+      "find": "\t\tif attach && attachedTo != \"\" {",
+      "replace": "\t\tif attach && attachedTo != \"\" && false {",
+      "test": "TestLinkingAnFGpuTwiceIsRefused"
+    },
+    {
+      "label": "detaching what is attached to nothing answers success, telling the client a detach happened",
+      "file": "internal/providers/outscale/flexiblegpu.go",
+      "package": "./internal/providers/outscale/",
+      "find": "\t\tif !attach && attachedTo == \"\" {",
+      "replace": "\t\tif !attach && attachedTo == \"\" && false {",
+      "test": "TestLinkingAnFGpuTwiceIsRefused"
+    },
+    {
+      "label": "an attached fGPU deletes, leaving a machine claiming a device that is gone",
+      "file": "internal/providers/outscale/flexiblegpu.go",
+      "package": "./internal/providers/outscale/",
+      "find": "\tif attachedTo, _ := res.Attrs[\"VmId\"].(string); attachedTo != \"\" {",
+      "replace": "\tif attachedTo, _ := res.Attrs[\"VmId\"].(string); attachedTo != \"\" && false {",
+      "test": "TestLinkingAnFGpuTwiceIsRefused"
+    },
+    {
+      "label": "a catalogue row carries an invented figure, which a client sizing a machine reads as a compatibility claim",
+      "file": "internal/providers/outscale/flexiblegpu.go",
+      "package": "./internal/providers/outscale/",
+      "find": "\t{\"nvidia-h200\", []string{\"v7\", \"v104\"}, 130, 2300, 141000},",
+      "replace": "\t{\"nvidia-h200\", []string{\"v7\", \"v104\"}, 130, 2300, 141001},",
+      "test": "TestTheGpuCatalogueIsTheOneMeasured"
+    },
+    {
+      "label": "the update changes more than the one field its request carries",
+      "file": "internal/providers/outscale/flexiblegpu.go",
+      "package": "./internal/providers/outscale/",
+      "find": "\t\tif req.DeleteOnVmDeletion != nil {\n\t\t\tstored.Attrs[\"DeleteOnVmDeletion\"] = *req.DeleteOnVmDeletion\n\t\t}",
+      "replace": "\t\tif req.DeleteOnVmDeletion != nil {\n\t\t\tstored.Attrs[\"DeleteOnVmDeletion\"] = *req.DeleteOnVmDeletion\n\t\t\tstored.State = gpuStateAttached\n\t\t}",
+      "test": "TestUpdatingAnFGpuChangesTheOneFieldItOwns"
+    }
+  ]
+}
