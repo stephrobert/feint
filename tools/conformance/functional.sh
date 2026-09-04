@@ -447,13 +447,24 @@ unlink_backend() { # provider balancer vm_id
 
 WORK=""
 UP=""
+# OWNED says whether WORK is this gate's own directory. Under FEINT_STACK_UP it
+# is the owner's (#673), and the success path below already leaves it alone —
+# but a failure reached this trap with WORK still naming it, and the rm took
+# the owner's stack directory with it: measured on 2026-09-04, the Day-2 leg
+# went red on #660, this trap removed its work directory, and the leg's own
+# down then had no feint.yaml to read and left seven machines standing.
+# TestTheStackGateRemovesOnlyTheDirectoryItCreated fails without it.
+OWNED=""
 cleanup() {
-	if [ -n "$UP" ] && [ -n "$WORK" ]; then
+	if [ -n "$UP" ] && [ -n "$WORK" ] && [ -d "$WORK" ]; then
 		(cd "$WORK" && "$FEINT" down >/dev/null 2>&1)
 	fi
-	[ -n "$WORK" ] && rm -rf "$WORK"
+	if [ -n "$OWNED" ] && [ -n "$WORK" ]; then
+		rm -rf "$WORK"
+	fi
 	WORK=""
 	UP=""
+	OWNED=""
 }
 trap cleanup EXIT INT TERM
 
@@ -511,9 +522,11 @@ run_stack() { # name
 		echo "- $name: judging the stack already up in $FEINT_STACK_UP (brought up by its owner)"
 		WORK="$FEINT_STACK_UP"
 		UP=""
+		OWNED=""
 	else
 		echo "- $name: feint up --runtime $RUNTIME"
 		WORK="$(mktemp -d)"
+		OWNED="yes"
 		cp "$src"/*.tf "$src/feint.yaml" "$WORK/"
 		[ -d "$src/modules" ] && cp -R "$src/modules" "$WORK/"
 		sed -i "s|127.0.0.1:4599|$ADDR|g" "$WORK/feint.yaml"
@@ -1060,6 +1073,7 @@ run_stack() { # name
 	ok "down, nothing answers on $ADDR"
 	rm -rf "$WORK"
 	WORK=""
+	OWNED=""
 }
 
 # The population, on a line of its own so a test can read it: adding a stack

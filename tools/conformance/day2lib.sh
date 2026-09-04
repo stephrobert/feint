@@ -428,3 +428,67 @@ d2_catalogue_scaleway() {
 		"d2_step_$step"
 	done
 }
+
+# ---- the sweep ---------------------------------------------------------------
+#
+# d2_sweep takes the run's stack down whichever way the run ended, and refuses
+# to say "swept" on anything it did not see (#673).
+#
+# What it replaces was `(cd "$WORK" && feint down)` in an EXIT trap, and it
+# failed exactly the way this repository has paid for before (forty-eight live
+# loops behind a cleanup that reported success): on 2026-09-04 the leg went
+# red on #660, the stack gate's own trap removed the work directory, the cd
+# failed, the down never ran, `rm -rf` of a directory that no longer existed
+# succeeded, and seven machines stayed up behind an exit that said nothing.
+#
+# Three rules, each held by a test in day2_test.go:
+#
+#   - the down runs from the stack directory while it exists; when it is gone
+#     there is no feint.yaml to read, so the emulator is stopped by address
+#     and the runtime swept with `feint clean -closing`, and the sweep says so
+#     (TestTheSweepStopsTheEmulatorWhenTheStackDirectoryIsGone);
+#   - "swept" is a reading, not a report of intent: the emulator must have
+#     stopped answering, and the runtime must hold nothing of this run
+#     (`feint clean -check -closing`); either finding makes the sweep fail
+#     loudly (TestTheSweepRefusesToClaimWhatItDidNotSee,
+#     TestTheSweepReportsALeakTheRuntimeStillHolds);
+#   - the directory goes last, after the down that needs it.
+#
+# The probe is a function of its own so a test can plant an emulator that
+# still answers without opening a port.
+d2_still_answers() { # endpoint
+	curl -sf --max-time 2 "$1/_feint/health" >/dev/null 2>&1
+}
+
+d2_sweep() { # work up feint addr runtime
+	local work="$1" up="$2" feint="$3" addr="$4" runtime="$5" rc=0
+	if [ -n "$up" ]; then
+		if [ -d "$work" ]; then
+			(cd "$work" && "$feint" down) >/dev/null 2>&1 \
+				|| { echo "cleanup: feint down failed in $work" >&2; rc=1; }
+		else
+			echo "cleanup: the stack directory $work is gone, so feint down has nothing to read; stopping the emulator on $addr and sweeping the $runtime runtime instead" >&2
+			"$feint" stop -addr "$addr" >/dev/null 2>&1 \
+				|| { echo "cleanup: feint stop -addr $addr failed" >&2; rc=1; }
+			if [ "$runtime" != off ]; then
+				"$feint" clean -vm "$runtime" -closing >/dev/null 2>&1 \
+					|| { echo "cleanup: feint clean -vm $runtime -closing failed" >&2; rc=1; }
+			fi
+		fi
+		if d2_still_answers "http://$addr"; then
+			echo "FAIL: cleanup: the emulator still answers on $addr after the sweep, so nothing was swept" >&2
+			rc=1
+		fi
+		if [ "$runtime" != off ] && ! "$feint" clean -check -vm "$runtime" -closing >/dev/null 2>&1; then
+			echo "FAIL: cleanup: machines or networks of this run are still on the $runtime runtime; feint clean -check -vm $runtime -closing names them" >&2
+			rc=1
+		fi
+	fi
+	if [ -n "$work" ] && [ -d "$work" ]; then
+		rm -rf "$work"
+	fi
+	if [ "$rc" = 0 ] && [ -n "$up" ]; then
+		echo "  cleanup: swept, nothing answers on $addr"
+	fi
+	return "$rc"
+}
