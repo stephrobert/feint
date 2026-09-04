@@ -859,12 +859,18 @@ func TestAnUnsupportedFilterIsRefused(t *testing.T) {
 
 	for _, probe := range []struct{ action, body string }{
 		{"ReadVms", `{"Filters":{"Architectures":["x86_64"]}}`},
-		{"ReadVms", `{"Filters":{"Tags":["a=b"]}}`},
+		// Tags was the probe on these two until #618; the three tag filters are
+		// served now, and TestTagFiltersSelectAndExclude holds the accepting
+		// half. Lifecycles and IsDefault are declared by FiltersVm and
+		// FiltersNet upstream and still not applied, so they keep the refusal
+		// measured, which is the third time this test has changed probes for
+		// exactly this reason.
+		{"ReadVms", `{"Filters":{"Lifecycles":["spot"]}}`},
 		// DhcpOptionsSetIds used to be the probe here; it is served since the
 		// DHCP lifecycle landed (#172) — the provider's own delete path filters
 		// on it — and TestReadNetsFiltersOnTheDhcpOptionsSet now holds the
 		// accepting half.
-		{"ReadNets", `{"Filters":{"Tags":["a=b"]}}`},
+		{"ReadNets", `{"Filters":{"IsDefault":true}}`},
 		// SubregionNames was the probe here until it became a served filter
 		// (#269); AvailableIpsCounts is declared by FiltersSubnet upstream and
 		// still not applied, so it keeps the refusal measured.

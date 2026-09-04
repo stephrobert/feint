@@ -166,6 +166,102 @@ func filterNames(specs []filterSpec) []string {
 	return out
 }
 
+// taggableFilters are the three tag filters, and they are three rather than one
+// with three spellings (#618):
+//
+//	Tags        "Key=Value", the pair
+//	TagKeys     the key alone
+//	TagValues   the value alone
+//
+// Measured against a real account on 2026-08-30: eleven calls, every one
+// accepted, across ReadNets, ReadSubnets, ReadPublicIps, ReadVolumes,
+// ReadRouteTables, ReadNatServices, ReadNetPeerings, ReadVms and ReadImages.
+// This pack refused all of them with a 4001 naming what it did accept, so a
+// published course that tags everything and then looks things up by tag could
+// not complete its own capstone.
+//
+// The refusal was the honest half of the defect and is what made it measurable:
+// a pack that had dropped the unknown filter would have answered 200 with the
+// whole inventory, and nobody would have noticed for a year.
+var taggableFilters = stringFilters("Tags", "TagKeys", "TagValues")
+
+// matchesTags applies them to one resource. Absent filters match everything,
+// which is what every other matcher here does.
+//
+// The pair is compared on the WHOLE "Key=Value" string rather than on either
+// half, because that is what the recording shows and #618 says the partial case
+// was not tried. Matching a bare key here would be inventing the more permissive
+// of two behaviours, and the more permissive one is the direction that teaches a
+// client something the cloud may not do.
+//
+// TestTagFiltersSelectAndExclude fails without this.
+func matchesTags(f filterSet, res *resource.Resource) bool {
+	return matchesTagsOf(f, tagsOf(res))
+}
+
+// matchesTagsView is matchesTags for a rendered object rather than a stored
+// one. The image list is half catalogue and half store, and the catalogue half
+// exists only as a view: a filter that skipped it would answer a client's tag
+// question with a list that quietly drops the fixed images.
+func matchesTagsView(f filterSet, view map[string]any) bool {
+	tags := map[string]string{}
+	entries, _ := view["Tags"].([]any)
+	for _, entry := range entries {
+		tag, _ := entry.(map[string]any)
+		key, _ := tag["Key"].(string)
+		value, _ := tag["Value"].(string)
+		if key != "" {
+			tags[key] = value
+		}
+	}
+	return matchesTagsOf(f, tags)
+}
+
+func matchesTagsOf(f filterSet, tags map[string]string) bool {
+	if wanted, present, err := f.strings("Tags"); present && err == nil {
+		pairs := make([]string, 0, len(tags))
+		for key, value := range tags {
+			pairs = append(pairs, key+"="+value)
+		}
+		if !anyOf(wanted, pairs) {
+			return false
+		}
+	}
+	if wanted, present, err := f.strings("TagKeys"); present && err == nil {
+		keys := make([]string, 0, len(tags))
+		for key := range tags {
+			keys = append(keys, key)
+		}
+		if !anyOf(wanted, keys) {
+			return false
+		}
+	}
+	if wanted, present, err := f.strings("TagValues"); present && err == nil {
+		values := make([]string, 0, len(tags))
+		for _, value := range tags {
+			values = append(values, value)
+		}
+		if !anyOf(wanted, values) {
+			return false
+		}
+	}
+	return true
+}
+
+// anyOf reports whether the resource carries any of the values asked for. An
+// empty ask matches nothing, the way filterSet.strings already documents: asking
+// for an empty set is not asking for everything.
+func anyOf(wanted, carried []string) bool {
+	for _, want := range wanted {
+		for _, got := range carried {
+			if got == want {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // filtersByAction names, for every action of this pack that reads Filters, the
 // list its handler applies.
 //

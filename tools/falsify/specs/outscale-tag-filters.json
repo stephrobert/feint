@@ -1,0 +1,52 @@
+{
+  "mutations": [
+    {
+      "label": "the pair filter matches on the key alone, inventing the more permissive of two behaviours nobody measured",
+      "file": "internal/providers/outscale/filters.go",
+      "package": "./internal/providers/outscale/",
+      "find": "\t\t\tpairs = append(pairs, key+\"=\"+value)",
+      "replace": "\t\t\tpairs = append(pairs, key+\"=\"+value, key)",
+      "test": "TestTagFiltersSelectAndExclude"
+    },
+    {
+      "label": "TagKeys stops being compared, so a read answers its whole inventory to a tag question",
+      "file": "internal/providers/outscale/filters.go",
+      "package": "./internal/providers/outscale/",
+      "find": "\tif wanted, present, err := f.strings(\"TagKeys\"); present && err == nil {",
+      "replace": "\tif wanted, present, err := f.strings(\"TagKeys\"); present && err == nil && false {",
+      "test": "TestTagFiltersReachEveryReadTheRecordingExercised"
+    },
+    {
+      "label": "TagValues stops being compared",
+      "file": "internal/providers/outscale/filters.go",
+      "package": "./internal/providers/outscale/",
+      "find": "\tif wanted, present, err := f.strings(\"TagValues\"); present && err == nil {",
+      "replace": "\tif wanted, present, err := f.strings(\"TagValues\"); present && err == nil && false {",
+      "test": "TestTagFiltersSelectAndExclude"
+    },
+    {
+      "label": "the filter excludes everything, so a tag that exists selects nothing",
+      "file": "internal/providers/outscale/filters.go",
+      "package": "./internal/providers/outscale/",
+      "find": "func anyOf(wanted, carried []string) bool {",
+      "replace": "func anyOf(wanted, carried []string) bool {\n\tif len(wanted) > 0 && len(carried) >= 0 {\n\t\treturn false\n\t}",
+      "test": "TestTagFiltersSelectAndExclude"
+    },
+    {
+      "label": "the image list stops applying tags to its catalogue half, so a tag question quietly drops the fixed images",
+      "file": "internal/providers/outscale/catalog.go",
+      "package": "./internal/providers/outscale/",
+      "find": "\tif !matchesTagsView(f, image) {",
+      "replace": "\tif !matchesTagsView(f, image) && false {",
+      "test": "TestTagFiltersReachEveryReadTheRecordingExercised"
+    },
+    {
+      "label": "the machines read stops applying them, which is the operation the course's capstone uses",
+      "file": "internal/providers/outscale/vms.go",
+      "package": "./internal/providers/outscale/",
+      "find": "\tif !matchesTags(f, res) {\n\t\treturn false\n\t}\n\tattr := func(key string) string {",
+      "replace": "\tif !matchesTags(f, res) && false {\n\t\treturn false\n\t}\n\tattr := func(key string) string {",
+      "test": "TestTagFiltersReachEveryReadTheRecordingExercised"
+    }
+  ]
+}

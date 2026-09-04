@@ -110,11 +110,15 @@ type readNetPeeringsRequest struct {
 // the tag filters are refused rather than silently matched, the same triage
 // as every other Read* of this pack; the Terraform provider's own read sends
 // NetPeeringIds and nothing else (resource_net_peering.go, v1.8.0).
-var netPeeringFilters = stringFilters(
-	"NetPeeringIds",
-	"AccepterNetAccountIds", "AccepterNetIpRanges", "AccepterNetNetIds",
-	"SourceNetAccountIds", "SourceNetIpRanges", "SourceNetNetIds",
-	"StateMessages", "StateNames",
+var netPeeringFilters = joinFilters(
+	stringFilters(
+		"NetPeeringIds",
+		"AccepterNetAccountIds", "AccepterNetIpRanges", "AccepterNetNetIds",
+		"SourceNetAccountIds", "SourceNetIpRanges", "SourceNetNetIds",
+		"StateMessages", "StateNames",
+	),
+	// The three tag filters (#618).
+	taggableFilters,
 )
 
 func (p *Pack) createNetPeering(w http.ResponseWriter, r *http.Request) {
@@ -358,7 +362,8 @@ func (p *Pack) readNetPeerings(w http.ResponseWriter, r *http.Request) {
 			!matchesStrings(req.Filters, "SourceNetIpRanges", stringOf(res.Attrs["SourceIpRange"])) ||
 			!matchesStrings(req.Filters, "SourceNetNetIds", stringOf(res.Attrs["SourceNetId"])) ||
 			!matchesStrings(req.Filters, "StateMessages", peeringMessage(res.State)) ||
-			!matchesStrings(req.Filters, "StateNames", res.State) {
+			!matchesStrings(req.Filters, "StateNames", res.State) ||
+			!matchesTags(req.Filters, res) {
 			continue
 		}
 		out = append(out, netPeeringView(res))

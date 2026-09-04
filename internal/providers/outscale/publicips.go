@@ -194,7 +194,12 @@ func (p *Pack) createPublicIP(w http.ResponseWriter, r *http.Request) {
 // publicIPFilters are what a stored address can answer. LinkPublicIpIds is here
 // because the Terraform provider reads the link back by its own id right after
 // creating it — without it, `outscale_public_ip_link` fails the apply.
-var publicIPFilters = stringFilters("PublicIpIds", "PublicIps", "LinkPublicIpIds", "VmIds", "NicIds")
+var publicIPFilters = joinFilters(
+	stringFilters("PublicIpIds", "PublicIps", "LinkPublicIpIds", "VmIds", "NicIds"),
+	// The three tag filters, accepted by the real account on every one of
+	// these reads (#618).
+	taggableFilters,
+)
 
 func (p *Pack) readPublicIPs(w http.ResponseWriter, r *http.Request) {
 	var req struct {
@@ -219,7 +224,8 @@ func (p *Pack) readPublicIPs(w http.ResponseWriter, r *http.Request) {
 			!matchesStrings(req.Filters, "PublicIps", stringOf(res.Attrs["PublicIp"])) ||
 			!matchesStrings(req.Filters, "LinkPublicIpIds", stringOf(res.Attrs["LinkPublicIpId"])) ||
 			!matchesStrings(req.Filters, "VmIds", stringOf(res.Attrs["VmId"])) ||
-			!matchesStrings(req.Filters, "NicIds", stringOf(res.Attrs["NicId"])) {
+			!matchesStrings(req.Filters, "NicIds", stringOf(res.Attrs["NicId"])) ||
+			!matchesTags(req.Filters, res) {
 			continue
 		}
 		out = append(out, publicIPView(res))

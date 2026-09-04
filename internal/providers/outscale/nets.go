@@ -84,11 +84,21 @@ type readNetsRequest struct {
 // keyword. Refusing the filter fails every `terraform destroy` of an
 // outscale_dhcp_option.
 var (
-	netFilters = stringFilters("NetIds", "IpRanges", "States", "DhcpOptionsSetIds")
+	netFilters = joinFilters(
+		stringFilters("NetIds", "IpRanges", "States", "DhcpOptionsSetIds"),
+		// The three tag filters, accepted by the real account on every one of
+		// these reads (#618).
+		taggableFilters,
+	)
 	// SubregionNames is served since the subregion became a stored fact
 	// (#269): FiltersSubnet declares it (osc-sdk-go, client.gen.go:5058), and
 	// it is how a stack that spreads subnets across zones reads its own back.
-	subnetFilters = stringFilters("SubnetIds", "NetIds", "IpRanges", "States", "SubregionNames")
+	subnetFilters = joinFilters(
+		stringFilters("SubnetIds", "NetIds", "IpRanges", "States", "SubregionNames"),
+		// The three tag filters, accepted by the real account on every one of
+		// these reads (#618).
+		taggableFilters,
+	)
 )
 
 type readSubnetsRequest struct {
@@ -180,7 +190,8 @@ func (p *Pack) readNets(w http.ResponseWriter, r *http.Request) {
 		if !matchesStrings(req.Filters, "NetIds", res.ID) ||
 			!matchesStrings(req.Filters, "IpRanges", ipRange) ||
 			!matchesStrings(req.Filters, "States", res.State) ||
-			!matchesStrings(req.Filters, "DhcpOptionsSetIds", stringOf(res.Attrs["DhcpOptionsSetId"])) {
+			!matchesStrings(req.Filters, "DhcpOptionsSetIds", stringOf(res.Attrs["DhcpOptionsSetId"])) ||
+			!matchesTags(req.Filters, res) {
 			continue
 		}
 		nets = append(nets, netView(res))
@@ -417,7 +428,8 @@ func (p *Pack) readSubnets(w http.ResponseWriter, r *http.Request) {
 			!matchesStrings(req.Filters, "NetIds", netID) ||
 			!matchesStrings(req.Filters, "IpRanges", ipRange) ||
 			!matchesStrings(req.Filters, "States", res.State) ||
-			!matchesStrings(req.Filters, "SubregionNames", p.subnetSubregion(res.ID)) {
+			!matchesStrings(req.Filters, "SubregionNames", p.subnetSubregion(res.ID)) ||
+			!matchesTags(req.Filters, res) {
 			continue
 		}
 		subnets = append(subnets, p.subnetView(res))

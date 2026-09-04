@@ -60,18 +60,22 @@ type readVmsRequest struct {
 // preamble names. Found by TestEveryDeclaredFilterKindIsTheOneTheContractDeclares
 // on the day it was written (#566); nothing outside this pack's own tests used
 // the old spelling.
-var vmFilters = stringFilters(
-	"VmIds", "VmStateNames", "ImageIds", "VmTypes", "KeypairNames",
-	"SubnetIds", "NetIds", "PrivateIps",
-	// The zone filter FiltersVm declares (osc-sdk-go, client.gen.go:5304),
-	// served since the subregion became a stored fact rather than a constant
-	// (#268): a constant made this filter either a tautology or a void.
-	"SubregionNames",
-	// The group filters are what `terraform destroy` asks before removing a
-	// security group: which machines still wear it. Without them the destroy
-	// fails on the group, after the apply succeeded — so the whole fixture is
-	// left standing by a filter nobody had declared.
-	"SecurityGroupIds", "SecurityGroupNames",
+var vmFilters = joinFilters(
+	stringFilters(
+		"VmIds", "VmStateNames", "ImageIds", "VmTypes", "KeypairNames",
+		"SubnetIds", "NetIds", "PrivateIps",
+		// The zone filter FiltersVm declares (osc-sdk-go, client.gen.go:5304),
+		// served since the subregion became a stored fact rather than a constant
+		// (#268): a constant made this filter either a tautology or a void.
+		"SubregionNames",
+		// The group filters are what `terraform destroy` asks before removing a
+		// security group: which machines still wear it. Without them the destroy
+		// fails on the group, after the apply succeeded — so the whole fixture is
+		// left standing by a filter nobody had declared.
+		"SecurityGroupIds", "SecurityGroupNames",
+	),
+	// The three tag filters (#618).
+	taggableFilters,
 )
 
 // vmPlacement is CreateVmsRequest's Placement (osc-sdk-go,
@@ -206,6 +210,9 @@ func (p *Pack) readVms(w http.ResponseWriter, r *http.Request) {
 // would answer more than was asked for, which is the defect this whole file
 // exists to remove.
 func (p *Pack) vmMatches(res *resource.Resource, f filterSet) bool {
+	if !matchesTags(f, res) {
+		return false
+	}
 	attr := func(key string) string {
 		value, _ := res.Attrs[key].(string)
 		return value

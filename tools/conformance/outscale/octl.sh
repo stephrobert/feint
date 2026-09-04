@@ -1086,8 +1086,13 @@ refuse_call() { # expected-code operation args...
 echo "- every read refuses the filter it does not emulate"
 neg="$(prove_begin negative)"
 refuse_call 4001 ReadVms               --Filters.Architectures x86_64
-refuse_call 4001 ReadNets              --Filters.TagKeys owner
-refuse_call 4001 ReadSubnets           --Filters.TagKeys owner
+# TagKeys was the probe on these two until #618, when the three tag filters
+# became served; the block below drives the accepting half. IsDefault and
+# AvailableIpsCounts are declared by FiltersNet and FiltersSubnet and still not
+# applied, so the refusal stays measured. Both travel as a payload because
+# octl's flag builder mishandles their types, the way CreationDates does below.
+refuse_call 4001 ReadNets              --payload '{"Filters":{"IsDefault":true}}'
+refuse_call 4001 ReadSubnets           --payload '{"Filters":{"AvailableIpsCounts":[251]}}'
 refuse_call 4001 ReadKeypairs          --Filters.KeypairIds key-feintnone
 refuse_call 4001 ReadSecurityGroups    --Filters.InboundRuleAccountIds 000000000001
 refuse_call 4001 ReadRouteTables       --Filters.LinkRouteTableLinkRouteTableIds rtbassoc-feintnone
@@ -1103,6 +1108,31 @@ refuse_call 4001 ReadImages            --Filters.AccountAliases none
 refuse_call 4001 ReadVmsState          --Filters.MaintenanceEventCodes none
 prove_end "$neg"
 ok "sixteen reads named the filter they do not apply, instead of answering the whole inventory"
+
+# And the other half of the same guard: the filters this pack DOES serve have to
+# select rather than be politely accepted (#618). A published course tags
+# everything and then looks things up by tag, and that is what this drives: tag
+# one Net, ask for it by each of the three filters, and ask for a tag nothing
+# carries.
+#
+# The object has to come back WITH its Tags, which #618 names as the second
+# thing an implementation gets wrong: an object that matched a tag filter and
+# answered without its tags is a shape divergence on top of the missing filter.
+echo "- the tag filters select, exclude, and answer the object with its tags"
+tagspan="$(prove_begin behaviour)"
+tagged_net="$(osc CreateNet --IpRange 10.94.0.0/16 | jq -r '.Net.NetId')"
+[ -n "$tagged_net" ] || fail "no NetId for the tag survey"
+osc CreateTags --ResourceIds "$tagged_net"   --payload '{"Tags":[{"Key":"course","Value":"capstone"}]}' >/dev/null   || fail "CreateTags rejected"
+
+for filter in '{"Filters":{"Tags":["course=capstone"]}}'               '{"Filters":{"TagKeys":["course"]}}'               '{"Filters":{"TagValues":["capstone"]}}'; do
+  found="$(osc ReadNets --payload "$filter")" || fail "ReadNets $filter rejected: $found"
+  printf '%s' "$found" | jq -e --arg id "$tagged_net" '.Nets | length == 1 and .[0].NetId == $id' >/dev/null     || fail "$filter did not select the tagged Net alone: $found"
+  printf '%s' "$found" | jq -e '.Nets[0].Tags | length == 1 and .[0].Key == "course"' >/dev/null     || fail "$filter answered the Net without its Tags: $found"
+done
+osc ReadNets --payload '{"Filters":{"TagKeys":["nothing-carries-this"]}}'   | jq -e '.Nets | length == 0' >/dev/null   || fail "a tag nothing carries selected something"
+osc DeleteNet --NetId "$tagged_net" >/dev/null || fail "DeleteNet rejected"
+prove_end "$tagspan"
+ok "the three tag filters select the tagged object, exclude the rest, and carry Tags"
 
 # The two attach spellings, at a balancer that does not exist. LBU is the one
 # family where a wrong name is a refusal rather than an empty list, because the
