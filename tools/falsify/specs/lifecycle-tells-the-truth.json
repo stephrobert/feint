@@ -11,7 +11,7 @@
   "package": "./internal/core/machine/",
   "mutations": [
     {
-      "label": "#547: a reboot stops taking the machine down, so the action answers success and the runtime \u2014 which refuses to relaunch a name it has already served \u2014 does nothing at all",
+      "label": "#547: a reboot stops taking the machine down, so the action answers success and the runtime — which refuses to relaunch a name it has already served — does nothing at all",
       "file": "internal/core/machine/plan.go",
       "find": "\tif res.State == r.binding().RunningState {\n\t\tr.binding().PowerOff(ctx, res)\n\t}",
       "replace": "\tif res.State == r.binding().RunningState && false {\n\t\tr.binding().PowerOff(ctx, res)\n\t}",
@@ -25,7 +25,7 @@
       "test": "TestARebootOfAStoppedMachineDoesNotStopItAgain"
     },
     {
-      "label": "#547 across the packs: Scaleway's reboot calls the start alone again, which is the defect verbatim \u2014 the three other packs go on asking the runtime for a stop and the sequences diverge",
+      "label": "#547 across the packs: Scaleway's reboot calls the start alone again, which is the defect verbatim — the three other packs go on asking the runtime for a stop and the sequences diverge",
       "file": "internal/providers/scaleway/servers.go",
       "package": "./internal/providers/",
       "find": "\t\tp.rebootMachine(r.Context(), res)",
@@ -56,12 +56,12 @@
     {
       "label": "#549, the diagnosis: a guest that never finishes configuring its interface is no longer reported by the wait, so the failure an operator reads names the network rather than the machine and the device that could not be repaired",
       "file": "internal/core/machine/incus_ovn.go",
-      "find": "\t\tif err := d.waitForGuestInterface(ctx, machine, device); err != nil {\n\t\t\treturn err\n\t\t}",
-      "replace": "\t\tif err := d.waitForGuestInterface(ctx, machine, device); err != nil && false {\n\t\t\treturn err\n\t\t}",
+      "find": "\t\tif err := d.waitForGuestInterface(ctx, machine, device); err != nil {\n\t\t\treturn errors.Join(routed, err)\n\t\t}",
+      "replace": "\t\tif err := d.waitForGuestInterface(ctx, machine, device); err != nil && false {\n\t\t\treturn errors.Join(routed, err)ors.Join(routed, err)\n\t\t}",
       "test": "TestAGuestThatNeverConfiguresItsInterfaceIsReported"
     },
     {
-      "label": "#498, since #548: the address is no longer released from the routed NIC before the uplink is asked for the same /32, which is the `file exists` that shouted an ERROR over a correct host \u2014 and the published address stays where no rule set reaches it",
+      "label": "#498, since #548: the address is no longer released from the routed NIC before the uplink is asked for the same /32, which is the `file exists` that shouted an ERROR over a correct host — and the published address stays where no rule set reaches it",
       "file": "internal/core/machine/incus_address.go",
       "find": "\tif routed != \"\" {",
       "replace": "\tif routed != \"\" && false {",

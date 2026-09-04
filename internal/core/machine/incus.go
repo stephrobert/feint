@@ -542,9 +542,11 @@ func (d *Incus) Start(ctx context.Context, spec Spec) (Machine, error) {
 			"-d", "root,pool="+d.rootPool(ctx))
 	}
 	if routed {
-		// The guest has to be told. A routed NIC hands the kernel a static
-		// address and Incus's generated config says `dhcp` regardless, so
-		// without this the interface comes up carrying nothing — measured.
+		// The guest has to be told, and has to manage the interface itself:
+		// a routed NIC hands the kernel a static address, Incus's generated
+		// config says `dhcp` regardless, and a guest whose network config
+		// matches no interface waits out systemd-networkd-wait-online before
+		// it ever starts sshd (#674, routedNetworkConfig).
 		netcfg, err := routedNetworkConfig(spec.PublicAddresses)
 		if err != nil {
 			return Machine{}, err

@@ -156,6 +156,27 @@ what this project is judged on: **a response shape a client can observe**, and
   one. The routed NIC's path was not the defect and is held by a test of its
   own, so nobody reasons about it again.
 
+- **A restart reconciles the routed NIC to its device, and the guest's own
+  config keeps laying the launch shape** (#674). A server created with a
+  public address and no network boots on a `routed` NIC (#202), declared
+  statically in the network-config the launch hands cloud-init — the address
+  as a `/32`, the on-link default route through `169.254.0.1`. cloud-init
+  renders it once, at the first boot, into the guest's own
+  `/etc/netplan/50-cloud-init.yaml`, and that file outlives every edit the
+  driver makes to the device afterwards: measured on 2026-09-04 under
+  `incus-ovn`, a server whose private NIC arrived hot and took the address
+  with it (#548) still declared `203.0.113.3/32` on `eth0` in the guest while
+  the device pinned nothing, and an API reboot put the address back on `eth0`
+  beside the one the driver had laid on `eth1`. Two writers of one interface,
+  now in a fixed order: the guest's config lays it at every boot — and must,
+  measured the same day: a first attempt that took `eth0` out of that config
+  left systemd-networkd managing nothing, `systemd-networkd-wait-online`
+  waiting to its 120 s ceiling and sshd starting 90 s after the ssh suite had
+  given up, where main logs in within twenty seconds — and the restart path
+  then waits, bounded, for the guest to have laid the interface, takes off
+  every address the device neither pins nor routes, and puts back what it
+  does, the link-local next hop and the default route through it.
+
 - **A snapshot of a disk nothing was ever attached to was accepted, and the
   published example stack depended on it** (#650, #646).
 

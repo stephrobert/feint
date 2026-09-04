@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/netip"
 	"os"
@@ -1118,6 +1119,19 @@ func (d *Incus) restoreGuestNetwork(ctx context.Context, machine string) error {
 	if err != nil {
 		return fmt.Errorf("inspect %s to restore its routes: %w", machine, err)
 	}
+	// The routed NIC first: the guest's own config lays it at every boot, with
+	// the addresses the launch pinned, and that config outlives the migration
+	// of #548 — so it is reconciled to the device here, once the guest has
+	// laid it (#674). TestARestartReconcilesTheRoutedNICToItsDevice fails
+	// without this.
+	//
+	// Its report does not pre-empt the managed NICs': an expired wait on
+	// eth0 and one on eth1 are two facts, and an operator reading the
+	// restart's failure needs both (errors.Join).
+	var routed error
+	if err := d.reconcileRoutedNICs(ctx, machine, devices); err != nil {
+		routed = fmt.Errorf("reconcile the routed interface of %s: %w", machine, err)
+	}
 	for _, device := range names {
 		// The address first, when the device pins one (#548). A NIC attached
 		// to a running machine is configured inside the guest by this driver,
@@ -1137,7 +1151,7 @@ func (d *Incus) restoreGuestNetwork(ctx context.Context, machine string) error {
 		// nobody offers.
 		// TestARestartedMachineGetsItsPinnedAddressBack fails without this.
 		if err := d.restorePinnedAddress(ctx, machine, device, devices.own[device]); err != nil {
-			return err
+			return errors.Join(routed, err)
 		}
 		if !d.OVN {
 			continue
@@ -1148,13 +1162,13 @@ func (d *Incus) restoreGuestNetwork(ctx context.Context, machine string) error {
 		// replaces. It still runs for a device that pins nothing, which is the
 		// DHCP case it was written for.
 		if err := d.waitForGuestInterface(ctx, machine, device); err != nil {
-			return err
+			return errors.Join(routed, err)
 		}
 		if err := d.installGuestPrivateRoutes(ctx, machine, devices.own[device]["network"], device); err != nil {
-			return err
+			return errors.Join(routed, err)
 		}
 	}
-	return nil
+	return routed
 }
 
 // ownedManagedNICs answers the machine's own NIC devices that sit on a network
@@ -1243,6 +1257,11 @@ func (d *Incus) settleFirstBoot(ctx context.Context, machine string) error {
 	if err != nil {
 		return fmt.Errorf("inspect %s to settle its interfaces: %w", machine, err)
 	}
+	// The routed NIC is not settled here: the guest's own config lays it,
+	// and must — measured on 2026-09-04, a first boot the driver laid instead
+	// left the guest's network stack managing nothing and waiting out
+	// systemd-networkd-wait-online before sshd (#674, routedNetworkConfig).
+	// TestAFirstBootLeavesTheRoutedNICToTheGuestsOwnConfig fails without this.
 	for _, device := range names {
 		if devices.own[device]["ipv4.address"] == "" {
 			continue // DHCP owns this interface, and inventing an address for it is #202
@@ -1263,6 +1282,93 @@ func (d *Incus) settleFirstBoot(ctx context.Context, machine string) error {
 			if err := d.installGuestPrivateRoutes(ctx, machine, devices.own[device]["network"], device); err != nil {
 				return fmt.Errorf("settle the first boot of %s: %w", machine, err)
 			}
+		}
+	}
+	return nil
+}
+
+// reconcileRoutedNICs makes the guest's routed NIC carry what its device
+// carries, after a boot (#674).
+//
+// Two writers of one interface, in a fixed order. The guest's own boot-time
+// config (routedNetworkConfig, rendered once by cloud-init at the first boot)
+// lays eth0 with the addresses the launch pinned, and it must: a guest whose
+// network stack manages no interface waits out systemd-networkd-wait-online
+// before it ever starts sshd, measured. But that config outlives every edit
+// this driver makes to the device: measured on 2026-09-04 under `--vm
+// incus-ovn`, a server created with 203.0.113.3 whose private NIC arrived hot
+// and took the address with it (#548) still declared `203.0.113.3/32` on eth0
+// in the guest while the device pinned nothing, and an API reboot put the
+// address back on eth0 beside the one the driver had laid on eth1.
+//
+// So the driver goes second, and waits its turn: once the guest carries an
+// address on the interface — its own config has done its work — every address
+// the device does not pin (ipv4.address) or route (ipv4.routes) is taken off,
+// and the repair a re-plug gets (repairRoutedInterface) puts back what it does,
+// the link-local next hop and the default route through it, idempotently. The
+// wait is bounded (waitForGuestInterface); when it expires the reconciliation
+// still runs, and the wait is reported, since a routed NIC with nothing on it
+// is exactly what an operator will ask about.
+//
+// Only the NIC this driver adds: routedDevice names it routedDeviceName and
+// gives it no network, and the instance's ownership was asked at the door
+// (Binding.ours for the name, mustOwnInstance for the label). A routed NIC an
+// operator added by hand under another name is theirs, and nothing here
+// names it.
+func (d *Incus) reconcileRoutedNICs(ctx context.Context, machine string, devices instanceView) error {
+	for device, cfg := range devices.own {
+		if cfg["type"] != "nic" || cfg["nictype"] != "routed" || device != routedDeviceName {
+			continue
+		}
+		waited := d.waitForGuestInterface(ctx, machine, device)
+		if err := d.releaseStaleRoutedAddresses(ctx, machine, device, cfg); err != nil {
+			return err
+		}
+		if err := d.repairRoutedInterface(ctx, machine, device); err != nil {
+			return err
+		}
+		if waited != nil {
+			return waited
+		}
+	}
+	return nil
+}
+
+// releaseStaleRoutedAddresses takes off the guest's routed interface every
+// address its device neither pins nor routes: what the guest's boot-time config
+// remembered from the launch and the device has since let go of (#548, #674).
+func (d *Incus) releaseStaleRoutedAddresses(ctx context.Context, machine, device string, cfg map[string]string) error {
+	wanted := map[string]bool{}
+	for _, address := range splitList(cfg["ipv4.address"]) {
+		wanted[address] = true
+	}
+	for _, route := range splitList(cfg["ipv4.routes"]) {
+		address, _, _ := strings.Cut(route, "/")
+		wanted[address] = true
+	}
+	iface, err := d.guestInterface(ctx, machine, device)
+	if err != nil {
+		return err
+	}
+	carried, err := d.guestAddresses(ctx, machine, iface)
+	if err != nil {
+		if isNotRunning(err) {
+			return nil
+		}
+		return fmt.Errorf("read what %s/%s carries: %w", machine, device, err)
+	}
+	addresses := make([]string, 0, len(carried))
+	for address := range carried {
+		addresses = append(addresses, address)
+	}
+	slices.Sort(addresses)
+	for _, address := range addresses {
+		if wanted[address] {
+			continue
+		}
+		if _, err := d.run(ctx, "exec", machine, "--",
+			"ip", "address", "del", address+"/32", "dev", iface); err != nil && !isNotRunning(err) {
+			return fmt.Errorf("take the migrated %s off %s/%s: %w", address, machine, device, err)
 		}
 	}
 	return nil

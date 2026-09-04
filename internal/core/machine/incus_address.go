@@ -347,8 +347,9 @@ func (d *Incus) UnrouteAddress(ctx context.Context, machine, address string) err
 // ipv4.address list created. Two more measured facts shape the branches:
 //
 //   - an address already in ipv4.address rode the launch: the guest's netplan
-//     declares it and the host route exists, so the replay is a no-op. This is
-//     what lets poweron replay every published address through here without
+//     declares it, the restart reconciles it (reconcileRoutedNICs, #674) and
+//     the host route exists, so the replay is a no-op. This is what lets
+//     poweron replay every published address through here without
 //     re-plugging the interface at each boot.
 //   - a live ipv4.routes edit re-plugs the device: the veth is torn down and
 //     rebuilt, and the guest interface comes back down and bare. The repair is
@@ -389,9 +390,11 @@ func (d *Incus) routeOntoRoutedNIC(ctx context.Context, machine, device, address
 }
 
 // repairRoutedInterface restores what an ipv4.routes edit cost the guest of a
-// routed NIC. Measured on 7.2: the edit removes and re-adds the device, and
-// the new interface comes up down and bare — no address, no default route, and
-// no DHCP client to notice, since a routed NIC never had one.
+// routed NIC, and since #674 it is also the second half of a restart's
+// reconciliation (reconcileRoutedNICs). Measured on 7.2: the edit removes and
+// re-adds the device, and the new interface comes up down and bare — no
+// address, no default route, and no DHCP client to notice, since a routed NIC
+// never had one.
 //
 // Everything restored is read back from the device itself: the launch
 // addresses from ipv4.address, the extra ones from ipv4.routes, the next hop
@@ -407,8 +410,9 @@ func (d *Incus) repairRoutedInterface(ctx context.Context, machine, device strin
 	cfg := devices.own[device]
 	if _, err := d.run(ctx, "exec", machine, "--", "ip", "link", "set", device, "up"); err != nil {
 		if isNotRunning(err) {
-			// A cold edit re-plugged nothing: the next boot reads its netplan
-			// and the poweron replay hands the guest the routed extras.
+			// A cold edit re-plugged nothing: the next boot reads its netplan,
+			// the restart reconciles it to the device (reconcileRoutedNICs,
+			// #674), and the poweron replay hands the guest the routed extras.
 			return nil
 		}
 		return fmt.Errorf("bring %s/%s back up: %w", machine, device, err)
