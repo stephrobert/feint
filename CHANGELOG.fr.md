@@ -58,6 +58,35 @@ change ni l'un ni l'autre a sa place dans `git log`.
   lb certificate list` et `scw lb subscriber list` dans la suite de
   conformance.
 
+- **Le runtime relit ce qu'une machine porte réellement, et chaque
+  revendication de son plan reçoit l'une de trois issues** (#668). Le pilote
+  Incus implémente `Observer` : un `query` pour les devices propres de la
+  machine, un `network get` par réseau émulé où elle siège, et trois execs
+  dans l'invité pour les adresses, la table et, par porte qu'une revendication
+  demande, `ip route get <to> from <from>`. Le texte des deux implémentations
+  de `ip` est analysé (iproute2 sur Debian, Ubuntu et la famille RHEL, busybox
+  sur Alpine), et ce qui ne se compare pas n'entre jamais dans la `Shape` :
+  routes connectées, bloc link-local, métriques, `proto`, `src`, loopback, les
+  devices de profil de l'opérateur et les passerelles de leurs réseaux.
+
+  `held`, `broken`, `unreadable`, jamais deux : une lecture qui échoue répond
+  illisible sur chaque revendication, comptée, et un runtime sans moitié de
+  lecture est un quatrième état, non interrogé, pour que « personne n'a
+  regardé » ne passe jamais pour « rien n'était faux ». Les rule sets qu'une
+  machine porte sont revendiqués sur ses interfaces filtrées à partir des
+  champs mêmes que lit l'étape pare-feu, nus sur les réseaux qu'un pack a
+  déclarés hors de portée de ses groupes, et pas du tout sur un hôte qui a
+  retiré la capacité pare-feu.
+
+  Deux contrôles tiennent l'instrument, exigés par `measurement-integrity` :
+  une divergence plantée à un chiffre près est rapportée telle quelle, et une
+  lecture échouée n'est ni tenue ni rompue. Et la régression du 2026-09-04
+  est reproduite à travers le runtime factice : la réponse depuis l'adresse
+  publique sort par la passerelle privée, et une revendication de porte est
+  rompue en nommant les deux portes. Le comparateur de porte existe ; rien
+  n'en dérive encore (#672). Publier les verdicts est #670, comparer l'avant
+  et l'après d'un reboot est #669.
+
 - **Un plan qui revendique deux fois la route par défaut est refusé avant
   toute demande au runtime** (#667). `Reconciler.Expect` dérive, du plan
   déclaré, qui revendique quelle propriété : une adresse publique possède la

@@ -1,0 +1,82 @@
+{
+  "package": "./internal/core/machine/",
+  "mutations": [
+    {
+      "label": "the door comparator ignores the next hop, and the regression of 2026-09-04 reads as held (#668)",
+      "file": "internal/core/machine/claims.go",
+      "find": "\tif got.Via == c.Via && got.Dev == c.Dev {\n\t\treturn held(c)\n\t}",
+      "replace": "\tif (got.Via == c.Via || true) && got.Dev == c.Dev {\n\t\treturn held(c)\n\t}",
+      "test": "TestTheReplyDoorOfTheRegressionIsBroken"
+    },
+    {
+      "label": "a read that failed is judged on an empty shape, folding the third outcome onto the second (#668)",
+      "file": "internal/core/machine/readback.go",
+      "find": "\tshape, err := obs.Observe(ctx, name)\n\tif err != nil {\n\t\tfor _, c := range claims {",
+      "replace": "\tshape, err := obs.Observe(ctx, name)\n\tif err != nil && false {\n\t\tfor _, c := range claims {",
+      "test": "TestAnUnreadableShapeIsNeitherHeldNorBroken"
+    },
+    {
+      "label": "the carries comparator accepts any address of the right mask, so a planted divergence reads as held (#668)",
+      "file": "internal/core/machine/claims.go",
+      "find": "\t\t\tif p.Addr() == c.Address && (c.Bits == 0 || p.Bits() == c.Bits) {",
+      "replace": "\t\t\tif (p.Addr() == c.Address || true) && (c.Bits == 0 || p.Bits() == c.Bits) {",
+      "test": "TestAPlantedDivergenceIsReported"
+    },
+    {
+      "label": "the table parser keeps the connected routes, which compare the address twice (#668)",
+      "file": "internal/core/machine/incus_readback.go",
+      "find": "\t\tif !via.IsValid() || dev == \"\" {\n\t\t\tcontinue\n\t\t}",
+      "replace": "\t\tif (!via.IsValid() && false) || dev == \"\" {\n\t\t\tcontinue\n\t\t}",
+      "test": "TestObserveReadsBackWhatTheMachineCarries"
+    },
+    {
+      "label": "the table parser keeps the link-local block, which is the kernel's plumbing (#668)",
+      "file": "internal/core/machine/incus_readback.go",
+      "find": "\t\tif dst != defaultDst && linkLocal.Contains(dst.Addr()) {",
+      "replace": "\t\tif dst != defaultDst && linkLocal.Contains(dst.Addr()) && false {",
+      "test": "TestObserveReadsBackWhatTheMachineCarries"
+    },
+    {
+      "label": "the address parser ignores the scope, and a link-scope address enters the shape (#668)",
+      "file": "internal/core/machine/incus_readback.go",
+      "find": "\t\tif cidr == \"\" || scope != \"global\" {",
+      "replace": "\t\tif cidr == \"\" || (scope != \"global\" && false) {",
+      "test": "TestObserveReadsBackWhatTheMachineCarries"
+    },
+    {
+      "label": "the reading walks the profile devices too, and the operator's bridge enters the shape (#668)",
+      "file": "internal/core/machine/incus_readback.go",
+      "find": "\tfor device, cfg := range devices.own {\n\t\tif cfg[\"type\"] == \"nic\" {",
+      "replace": "\tfor device, cfg := range devices.expanded {\n\t\tif cfg[\"type\"] == \"nic\" {",
+      "test": "TestObserveReadsOnlyTheMachinesOwnNICs"
+    },
+    {
+      "label": "the reading asks an operator's network for its gateway (#668)",
+      "file": "internal/core/machine/incus_readback.go",
+      "find": "\t\tif network == \"\" || !ownedNetwork(network) {\n\t\t\tcontinue\n\t\t}",
+      "replace": "\t\tif network == \"\" || (!ownedNetwork(network) && false) {\n\t\t\tcontinue\n\t\t}",
+      "test": "TestObserveReadsNoForeignNetwork"
+    },
+    {
+      "label": "a machine with no route towards the destination is reported as a failed read rather than as a fact about the machine (#668)",
+      "file": "internal/core/machine/incus_readback.go",
+      "find": "\t\tif strings.Contains(strings.ToLower(err.Error()), \"network is unreachable\") {",
+      "replace": "\t\tif strings.Contains(strings.ToLower(err.Error()), \"network is unreachable\") && false {",
+      "test": "TestADoorWithNoRouteIsBrokenNotUnreadable"
+    },
+    {
+      "label": "the rule sets are claimed on a host that withdrew the firewall capability, broken on every machine for a fact health already publishes (#454, #668)",
+      "file": "internal/core/machine/readback.go",
+      "find": "\tif !CapabilitiesOf(r.binding().driver).Firewall {\n\t\treturn nil\n\t}",
+      "replace": "\tif !CapabilitiesOf(r.binding().driver).Firewall && false {\n\t\treturn nil\n\t}",
+      "test": "TestAWithdrawnFirewallClaimsNoRuleSets"
+    },
+    {
+      "label": "an interface the pack declared outside its groups' reach is claimed wearing them (#574, #668)",
+      "file": "internal/core/machine/readback.go",
+      "find": "\t\tif slices.Contains(unfiltered, att.Network) {\n\t\t\tclaims = append(claims, wears{Network: att.Network})\n\t\t\tcontinue\n\t\t}",
+      "replace": "\t\tif slices.Contains(unfiltered, att.Network) && false {\n\t\t\tclaims = append(claims, wears{Network: att.Network})\n\t\t\tcontinue\n\t\t}",
+      "test": "TestTheRuleSetsAMachineWearsAreClaimedOnItsFilteredInterfaces"
+    }
+  ]
+}
