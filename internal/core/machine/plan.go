@@ -66,6 +66,27 @@ type Plan struct {
 	// route for every machine would be the emulator being more permissive than
 	// the cloud, in the one direction that teaches a client something false.
 	Egress string
+	// NoEgress asks for the machine's default route to be TAKEN AWAY, which is
+	// a different statement from Egress being empty (#660).
+	//
+	// Three states, because two were not enough and the missing one cost a red
+	// scheduled night. A pack says one of:
+	//
+	//	Egress: "fnt-…"  lay the default route through this network
+	//	NoEgress: true   take the default route away
+	//	neither          leave it alone: something else owns it
+	//
+	// The third is the one that was missing. A machine holding a routed public
+	// address already has a default route, laid by RouteAddress towards the
+	// uplink, and it is the route its INBOUND traffic must answer through.
+	// Naming a network for it made the reconciler replace that route with the
+	// private network's gateway, and a machine whose reply left by another door
+	// answered nothing at all: measured on the example stacks, platform-web-0
+	// served 443 inside and was unreachable at its published address.
+	//
+	// Empty-and-not-refused is also the safe default for a pack that says
+	// nothing, which the previous shape was not: silence meant "take it away".
+	NoEgress bool
 }
 
 // Reconciler executes a declared Plan in the one order — addresses, then
@@ -276,6 +297,10 @@ func (r Reconciler) ReplayEgress(ctx context.Context, res *resource.Resource) {
 	}
 	plan, declared := r.plan(res)
 	if !declared {
+		return
+	}
+	// Silence leaves the route alone; only an explicit refusal removes one.
+	if plan.Egress == "" && !plan.NoEgress {
 		return
 	}
 	if plan.Egress == "" {

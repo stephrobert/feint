@@ -165,6 +165,11 @@ func (p *Pack) machinePlan(res *resource.Resource) machine.Plan {
 		Publics:  p.publicAddressesOf(res),
 		RouteVia: p.privateNetworkNameOf(res),
 		Egress:   p.egressNetworkOf(res),
+		// Only a server with NEITHER a public address NOR a gateway pushing the
+		// route is refused one, and that refusal is stated rather than inferred
+		// from an empty network name (#660): a public address leaves the route
+		// to RouteAddress, which is also an empty name and must not remove it.
+		NoEgress: p.hasNoWayOut(res),
 	}
 }
 
@@ -241,13 +246,34 @@ func (p *Pack) logger() *slog.Logger {
 // The network it names is the runtime's, not the API's: the driver needs
 // something it can ask a gateway address of.
 //
-// TestAServerWithAPublicAddressLeavesThroughItsOwnNetwork and
+// TestAServerWithAPublicAddressKeepsTheRouteItsAddressCarries and
 // TestAPushedDefaultRouteIsTheOnlyWayOutForAPrivateServer fail without this.
 func (p *Pack) egressNetworkOf(server *resource.Resource) string {
-	// A public address first: it is the server's own way out, and it rides the
-	// network its NIC is on — the same one RouteVia names, for the same reason.
+	// A public address first, and the answer is to LEAVE THE ROUTE ALONE (#660).
+	//
+	// This returned the server's private network, on the reasoning that a
+	// public address rides the network its NIC is on. That is true of a machine
+	// whose only NIC is the routed one, and false the moment it also joins a
+	// Private Network: the reconciler then replaced the default route towards
+	// the uplink with the private network's gateway, and the machine stopped
+	// answering at its published address. Its reply was leaving by a door the
+	// request had not come in through.
+	//
+	// Measured 2026-09-04, a server with a public address and one private NIC:
+	//
+	//	default via 10.77.0.1 dev eth0        <- the private gateway, wrong
+	//	eth0 carries 10.77.0.2/24 and 203.0.113.2/32
+	//	from the station: nothing
+	//
+	// The same server without the private NIC keeps `default via 169.254.0.1`,
+	// which RouteAddress lays for the routed address, and answers. So the route
+	// exists and has an owner already; egress has nothing to add and everything
+	// to break.
+	//
+	// TestAServerWithAPublicAddressKeepsTheRouteItsAddressCarries fails without
+	// this.
 	if len(p.publicAddressesOf(server)) > 0 {
-		return p.privateNetworkNameOf(server)
+		return ""
 	}
 	// Otherwise the gateway's, and only when the attachment pushes it. A
 	// gateway that masquerades for a network without pushing a default route is
@@ -267,6 +293,31 @@ func (p *Pack) egressNetworkOf(server *resource.Resource) string {
 		}
 	}
 	return ""
+}
+
+// hasNoWayOut reports a server the cloud lets nowhere: no public address, and
+// no gateway pushing a default route onto any network it joins.
+//
+// It is the refusal half of #647, kept separate from egressNetworkOf's empty
+// answer since #660, because the two mean opposite things. A server with a
+// public address gets an empty network name and must KEEP its route; this one
+// gets an empty name and must LOSE it.
+//
+// TestAServerWithAPublicAddressKeepsTheRouteItsAddressCarries holds the two
+// answers a public address decides here, and
+// TestAPushedDefaultRouteIsTheOnlyWayOutForAPrivateServer the two a gateway
+// decides.
+func (p *Pack) hasNoWayOut(server *resource.Resource) bool {
+	if len(p.publicAddressesOf(server)) > 0 {
+		return false
+	}
+	for _, nic := range p.privateNICsOf(server.ID) {
+		if privateNetworkID := nic.Runtime[runtimePrivateNetworkKey]; privateNetworkID != "" &&
+			p.gatewayPushesDefaultRoute(privateNetworkID) {
+			return false
+		}
+	}
+	return true
 }
 
 // gatewayPushesDefaultRoute reports whether a Public Gateway is attached to this
