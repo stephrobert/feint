@@ -167,6 +167,13 @@ else
   FEINT_FIELD_GATE=0 tools/conformance/score.sh "$endpoint"
 fi
 
+# What the emulator read back against every machine's plan, asked before it
+# stops because the counters and the claims die with it (#670). A leg with no
+# runtime is told so and not judged; the runtime leg fails here on a broken
+# claim, named, at the moment the emulator found it rather than sixty seconds
+# later at the far end of a fetch.
+tools/conformance/guard.sh verification "$endpoint"
+
 # The other half of the doorstep: asked again once the emulator is gone, so the
 # leg that left a machine or a network behind is the leg that fails. The trap
 # above stays the safety net for a leg that dies mid-flight.

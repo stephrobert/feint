@@ -1,0 +1,100 @@
+{
+  "package": "./internal/core/machine/",
+  "mutations": [
+    {
+      "label": "the verdict never reaches the resource, so /_feint/state carries no claim to name (#670)",
+      "file": "internal/core/machine/verdicts.go",
+      "find": "\tres.Runtime[VerifiedKey] = summary(verdicts)\n",
+      "replace": "\tres.Runtime[VerifiedKey] = summary(verdicts)[:0]\n",
+      "test": "TestABrokenVerdictReachesTheResourceAndNotItsState"
+    },
+    {
+      "label": "a broken reading moves the state, which is the lie in the other direction (#670)",
+      "file": "internal/core/machine/verdicts.go",
+      "find": "\tres.Runtime[VerifiedKey] = summary(verdicts)\n\tb.tally.count(verdicts, len(repairedFrom) > 0)\n",
+      "replace": "\tres.Runtime[VerifiedKey] = summary(verdicts)\n\tif anyBroken(verdicts) {\n\t\tres.State = b.FailedState\n\t}\n\tb.tally.count(verdicts, len(repairedFrom) > 0)\n",
+      "test": "TestABrokenVerdictReachesTheResourceAndNotItsState"
+    },
+    {
+      "label": "a broken claim is logged as a degradation rather than a failure (#670)",
+      "file": "internal/core/machine/verdicts.go",
+      "find": "\t\t\tb.logger().Error(\"the machine does not carry what its plan claims\",",
+      "replace": "\t\t\tb.logger().Warn(\"the machine does not carry what its plan claims\",",
+      "test": "TestABrokenVerdictIsLoggedAsAFailure"
+    },
+    {
+      "label": "the counters stop following the verdicts, and health publishes zero over a broken fleet (#670)",
+      "file": "internal/core/machine/verdicts.go",
+      "find": "\tb.tally.count(verdicts, len(repairedFrom) > 0)\n",
+      "replace": "\tb.tally.count(verdicts[:0], len(repairedFrom) > 0)\n",
+      "test": "TestTheCountersFollowTheVerdicts"
+    },
+    {
+      "label": "the repair is unbounded: a machine that stays wrong is read a third time (#670)",
+      "file": "internal/core/machine/verdicts.go",
+      "find": "\tagain, _ := r.verify(ctx, res)\n\tif anyBroken(again) {\n\t\tr.publish(res, again, nil)\n\t\treturn\n\t}",
+      "replace": "\tagain, _ := r.verify(ctx, res)\n\tif anyBroken(again) {\n\t\tr.replay(ctx, res, plan)\n\t\tagain, _ = r.verify(ctx, res)\n\t\tr.publish(res, again, nil)\n\t\treturn\n\t}",
+      "test": "TestARepairIsAttemptedOnceAndCounted"
+    },
+    {
+      "label": "a repair is not counted, so one that fires on every boot stays a defect hidden behind a retry (#670)",
+      "file": "internal/core/machine/verdicts.go",
+      "find": "\tif repaired {\n\t\tt.repaired.Add(1)\n\t}",
+      "replace": "\tif repaired && false {\n\t\tt.repaired.Add(1)\n\t}",
+      "test": "TestARepairIsAttemptedOnceAndCounted"
+    },
+    {
+      "label": "an unreadable reading is replayed onto, which cannot make it readable (#670)",
+      "file": "internal/core/machine/verdicts.go",
+      "find": "\tif !anyBroken(verdicts) {\n\t\tr.publish(res, verdicts, nil)\n\t\treturn\n\t}",
+      "replace": "\tif !anyBroken(verdicts) && false {\n\t\tr.publish(res, verdicts, nil)\n\t\treturn\n\t}",
+      "test": "TestAnUnreadableReadingIsNotReplayedOnto"
+    },
+    {
+      "label": "the late-address door reads on every GET, and the emulator's latency becomes the runtime's (#670)",
+      "file": "internal/core/machine/plan.go",
+      "find": "\tif last := res.Runtime[VerifiedKey]; last == \"\" || strings.HasPrefix(last, \"unreadable\") {",
+      "replace": "\tif last := res.Runtime[VerifiedKey]; last == \"\" || strings.HasPrefix(last, \"unreadable\") || true {",
+      "test": "TestTheLateAddressDoorVerifiesOnceItCanRead"
+    },
+    {
+      "label": "a hot join is not read back (#670)",
+      "file": "internal/core/machine/plan.go",
+      "find": "\tr.ReplayAddresses(ctx, res)\n\tr.Groups.AfterBoot(ctx, res)\n\tr.check(ctx, res)\n\treturn err",
+      "replace": "\tr.ReplayAddresses(ctx, res)\n\tr.Groups.AfterBoot(ctx, res)\n\tif err != nil {\n\t\tr.check(ctx, res)\n\t}\n\treturn err",
+      "test": "TestAHotJoinAndAHotRouteAreReadBack"
+    },
+    {
+      "label": "the gate passes a pass with a broken claim, and names nothing (#670)",
+      "package": "./tools/conformance/",
+      "file": "tools/conformance/guard.sh",
+      "find": "  if [ \"$broken\" -gt 0 ]; then",
+      "replace": "  if [ \"$broken\" -gt 0 ] && false; then",
+      "test": "TestTheVerificationGateRefusesABrokenClaim"
+    },
+    {
+      "label": "the gate passes a pass that could not read, reading blindness as success (#670)",
+      "package": "./tools/conformance/",
+      "file": "tools/conformance/guard.sh",
+      "find": "  if [ \"$unreadable\" -gt \"$held\" ]; then",
+      "replace": "  if [ \"$unreadable\" -gt \"$held\" ] && false; then",
+      "test": "TestTheVerificationGateRefusesAPassThatCouldNotRead"
+    },
+    {
+      "label": "the gate stops refusing a payload with no counters, and passes every build that predates it (#670)",
+      "package": "./tools/conformance/",
+      "file": "tools/conformance/guard.sh",
+      "find": "      ''|*[!0-9]*)\n",
+      "replace": "      '\\x00never')\n",
+      "test": "TestTheVerificationGateRefusesAPayloadWithNoCounters"
+    },
+    {
+      "label": "the health payload drops the counters, and the frozen surface says so (#670)",
+      "package": "./internal/core/emulator/",
+      "file": "internal/core/emulator/emulator.go",
+      "find": "\t\t\"verification\": s.env.machines.Verification(),\n",
+      "replace": "\t\t\"verification_\": s.env.machines.Verification(),\n",
+      "test": "TestHealthCarriesTheVerificationCounters"
+    }
+  ]
+}

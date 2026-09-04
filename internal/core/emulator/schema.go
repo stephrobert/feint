@@ -76,7 +76,16 @@ const (
 	// modes on 2026-08-28. Two shapes, two words: this one is true, the older
 	// one is still false, and a build that cannot answer the second question
 	// is what the bump makes visible.
-	HealthSchemaVersion = 7
+	//
+	// 8 since #670: the payload gained `verification`, four counters —
+	// `held`, `broken`, `unreadable`, `repaired` — of what the runtime read
+	// back after every lifecycle action against what each machine's plan
+	// claimed. Additive, and a gate rather than a detail: the runtime leg
+	// fails on `broken > 0` and on more unreadable than held, and a consumer
+	// that branches on this version can tell a build that answers the
+	// question from one that never asked it. A verdict nobody reads is a
+	// confession nobody hears.
+	HealthSchemaVersion = 8
 	// RoutesSchemaVersion is the shape of GET /_feint/routes.
 	//
 	// This one is not on the wire: the endpoint answers a bare JSON array — the

@@ -58,6 +58,35 @@ change ni l'un ni l'autre a sa place dans `git log`.
   lb certificate list` et `scw lb subscriber list` dans la suite de
   conformance.
 
+- **Un verdict que quelqu'un lit : la vérification est publiée, et la jambe
+  runtime en fait un gate** (#670). Après chaque porte du cycle de vie (un
+  démarrage, un reboot, une jonction à chaud, une route à chaud, la porte
+  tardive d'une machine virtuelle), ce que le runtime a relu est publié là où
+  un humain regarde et là où un gate échoue : une ligne `ERROR` par
+  revendication rompue, nommant la revendication, la valeur attendue et celle
+  trouvée ; `Runtime["verified"]` sur la ressource, hors de toute vue client
+  et sur `/_feint/state` pour qui le demande ; et quatre compteurs sur
+  `/_feint/health`, `verification.{held,broken,unreadable,repaired}`, ce qui
+  porte le schéma de health à la version 8.
+
+  L'état de l'API ne bouge pas. Une machine qui tourne avec la mauvaise porte
+  tourne et est injoignable, et la publier arrêtée serait le mensonge dans
+  l'autre sens. Une réparation bornée : une première lecture rompue rejoue
+  une fois l'ordre d'après-démarrage, dont chaque étape est idempotente, et
+  relit ; la seconde lecture est ce qui est publié, et `repaired` compte
+  combien de fois la première avait tort, parce qu'une réparation qui tire à
+  chaque démarrage est un défaut caché derrière une relance. Une lecture
+  illisible n'est jamais rejouée, et la porte tardive ne lit que tant que
+  rien de lisible n'a été publié : un GET n'exécute jamais rien dans une
+  machine déjà vérifiée.
+
+  `tools/conformance/guard.sh verification <endpoint>`, appelé par chaque
+  jambe avant l'arrêt de son émulateur : `broken > 0` fait échouer la jambe en
+  nommant chaque revendication depuis l'état, plus d'illisibles que de tenues
+  la fait échouer comme une passe qui a mesuré son propre aveuglement, des
+  compteurs absents la font échouer plutôt que d'être lus comme zéro, et une
+  passe sans runtime est prévenue plutôt que jugée.
+
 - **Le runtime relit ce qu'une machine porte réellement, et chaque
   revendication de son plan reçoit l'une de trois issues** (#668). Le pilote
   Incus implémente `Observer` : un `query` pour les devices propres de la
