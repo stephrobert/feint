@@ -62,6 +62,10 @@ import (
 // is what `--vm off` and CI get.
 type Runtime struct {
 	d driver
+	// tally counts what the reading half answered (#670), one per handle so
+	// that two emulators in one test binary count apart. Nil for the zero
+	// Runtime, which verifies nothing and counts nowhere.
+	tally *tally
 }
 
 // Use binds a driver into the handle. It is the one door in, and deliberately
@@ -72,7 +76,7 @@ type Runtime struct {
 // internal/cli passes the Incus driver, and how every fake runtime in the
 // packs' tests is still injected — but it cannot declare a variable of that
 // type, name it in a signature, or assert its way back to one.
-func Use(d driver) Runtime { return Runtime{d: d} }
+func Use(d driver) Runtime { return Runtime{d: d, tally: &tally{}} }
 
 // backing returns the driver, or the metadata-only one for a zero Runtime, so
 // every method below can be written without a nil branch.
