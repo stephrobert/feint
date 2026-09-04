@@ -121,6 +121,9 @@ WORK="$(mktemp -d)"
 cp "$src"/*.tf "$src/feint.yaml" "$WORK/"
 [ -d "$src/modules" ] && cp -R "$src/modules" "$WORK/"
 sed -i "s|127.0.0.1:4599|$ADDR|g" "$WORK/feint.yaml"
+# The emulator this leg starts cleans up after itself on stop: the sweep's
+# fallback relies on it (d2_sweep, day2lib.sh).
+d2_declare_cleanup "$WORK/feint.yaml"
 (cd "$WORK" && "$FEINT" up --runtime "$RUNTIME" --timeout 900s) >"$WORK/up.log" 2>&1 \
 	|| { tail -n 40 "$WORK/up.log" >&2; fail "$STACK: feint up failed (log above)"; }
 UP="yes"

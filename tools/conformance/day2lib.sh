@@ -454,34 +454,98 @@ d2_catalogue_scaleway() {
 #     TestTheSweepReportsALeakTheRuntimeStillHolds);
 #   - the directory goes last, after the down that needs it.
 #
+# A fourth rule, written after the sweep above was measured on a station it
+# did not have to itself: `feint clean -closing` sweeps the RUNTIME, not the
+# run. On 2026-09-04 at 13:01:29 this sweep ran its fallback while another
+# emulator (127.0.0.1:4690, a NAT probe) was alive with one machine of its
+# own; the sweep answered rc 0, `machines left: 0`, `clean -check` found
+# nothing — every reading green — and the probe's machine had gone with the
+# run's. A sweep that succeeds by taking somebody else's machines is green
+# and false, the exact family every other fix of that day belongs to.
+#
+#   - before any runtime-wide clean, the sweep reads the run registry feint
+#     keeps (one directory per address under $XDG_RUNTIME_DIR/feint) and asks
+#     each other address whether it still answers; one that does is a foreign
+#     emulator, and the runtime-wide clean AND the runtime-wide reading are
+#     refused, naming it, rc 1 (TestTheSweepRefusesARuntimeWideSweepWhileAnotherEmulatorAnswers).
+#     An entry that no longer answers is a stale registration and blocks
+#     nothing (TestAStaleRegistryEntryDoesNotBlockTheSweep).
+#   - what the run owns is removed by `feint stop -addr`: an emulator started
+#     with --cleanup takes its own machines down with it, which is why the leg
+#     declares emulator.cleanup on the stack it brings up. The runtime-wide
+#     clean is the safety net under that, never the removal itself.
+#
 # The probe is a function of its own so a test can plant an emulator that
 # still answers without opening a port.
 d2_still_answers() { # endpoint
 	curl -sf --max-time 2 "$1/_feint/health" >/dev/null 2>&1
 }
 
+# d2_run_dir is where feint registers its running instances, one directory per
+# address with the colon written as an underscore (internal/cli/instance.go).
+# FEINT_RUN_DIR is the test's door: a planted registry instead of the station's.
+d2_run_dir() {
+	if [ -n "${FEINT_RUN_DIR:-}" ]; then
+		echo "$FEINT_RUN_DIR"
+	else
+		echo "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/feint"
+	fi
+}
+
+# d2_foreign_emulators prints the address of every registered emulator other
+# than the run's own that still answers. Nothing printed means the runtime is
+# this run's alone, as far as the registry can say.
+d2_foreign_emulators() { # own_addr
+	local own="$1" dir entry addr
+	dir="$(d2_run_dir)"
+	[ -d "$dir" ] || return 0
+	for entry in "$dir"/*/; do
+		[ -d "$entry" ] || continue
+		addr="$(basename "$entry")"
+		addr="${addr%_*}:${addr##*_}"
+		[ "$addr" = "$own" ] && continue
+		if d2_still_answers "http://$addr"; then
+			echo "$addr"
+		fi
+	done
+	return 0
+}
+
 d2_sweep() { # work up feint addr runtime
-	local work="$1" up="$2" feint="$3" addr="$4" runtime="$5" rc=0
+	local work="$1" up="$2" feint="$3" addr="$4" runtime="$5" rc=0 foreign=""
 	if [ -n "$up" ]; then
+		if [ "$runtime" != off ]; then
+			foreign="$(d2_foreign_emulators "$addr" | paste -sd ' ')"
+		fi
 		if [ -d "$work" ]; then
 			(cd "$work" && "$feint" down) >/dev/null 2>&1 \
 				|| { echo "cleanup: feint down failed in $work" >&2; rc=1; }
 		else
-			echo "cleanup: the stack directory $work is gone, so feint down has nothing to read; stopping the emulator on $addr and sweeping the $runtime runtime instead" >&2
+			echo "cleanup: the stack directory $work is gone, so feint down has nothing to read; stopping the emulator on $addr, which takes its own machines down with it" >&2
 			"$feint" stop -addr "$addr" >/dev/null 2>&1 \
 				|| { echo "cleanup: feint stop -addr $addr failed" >&2; rc=1; }
 			if [ "$runtime" != off ]; then
-				"$feint" clean -vm "$runtime" -closing >/dev/null 2>&1 \
-					|| { echo "cleanup: feint clean -vm $runtime -closing failed" >&2; rc=1; }
+				if [ -n "$foreign" ]; then
+					echo "FAIL: cleanup: another emulator answers on $foreign; feint clean -vm $runtime -closing sweeps the whole runtime, its machines included, and is refused here — stop that emulator, or sweep by hand" >&2
+					rc=1
+				else
+					"$feint" clean -vm "$runtime" -closing >/dev/null 2>&1 \
+						|| { echo "cleanup: feint clean -vm $runtime -closing failed" >&2; rc=1; }
+				fi
 			fi
 		fi
 		if d2_still_answers "http://$addr"; then
 			echo "FAIL: cleanup: the emulator still answers on $addr after the sweep, so nothing was swept" >&2
 			rc=1
 		fi
-		if [ "$runtime" != off ] && ! "$feint" clean -check -vm "$runtime" -closing >/dev/null 2>&1; then
-			echo "FAIL: cleanup: machines or networks of this run are still on the $runtime runtime; feint clean -check -vm $runtime -closing names them" >&2
-			rc=1
+		if [ "$runtime" != off ]; then
+			if [ -n "$foreign" ]; then
+				echo "FAIL: cleanup: another emulator answers on $foreign, so whether this run left anything on the $runtime runtime cannot be read apart from theirs; not read" >&2
+				rc=1
+			elif ! "$feint" clean -check -vm "$runtime" -closing >/dev/null 2>&1; then
+				echo "FAIL: cleanup: machines or networks of this run are still on the $runtime runtime; feint clean -check -vm $runtime -closing names them" >&2
+				rc=1
+			fi
 		fi
 	fi
 	if [ -n "$work" ] && [ -d "$work" ]; then
@@ -491,4 +555,19 @@ d2_sweep() { # work up feint addr runtime
 		echo "  cleanup: swept, nothing answers on $addr"
 	fi
 	return "$rc"
+}
+
+# d2_declare_cleanup makes the copied declaration start its emulator with
+# --cleanup, so that `feint stop -addr` — the removal d2_sweep falls back on
+# when the stack directory is gone — takes the run's own machines down with
+# the emulator, and nothing wider is needed for them. The example stack does
+# not declare it (it runs under `off` by default and belongs to the
+# maintainer); the leg's copy does. Inserted once, under `emulator:`, and left
+# alone when already there.
+# TestTheDay2LegDeclaresAnEmulatorThatCleansUpAfterItself fails without this.
+d2_declare_cleanup() { # feint.yaml
+	local file="$1"
+	grep -q '^  cleanup: true$' "$file" && return 0
+	awk '{ print } /^emulator:/ && !done { print "  cleanup: true"; done = 1 }' "$file" >"$file.cleanup" \
+		&& mv "$file.cleanup" "$file"
 }

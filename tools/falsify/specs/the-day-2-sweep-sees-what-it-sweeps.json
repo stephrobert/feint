@@ -4,8 +4,8 @@
     {
       "label": "the sweep believes the down and never reads whether the emulator still answers (#673)",
       "file": "tools/conformance/day2lib.sh",
-      "find": "\t\tif d2_still_answers \"http://$addr\"; then",
-      "replace": "\t\tif d2_still_answers \"http://$addr\" && false; then",
+      "find": "\t\tif d2_still_answers \"http://$addr\"; then\n\t\t\techo \"FAIL: cleanup: the emulator still answers on $addr",
+      "replace": "\t\tif d2_still_answers \"http://$addr\" && false; then\n\t\t\techo \"FAIL: cleanup: the emulator still answers on $addr",
       "test": "TestTheSweepRefusesToClaimWhatItDidNotSee"
     },
     {
@@ -18,8 +18,8 @@
     {
       "label": "the runtime is never asked what it still holds, so seven machines read as swept (#673)",
       "file": "tools/conformance/day2lib.sh",
-      "find": "\t\tif [ \"$runtime\" != off ] && ! \"$feint\" clean -check -vm \"$runtime\" -closing >/dev/null 2>&1; then",
-      "replace": "\t\tif [ \"$runtime\" != off ] && ! \"$feint\" clean -check -vm \"$runtime\" -closing >/dev/null 2>&1 && false; then",
+      "find": "\t\t\telif ! \"$feint\" clean -check -vm \"$runtime\" -closing >/dev/null 2>&1; then",
+      "replace": "\t\t\telif ! \"$feint\" clean -check -vm \"$runtime\" -closing >/dev/null 2>&1 && false; then",
       "test": "TestTheSweepReportsALeakTheRuntimeStillHolds"
     },
     {
@@ -28,6 +28,27 @@
       "find": "\tif [ -n \"$OWNED\" ] && [ -n \"$WORK\" ]; then\n\t\trm -rf \"$WORK\"",
       "replace": "\tif [ -n \"$OWNED\" ] || [ -n \"$WORK\" ]; then\n\t\trm -rf \"$WORK\"",
       "test": "TestTheStackGateRemovesOnlyTheDirectoryItCreated"
+    },
+    {
+      "label": "the sweep reads the registry and ignores what it found: a foreign emulator's machines go with the run's (#673, 2026-09-04 13:01)",
+      "file": "tools/conformance/day2lib.sh",
+      "find": "\t\t\t\tif [ -n \"$foreign\" ]; then\n\t\t\t\t\techo \"FAIL: cleanup: another emulator answers on $foreign; feint clean",
+      "replace": "\t\t\t\tif [ -n \"$foreign\" ] && false; then\n\t\t\t\t\techo \"FAIL: cleanup: another emulator answers on $foreign; feint clean",
+      "test": "TestTheSweepRefusesARuntimeWideSweepWhileAnotherEmulatorAnswers"
+    },
+    {
+      "label": "every registered address reads as the run's own, so nothing is ever foreign (#673)",
+      "file": "tools/conformance/day2lib.sh",
+      "find": "\t\t[ \"$addr\" = \"$own\" ] && continue\n",
+      "replace": "\t\t[ \"$addr\" = \"$own\" ] || continue\n",
+      "test": "TestTheSweepRefusesARuntimeWideSweepWhileAnotherEmulatorAnswers"
+    },
+    {
+      "label": "the leg's copy declares no cleanup, so the emulator the sweep stops leaves its machines behind (#673)",
+      "file": "tools/conformance/day2lib.sh",
+      "find": "\tawk '{ print } /^emulator:/ && !done { print \"  cleanup: true\"; done = 1 }'",
+      "replace": "\tawk '{ print } /^emulator:/ && !done && 0 { print \"  cleanup: true\"; done = 1 }'",
+      "test": "TestTheDay2LegDeclaresAnEmulatorThatCleansUpAfterItself"
     }
   ]
 }

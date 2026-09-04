@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/stephrobert/feint/internal/environment"
 )
 
 // The sweep at the end of a Day-2 run sees what it sweeps (#673).
@@ -31,6 +33,8 @@ F
 chmod +x "$DIR/feint"
 export FEINT_CALLS="$DIR/calls"
 : >"$FEINT_CALLS"
+export FEINT_RUN_DIR="$DIR/run"
+mkdir -p "$FEINT_RUN_DIR"
 `
 
 // TestTheSweepRefusesToClaimWhatItDidNotSee: the down answered 0 and the
@@ -173,5 +177,109 @@ cleanup
 	}
 	if !strings.Contains(out, "MINE-REMOVED") {
 		t.Errorf("the stack gate's trap left its own directory behind:\n%s", out)
+	}
+}
+
+// TestTheSweepRefusesARuntimeWideSweepWhileAnotherEmulatorAnswers is the
+// rule the incident of 2026-09-04 13:01 wrote: the registry holds the run's
+// own address and a foreign one that still answers, the stack directory is
+// gone, and the runtime-wide clean — the only removal that would reach the
+// foreign emulator's machines — must be refused by name, with nothing read
+// in its place and no "swept".
+func TestTheSweepRefusesARuntimeWideSweepWhileAnotherEmulatorAnswers(t *testing.T) {
+	_, out := runDay2(t, fakeFeint+`
+mkdir -p "$FEINT_RUN_DIR/127.0.0.1_1" "$FEINT_RUN_DIR/127.0.0.1_4690"
+d2_still_answers() { [ "$1" = "http://127.0.0.1:4690" ]; }
+if d2_sweep "$DIR/gone" yes "$DIR/feint" 127.0.0.1:1 incus-ovn; then echo "SWEEP-CLAIMED"; fi
+cat "$FEINT_CALLS"
+`)
+	for _, want := range []string{"another emulator answers on 127.0.0.1:4690", "call: stop -addr 127.0.0.1:1"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("the sweep on a shared runtime does not carry %q:\n%s", want, out)
+		}
+	}
+	for _, forbidden := range []string{"call: clean -vm incus-ovn -closing", "call: clean -check", "SWEEP-CLAIMED", "swept,"} {
+		if strings.Contains(out, forbidden) {
+			t.Errorf("the sweep reached the runtime while another emulator answered (%q):\n%s", forbidden, out)
+		}
+	}
+}
+
+// TestAStaleRegistryEntryDoesNotBlockTheSweep is the accepting half: an
+// address that no longer answers is a stale registration (an emulator killed
+// without its stop), and the run's own address is not foreign. Both are
+// walked past, and the sweep proceeds to the runtime.
+func TestAStaleRegistryEntryDoesNotBlockTheSweep(t *testing.T) {
+	_, out := runDay2(t, fakeFeint+`
+mkdir -p "$FEINT_RUN_DIR/127.0.0.1_1" "$FEINT_RUN_DIR/127.0.0.1_4596"
+d2_still_answers() { return 1; }
+d2_sweep "$DIR/gone" yes "$DIR/feint" 127.0.0.1:1 incus-ovn || echo "SWEEP-FAILED"
+cat "$FEINT_CALLS"
+`)
+	for _, want := range []string{"call: clean -vm incus-ovn -closing", "call: clean -check -vm incus-ovn -closing", "swept, nothing answers on 127.0.0.1:1"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("a stale registry entry blocked the sweep, missing %q:\n%s", want, out)
+		}
+	}
+	for _, forbidden := range []string{"SWEEP-FAILED", "another emulator answers"} {
+		if strings.Contains(out, forbidden) {
+			t.Errorf("a stale registry entry read as a foreign emulator (%q):\n%s", forbidden, out)
+		}
+	}
+}
+
+// TestTheDay2LegDeclaresAnEmulatorThatCleansUpAfterItself: the declaration the
+// leg writes is read back by the same loader `feint up` uses, and it says
+// cleanup — so the emulator the leg starts takes its own machines down on
+// `feint stop -addr`, which is what the sweep's fallback removes with. The
+// example stack itself is left as the maintainer wrote it (no cleanup, mode
+// off); only the copy is touched, once, and a second call changes nothing.
+func TestTheDay2LegDeclaresAnEmulatorThatCleansUpAfterItself(t *testing.T) {
+	example, err := os.ReadFile(filepath.Join("..", "..", "examples", "stacks", "scaleway", "feint.yaml"))
+	if err != nil {
+		t.Fatalf("read the example declaration: %v", err)
+	}
+	if before, err := environment.Parse(string(example)); err != nil {
+		t.Fatalf("the example declaration does not parse: %v", err)
+	} else if before.Emulator.Cleanup {
+		t.Fatal("the example stack already declares cleanup, so this test no longer measures the leg's own insertion")
+	}
+	dir := t.TempDir()
+	copyPath := filepath.Join(dir, "feint.yaml")
+	if err := os.WriteFile(copyPath, example, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, out := runDay2(t, `
+sed -i "s|127.0.0.1:4599|127.0.0.1:4596|g" "`+copyPath+`"
+d2_declare_cleanup "`+copyPath+`" || echo "DECLARE-FAILED"
+d2_declare_cleanup "`+copyPath+`" || echo "DECLARE-FAILED"
+`)
+	if strings.Contains(out, "DECLARE-FAILED") {
+		t.Fatalf("d2_declare_cleanup failed:\n%s", out)
+	}
+	written, err := os.ReadFile(copyPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decl, err := environment.Parse(string(written))
+	if err != nil {
+		t.Fatalf("the declaration the leg writes does not parse:\n%s\n%v", written, err)
+	}
+	if !decl.Emulator.Cleanup {
+		t.Errorf("the declaration the leg writes does not make its emulator clean up after itself:\n%s", written)
+	}
+	if decl.Emulator.Addr != "127.0.0.1:4596" {
+		t.Errorf("the address the leg wrote was lost: %q", decl.Emulator.Addr)
+	}
+	if strings.Count(string(written), "cleanup: true") != 1 {
+		t.Errorf("cleanup was declared %d times, want once:\n%s", strings.Count(string(written), "cleanup: true"), written)
+	}
+	leg, err := os.ReadFile("day2.sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	at, up := strings.Index(string(leg), `d2_declare_cleanup "$WORK/feint.yaml"`), strings.Index(string(leg), `"$FEINT" up --runtime`)
+	if at < 0 || up < 0 || at > up {
+		t.Error("day2.sh does not declare cleanup on its copy before it brings the stack up")
 	}
 }
