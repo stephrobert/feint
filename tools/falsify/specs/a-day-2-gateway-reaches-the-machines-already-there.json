@@ -1,0 +1,36 @@
+{
+  "mutations": [
+    {
+      "label": "enabling the default route on a standing attachment reaches nobody, which is the Day-2 gesture measured broken on 95a2abf",
+      "file": "internal/providers/scaleway/gateways.go",
+      "package": "./internal/providers/scaleway/",
+      "find": "\t_ = p.replayEgressOn(r.Context(), textOf(current.Attrs[\"private_network_id\"]))\n",
+      "replace": "\tif false {\n\t\t_ = p.replayEgressOn(r.Context(), textOf(current.Attrs[\"private_network_id\"]))\n\t}\n",
+      "test": "TestEnablingTheDefaultRouteReachesTheMachinesAlreadyThere"
+    },
+    {
+      "label": "detaching the gateway leaves the machines a way out the cloud would have cut off",
+      "file": "internal/providers/scaleway/gateways.go",
+      "package": "./internal/providers/scaleway/",
+      "find": "\t_ = p.replayEgressOn(r.Context(), textOf(res.Attrs[\"private_network_id\"]))\n",
+      "replace": "\tif false {\n\t\t_ = p.replayEgressOn(r.Context(), textOf(res.Attrs[\"private_network_id\"]))\n\t}\n",
+      "test": "TestDetachingTheGatewayTakesTheWayOutBack"
+    },
+    {
+      "label": "the replay walks every NIC in the account instead of the ones on this network, so an unrelated platform is reconfigured by somebody else's gateway",
+      "file": "internal/providers/scaleway/gateways.go",
+      "package": "./internal/providers/scaleway/",
+      "find": "\t\tif nic.Runtime[runtimePrivateNetworkKey] != privateNetworkID {\n\t\t\tcontinue\n\t\t}",
+      "replace": "\t\tif nic.Runtime[runtimePrivateNetworkKey] != privateNetworkID && false {\n\t\t\tcontinue\n\t\t}",
+      "test": "TestAReplayVisitsOnlyTheMachinesOnThatNetwork"
+    },
+    {
+      "label": "an empty network identifier replays everything, which is what a detach of a half-built attachment would hand it",
+      "file": "internal/providers/scaleway/gateways.go",
+      "package": "./internal/providers/scaleway/",
+      "find": "\tif privateNetworkID == \"\" {\n\t\treturn 0\n\t}",
+      "replace": "\tif privateNetworkID == \"\" && false {\n\t\treturn 0\n\t}",
+      "test": "TestAReplayVisitsOnlyTheMachinesOnThatNetwork"
+    }
+  ]
+}
