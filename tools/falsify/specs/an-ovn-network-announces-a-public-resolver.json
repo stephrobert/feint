@@ -1,0 +1,26 @@
+{
+  "package": "./internal/core/machine/",
+  "mutations": [
+    {
+      "label": "the network announces no resolver of its own, so Incus announces the uplink and the dead on-link route comes back (#660)",
+      "file": "internal/core/machine/incus.go",
+      "find": "\t\t\t\"dns.nameservers=\"+resolver,\n",
+      "replace": "\t\t\t\"dns.nameservers=\"+resolver[:0],\n",
+      "test": "TestAnOVNNetworkAnnouncesAPublicResolverAndNeverTheUplink"
+    },
+    {
+      "label": "the field may name the uplink, and the collision is one flag away (#660)",
+      "file": "internal/core/machine/incus.go",
+      "find": "\t\tif resolver == gateway.String() {",
+      "replace": "\t\tif resolver == gateway.String() && false {",
+      "test": "TestAResolverThatIsTheUplinkIsRefused"
+    },
+    {
+      "label": "the field is ignored and the default is announced whatever the station said (#660)",
+      "file": "internal/core/machine/incus_ovn.go",
+      "find": "\tif d.Resolver != \"\" {\n\t\treturn d.Resolver\n\t}",
+      "replace": "\tif d.Resolver != \"\" && false {\n\t\treturn d.Resolver\n\t}",
+      "test": "TestTheResolverIsAField"
+    }
+  ]
+}

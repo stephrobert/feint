@@ -55,6 +55,13 @@ type Incus struct {
 	// UplinkCIDR is the block the uplink carries. Empty means
 	// DefaultUplinkCIDR.
 	UplinkCIDR string
+	// Resolver is the name server an OVN network announces to the machines
+	// that boot on it (#660). Empty means DefaultResolver. A field rather
+	// than a constant: an emulator on a station without Internet says which
+	// resolver it has, and a station whose resolver differs sets it. What it
+	// may never be is the uplink's own address, and EnsureNetwork refuses
+	// that value (see the note there).
+	Resolver string
 	// Log is where this driver says what it could not do. Nil means the
 	// default logger, which is what the CLI configures.
 	//
@@ -1390,9 +1397,60 @@ func (d *Incus) EnsureNetwork(ctx context.Context, spec NetworkSpec) error {
 		//
 		// TestAnOVNNetworkAnnouncesNoGateway and
 		// TestAnOVNNetworkAnnouncesItsPrivateRoutes fail without this.
+		//
+		// And the network never announces, as its resolver, the address by
+		// which the station reaches its machines (#660). Left alone, Incus
+		// announces the uplink's own address (10.209.83.1) as the DNS server,
+		// and that address is also the source the station dials from, since
+		// the host route to a public address routed onto an OVN NIC goes
+		// `dev feint-uplink src 10.209.83.1`. Inside the guest, systemd-networkd's
+		// RoutesToDNS= — on by default — lays an on-link /32 towards every
+		// DNS server the lease names, more specific than the aggregates the
+		// network announces towards its router; the reply to the station then
+		// ARPs for 10.209.83.1 on the logical switch, nobody answers, and the
+		// machine is unreachable at its published address. Measured on
+		// 2026-09-04 under `--vm incus-ovn`: `ip route get 10.209.83.1` from
+		// the guest answered `dev eth1` (on-link, dead); with the resolver a
+		// public address it answers `via <gateway> dev eth1`, through the
+		// router; and `ip route del 10.209.83.1 dev eth1` turned a dial of
+		// 203.0.113.3:443 from 000 into 200, `ip route add` turned it back.
+		//
+		// RoutesToDNS= is the guest's own, ordinary mechanism, and this is not
+		// a workaround of a systemd defect: the collision is what made an
+		// ordinary behaviour harmful, and the announcement below removes the
+		// collision. The network's gateway was measured and rejected as the
+		// alternative — nothing answers DNS there, so a machine with a way out
+		// would stop resolving, which is worse than the defect.
+		//
+		// What this does NOT establish, measured the same day: that a machine
+		// with a way out resolves through the announced resolver. On the
+		// station measured, the announcement was on the wire (the OVN
+		// DHCP_Options row carried dns_server={1.1.1.1}) and the guest's
+		// resolved held no server on any link; set by hand (`resolvectl dns
+		// eth1 1.1.1.1`) the same machine resolved, so the path is open and
+		// the guest is not applying the lease's DNS — `networkctl renew eth1`
+		// answered that the interface is not managed by systemd-networkd
+		// while it carried a dynamic address. That is a defect of its own,
+		// followed apart from #660. The resolver is a field (Resolver,
+		// `feint serve --resolver`) so a station without Internet, or with a
+		// resolver of its own, can say so; the uplink's address is refused
+		// whatever the field says.
+		//
+		// TestAnOVNNetworkAnnouncesAPublicResolverAndNeverTheUplink and
+		// TestAResolverThatIsTheUplinkIsRefused fail without this.
+		gateway, err := d.uplinkGateway()
+		if err != nil {
+			return err
+		}
+		resolver := d.resolver()
+		if resolver == gateway.String() {
+			return fmt.Errorf("refusing to create network %s: the resolver %s is the uplink's own address, which is also the address the station reaches this network's machines from; announcing it lays a dead on-link route inside every guest (#660)",
+				spec.Name, resolver)
+		}
 		args = append(args,
 			"ipv4.dhcp.gateway=none",
 			"ipv4.dhcp.routes="+announcedPrivateRoutes(address),
+			"dns.nameservers="+resolver,
 		)
 	}
 	for k, v := range spec.Labels {
