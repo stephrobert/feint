@@ -58,6 +58,25 @@ change ni l'un ni l'autre a sa place dans `git log`.
   lb certificate list` et `scw lb subscriber list` dans la suite de
   conformance.
 
+- **La suite runtime regarde la table de la machine elle-même à travers un
+  redémarrage, et nomme la ligne** (#671). `tools/conformance/functional.sh`
+  capture, depuis l'intérieur de la machine et avant tout redémarrage, ses
+  adresses et chaque route à saut suivant, normalisées par deux lecteurs de
+  `functionallib.sh` (les routes connectées, le bloc link-local, les
+  métriques, `proto`, le loopback et les adresses de portée link n'y entrent
+  jamais) ; après le verbe reboot du provider, puis après un stop et un
+  start, elle capture à nouveau et compare. Une ligne qui a changé fait
+  échouer la stack avec ses deux graphies imprimées, avant et après : la cause
+  là où est l'effet, au lieu de « rien ne répond sur 203.0.113.4:443 »
+  soixante secondes plus tard à l'autre bout. Une capture qui a échoué est
+  « cannot look », jamais un côté vide qui compare égal à quelque chose.
+
+  `fnl_shape_reader_control` tourne avant tout verdict, comme les autres
+  contrôles de lecteur : il normalise deux tables plantées et exige que la
+  comparaison échoue sur une différence plantée, la régression à une ligne
+  près ; et un test remplace la comparaison par un oui systématique et exige
+  que le contrôle s'en aperçoive. Six execs sur une jambe de 590 s.
+
 - **Un reboot compare la forme d'après à la forme d'avant, sans table de
   valeurs attendues** (#669). Rien ne bouge dans le plan de contrôle entre
   les deux, parce que le reboot tient le verrou par cible d'un bout à

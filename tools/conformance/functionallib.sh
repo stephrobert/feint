@@ -147,6 +147,59 @@ fnl_delivery_addresses() { # record
 	}'
 }
 
+
+# fnl_shape_routes reads `ip -4 route show` on stdin and prints, one per line
+# and sorted, what compares of the guest's table: `route <dst> via <via> dev
+# <dev>`. Everything else on a line — proto, src, metric, onlink — is dropped,
+# and so is every line with no `via`: a connected route is implied by the
+# address that created it, and comparing it would compare the address twice.
+# The link-local block is the kernel's own plumbing and never enters; an
+# unreachable, blackhole or local entry is not a route to anywhere. `default`
+# is spelled 0.0.0.0/0 and a bare host address gets its /32, so iproute2 and
+# busybox read the same.
+#
+# This is the shell spelling of internal/core/machine's parseRoutes (#668), and
+# it is deliberately a second one: this file sees a machine from the station,
+# the driver sees it through the runtime API, and the two fail differently.
+fnl_shape_routes() {
+	awk '
+	$1 == "unreachable" || $1 == "blackhole" || $1 == "prohibit" || $1 == "throw" || $1 == "local" || $1 == "broadcast" || $1 == "multicast" || $1 == "anycast" || $1 == "nat" { next }
+	{
+		dst = $1
+		if (dst == "default") dst = "0.0.0.0/0"
+		else if (dst !~ /\//) dst = dst "/32"
+		if (dst ~ /^169\.254\./) next
+		via = ""; dev = ""
+		for (i = 2; i < NF; i++) {
+			if ($i == "via") via = $(i + 1)
+			if ($i == "dev") dev = $(i + 1)
+		}
+		if (via == "" || dev == "") next
+		print "route " dst " via " via " dev " dev
+	}' | sort
+}
+
+# fnl_shape_addresses reads `ip -4 -o addr show` on stdin and prints, one per
+# line and sorted, `addr <iface> <cidr>` for every global address: the
+# loopback, a link-local address and a scope-link one are not what a plan
+# claims.
+fnl_shape_addresses() {
+	awk '
+	NF < 4 { next }
+	{
+		iface = $2; sub(/:$/, "", iface)
+		if (iface == "lo") next
+		cidr = ""; scope = ""
+		for (i = 3; i < NF; i++) {
+			if ($i == "inet") cidr = $(i + 1)
+			if ($i == "scope") scope = $(i + 1)
+		}
+		if (cidr == "" || scope != "global") next
+		if (cidr ~ /^169\.254\./) next
+		print "addr " iface " " cidr
+	}' | sort
+}
+
 # ---- the controls: each reader finds a planted witness, and only it ---------
 #
 # Run before any verdict. A reader that cannot find its planted witness voids
@@ -198,6 +251,42 @@ fnl_name_reader_control() {
 	[ -z "$out" ] \
 		|| fail "the name reader matched 'platform-app' inside 'platform-app-2' (got '$out'); a neighbouring machine would answer for the one under test"
 	ok "the name reader resolves both naming shapes, and refuses a prefix match"
+}
+
+
+fnl_shape_reader_control() {
+	local out before after
+	out="$(printf '%s\n' \
+		'default via 10.77.0.1 dev eth0 proto dhcp src 10.77.0.2 metric 100 ' \
+		'10.77.0.0/24 dev eth0 proto kernel scope link src 10.77.0.2 ' \
+		'169.254.169.254 via 10.77.0.1 dev eth0 ' \
+		'10.0.0.0/8 via 10.77.0.1 dev eth0 proto dhcp metric 100 ' \
+		'203.0.113.9 via 10.0.0.1 dev eth1' \
+		'unreachable 198.51.100.0/24 dev lo' \
+		| fnl_shape_routes | tr '\n' '|')"
+	[ "$out" = "route 0.0.0.0/0 via 10.77.0.1 dev eth0|route 10.0.0.0/8 via 10.77.0.1 dev eth0|route 203.0.113.9/32 via 10.0.0.1 dev eth1|" ] \
+		|| fail "the route reader cannot normalise a table (got '$out'); every 'the shape survived' it reported would compare noise, and every 'it changed' would name a metric"
+	out="$(printf '%s\n' \
+		'1: lo    inet 127.0.0.1/8 scope host lo\       valid_lft forever preferred_lft forever' \
+		'2: eth0    inet 10.77.0.2/24 brd 10.77.0.255 scope global eth0\       valid_lft forever preferred_lft forever' \
+		'2: eth0    inet 203.0.113.2/32 scope global eth0\       valid_lft forever preferred_lft forever' \
+		'2: eth0    inet 10.99.0.1/24 scope link eth0\       valid_lft forever preferred_lft forever' \
+		| fnl_shape_addresses | tr '\n' '|')"
+	[ "$out" = "addr eth0 10.77.0.2/24|addr eth0 203.0.113.2/32|" ] \
+		|| fail "the address reader cannot normalise an address list (got '$out'); a scope-link address or the loopback would read as a change across a restart"
+	# And the comparison finds a planted difference: the regression of
+	# 2026-09-04, one line apart. A comparison that had never found anything
+	# is indistinguishable from one that looks nowhere.
+	before="$(mktemp)"
+	after="$(mktemp)"
+	printf '%s\n' 'addr eth0 203.0.113.2/32' 'route 0.0.0.0/0 via 169.254.0.1 dev eth0' >"$before"
+	printf '%s\n' 'addr eth0 203.0.113.2/32' 'route 0.0.0.0/0 via 10.77.0.1 dev eth0' >"$after"
+	if (fnl_shape_survives_restart control planted m "$before" "$after" "after a planted restart") >/dev/null 2>&1; then
+		rm -f "$before" "$after"
+		fail "the shape comparison passed a planted difference; every 'the shape survived' it reports would be an instrument that looks nowhere"
+	fi
+	rm -f "$before" "$after"
+	ok "the shape readers normalise both tables, and the comparison finds a planted difference"
 }
 
 # ---- the verdicts -----------------------------------------------------------
@@ -525,6 +614,37 @@ fnl_restart_replaced_the_machine() { # stack name machine before after
 	[ "$before" != "$after" ] \
 		|| fail "$stack: $name ($machine) came out of a reboot through the provider's own API on the same runtime process ($after) — the action was accepted and the machine never restarted (#547)"
 	ok "$stack: $name really restarts on the provider's own reboot verb (process $before then $after)"
+}
+
+
+# fnl_shape_survives_restart: a machine restarted through the provider's API
+# carries afterwards exactly what it carried before — its addresses, and every
+# route with a next hop — read from inside the machine and normalised by the
+# two readers above (#671).
+#
+# The runtime suite used to ask one question of a restarted machine, does the
+# service answer at its published address, and when the answer was no it said
+# so sixty seconds later and named the far end. On 2026-09-04 the service was
+# alive, the address was published, and the route was wrong: the reply left
+# through the private gateway where it had left through the routed next hop
+# (#660). The suite could not say that, because it never looked at the
+# machine's own table. This does, and names the line.
+#
+# Both files are the caller's captures, so a transport failure is its own
+# verdict — "cannot look" — and never an empty side that compares equal to
+# something. The lines that changed are printed as they read, before and
+# after, which is what an operator needs to see the cause where the effect is.
+fnl_shape_survives_restart() { # stack name machine before_file after_file moment
+	local stack="$1" name="$2" machine="$3" before="$4" after="$5" moment="$6" changed
+	[ -s "$before" ] \
+		|| fail "cannot look: the shape of $name ($machine) could not be read before the restart, and a comparison with nothing on one side is not a comparison"
+	[ -s "$after" ] \
+		|| fail "cannot look: the shape of $name ($machine) could not be read $moment, and a comparison with nothing on one side is not a comparison"
+	changed="$(diff "$before" "$after" | sed -n 's/^< /  before: /p; s/^> /  after:  /p')"
+	[ -z "$changed" ] \
+		|| fail "$stack: $name ($machine) does not carry $moment what it carried before the restart; the machine's own table changed, and this is the cause where the effect is (#671, #660):
+$changed"
+	ok "$stack: $name carries $moment exactly what it carried before the restart"
 }
 
 # fnl_restart_keeps_reaching: a machine restarted through the provider's API

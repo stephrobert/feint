@@ -53,6 +53,24 @@ what this project is judged on: **a response shape a client can observe**, and
   Driven by `scw lb backend list-statistics`, `scw lb lb get-stats`, `scw lb
   certificate list` and `scw lb subscriber list` in the conformance suite.
 
+- **The runtime suite looks at the machine's own table across a restart, and
+  names the line** (#671). `tools/conformance/functional.sh` captures, from
+  inside the machine and before anything is restarted, its addresses and every
+  route with a next hop, normalised by two readers in `functionallib.sh`
+  (connected routes, the link-local block, metrics, `proto`, the loopback and
+  scope-link addresses never enter); after the provider's own reboot verb, and
+  again after a stop and a start, it captures again and diffs. A line that
+  changed fails the stack with both spellings printed, before and after: the
+  cause where the effect is, instead of "nothing answers at 203.0.113.4:443"
+  sixty seconds later at the far end. A capture that failed is "cannot look",
+  never a side that compares equal to something.
+
+  `fnl_shape_reader_control` runs before any verdict, like the other reader
+  controls: it normalises two planted tables and requires the comparison to
+  fail on a planted difference, the regression one line apart; and a test
+  stubs the comparison to pass everything and requires the control to notice.
+  Six execs on a leg of 590 s.
+
 - **A reboot compares the shape after with the shape before, and needs no
   table of expected values for it** (#669). Nothing moves in the control
   plane between the two, because the reboot holds the per-target lock from

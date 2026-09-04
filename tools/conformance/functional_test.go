@@ -723,6 +723,7 @@ func TestTheGateRunsItsReaderControlsBeforeAnyVerdict(t *testing.T) {
 		"fnl_name_reader_control",
 		"fnl_delivery_reader_control",
 		"fnl_rule_set_reader_control",
+		"fnl_shape_reader_control",
 	} {
 		called := false
 		for _, line := range strings.Split(gate, "\n") {
@@ -1015,4 +1016,124 @@ DIR="$1"
 		code = exit.ExitCode()
 	}
 	return code, string(out)
+}
+
+// ---- the machine's own table across a restart (#671) -----------------------
+//
+// The runtime suite asked one question of a restarted machine — does the
+// service answer at its published address — and when the answer was no it
+// named the far end, sixty seconds later. The service was alive, the address
+// was published, and the route was wrong (#660). These hold the readers that
+// look at the table, the comparison that names the line, and the control that
+// makes the comparison worth anything.
+
+const routeTable = `default via 10.77.0.1 dev eth0 proto dhcp src 10.77.0.2 metric 100
+10.77.0.0/24 dev eth0 proto kernel scope link src 10.77.0.2 metric 100
+10.77.0.1 dev eth0 proto dhcp scope link src 10.77.0.2 metric 100
+169.254.0.0/16 dev eth0 scope link metric 1000
+169.254.169.254 via 10.77.0.1 dev eth0 proto static
+10.0.0.0/8 via 10.77.0.1 dev eth0 proto dhcp src 10.77.0.2 metric 100
+203.0.113.9 via 10.0.0.1 dev eth1
+unreachable 198.51.100.0/24 dev lo
+`
+
+const addressList = `1: lo    inet 127.0.0.1/8 scope host lo\       valid_lft forever preferred_lft forever
+2: eth0    inet 10.77.0.2/24 brd 10.77.0.255 scope global eth0\       valid_lft forever preferred_lft forever
+2: eth0    inet 203.0.113.2/32 scope global eth0\       valid_lft forever preferred_lft forever
+2: eth0    inet 10.99.0.1/24 scope link eth0\       valid_lft forever preferred_lft forever
+9: eth9    inet 10.76.154.20/24 brd 10.76.154.255 scope global dynamic eth9\       valid_lft 3000sec preferred_lft 3000sec
+`
+
+// TestTheShapeReadersNormaliseWhatDoesNotCompare: connected routes, the
+// link-local block, an unreachable entry, metrics and proto leave the table;
+// the loopback and a scope-link address leave the list; default is spelled
+// as a block and a bare host gets its mask.
+func TestTheShapeReadersNormaliseWhatDoesNotCompare(t *testing.T) {
+	code, out := runFunctional(t, map[string]string{"routes": routeTable, "addrs": addressList},
+		`fnl_shape_routes <"$DIR/routes"; echo ---; fnl_shape_addresses <"$DIR/addrs"`)
+	want := "route 0.0.0.0/0 via 10.77.0.1 dev eth0\nroute 10.0.0.0/8 via 10.77.0.1 dev eth0\nroute 203.0.113.9/32 via 10.0.0.1 dev eth1\n---\naddr eth0 10.77.0.2/24\naddr eth0 203.0.113.2/32\naddr eth9 10.76.154.20/24\n"
+	if code != 0 || out != want {
+		t.Fatalf("exit %d, normalised:\n%s\nwant:\n%s", code, out, want)
+	}
+}
+
+// TestAShapeThatChangedAcrossARestartFailsNamingTheLine is the regression as
+// this gate sees it now: one line apart, both lines printed.
+func TestAShapeThatChangedAcrossARestartFailsNamingTheLine(t *testing.T) {
+	code, out := runFunctional(t, map[string]string{
+		"before": "addr eth0 203.0.113.2/32\nroute 0.0.0.0/0 via 169.254.0.1 dev eth0\n",
+		"after":  "addr eth0 203.0.113.2/32\nroute 0.0.0.0/0 via 10.77.0.1 dev eth0\n",
+	}, `fnl_shape_survives_restart scaleway platform-web-0 m-web-0 "$DIR/before" "$DIR/after" "after the reboot verb"`)
+	if code == 0 {
+		t.Fatalf("a changed shape passed:\n%s", out)
+	}
+	for _, line := range []string{
+		"FAIL: scaleway: platform-web-0 (m-web-0) does not carry after the reboot verb what it carried before the restart",
+		"before: route 0.0.0.0/0 via 169.254.0.1 dev eth0",
+		"after:  route 0.0.0.0/0 via 10.77.0.1 dev eth0",
+	} {
+		if !strings.Contains(out, line) {
+			t.Errorf("the verdict does not carry %q:\n%s", line, out)
+		}
+	}
+	if strings.Contains(out, "203.0.113.2/32") {
+		t.Errorf("a line that did not change is named:\n%s", out)
+	}
+}
+
+func TestAShapeThatSurvivedARestartPasses(t *testing.T) {
+	code, out := runFunctional(t, map[string]string{
+		"before": "addr eth0 203.0.113.2/32\nroute 0.0.0.0/0 via 169.254.0.1 dev eth0\n",
+		"after":  "addr eth0 203.0.113.2/32\nroute 0.0.0.0/0 via 169.254.0.1 dev eth0\n",
+	}, `fnl_shape_survives_restart scaleway platform-web-0 m-web-0 "$DIR/before" "$DIR/after" "after the reboot verb"`)
+	if code != 0 || !strings.Contains(out, "ok: scaleway: platform-web-0 carries after the reboot verb exactly what it carried before") {
+		t.Fatalf("an unchanged shape did not pass (exit %d):\n%s", code, out)
+	}
+}
+
+// A capture that failed is a side with nothing on it, and nothing compares
+// equal to something: the verdict is "cannot look", never a pass.
+func TestAShapeThatCouldNotBeReadIsNotAVerdict(t *testing.T) {
+	code, out := runFunctional(t, map[string]string{
+		"before": "addr eth0 203.0.113.2/32\n",
+		"after":  "",
+	}, `fnl_shape_survives_restart scaleway platform-web-0 m-web-0 "$DIR/before" "$DIR/after" "after the reboot verb"`)
+	if code == 0 || !strings.Contains(out, "cannot look") {
+		t.Fatalf("an unreadable after was judged (exit %d):\n%s", code, out)
+	}
+}
+
+// TestTheShapeReaderControlFindsABrokenComparator is the control of the
+// control: with the comparison stubbed to pass everything, the reader control
+// must fail, or the planted difference it claims to plant proves nothing.
+func TestTheShapeReaderControlFindsABrokenComparator(t *testing.T) {
+	code, out := runFunctional(t, nil, `fnl_shape_reader_control`)
+	if code != 0 {
+		t.Fatalf("the shape reader control fails on the real readers (exit %d):\n%s", code, out)
+	}
+	code, out = runFunctional(t, nil, `fnl_shape_survives_restart() { return 0; }
+fnl_shape_reader_control`)
+	if code == 0 || !strings.Contains(out, "passed a planted difference") {
+		t.Fatalf("the control did not notice a comparison that passes everything (exit %d):\n%s", code, out)
+	}
+}
+
+// TestTheRestartCapturesTheShapeBeforeAndAfter holds the gate to the order
+// that makes the comparison a measurement: the before is captured before the
+// reboot verb, and each door is compared against it.
+func TestTheRestartCapturesTheShapeBeforeAndAfter(t *testing.T) {
+	gate := readGate(t)
+	before := strings.Index(gate, `live_shape "$rmachine" "$WORK/shape-before-$rmachine.txt"`)
+	reboot := strings.Index(gate, `power "$provider" "$id" reboot`)
+	afterReboot := strings.Index(gate, `"$WORK/shape-before-$rmachine.txt" "$WORK/shape-reboot-$rmachine.txt"`)
+	stop := strings.Index(gate, `power "$provider" "$id" off`)
+	afterStart := strings.Index(gate, `"$WORK/shape-before-$rmachine.txt" "$WORK/shape-after-$rmachine.txt"`)
+	if before < 0 || reboot < 0 || afterReboot < 0 || stop < 0 || afterStart < 0 {
+		t.Fatalf("the restart does not capture and compare the shape at every door: before=%d reboot=%d afterReboot=%d stop=%d afterStart=%d",
+			before, reboot, afterReboot, stop, afterStart)
+	}
+	if before >= reboot || reboot >= afterReboot || afterReboot >= stop || stop >= afterStart {
+		t.Fatalf("the captures are not in the order that measures a restart: before=%d reboot=%d afterReboot=%d stop=%d afterStart=%d",
+			before, reboot, afterReboot, stop, afterStart)
+	}
 }
