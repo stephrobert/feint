@@ -53,6 +53,25 @@ what this project is judged on: **a response shape a client can observe**, and
   Driven by `scw lb backend list-statistics`, `scw lb lb get-stats`, `scw lb
   certificate list` and `scw lb subscriber list` in the conformance suite.
 
+- **A reboot compares the shape after with the shape before, and needs no
+  table of expected values for it** (#669). Nothing moves in the control
+  plane between the two, because the reboot holds the per-target lock from
+  one end to the other; so what the machine carried while it was up is what
+  it must carry once it is back, interface by interface (network, kind,
+  addresses, rule sets, as sets), the default route by its door, the rest of
+  the table as a set. The claims ride the same reading as the plan's own, so
+  a reboot is read once and repaired once like any other boot. On the
+  regression of 2026-09-04 this answers, at the moment of the reboot,
+  `restart(default route) want via 169.254.0.1 dev eth0, got via 10.77.0.1
+  dev eth1`, where the runtime suite used to wait sixty seconds two steps
+  later to say "nothing answers".
+
+  A before that could not be read is said, in a `WARN`, and the reboot is
+  judged on its plan alone rather than on a guess; a machine that was not up
+  has no before. A poweroff then a poweron as two API actions is not a
+  reboot: a NIC attached to a stopped server legitimately changes the shape,
+  and there the derived claims judge.
+
 - **A verdict somebody reads: the verification is published, and the runtime
   leg gates on it** (#670). After every lifecycle door — a boot, a reboot, a
   hot join, a hot route, the late-address door of a virtual machine — what the

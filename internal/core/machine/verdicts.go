@@ -181,8 +181,8 @@ func (r Reconciler) publish(res *resource.Resource, verdicts []Verdict, repaired
 // contradiction.
 //
 // TestARepairIsAttemptedOnceAndCounted fails without the bound.
-func (r Reconciler) check(ctx context.Context, res *resource.Resource) {
-	verdicts, asked := r.verify(ctx, res)
+func (r Reconciler) check(ctx context.Context, res *resource.Resource, extra []Claim) {
+	verdicts, asked := r.verify(ctx, res, extra)
 	if !asked {
 		return
 	}
@@ -196,7 +196,7 @@ func (r Reconciler) check(ctx context.Context, res *resource.Resource) {
 		return
 	}
 	r.replay(ctx, res, plan)
-	again, _ := r.verify(ctx, res)
+	again, _ := r.verify(ctx, res, extra)
 	if anyBroken(again) {
 		r.publish(res, again, nil)
 		return
