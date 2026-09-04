@@ -100,13 +100,17 @@ d2_live_shape() { # machine out_file
 # ---- the stack, up -----------------------------------------------------------
 WORK=""
 UP=""
+# The trap sweeps through d2_sweep (day2lib.sh), which downs from the stack
+# directory while it exists, stops and sweeps by address when it is gone, and
+# refuses to report a sweep it did not see. A sweep that fails makes the run
+# red even when the run itself had passed: seven machines left standing is a
+# failure of this leg, whatever the verdicts above said.
 cleanup() {
-	if [ -n "$UP" ] && [ -n "$WORK" ]; then
-		(cd "$WORK" && "$FEINT" down >/dev/null 2>&1)
-	fi
-	[ -n "$WORK" ] && rm -rf "$WORK"
+	local rc=$?
+	d2_sweep "$WORK" "$UP" "$FEINT" "$ADDR" "$RUNTIME" || rc=1
 	WORK=""
 	UP=""
+	exit "$rc"
 }
 trap cleanup EXIT INT TERM
 

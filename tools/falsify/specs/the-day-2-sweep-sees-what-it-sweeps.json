@@ -1,0 +1,33 @@
+{
+  "package": "./tools/conformance/",
+  "mutations": [
+    {
+      "label": "the sweep believes the down and never reads whether the emulator still answers (#673)",
+      "file": "tools/conformance/day2lib.sh",
+      "find": "\t\tif d2_still_answers \"http://$addr\"; then",
+      "replace": "\t\tif d2_still_answers \"http://$addr\" && false; then",
+      "test": "TestTheSweepRefusesToClaimWhatItDidNotSee"
+    },
+    {
+      "label": "a stack directory that is gone stops nothing: the cd that fails is the whole sweep (#673)",
+      "file": "tools/conformance/day2lib.sh",
+      "find": "\t\t\t\"$feint\" stop -addr \"$addr\" >/dev/null 2>&1 \\\n",
+      "replace": "\t\t\ttrue \"$feint\" stop -addr \"$addr\" >/dev/null 2>&1 \\\n",
+      "test": "TestTheSweepStopsTheEmulatorWhenTheStackDirectoryIsGone"
+    },
+    {
+      "label": "the runtime is never asked what it still holds, so seven machines read as swept (#673)",
+      "file": "tools/conformance/day2lib.sh",
+      "find": "\t\tif [ \"$runtime\" != off ] && ! \"$feint\" clean -check -vm \"$runtime\" -closing >/dev/null 2>&1; then",
+      "replace": "\t\tif [ \"$runtime\" != off ] && ! \"$feint\" clean -check -vm \"$runtime\" -closing >/dev/null 2>&1 && false; then",
+      "test": "TestTheSweepReportsALeakTheRuntimeStillHolds"
+    },
+    {
+      "label": "the stack gate's trap removes a directory it was lent, the cut that left seven machines standing (#673)",
+      "file": "tools/conformance/functional.sh",
+      "find": "\tif [ -n \"$OWNED\" ] && [ -n \"$WORK\" ]; then\n\t\trm -rf \"$WORK\"",
+      "replace": "\tif [ -n \"$OWNED\" ] || [ -n \"$WORK\" ]; then\n\t\trm -rf \"$WORK\"",
+      "test": "TestTheStackGateRemovesOnlyTheDirectoryItCreated"
+    }
+  ]
+}
