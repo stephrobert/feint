@@ -9,16 +9,30 @@ import (
 	"testing"
 )
 
-// An OVN network never announces, as its resolver, the address by which the
-// station reaches its machines (#660).
+// An OVN network hands its machines a resolver without ever announcing one in
+// the lease (#660, and the half of it that #684 closed).
 //
-// Measured on 2026-09-04 under `--vm incus-ovn`: the uplink's address,
-// announced as the DNS server, is also the source the station dials from, so
-// the guest's RoutesToDNS= laid an on-link /32 towards it, more specific than
-// the aggregates, and the reply to the station died on the switch —
-// `ip route get 10.209.83.1` answered `dev eth1`; with a public resolver it
-// answers `via <gateway> dev eth1`. The network's gateway was rejected as the
-// alternative: nothing answers DNS there.
+// #660 measured the first half: the uplink's address, announced as the DNS
+// server, is also the source the station dials from, so the guest's
+// RoutesToDNS= laid an on-link /32 towards it, more specific than the
+// aggregates, and the reply to the station died on the switch. Its answer was
+// to announce a public resolver instead. The network's gateway was rejected as
+// the alternative, and re-measured on 2026-09-04 with the check made
+// independent of the others: nothing answers DNS there, `getent` returns
+// nothing on all three shapes.
+//
+// #684 measured the second half, once the interfaces were managed at all. THE
+// SAME MECHANISM BREAKS A PUBLIC RESOLVER, for the same reason: a name server
+// in the lease gets an on-link /32, and 1.1.1.1 is not on the subnet either.
+//
+//	1.1.1.1 dev eth0 proto dhcp scope link src 10.188.0.5 metric 100
+//	ping 1.1.1.1 -> unreachable; resolvectl query -> No route to host
+//	ip route del 1.1.1.1 dev eth0 -> reachable
+//	resolvectl dns eth0 1.1.1.1 -> getent hosts deb.debian.org answers
+//
+// So no resolver is announced in the lease at all. The one the network stands
+// for reaches the guest through resolvectl (setGuestResolver), which sets a
+// name server and lays no route.
 
 // resolverProbe is the uplink harness of the egress tests: an uplink this run
 // holds on 10.99.0.0/24 (gateway 10.99.0.1), and the network absent so
@@ -42,12 +56,11 @@ func networkCreateLine(f *fakeRuntime) string {
 	return ""
 }
 
-// TestAnOVNNetworkAnnouncesAPublicResolverAndNeverTheUplink holds the whole
-// property: the announced resolver is the public default, and the uplink's
-// address appears nowhere in the announcement. A bridge announces nothing of
-// the kind — its dnsmasq is the resolver there, on-link by construction, and
-// the collision does not exist.
-func TestAnOVNNetworkAnnouncesAPublicResolverAndNeverTheUplink(t *testing.T) {
+// TestAnOVNNetworkLaysNoRouteTowardsItsResolver holds the whole property: no
+// name server is put in the lease, by either mode, so no guest lays an on-link
+// route towards one. A bridge never did — its dnsmasq is the resolver there,
+// on-link by construction, and the collision does not exist.
+func TestAnOVNNetworkLaysNoRouteTowardsItsResolver(t *testing.T) {
 	for _, mode := range []struct {
 		name string
 		ovn  bool
@@ -66,12 +79,14 @@ func TestAnOVNNetworkAnnouncesAPublicResolverAndNeverTheUplink(t *testing.T) {
 			if line == "" {
 				t.Fatalf("no network create; calls: %v", f.calls)
 			}
-			announced := strings.Contains(line, "dns.nameservers="+DefaultResolver)
-			if announced != mode.ovn {
-				t.Errorf("dns.nameservers=%s present=%v, want %v: %s", DefaultResolver, announced, mode.ovn, line)
+			if strings.Contains(line, "dns.nameservers") {
+				t.Errorf("a name server is in the lease, which is the on-link /32 that costs the machine its way out (#684): %s", line)
 			}
-			if strings.Contains(line, "dns.nameservers=10.99.0.1") {
-				t.Errorf("the network announces the uplink's own address as its resolver, the dead on-link route of #660: %s", line)
+			// And the accepting half, or a create that stopped configuring
+			// anything at all would pass: the routes ARE announced, and they
+			// are what a guest needs from the lease.
+			if mode.ovn && !strings.Contains(line, "ipv4.dhcp.routes=") {
+				t.Errorf("the OVN network announces no routes either, so this test is measuring an empty create: %s", line)
 			}
 		})
 	}
@@ -101,21 +116,64 @@ func TestAResolverThatIsTheUplinkIsRefused(t *testing.T) {
 }
 
 // TestTheResolverIsAField: a station without Internet, or with a resolver of
-// its own, says so, and the network announces what it said.
+// its own, says so, and the guests get what it said — through resolvectl now,
+// not through the lease.
 func TestTheResolverIsAField(t *testing.T) {
-	f := resolverProbe()
+	f := &fakeRuntime{answers: map[string]string{
+		"ip -o link show dev": "2: eth1: <BROADCAST,MULTICAST,UP>\n",
+	}}
 	d := newFakeDriver(f)
 	d.OVN = true
-	d.UplinkCIDR = "10.99.0.0/24"
 	d.Resolver = "192.0.2.53"
-	if err := d.EnsureNetwork(context.Background(), NetworkSpec{Name: "fnt-probe", CIDR: "10.99.1.0/24", NAT: true}); err != nil {
-		t.Fatalf("ensure: %v", err)
+
+	d.settleGuestInterface(context.Background(), "srv", "eth1")
+
+	if i := indexOfCall(f, "resolvectl dns eth1 192.0.2.53"); i < 0 {
+		t.Errorf("the guest was not given the resolver the operator named:\n%s",
+			strings.Join(f.commands(), "\n"))
 	}
-	line := networkCreateLine(f)
-	if !strings.Contains(line, "dns.nameservers=192.0.2.53") {
-		t.Errorf("the resolver the operator named was not announced: %s", line)
+	if i := indexOfCall(f, "resolvectl dns eth1 "+DefaultResolver); i >= 0 {
+		t.Errorf("the default was set beside the operator's value:\n%s",
+			strings.Join(f.commands(), "\n"))
 	}
-	if strings.Contains(line, "dns.nameservers="+DefaultResolver) {
-		t.Errorf("the default was announced beside the operator's value: %s", line)
+}
+
+// TestASettleGivesTheInterfaceItsResolver: the default reaches the guest, after
+// the reload rather than before, since a reload drops the runtime setting.
+func TestASettleGivesTheInterfaceItsResolver(t *testing.T) {
+	f := &fakeRuntime{answers: map[string]string{
+		"ip -o link show dev": "2: eth1: <BROADCAST,MULTICAST,UP>\n",
+	}}
+	d := newFakeDriver(f)
+	d.OVN = true
+
+	d.settleGuestInterface(context.Background(), "srv", "eth1")
+
+	set := indexOfCall(f, "resolvectl dns eth1 "+DefaultResolver)
+	reload := indexOfCall(f, "networkctl reload")
+	if set < 0 {
+		t.Fatalf("the interface was never given a resolver:\n%s", strings.Join(f.commands(), "\n"))
+	}
+	if reload < 0 || set < reload {
+		t.Fatalf("the resolver was set at %d, before the reload at %d that drops it:\n%s",
+			set, reload, strings.Join(f.commands(), "\n"))
+	}
+}
+
+// A managed bridge resolves through its own dnsmasq, on-link and in the lease.
+// Setting a resolver there would override a working one with a public address
+// the guest may not be able to reach at all.
+func TestABridgeGuestKeepsTheResolverItsLeaseCarries(t *testing.T) {
+	f := &fakeRuntime{answers: map[string]string{
+		"ip -o link show dev": "2: eth1: <BROADCAST,MULTICAST,UP>\n",
+	}}
+	d := newFakeDriver(f)
+	d.OVN = false
+
+	d.settleGuestInterface(context.Background(), "srv", "eth1")
+
+	if i := indexOfCall(f, "resolvectl dns"); i >= 0 {
+		t.Errorf("a bridge guest had its lease's resolver overridden:\n%s",
+			strings.Join(f.commands(), "\n"))
 	}
 }

@@ -2,11 +2,12 @@
   "package": "./internal/core/machine/",
   "mutations": [
     {
-      "label": "the network announces no resolver of its own, so Incus announces the uplink and the dead on-link route comes back (#660)",
+      "label": "the network puts a name server back in the lease, which is the on-link /32 that costs a machine its way out (#684)",
       "file": "internal/core/machine/incus.go",
-      "find": "\t\t\t\"dns.nameservers=\"+resolver,\n",
-      "replace": "\t\t\t\"dns.nameservers=\"+resolver[:0],\n",
-      "test": "TestAnOVNNetworkAnnouncesAPublicResolverAndNeverTheUplink"
+      "package": "./internal/core/machine/",
+      "find": "\t\targs = append(args,\n\t\t\t\"ipv4.dhcp.gateway=none\",\n\t\t\t\"ipv4.dhcp.routes=\"+announcedPrivateRoutes(address),\n\t\t)",
+      "replace": "\t\targs = append(args,\n\t\t\t\"ipv4.dhcp.gateway=none\",\n\t\t\t\"ipv4.dhcp.routes=\"+announcedPrivateRoutes(address),\n\t\t\t\"dns.nameservers=\"+resolver,\n\t\t)",
+      "test": "TestAnOVNNetworkLaysNoRouteTowardsItsResolver"
     },
     {
       "label": "the field may name the uplink, and the collision is one flag away (#660)",
@@ -21,6 +22,38 @@
       "find": "\tif d.Resolver != \"\" {\n\t\treturn d.Resolver\n\t}",
       "replace": "\tif d.Resolver != \"\" && false {\n\t\treturn d.Resolver\n\t}",
       "test": "TestTheResolverIsAField"
+    },
+    {
+      "label": "the settle stops giving the interface a resolver, so a guest that lays no route to one has none at all",
+      "file": "internal/core/machine/incus_resolver.go",
+      "package": "./internal/core/machine/",
+      "find": "\td.setGuestResolver(ctx, machine, device)\n",
+      "replace": "\tif false {\n\t\td.setGuestResolver(ctx, machine, device)\n\t}\n",
+      "test": "TestASettleGivesTheInterfaceItsResolver"
+    },
+    {
+      "label": "the resolver is set before the reload that drops it, which is the ordering that leaves the guest with nothing",
+      "file": "internal/core/machine/incus_resolver.go",
+      "package": "./internal/core/machine/",
+      "find": "\tif err := d.reloadGuestNetwork(ctx, machine); err != nil {\n\t\td.logger().Warn(\"the guest was not told to read its network configuration\",\n\t\t\t\"machine\", machine, \"device\", device, \"error\", err)\n\t}\n\td.setGuestResolver(ctx, machine, device)",
+      "replace": "\td.setGuestResolver(ctx, machine, device)\n\tif err := d.reloadGuestNetwork(ctx, machine); err != nil {\n\t\td.logger().Warn(\"the guest was not told to read its network configuration\",\n\t\t\t\"machine\", machine, \"device\", device, \"error\", err)\n\t}",
+      "test": "TestASettleGivesTheInterfaceItsResolver"
+    },
+    {
+      "label": "a bridge guest has its lease's working resolver overridden by a public one it may not reach",
+      "file": "internal/core/machine/incus_resolver.go",
+      "package": "./internal/core/machine/",
+      "find": "\tif !d.OVN {",
+      "replace": "\tif !d.OVN && false {",
+      "test": "TestABridgeGuestKeepsTheResolverItsLeaseCarries"
+    },
+    {
+      "label": "the first boot stops setting the resolver, so a NIC attached before poweron comes up with the uplink's own address and #660's dead route",
+      "file": "internal/core/machine/incus_ovn.go",
+      "package": "./internal/core/machine/",
+      "find": "\t\td.setGuestResolver(ctx, machine, device)\n\t}\n\treturn nil\n}",
+      "replace": "\t\tif false {\n\t\t\td.setGuestResolver(ctx, machine, device)\n\t\t}\n\t}\n\treturn nil\n}",
+      "test": "TestAFirstBootGivesTheGuestItsResolver"
     }
   ]
 }
