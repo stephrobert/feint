@@ -216,6 +216,7 @@ fnl_listen_reader_control
 fnl_name_reader_control
 fnl_delivery_reader_control
 fnl_rule_set_reader_control
+fnl_shape_reader_control
 
 # ---- live transports --------------------------------------------------------
 #
@@ -322,6 +323,22 @@ station_fetch_within() { # seconds address port
 # target, which this gate only uses as the console that originates a probe.
 live_machine_pid() { # machine
 	incus query "/1.0/instances/$1/state" 2>/dev/null | jq -r '.pid // empty'
+}
+
+# live_shape writes what a machine carries — its addresses and every route with
+# a next hop, normalised by functionallib's two readers — into a file, non-zero
+# when the machine could not be read at all. Two execs, read from inside the
+# machine because the table IS the machine's: the host's view of a device is
+# what the driver asked for, and the difference between the two is exactly what
+# this gate exists to catch (#671).
+live_shape() { # machine out_file
+	local routes addresses
+	routes="$(incus exec "$1" -- ip -4 route show 2>/dev/null)" || return 1
+	addresses="$(incus exec "$1" -- ip -4 -o addr show 2>/dev/null)" || return 1
+	{
+		printf '%s\n' "$addresses" | fnl_shape_addresses
+		printf '%s\n' "$routes" | fnl_shape_routes
+	} >"$2"
 }
 
 # live_machine_acls answers the rule sets a machine's interfaces carry, comma
@@ -632,6 +649,12 @@ run_stack() { # name
 			fi
 		fi
 
+		# What the machine carries, read from inside it BEFORE anything is
+		# restarted (#671): the addresses and the routed table, normalised.
+		# The after-probe alone names the far end; this names the line.
+		live_shape "$rmachine" "$WORK/shape-before-$rmachine.txt" \
+			|| fail "cannot look: the shape of $restart ($rmachine) could not be read before the restart"
+
 		# ---- the provider's own reboot verb, which used to restart nothing ---
 		echo "- $name: the provider's own reboot verb restarts the machine"
 		local pid_before pid_after
@@ -651,6 +674,13 @@ run_stack() { # name
 			|| fail "$name: $restart came back '$state' ${waited}s after the API was asked to reboot it"
 		pid_after="$(live_machine_pid "$rmachine")"
 		fnl_restart_replaced_the_machine "$name" "$restart" "$rmachine" "$pid_before" "$pid_after"
+		# The machine's own table, back from the reboot verb: the layer compares
+		# it too (#669), and this is the same question asked from the station.
+		echo "- $name: the machine carries after the reboot what it carried before"
+		live_shape "$rmachine" "$WORK/shape-reboot-$rmachine.txt" \
+			|| fail "cannot look: the shape of $restart ($rmachine) could not be read after the reboot"
+		fnl_shape_survives_restart "$name" "$restart" "$rmachine" \
+			"$WORK/shape-before-$rmachine.txt" "$WORK/shape-reboot-$rmachine.txt" "after the reboot verb"
 
 		# ---- and the whole cycle through the other door ----------------------
 		power "$provider" "$id" off || fail "$name: $provider refused the stop of $restart"
@@ -687,6 +717,15 @@ run_stack() { # name
 		# and nowhere else, and the first boot is the one that needed it most.
 		fnl_service_came_up "$name" "$restart" "$unit" "$rmachine" "$port" \
 			"$WORK/listen-$rmachine.txt" "after a restart through the API"
+		# And after the other door, against the same before: a stop and a
+		# start through the API change nothing the machine carried, and the
+		# table says whether they did before the fetch below says what it
+		# cost.
+		echo "- $name: the machine carries after a stop and a start what it carried before"
+		live_shape "$rmachine" "$WORK/shape-after-$rmachine.txt" \
+			|| fail "cannot look: the shape of $restart ($rmachine) could not be read after the stop and the start"
+		fnl_shape_survives_restart "$name" "$restart" "$rmachine" \
+			"$WORK/shape-before-$rmachine.txt" "$WORK/shape-after-$rmachine.txt" "after a stop and a start"
 		address="$(published_address "$provider" "$restart")" \
 			|| fail "cannot look: $provider's API did not answer when asked for $restart's published address"
 		if [ -n "$address" ]; then
