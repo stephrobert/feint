@@ -61,6 +61,9 @@ var taggable = []struct {
 	{"dopt-", kindDhcpOptions, "dhcpoptions"},
 	{"nat-", kindNatService, "natgateway"},
 	{"pcx-", kindNetPeering, "vpc-peering-connection"},
+	// The SDK's own enum names it: TagResourceTypeFlexibleGpu = "flexible-gpu"
+	// (osc/client.gen.go), and the FlexibleGpu schema declares Tags (#619).
+	{"fgpu-", kindFlexibleGpu, "flexible-gpu"},
 
 	// An internet service carries Tags in their own schema — the Terraform
 	// provider sets them, which is how #99 was found — but the SDK's enum lists

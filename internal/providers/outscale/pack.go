@@ -255,6 +255,18 @@ func (p *Pack) Routes() []emulator.Route {
 		p.route("DeleteVolume", p.deleteVolume),
 		p.route("LinkVolume", p.linkVolume),
 		p.route("UnlinkVolume", p.unlinkVolume),
+
+		// Flexible GPU, served since #619: a published course spends a whole
+		// page on it, and on the control plane an fGPU is the shape of a
+		// volume rather than of a machine. The catalogue is a reading of the
+		// real one, so the create can refuse a model the cloud does not offer.
+		p.route("ReadFlexibleGpuCatalog", p.readFlexibleGpuCatalog),
+		p.route("CreateFlexibleGpu", p.createFlexibleGpu),
+		p.route("ReadFlexibleGpus", p.readFlexibleGpus),
+		p.route("UpdateFlexibleGpu", p.updateFlexibleGpu),
+		p.route("DeleteFlexibleGpu", p.deleteFlexibleGpu),
+		p.route("LinkFlexibleGpu", p.linkFlexibleGpu),
+		p.route("UnlinkFlexibleGpu", p.unlinkFlexibleGpu),
 		unearnable(p.route("ReadVmsState", p.readVmsState),
 			keptSubjectBehaviour("a Vm", "a terminated machine stays readable on the real cloud and a client polls it there")),
 		p.route("DeleteVms", p.deleteVms),

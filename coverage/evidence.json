@@ -8,7 +8,7 @@
   "generated_from": {
     "contracts": "b1c322d461683911",
     "shapes": "cac046c206cc9fc8",
-    "suites": "687027b6542a52a1"
+    "suites": "e4b8c607e0620c19"
   },
   "operations": {
     "account/v3/ProjectAPI.CreateProject": {
@@ -2306,6 +2306,15 @@
       "behaviour": true,
       "negative": true
     },
+    "osc/Client.CreateFlexibleGpu": {
+      "driven": true,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
     "osc/Client.CreateImage": {
       "driven": true,
       "probed": "response",
@@ -2486,6 +2495,15 @@
       "behaviour": true,
       "negative": true
     },
+    "osc/Client.DeleteFlexibleGpu": {
+      "driven": true,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
     "osc/Client.DeleteImage": {
       "driven": true,
       "probed": "response",
@@ -2657,6 +2675,15 @@
       "behaviour": true,
       "negative": true
     },
+    "osc/Client.LinkFlexibleGpu": {
+      "driven": true,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
     "osc/Client.LinkInternetService": {
       "driven": true,
       "probed": "response",
@@ -2737,6 +2764,24 @@
       "shape": "observed",
       "behaviour": true,
       "negative": true
+    },
+    "osc/Client.ReadFlexibleGpuCatalog": {
+      "driven": true,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "observed",
+      "behaviour": false,
+      "negative": false
+    },
+    "osc/Client.ReadFlexibleGpus": {
+      "driven": true,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
     },
     "osc/Client.ReadImages": {
       "driven": true,
@@ -2981,6 +3026,15 @@
       "behaviour": false,
       "negative": true
     },
+    "osc/Client.UnlinkFlexibleGpu": {
+      "driven": true,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
     "osc/Client.UnlinkInternetService": {
       "driven": true,
       "probed": "response",
@@ -3043,6 +3097,15 @@
       "shape": "observed",
       "behaviour": true,
       "negative": true
+    },
+    "osc/Client.UpdateFlexibleGpu": {
+      "driven": true,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
     },
     "osc/Client.UpdateImage": {
       "driven": true,

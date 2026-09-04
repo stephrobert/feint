@@ -53,6 +53,7 @@ func TestEveryDeclaredFilterCanExcludeSomething(t *testing.T) {
 	// continue.
 	answers := map[string]string{
 		"ReadDhcpOptions":            "DhcpOptionsSets",
+		"ReadFlexibleGpus":           "FlexibleGpus",
 		"ReadImages":                 "Images",
 		"ReadInternetServices":       "InternetServices",
 		"ReadKeypairs":               "Keypairs",
@@ -172,6 +173,11 @@ func inventory(t *testing.T, ts *httptest.Server) {
 	vol, _ := volume["Volume"].(map[string]any)
 	volumeID, _ := vol["VolumeId"].(string)
 	post(t, ts, "CreateSnapshot", `{"VolumeId":"`+volumeID+`","Description":"a snapshot"}`)
+
+	// One fGPU, so the sweep above has something to exclude on ReadFlexibleGpus
+	// (#619). A model from the catalogue, since the create checks it.
+	post(t, ts, "CreateFlexibleGpu",
+		`{"ModelName":"nvidia-p100","Generation":"v5","SubregionName":"eu-west-2a"}`)
 
 	post(t, ts, "CreateNic", `{"SubnetId":"`+subnetID+`","Description":"a nic"}`)
 	post(t, ts, "CreateSecurityGroup", `{"SecurityGroupName":"web","Description":"a group","NetId":"`+netID+`"}`)

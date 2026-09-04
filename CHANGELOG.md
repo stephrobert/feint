@@ -17,6 +17,27 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Added
 
+- **Flexible GPU is served, the whole family** (#619): `osc/Client.ReadFlexibleGpuCatalog`,
+  `osc/Client.CreateFlexibleGpu`, `osc/Client.ReadFlexibleGpus`,
+  `osc/Client.UpdateFlexibleGpu`, `osc/Client.DeleteFlexibleGpu`,
+  `osc/Client.LinkFlexibleGpu`, `osc/Client.UnlinkFlexibleGpu`.
+
+  A published training course spends a whole page on this product, and a reader
+  following it against the emulator met six 404s in a row. On the control plane
+  an fGPU is the shape of a volume rather than of a machine: what a client
+  observes is its model, its subregion and whether it is attached, and all three
+  are records rather than hardware. That is the line the Load Balancer already
+  sits on, where the product is served and `GetLBStats` is declined because
+  nothing here measures a backend.
+
+  The catalogue is a reading of a real account, eleven models field for field, so
+  the create can refuse a model the cloud does not offer and a generation the
+  model is not compatible with. The whole family or none of it: a catalogue whose
+  items no create takes is the menu the `ListVolumesTypes` argument refuses.
+
+  Dedicated hosts, VM templates and VM groups keep the refusal they had, with the
+  argument narrowed to what it still covers.
+
 - **The Load Balancer offer table is served** (`lb/v1/ZonedAPI.ListLBTypes`,
   #658). Four types read off a real account, paged, and driven by `scw lb
   lb-types list` in the conformance suite.

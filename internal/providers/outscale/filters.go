@@ -280,6 +280,7 @@ func anyOf(wanted, carried []string) bool {
 //     snapshotFilters' seven were in exactly that state until #566.
 var filtersByAction = map[string][]filterSpec{
 	"ReadDhcpOptions":            dhcpOptionsFilters,
+	"ReadFlexibleGpus":           flexibleGpuFilters,
 	"ReadImages":                 imageFilters,
 	"ReadInternetServices":       internetServiceFilters,
 	"ReadKeypairs":               keypairFilters,

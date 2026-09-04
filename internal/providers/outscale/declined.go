@@ -71,8 +71,7 @@ func (p *Pack) Declined() []emulator.Decline {
 		emulator.Because("no client this project drives reads a price on its way to creating anything, which is the whole of it: where a catalogue is on a client's path the emulator does serve a fictional one, and docs/limits.md says so",
 			"osc/Client.ReadCatalog",
 			"osc/Client.ReadCatalogs",
-			"osc/Client.ReadPublicCatalog",
-			"osc/Client.ReadFlexibleGpuCatalog"),
+			"osc/Client.ReadPublicCatalog"),
 
 		// Export tasks write an image or a snapshot into Object Storage, which
 		// is not emulated: the reasons are in docs/limits.md and none of them
@@ -330,25 +329,31 @@ func (p *Pack) Declined() []emulator.Decline {
 		// orchestration above Vms — out of scope for the same reason as
 		// baremetal, per docs/roadmap-outscale-iaas.md, not merely unbuilt: a
 		// deferral in Declined() is the "not triaged yet" this file refuses.
-		emulator.Because("GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+		// Flexible GPU left this list in #619, and the argument below is why it
+		// could: what a client observes of an fGPU on the control plane is its
+		// model, its subregion and whether it is attached, and all three are
+		// records rather than hardware. It is the line the Load Balancer sits
+		// on, where the product is served and GetLBStats is declined because
+		// nothing here measures a backend. Nothing about an fGPU asks this
+		// emulator to execute an instruction.
+		//
+		// Dedicated hosts and the VM templates and groups above them keep the
+		// argument as written: a dedicated group is a placement guarantee this
+		// station cannot honour, and pretending otherwise would let a client
+		// plan one.
+		emulator.Because("dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
 			"osc/Client.CreateDedicatedGroup",
-			"osc/Client.CreateFlexibleGpu",
 			"osc/Client.CreateVmGroup",
 			"osc/Client.CreateVmTemplate",
 			"osc/Client.DeleteDedicatedGroup",
-			"osc/Client.DeleteFlexibleGpu",
 			"osc/Client.DeleteVmGroup",
 			"osc/Client.DeleteVmTemplate",
-			"osc/Client.LinkFlexibleGpu",
 			"osc/Client.ReadDedicatedGroups",
-			"osc/Client.ReadFlexibleGpus",
 			"osc/Client.ReadVmGroups",
 			"osc/Client.ReadVmTemplates",
 			"osc/Client.ScaleDownVmGroup",
 			"osc/Client.ScaleUpVmGroup",
-			"osc/Client.UnlinkFlexibleGpu",
 			"osc/Client.UpdateDedicatedGroup",
-			"osc/Client.UpdateFlexibleGpu",
 			"osc/Client.UpdateVmGroup",
 			"osc/Client.UpdateVmTemplate"),
 

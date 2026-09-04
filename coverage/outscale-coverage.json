@@ -1,8 +1,8 @@
 {
   "provider": "outscale",
   "total": 263,
-  "implemented": 93,
-  "declined": 170,
+  "implemented": 100,
+  "declined": 163,
   "unknown": 0,
   "orphans": null,
   "products": [
@@ -16,8 +16,8 @@
     {
       "product": "osc",
       "total": 236,
-      "implemented": 93,
-      "declined": 143,
+      "implemented": 100,
+      "declined": 136,
       "unknown": 0
     }
   ],
@@ -109,8 +109,8 @@
     {
       "group": "FlexibleGpu",
       "total": 7,
-      "implemented": 0,
-      "declined": 7,
+      "implemented": 7,
+      "declined": 0,
       "unknown": 0
     },
     {
@@ -601,7 +601,7 @@
     {
       "operation": "osc/Client.CreateDedicatedGroup",
       "product": "osc",
-      "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "reason": "dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
       "group": "DedicatedGroup",
       "status": "declined"
     },
@@ -628,9 +628,8 @@
     {
       "operation": "osc/Client.CreateFlexibleGpu",
       "product": "osc",
-      "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
       "group": "FlexibleGpu",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.CreateImage",
@@ -828,14 +827,14 @@
     {
       "operation": "osc/Client.CreateVmGroup",
       "product": "osc",
-      "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "reason": "dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
       "group": "VmGroup",
       "status": "declined"
     },
     {
       "operation": "osc/Client.CreateVmTemplate",
       "product": "osc",
-      "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "reason": "dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
       "group": "VmTemplate",
       "status": "declined"
     },
@@ -896,7 +895,7 @@
     {
       "operation": "osc/Client.DeleteDedicatedGroup",
       "product": "osc",
-      "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "reason": "dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
       "group": "DedicatedGroup",
       "status": "declined"
     },
@@ -930,9 +929,8 @@
     {
       "operation": "osc/Client.DeleteFlexibleGpu",
       "product": "osc",
-      "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
       "group": "FlexibleGpu",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.DeleteImage",
@@ -1130,14 +1128,14 @@
     {
       "operation": "osc/Client.DeleteVmGroup",
       "product": "osc",
-      "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "reason": "dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
       "group": "VmGroup",
       "status": "declined"
     },
     {
       "operation": "osc/Client.DeleteVmTemplate",
       "product": "osc",
-      "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "reason": "dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
       "group": "VmTemplate",
       "status": "declined"
     },
@@ -1219,9 +1217,8 @@
     {
       "operation": "osc/Client.LinkFlexibleGpu",
       "product": "osc",
-      "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
       "group": "FlexibleGpu",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.LinkInternetService",
@@ -1393,7 +1390,7 @@
     {
       "operation": "osc/Client.ReadDedicatedGroups",
       "product": "osc",
-      "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "reason": "dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
       "group": "DedicatedGroup",
       "status": "declined"
     },
@@ -1427,16 +1424,14 @@
     {
       "operation": "osc/Client.ReadFlexibleGpuCatalog",
       "product": "osc",
-      "reason": "no client this project drives reads a price on its way to creating anything, which is the whole of it: where a catalogue is on a client's path the emulator does serve a fictional one, and docs/limits.md says so",
       "group": "FlexibleGpu",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.ReadFlexibleGpus",
       "product": "osc",
-      "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
       "group": "FlexibleGpu",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.ReadImageExportTasks",
@@ -1731,14 +1726,14 @@
     {
       "operation": "osc/Client.ReadVmGroups",
       "product": "osc",
-      "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "reason": "dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
       "group": "VmGroup",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadVmTemplates",
       "product": "osc",
-      "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "reason": "dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
       "group": "VmTemplate",
       "status": "declined"
     },
@@ -1822,14 +1817,14 @@
     {
       "operation": "osc/Client.ScaleDownVmGroup",
       "product": "osc",
-      "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "reason": "dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
       "group": "VmGroup",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ScaleUpVmGroup",
       "product": "osc",
-      "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "reason": "dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
       "group": "VmGroup",
       "status": "declined"
     },
@@ -1855,9 +1850,8 @@
     {
       "operation": "osc/Client.UnlinkFlexibleGpu",
       "product": "osc",
-      "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
       "group": "FlexibleGpu",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.UnlinkInternetService",
@@ -1960,7 +1954,7 @@
     {
       "operation": "osc/Client.UpdateDedicatedGroup",
       "product": "osc",
-      "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "reason": "dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
       "group": "DedicatedGroup",
       "status": "declined"
     },
@@ -1974,9 +1968,8 @@
     {
       "operation": "osc/Client.UpdateFlexibleGpu",
       "product": "osc",
-      "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
       "group": "FlexibleGpu",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.UpdateImage",
@@ -2078,14 +2071,14 @@
     {
       "operation": "osc/Client.UpdateVmGroup",
       "product": "osc",
-      "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "reason": "dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
       "group": "VmGroup",
       "status": "declined"
     },
     {
       "operation": "osc/Client.UpdateVmTemplate",
       "product": "osc",
-      "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "reason": "dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
       "group": "VmTemplate",
       "status": "declined"
     },
