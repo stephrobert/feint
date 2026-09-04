@@ -943,6 +943,23 @@ func (d *Incus) repairGuestInterface(ctx context.Context, machine, network, devi
 		fmt.Sprintf("%s/%d", address, gateway.Bits())); err != nil {
 		return err
 	}
+	// And every public address the device still routes to this interface
+	// (#675). The re-plug dropped them with the rest, and this repair put
+	// back the pinned address alone: measured on 2026-09-04 under
+	// `--vm incus-ovn`, step by step on the device and in the guest of a
+	// server holding 203.0.113.3 — attaching 203.0.113.5 left the device
+	// with `ipv4.routes.external=203.0.113.3/32,203.0.113.5/32` and the
+	// guest with the new /32 alone, and detaching 203.0.113.5 then left the
+	// guest with no public address at all. The machine answered again only
+	// because the next join replayed its addresses, and #670's counters
+	// recorded that as one repair. The device is the record: what it routes
+	// here, the guest carries, read back after the edit so an attach reads
+	// the merged list and a detach the kept one.
+	// TestRoutingASecondAddressLeavesTheFirstOnTheGuest and
+	// TestDetachingOneAddressLeavesTheOthersOnTheGuest fail without this.
+	if err := d.restoreExternalAddresses(ctx, machine, device, devices.own[device]); err != nil {
+		return err
+	}
 	if leased {
 		// The default route died with the lease, and nothing renews either.
 		// Restored only for the leased case: a pinned private NIC never had
@@ -956,6 +973,28 @@ func (d *Incus) repairGuestInterface(ctx context.Context, machine, network, devi
 	}
 	// The routes towards the peered subnets died with the interface too.
 	return d.installGuestPrivateRoutes(ctx, machine, network, device)
+}
+
+// restoreExternalAddresses gives the guest back, as /32s, every address the
+// device's ipv4.routes.external still names: the public addresses routed
+// onto an OVN NIC (#675). Already-there is the second call's success, in
+// whichever wording the guest's `ip` uses.
+func (d *Incus) restoreExternalAddresses(ctx context.Context, machine, device string, cfg map[string]string) error {
+	external := splitList(cfg["ipv4.routes.external"])
+	if len(external) == 0 {
+		return nil
+	}
+	iface, err := d.guestInterface(ctx, machine, device)
+	if err != nil {
+		return err
+	}
+	for _, route := range external {
+		if _, err := d.run(ctx, "exec", machine, "--", "ip", "address", "add", route, "dev", iface); err != nil &&
+			!addressAlreadyThere(err) {
+			return fmt.Errorf("give %s back to %s/%s after the re-plug: %w", route, machine, iface, err)
+		}
+	}
+	return nil
 }
 
 // lastKnownAddress is the IPv4 the runtime last saw on an interface, from the

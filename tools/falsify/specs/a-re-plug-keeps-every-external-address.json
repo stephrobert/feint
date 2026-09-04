@@ -1,0 +1,26 @@
+{
+  "package": "./internal/core/machine/",
+  "mutations": [
+    {
+      "label": "the repair after a re-plug puts back the pinned address alone, and every public address the OVN NIC already routed is lost with the re-plug (#675)",
+      "file": "internal/core/machine/incus_ovn.go",
+      "find": "\texternal := splitList(cfg[\"ipv4.routes.external\"])\n\tif len(external) == 0 {\n\t\treturn nil\n\t}",
+      "replace": "\texternal := splitList(cfg[\"ipv4.routes.external\"])\n\tif len(external) == 0 || true {\n\t\treturn nil\n\t}",
+      "test": "TestDetachingOneAddressLeavesTheOthersOnTheGuest"
+    },
+    {
+      "label": "the same loss, seen at the attach that the measurement named first (#675)",
+      "file": "internal/core/machine/incus_ovn.go",
+      "find": "\texternal := splitList(cfg[\"ipv4.routes.external\"])\n\tif len(external) == 0 {\n\t\treturn nil\n\t}",
+      "replace": "\texternal := splitList(cfg[\"ipv4.routes.external\"])\n\tif len(external) == 0 || true {\n\t\treturn nil\n\t}",
+      "test": "TestRoutingASecondAddressLeavesTheFirstOnTheGuest"
+    },
+    {
+      "label": "the restore reads the device before the edit rather than after it, so a detach gives the guest back the address it was asked to remove (#675)",
+      "file": "internal/core/machine/incus_ovn.go",
+      "find": "\tif err := d.restoreExternalAddresses(ctx, machine, device, devices.own[device]); err != nil {",
+      "replace": "\tif err := d.restoreExternalAddresses(ctx, machine, device, map[string]string{\"ipv4.routes.external\": devices.own[device][\"ipv4.routes.external\"] + \",203.0.113.5/32\"}); err != nil {",
+      "test": "TestDetachingOneAddressLeavesTheOthersOnTheGuest"
+    }
+  ]
+}

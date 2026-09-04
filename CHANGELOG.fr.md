@@ -152,6 +152,22 @@ change ni l'un ni l'autre a sa place dans `git log`.
   divergence, les reverses d'une stack pointant vers des adresses de
   documentation que rien ne résout).
 
+- **Un re-plug de NIC OVN rend à l'invité chaque adresse publique que le
+  device lui route encore** (#675). Attacher une seconde adresse publique à un
+  serveur qui en porte une, ou la détacher, re-plugge la NIC (les clés de
+  route ne se mettent pas à jour à chaud), et la réparation qui suit ne
+  remettait que l'adresse privée épinglée : mesuré le 2026-09-04 sous
+  `incus-ovn`, sur le device et dans l'invité à chaque étape, attacher
+  `203.0.113.5` à un serveur portant `203.0.113.3` a laissé le device router
+  les deux et l'invité ne porter que la nouvelle, et la détacher a laissé
+  l'invité sans aucune adresse publique. La jonction suivante rejouait les
+  adresses et réparait en silence, dont `repaired: 1` sur `/_feint/health`
+  était la seule trace. La réparation relit désormais le device après
+  l'édition et remet chaque `/32` d'`ipv4.routes.external` : une attache lit
+  la liste fusionnée, un détachement la liste conservée. Le chemin du routed
+  NIC n'était pas le défaut et un test le tient, pour que personne n'ait à le
+  déduire de nouveau.
+
 - **Un instantané d'un disque auquel rien n'a jamais été attaché était accepté,
   et la stack d'exemple publiée en dépendait** (#650, #646).
 

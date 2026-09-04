@@ -141,6 +141,21 @@ what this project is judged on: **a response shape a client can observe**, and
   `reverse` (`docs/limits.md` keeps that divergence, since a stack's reverses
   point at documentation addresses nothing resolves).
 
+- **A re-plug of an OVN NIC gives the guest back every public address the
+  device still routes to it** (#675). Attaching a second public address to a
+  server holding one, or detaching it, re-plugs the NIC — the route keys are
+  not live-updatable — and the repair that follows put back the pinned
+  private address alone: measured on 2026-09-04 under `incus-ovn`, on the
+  device and in the guest at each step, attaching `203.0.113.5` to a server
+  holding `203.0.113.3` left the device routing both and the guest carrying
+  the new one alone, and detaching it left the guest with no public address
+  at all. The next join replayed the addresses and repaired it in silence,
+  which `repaired: 1` on `/_feint/health` was the only trace of. The repair
+  now reads the device after the edit and re-adds every `/32` of
+  `ipv4.routes.external`: an attach reads the merged list, a detach the kept
+  one. The routed NIC's path was not the defect and is held by a test of its
+  own, so nobody reasons about it again.
+
 - **A snapshot of a disk nothing was ever attached to was accepted, and the
   published example stack depended on it** (#650, #646).
 
