@@ -59,10 +59,11 @@ func (r Reconciler) observer() Observer {
 	return obs
 }
 
-// verify derives what the plan claims, reads what the machine carries, and
-// answers every claim. asked is false when nobody could look: a runtime with
-// no Observer, a resource with no machine, or a plan that was refused before
-// the runtime was asked (its refusal is already in the log).
+// verify derives what the plan claims, adds what the caller claims on top —
+// the shape before a reboot — reads what the machine carries, and answers
+// every claim. asked is false when nobody could look: a runtime with no
+// Observer, a resource with no machine, or a plan that was refused before the
+// runtime was asked (its refusal is already in the log).
 //
 // A shape that could not be read answers Unreadable on every claim rather
 // than nothing, so the count of what was not verified is visible where the
@@ -71,7 +72,7 @@ func (r Reconciler) observer() Observer {
 //
 // TestAPlantedDivergenceIsReported and TestAnUnreadableShapeIsNeitherHeldNorBroken
 // are the instrument's two controls, and both fail without this.
-func (r Reconciler) verify(ctx context.Context, res *resource.Resource) (verdicts []Verdict, asked bool) {
+func (r Reconciler) verify(ctx context.Context, res *resource.Resource, extra []Claim) (verdicts []Verdict, asked bool) {
 	obs := r.observer()
 	name := res.Runtime[r.binding().RuntimeKey]
 	if obs == nil || name == "" {
@@ -86,6 +87,9 @@ func (r Reconciler) verify(ctx context.Context, res *resource.Resource) (verdict
 		return nil, false
 	}
 	claims = append(claims, r.wears(res, plan)...)
+	// And what the caller knew before the action: a reboot's shape before it
+	// (#669), answered by the same reading as the plan's claims.
+	claims = append(claims, extra...)
 	if len(claims) == 0 {
 		return nil, true
 	}

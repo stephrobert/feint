@@ -13,15 +13,15 @@
     {
       "label": "#547: a reboot stops taking the machine down, so the action answers success and the runtime — which refuses to relaunch a name it has already served — does nothing at all",
       "file": "internal/core/machine/plan.go",
-      "find": "\tif res.State == r.binding().RunningState {\n\t\tr.binding().PowerOff(ctx, res)\n\t}",
-      "replace": "\tif res.State == r.binding().RunningState && false {\n\t\tr.binding().PowerOff(ctx, res)\n\t}",
+      "find": "\tif res.State == r.binding().RunningState {\n\t\t// The shape before, read while the machine is up (#669)",
+      "replace": "\tif res.State == r.binding().RunningState && false {\n\t\t// The shape before, read while the machine is up (#669)",
       "test": "TestARebootStopsTheMachineBeforeStartingIt"
     },
     {
       "label": "#547, the accepting half: a reboot stops asking whether the machine was up, so a stopped one is stopped again and the runtime is told to stop what it already stopped",
       "file": "internal/core/machine/plan.go",
-      "find": "\tif res.State == r.binding().RunningState {\n\t\tr.binding().PowerOff(ctx, res)\n\t}",
-      "replace": "\tif res.State == r.binding().RunningState || true {\n\t\tr.binding().PowerOff(ctx, res)\n\t}",
+      "find": "\tif res.State == r.binding().RunningState {\n\t\t// The shape before, read while the machine is up (#669)",
+      "replace": "\tif res.State == r.binding().RunningState || true {\n\t\t// The shape before, read while the machine is up (#669)",
       "test": "TestARebootOfAStoppedMachineDoesNotStopItAgain"
     },
     {

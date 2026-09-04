@@ -313,10 +313,17 @@ type observingRecorder struct {
 	queue []Shape
 	// reads counts the Observe calls, which is how a test holds a bound.
 	reads int
+	// failFirst makes that many leading reads fail before the shape answers:
+	// a machine unreadable before its reboot and readable after it.
+	failFirst int
 }
 
 func (o *observingRecorder) Observe(context.Context, string) (Shape, error) {
 	o.reads++
+	if o.failFirst > 0 {
+		o.failFirst--
+		return Shape{}, errUnreadable
+	}
 	if len(o.queue) > 0 {
 		next := o.queue[0]
 		o.queue = o.queue[1:]
@@ -383,7 +390,7 @@ func TestAPlantedDivergenceIsReported(t *testing.T) {
 	vm := b.machine("m", "10.30.1.10")
 	r := observingReconciler(b, o, plan)
 
-	verdicts, asked := r.verify(context.Background(), vm)
+	verdicts, asked := r.verify(context.Background(), vm, nil)
 	if !asked || len(verdicts) != 1 || verdicts[0].Outcome != Held {
 		t.Fatalf("a machine carrying what its plan claims answered asked=%v:\n%s", asked, outcomes(verdicts))
 	}
@@ -391,7 +398,7 @@ func TestAPlantedDivergenceIsReported(t *testing.T) {
 	// One digit off, planted: the address the runtime reports is not the
 	// one the plan pinned.
 	o.shape = pinnedOn("fnt-x", "10.30.1.11/24")
-	verdicts, asked = r.verify(context.Background(), vm)
+	verdicts, asked = r.verify(context.Background(), vm, nil)
 	if !asked || len(verdicts) != 1 {
 		t.Fatalf("asked=%v, verdicts:\n%s", asked, outcomes(verdicts))
 	}
@@ -410,7 +417,7 @@ func TestAnUnreadableShapeIsNeitherHeldNorBroken(t *testing.T) {
 	o := &observingRecorder{Recorder: b.rec, err: errors.New("the agent isn't currently running")}
 	vm := b.machine("m", "10.30.1.10")
 
-	verdicts, asked := observingReconciler(b, o, plan).verify(context.Background(), vm)
+	verdicts, asked := observingReconciler(b, o, plan).verify(context.Background(), vm, nil)
 	if !asked || len(verdicts) != 2 {
 		t.Fatalf("asked=%v, verdicts:\n%s", asked, outcomes(verdicts))
 	}
@@ -422,12 +429,12 @@ func TestAnUnreadableShapeIsNeitherHeldNorBroken(t *testing.T) {
 
 	// A runtime with no reading half is not asked, and says so.
 	plain := rebootReconciler(b, plan)
-	if verdicts, asked := plain.verify(context.Background(), vm); asked || len(verdicts) != 0 {
+	if verdicts, asked := plain.verify(context.Background(), vm, nil); asked || len(verdicts) != 0 {
 		t.Errorf("a runtime that cannot be asked answered asked=%v with %d verdicts", asked, len(verdicts))
 	}
 	// And so is a resource with no machine behind it.
 	bare := b.machine("bare", "")
-	if verdicts, asked := observingReconciler(b, o, plan).verify(context.Background(), bare); asked || len(verdicts) != 0 {
+	if verdicts, asked := observingReconciler(b, o, plan).verify(context.Background(), bare, nil); asked || len(verdicts) != 0 {
 		t.Errorf("a resource with no machine answered asked=%v with %d verdicts", asked, len(verdicts))
 	}
 }
@@ -450,7 +457,7 @@ func TestTheRuleSetsAMachineWearsAreClaimedOnItsFilteredInterfaces(t *testing.T)
 	vm := b.machine("m", "10.30.1.10", "g")
 	r := observingReconciler(b, o, plan)
 
-	verdicts, _ := r.verify(context.Background(), vm)
+	verdicts, _ := r.verify(context.Background(), vm, nil)
 	names := map[string]Verdict{}
 	for _, v := range verdicts {
 		names[v.Claim] = v
@@ -470,7 +477,7 @@ func TestTheRuleSetsAMachineWearsAreClaimedOnItsFilteredInterfaces(t *testing.T)
 	eth1 := shape.Interfaces["eth1"]
 	eth1.RuleSets = []string{set}
 	shape.Interfaces["eth1"] = eth1
-	verdicts, _ = r.verify(context.Background(), vm)
+	verdicts, _ = r.verify(context.Background(), vm, nil)
 	for _, v := range verdicts {
 		if v.Claim == "wears(fnt-y)" && (v.Outcome != Broken || v.Want != "no rule set on eth1") {
 			t.Errorf("an unfiltered interface wearing a set answered %s", v)
@@ -488,7 +495,7 @@ func TestAWithdrawnFirewallClaimsNoRuleSets(t *testing.T) {
 	o := &observingRecorder{Recorder: b.rec, shape: pinnedOn("fnt-x", "10.30.1.10/24"), noFirewall: true}
 	vm := b.machine("m", "10.30.1.10", "g")
 
-	verdicts, _ := observingReconciler(b, o, plan).verify(context.Background(), vm)
+	verdicts, _ := observingReconciler(b, o, plan).verify(context.Background(), vm, nil)
 	for _, v := range verdicts {
 		if strings.HasPrefix(v.Claim, "wears(") {
 			t.Fatalf("a withdrawn firewall still claims rule sets: %s", v)
