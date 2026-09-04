@@ -629,7 +629,7 @@ func (p *Pack) updateServer(w http.ResponseWriter, r *http.Request) {
 	}
 	// An attach names a group that must exist in this zone, and the lookup
 	// happens out here because the store's critical section is below.
-	pgID, pgPresent, pgClears := serverField(req.PlacementGroup)
+	pgID, pgPresent, pgClears := nullableStringField(req.PlacementGroup)
 	if pgPresent && !pgClears {
 		if group, found := p.env.Store.Get(Name, kindPlacementGroup, pgID); !found || group.Tenant.Zone != zone {
 			writeInvalidArguments(w, ArgumentError{

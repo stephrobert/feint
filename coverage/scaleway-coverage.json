@@ -1,8 +1,8 @@
 {
   "provider": "scaleway",
   "total": 498,
-  "implemented": 183,
-  "declined": 315,
+  "implemented": 185,
+  "declined": 313,
   "unknown": 0,
   "orphans": null,
   "products": [
@@ -110,15 +110,15 @@
     {
       "product": "lb",
       "total": 107,
-      "implemented": 36,
-      "declined": 71,
+      "implemented": 38,
+      "declined": 69,
       "unknown": 0,
       "versions": [
         {
           "version": "v1",
           "total": 107,
-          "implemented": 36,
-          "declined": 71,
+          "implemented": 38,
+          "declined": 69,
           "unknown": 0
         }
       ]
@@ -218,8 +218,8 @@
     {
       "group": "lb",
       "total": 107,
-      "implemented": 36,
-      "declined": 71,
+      "implemented": 38,
+      "declined": 69,
       "unknown": 0
     },
     {
@@ -2481,9 +2481,8 @@
     {
       "operation": "lb/v1/ZonedAPI.AddBackendServers",
       "product": "lb",
-      "reason": "the Terraform provider reconciles a backend's pool through SetBackendServers alone (measured in its services/lb/backend.go, v2.43.0 and v2.81.0), and no surveyed stack edits a pool incrementally",
       "version": "v1",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "lb/v1/ZonedAPI.AttachPrivateNetwork",
@@ -2733,9 +2732,8 @@
     {
       "operation": "lb/v1/ZonedAPI.RemoveBackendServers",
       "product": "lb",
-      "reason": "the Terraform provider reconciles a backend's pool through SetBackendServers alone (measured in its services/lb/backend.go, v2.43.0 and v2.81.0), and no surveyed stack edits a pool incrementally",
       "version": "v1",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "lb/v1/ZonedAPI.SetACLs",

@@ -48,14 +48,25 @@ type createIPRequest struct {
 //
 // TestDetachingAnAddressActuallyDetachesIt fails without this.
 type updateIPRequest struct {
-	Reverse *string         `json:"reverse"`
+	// Reverse is raw for the reason Server is (#676): the SDK sends it as a
+	// NullableStringValue, whose MarshalJSON emits a literal null to clear,
+	// and a *string reads that null as absent — so the write was accepted and
+	// the reverse stayed, the shape of #654 one product over. Measured on a
+	// real account on 2026-09-04: `{"reverse": null}` answers 200 and the
+	// read carries null, `{"reverse": ""}` answers 200 and the read carries
+	// null too, and a name that does not resolve is refused with a
+	// constraint on `reverse` — which this emulator cannot check and does not
+	// pretend to (docs/limits.md).
+	Reverse json.RawMessage `json:"reverse"`
 	Server  json.RawMessage `json:"server"`
 	Tags    *[]string       `json:"tags"`
 }
 
-// serverField reads the three states the API distinguishes: absent (leave
-// alone), null or empty (detach), an id (attach).
-func serverField(raw json.RawMessage) (id string, present, clears bool) {
+// nullableStringField reads the three states the API distinguishes on a
+// NullableStringValue: absent (leave alone), null or empty (clear), a value.
+// Server and reverse both ride it; TestANullReverseClearsIt and
+// TestDetachingAnAddressActuallyDetachesIt hold the two.
+func nullableStringField(raw json.RawMessage) (value string, present, clears bool) {
 	if len(raw) == 0 {
 		return "", false, false
 	}
@@ -367,12 +378,16 @@ func (p *Pack) updateIP(w http.ResponseWriter, r *http.Request) {
 	if req.Tags != nil {
 		res.Attrs["tags"] = orEmpty(*req.Tags)
 	}
-	if req.Reverse != nil {
-		res.Attrs["reverse"] = *req.Reverse
+	if reverse, given, clears := nullableStringField(req.Reverse); given {
+		if clears {
+			res.Attrs["reverse"] = nil
+		} else {
+			res.Attrs["reverse"] = reverse
+		}
 	}
 
 	// A null server detaches, which is how the API frees an address.
-	serverID, serverGiven, clears := serverField(req.Server)
+	serverID, serverGiven, clears := nullableStringField(req.Server)
 	if serverGiven {
 		if clears {
 			p.detachAddress(r.Context(), res)
