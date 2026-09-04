@@ -29,6 +29,30 @@ what this project is judged on: **a response shape a client can observe**, and
   order of several addresses added at once was not measured, and the handler
   says so. Driven by `scw lb backend add-servers` and `remove-servers`.
 
+- **Four Load Balancer reads a Day-2 client asks for are served**
+  (`lb/v1/ZonedAPI.GetLBStats`, `lb/v1/ZonedAPI.ListBackendStats`,
+  `lb/v1/ZonedAPI.ListCertificates`, `lb/v1/ZonedAPI.ListSubscriber`, #666).
+  Measured on both sides on 2026-09-04 with one generated Ansible collection,
+  39 of its 46 modules play against a real account and 28 here, and these
+  four routes were most of the difference.
+
+  The two stats routes report on servers this emulator already owns, in a
+  backend it already serves: `backend_id` and `instance_id` are identifiers it
+  minted, `ip` is the pool's, `server_state` is the state of the server whose
+  NIC holds that address (`stopped` for an address nobody holds), and
+  `server_state_changed_at` is that server's own timestamp. What no route
+  reports is a health: `last_health_check_status` is always `unknown`, the
+  contract's own default for the enum and the literal truth, because nothing
+  here probes a backend — the Scaleway pack hands no balancer to the runtime,
+  and the runtime's balancing half reports what it distributes, never what
+  answered. A playbook asserting `passed` learns the limit from the value
+  rather than from a 501. The two lists are empty because that is what a
+  balancer here holds; `CreateCertificate` and `CreateSubscriber` stay
+  declined, and their reasons say so.
+
+  Driven by `scw lb backend list-statistics`, `scw lb lb get-stats`, `scw lb
+  certificate list` and `scw lb subscriber list` in the conformance suite.
+
 - **Flexible GPU is served, the whole family** (#619): `osc/Client.ReadFlexibleGpuCatalog`,
   `osc/Client.CreateFlexibleGpu`, `osc/Client.ReadFlexibleGpus`,
   `osc/Client.UpdateFlexibleGpu`, `osc/Client.DeleteFlexibleGpu`,

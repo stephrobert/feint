@@ -8,7 +8,7 @@
   "generated_from": {
     "contracts": "b1c322d461683911",
     "shapes": "cac046c206cc9fc8",
-    "suites": "627a7b14239a87ed"
+    "suites": "4c5637e8c0710ff6"
   },
   "operations": {
     "account/v3/ProjectAPI.CreateProject": {
@@ -2126,6 +2126,15 @@
       "behaviour": true,
       "negative": true
     },
+    "lb/v1/ZonedAPI.GetLBStats": {
+      "driven": true,
+      "probed": "refusal",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
     "lb/v1/ZonedAPI.GetRoute": {
       "driven": true,
       "probed": "refusal",
@@ -2144,6 +2153,15 @@
       "behaviour": true,
       "negative": true
     },
+    "lb/v1/ZonedAPI.ListBackendStats": {
+      "driven": true,
+      "probed": "refusal",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
     "lb/v1/ZonedAPI.ListBackends": {
       "driven": true,
       "probed": "refusal",
@@ -2152,6 +2170,15 @@
       "shape": "observed",
       "behaviour": true,
       "negative": true
+    },
+    "lb/v1/ZonedAPI.ListCertificates": {
+      "driven": true,
+      "probed": "refusal",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
     },
     "lb/v1/ZonedAPI.ListFrontends": {
       "driven": true,
@@ -2206,6 +2233,15 @@
       "shape": "observed",
       "behaviour": true,
       "negative": true
+    },
+    "lb/v1/ZonedAPI.ListSubscriber": {
+      "driven": true,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": false,
+      "negative": false
     },
     "lb/v1/ZonedAPI.ReleaseIP": {
       "driven": true,
