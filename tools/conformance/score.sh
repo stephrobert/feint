@@ -78,12 +78,26 @@ fi
 # A field here is not always a defect, so exemptions exist — and each one costs a
 # line and a reason, the way Declined() does for operations.
 #
-# The only one so far: a client that echoes back a whole object it just read,
-# where the API decides on the identifier alone. `exo` sends the entire
-# instance-type and template objects it got from the catalogue; the emulator
-# reads their id and ignores the rest, exactly as the real API does. Listing the
-# sub-fields as unread would be reporting the client's verbosity as our defect.
-ignored_fields='^(instance-type|template)\.'
+# Both of them so far are the same shape: a client echoing back a whole object it
+# holds, where the API decides on the identifier alone.
+#
+# `exo` sends the entire instance-type and template objects it got from the
+# catalogue; the emulator reads their id and ignores the rest, exactly as the
+# real API does. Listing the sub-fields as unread would be reporting the client's
+# verbosity as our defect.
+#
+# The Terraform provider does it with a rule's source group: it sends
+# `security-group: {id, visibility}` on add-rule-to-security-group, and the
+# emulator resolves the group by id. Not read AND not published, and the second
+# half is measured rather than convenient — corpus/exoscale/exo-cli.jsonl records
+# the cloud answering `{"security-group": {"id", "name"}}` on a rule reference,
+# with no visibility, though their schema declares one there. ruleViews carries
+# that finding and its reasoning. Storing the field would honour nothing
+# observable; publishing it would invent a shape the cloud does not send.
+#
+# Found by this gate on 2026-09-05, the first time Terraform drove the Exoscale
+# pack after #644 lifted the suspension — which is what that leg is for.
+ignored_fields='^(instance-type|template)\.|^security-group\.visibility$'
 
 unread="$(printf '%s' "$report" | jq -r --arg ignore "$ignored_fields" '
   .unread_request_fields

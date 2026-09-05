@@ -261,9 +261,18 @@ func TestAStackAppliedInCIPinsTheProviderThatAnswered(t *testing.T) {
 		}
 		undriven++
 	}
-	if driven == 0 || undriven == 0 {
-		t.Fatalf("%d applied and %d unapplied provider entries: the reader is broken, not the stacks",
-			driven, undriven)
+	// Undriven is zero since #644: every example stack is applied on every pull
+	// request, which is what this repository wants and what leaves this half of
+	// the reader unexercised by the corpus. The reader's own ability to answer
+	// `no` is held by TestAStackCIDoesNotApplyIsDeclaredWithAReason and by
+	// TestTheProvedPageSeparatesAnExactPinFromAConstraintAndFromNothing, both
+	// of which plant a stack the script does not name.
+	if driven == 0 {
+		t.Fatalf("%d applied provider entries: the reader is broken, not the stacks", driven)
+	}
+	if undriven != 0 {
+		t.Fatalf("%d unapplied provider entries: a stack nobody applies must be declared in "+
+			"stacksRunByHand with its reason", undriven)
 	}
 	if problems := unconstrainedAppliedPins(pins); len(problems) != 0 {
 		t.Fatalf("a stack CI applies pins nothing:\n  %s", strings.Join(problems, "\n  "))

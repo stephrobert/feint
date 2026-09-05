@@ -43,14 +43,13 @@ func TestZonesCarryAStableIdentifier(t *testing.T) {
 
 	for _, agent := range []struct{ name, userAgent string }{
 		{"the CLI", "exoscale-cli"},
-		{"a split client", "Exoscale-Terraform-Provider/0.70.0 (something) Terraform-SDK/2.31.0"},
+		{"a split client", "Exoscale-Terraform-Provider/0.71.0 (something) Terraform-SDK/2.31.0"},
 	} {
 		t.Run(agent.name, func(t *testing.T) {
 			// The split client is refused by user agent unless the operator
 			// opts in, because the Terraform provider only honours
 			// EXOSCALE_API_ENDPOINT for half its calls (docs/limits.md). The
 			// opt-in is what gets this test to the zone list at all.
-			t.Setenv("FEINT_EXOSCALE_ALLOW_TERRAFORM", "1")
 
 			first := zoneIdentifiers(t, h, agent.userAgent)
 			if len(first) == 0 {

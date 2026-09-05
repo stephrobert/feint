@@ -22,6 +22,31 @@ func theProviders(t *testing.T) []string {
 	return facts.Providers
 }
 
+// asRefused installs the Exoscale row as it stood while the refusal was in
+// force, for the length of one test.
+//
+// Nothing is refused since #644, and the claim reader's refusing half is about
+// a pair some row calls refused. Waiting for the world to be wrong again is not
+// a test strategy, and keeping a refusal alive for a test to point at would be
+// worse: the row here is the one that was in the file, marker included.
+func asRefused(t *testing.T) {
+	t.Helper()
+	restore := capabilityMatrix
+	t.Cleanup(func() { capabilityMatrix = restore })
+	replaced := make([]capabilityRow, 0, len(restore))
+	for _, row := range restore {
+		if row.Provider == "exoscale" && (row.Client == "terraform" || row.Client == "opentofu") {
+			row.Support = capabilityRefused
+			row.Marker = "exoscale/terraform-provider-exoscale#573"
+			row.Reason = "the published provider builds two clients and only one honours " +
+				"`EXOSCALE_API_ENDPOINT`, so an apply splits between this emulator and a paying " +
+				"account; exoscale/terraform-provider-exoscale#573"
+		}
+		replaced = append(replaced, row)
+	}
+	capabilityMatrix = replaced
+}
+
 // planted writes one generated block to a temporary page and returns what the
 // reader says about it.
 func planted(t *testing.T, block string) []string {
@@ -42,6 +67,7 @@ func planted(t *testing.T, block string) []string {
 // the sentence that survived every green `docs:check` between #525 landing on
 // 2026-08-26 and the audit that read it two days later.
 func TestTheOldFalsePromiseIsCaughtByTheClaimReader(t *testing.T) {
+	asRefused(t)
 	const wasOnLine41 = "**Run your Terraform against Scaleway, Outscale or Exoscale without a cloud\n" +
 		"account, without credentials, and without creating a single resource.**"
 
@@ -103,6 +129,7 @@ func TestTheClaimReaderAcceptsWhatTheMatrixCarries(t *testing.T) {
 
 // And the refusing half, on the shapes the unit rule exists for.
 func TestTheClaimReaderRefusesEveryShapeOfTheClaim(t *testing.T) {
+	asRefused(t)
 	for _, refused := range []struct {
 		name  string
 		block string

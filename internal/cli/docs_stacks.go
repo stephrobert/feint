@@ -69,20 +69,16 @@ type stackException struct {
 // An entry here costs a reader something: it is a stack whose green nobody sees
 // on a pull request. The bar is that CI *cannot* apply it, not that applying it
 // would be inconvenient.
-var stacksRunByHand = []stackException{
-	{
-		Root:  stacksRoot,
-		Stack: "exoscale",
-		Reason: "suspended — no Terraform for Exoscale until upstream " +
-			"exoscale/terraform-provider-exoscale#573 is fixed: the published provider honours " +
-			"`EXOSCALE_API_ENDPOINT` for one of the two clients it builds, so an apply splits " +
-			"between the emulator and a paying account, and #525 measured five signed requests " +
-			"leaving for the real cloud from a `feint down` on this stack (2026-08-26). " +
-			"`feint up` refuses the engine at the doorstep; the exo CLI drives the pack instead. " +
-			"What the pinned fork had proved stays dated in docs/limits.md: 16 resources, empty " +
-			"second plan, clean destroy, 2026-08-24",
-	},
-}
+// Empty since #644, and that is the point rather than an oversight: every
+// example stack is applied on every pull request. It held one entry for ten
+// days — the Exoscale stack, while the published provider split its calls
+// between this emulator and a paying account — and upstream fixing that
+// (v0.71.0) is what emptied it.
+//
+// The rule the list serves is unchanged: a stack CI does not apply must say
+// why. TestAStackCIDoesNotApplyIsDeclaredWithAReason plants one to keep that
+// rule exercised now that the corpus triggers it nowhere.
+var stacksRunByHand []stackException
 
 // stackDirs lists the example stacks that exist, which is the population both
 // checks below judge.

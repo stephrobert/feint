@@ -1,0 +1,44 @@
+{
+  "mutations": [
+    {
+      "label": "the floor is dropped, so a provider that splits its calls between this emulator and a paying account is served half an apply",
+      "file": "internal/providers/exoscale/pack.go",
+      "package": "./internal/providers/exoscale/",
+      "find": "\t\t\tif version, below := providerBelowFloor(r.UserAgent()); below {",
+      "replace": "\t\t\tif version, below := providerBelowFloor(r.UserAgent()); below && false {",
+      "test": "TestAProviderBelowTheFloorIsRefused"
+    },
+    {
+      "label": "every version of this provider is refused, which is the suspension back with none of its reasons",
+      "file": "internal/providers/exoscale/pack.go",
+      "package": "./internal/providers/exoscale/",
+      "find": "\t\t\tif version, below := providerBelowFloor(r.UserAgent()); below {",
+      "replace": "\t\t\tif version, below := providerBelowFloor(r.UserAgent()); below || splitClient(r.UserAgent()) {",
+      "test": "TestAProviderAtTheFloorIsServed"
+    },
+    {
+      "label": "the comparison reads the floor backwards, so the versions that split are the ones served",
+      "file": "internal/providers/exoscale/pack.go",
+      "package": "./internal/providers/exoscale/",
+      "find": "\t\tif a != b {\n\t\t\treturn a < b\n\t\t}",
+      "replace": "\t\tif a != b {\n\t\t\treturn a > b\n\t\t}",
+      "test": "TestAProviderBelowTheFloorIsRefused"
+    },
+    {
+      "label": "a version this cannot parse is refused rather than served, so an agent shape upstream changes turns into a blanket refusal",
+      "file": "internal/providers/exoscale/pack.go",
+      "package": "./internal/providers/exoscale/",
+      "find": "\t\ta, err := strconv.Atoi(got[i])\n\t\tif err != nil {\n\t\t\treturn false\n\t\t}",
+      "replace": "\t\ta, err := strconv.Atoi(got[i])\n\t\tif err != nil {\n\t\t\treturn true\n\t\t}",
+      "test": "TestAProviderAtTheFloorIsServed"
+    },
+    {
+      "label": "the refusal stops naming the floor, so an operator reads it as the emulator being broken rather than as a pin to raise",
+      "file": "internal/providers/exoscale/pack.go",
+      "package": "./internal/providers/exoscale/",
+      "find": "\t\t\t\t\t\t\"resources. Upstream fixed that in \"+terraformProviderFloor+\"; pin at least \"+",
+      "replace": "\t\t\t\t\t\t\"resources. Upstream fixed that in a later release\"+terraformProviderFloor[:0]+\"; pin at least \"+",
+      "test": "TestAProviderBelowTheFloorIsRefused"
+    }
+  ]
+}

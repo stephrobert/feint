@@ -287,14 +287,25 @@ func TestQuotasAreCountedNotInvented(t *testing.T) {
 // exoscale/exoscale 0.70.0 honours EXOSCALE_API_ENDPOINT for its egoscale v3
 // client and builds a v2 client with no endpoint option. An apply therefore
 // splits: some resources answer from here and the rest are created on the real
-// cloud, in one run, with whatever credentials the environment holds. Measured
-// on 0.70.0 with outbound traffic routed to a proxy that was not listening —
-// `exoscale_ssh_key` tried https://api-ch-gva-2.exoscale.com/v2/ssh-key with
-// the variable set.
+// / A provider older than the floor is refused, and one at the floor is served.
 //
-// A half-success is indistinguishable from working until the invoice, which is
-// why this is a refusal rather than a log line.
-func TestTheTerraformProviderIsRefused(t *testing.T) {
+// Until v0.71.0 this provider honoured EXOSCALE_API_ENDPOINT for its egoscale v3
+// client and built a v2 client with no endpoint option at all, so an apply
+// neither failed nor worked: it SPLIT between the emulator and a paying account.
+// Upstream fixed that in #576; the refusal became a floor, and it moved on a
+// measurement rather than on a release note.
+//
+// Measured 2026-09-05 on examples/stacks/exoscale, the published provider with
+// no dev_overrides and no fork, through `feint proxy --forward
+// '*.exoscale.com=<emulator>'` — which records every host asked for and sends it
+// to the emulator, so a provider that ignores its endpoint is caught rather than
+// obeyed:
+//
+//	v0.70.0   57 requests to api-ch-{dk-2,gva-2}.exoscale.com
+//	v0.71.0   none
+//
+// The first row is the control that makes the second mean anything.
+func TestAProviderBelowTheFloorIsRefused(t *testing.T) {
 	h := serve(t)
 
 	req := httptest.NewRequest(http.MethodGet, "/v2/zone", nil)
@@ -304,14 +315,19 @@ func TestTheTerraformProviderIsRefused(t *testing.T) {
 	h.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("the Terraform provider was served: %d %s", rec.Code, rec.Body.String())
+		t.Fatalf("a provider that splits its calls was served: %d %s", rec.Code, rec.Body.String())
 	}
-	// The refusal has to say what is happening and how to override it, or an
-	// operator reads it as the emulator being broken.
-	for _, want := range []string{"billable", "FEINT_EXOSCALE_ALLOW_TERRAFORM"} {
+	// The refusal has to say what is happening and what to do about it, or an
+	// operator reads it as the emulator being broken. It no longer offers a way
+	// past itself: the escape hatch existed to test a candidate fix by hand, and
+	// the fix is released.
+	for _, want := range []string{"billable", "v0.71.0", "0.70.0"} {
 		if !strings.Contains(rec.Body.String(), want) {
 			t.Errorf("the refusal does not mention %q: %s", want, rec.Body.String())
 		}
+	}
+	if strings.Contains(rec.Body.String(), "FEINT_EXOSCALE_ALLOW_TERRAFORM") {
+		t.Errorf("the refusal still offers an escape whose subject is gone: %s", rec.Body.String())
 	}
 
 	// The exo CLI, and anything else, is served normally. A guard that refused
@@ -325,21 +341,28 @@ func TestTheTerraformProviderIsRefused(t *testing.T) {
 	}
 }
 
-// And the escape hatch works, for someone who understands the split.
-//
-// A guard with no way past it gets worked around by copying the emulator, which
-// teaches nothing and leaves the operator worse informed.
-func TestTheTerraformRefusalCanBeOverridden(t *testing.T) {
-	t.Setenv("FEINT_EXOSCALE_ALLOW_TERRAFORM", "1")
+// The accepting half, without which a guard that refused every version of this
+// provider would pass the test above and leave the product exactly where the
+// suspension left it.
+func TestAProviderAtTheFloorIsServed(t *testing.T) {
 	h := serve(t)
 
-	req := httptest.NewRequest(http.MethodGet, "/v2/zone", nil)
-	req.Header.Set("User-Agent", "Exoscale-Terraform-Provider/0.70.0 (abc1234)")
-	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("the override did not let the provider through: %d %s", rec.Code, rec.Body.String())
+	for _, agent := range []string{
+		// The floor itself, and the agent shape measured off the wire.
+		"Exoscale-Terraform-Provider/0.71.0 (c4e8499d) Terraform-SDK/v2.40.0 egoscale/0.102.3",
+		// And above it.
+		"Exoscale-Terraform-Provider/1.2.0 (abc1234) Terraform-SDK/v2.40.0",
+		// A version this cannot read is served rather than refused: the refusal
+		// is for a version measured splitting, not for everything unfamiliar.
+		"Exoscale-Terraform-Provider/next (abc1234)",
+	} {
+		req := httptest.NewRequest(http.MethodGet, "/v2/zone", nil)
+		req.Header.Set("User-Agent", agent)
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Errorf("%q was refused: %d %s", agent, rec.Code, rec.Body.String())
+		}
 	}
 }
 

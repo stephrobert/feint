@@ -36,7 +36,7 @@ func TestTheCapabilityMatrixHoldsAgainstItsOwnInstruments(t *testing.T) {
 func TestTheCapabilityChecksHaveASubjectToMeasure(t *testing.T) {
 	root := repoRoot(t)
 
-	var supported, refused, byCI, byVeto int
+	var supported, refused, byCI int
 	for _, row := range capabilityMatrix {
 		switch row.Support {
 		case capabilitySupported:
@@ -47,17 +47,28 @@ func TestTheCapabilityChecksHaveASubjectToMeasure(t *testing.T) {
 		switch row.Proof {
 		case provenInCI:
 			byCI++
-		case refusedAtTheDoorstep:
-			byVeto++
 		}
 	}
-	if supported == 0 || refused == 0 {
-		t.Fatalf("%d supported and %d refused rows: a matrix with one verdict measures neither",
-			supported, refused)
+	// One verdict is where this matrix arrived: #644 lifted the last refusal
+	// when upstream shipped the fix its condition named, so every row is
+	// supported and every proof is the CI one. That is a fact about the world,
+	// not a matrix that stopped measuring — but the refused branch of every
+	// check below then rests on nothing real, which is exactly what this guard
+	// exists to refuse.
+	//
+	// So the refused half moved onto fixtures, and this asserts they are there:
+	// TestARefusedRowCarriesItsReasonAndItsMarker mutates a planted refused row,
+	// and the claim reader's two tests plant the Exoscale row as it stood.
+	// internal/core/emulator/TestEveryCitedTestExists is what keeps those names honest.
+	if supported == 0 {
+		t.Fatal("no supported row: the matrix claims nothing at all")
 	}
-	if byCI == 0 || byVeto == 0 {
-		t.Fatalf("%d rows proved by CI and %d by the doorstep: a proof nothing rests on is a "+
-			"resolver nobody exercises", byCI, byVeto)
+	if byCI == 0 {
+		t.Fatal("no row proved by CI: the one resolver this matrix still uses is exercised by nothing")
+	}
+	if refused != 0 {
+		t.Fatalf("%d refused row(s) and no instrument left that can establish one: the doorstep "+
+			"proof went with the veto in #644, so a refusal here rests on nothing", refused)
 	}
 
 	// And the claim reader has something to read. A page with no generated
@@ -80,79 +91,6 @@ func TestTheCapabilityChecksHaveASubjectToMeasure(t *testing.T) {
 			t.Errorf("%s splits into no unit at all: the reader would report nothing whatever the "+
 				"page said", page)
 		}
-	}
-}
-
-// The matrix and the doorstep cannot disagree, in either direction.
-//
-// This is the property #592 asks for in one sentence: *a refusal that lives in
-// up.go and a table that disagree is the same defect one level down.* Both
-// mutations are the ones somebody will really make — a row flipped to
-// supported, and a veto the table never learned about.
-func TestTheMatrixAndTheDoorstepCannotDisagree(t *testing.T) {
-	facts, err := readPackFacts()
-	if err != nil {
-		t.Fatalf("read the pack facts: %v", err)
-	}
-	if len(facts.Vetoes) == 0 {
-		t.Fatal("no pack vetoes any engine: the doorstep of #525 is disarmed, and every assertion " +
-			"below would pass by having nothing to compare")
-	}
-	if problems := vetoProblems(facts.Vetoes); len(problems) != 0 {
-		t.Fatalf("the matrix and the packs already disagree:\n  %s", strings.Join(problems, "\n  "))
-	}
-
-	// A row that promises what the doorstep refuses — #592 written into the
-	// table rather than into the README.
-	restore := capabilityMatrix
-	t.Cleanup(func() { capabilityMatrix = restore })
-
-	flipped := append([]capabilityRow{}, restore...)
-	found := false
-	for i := range flipped {
-		if flipped[i].Support != capabilityRefused {
-			continue
-		}
-		flipped[i].Support = capabilitySupported
-		flipped[i].Proof = provenInCI
-		found = true
-	}
-	if !found {
-		t.Fatal("no refused row to flip: this test is measuring a table it does not understand")
-	}
-	capabilityMatrix = flipped
-	// Asserted on what the refusal *says*, not on there being one, and the
-	// falsification is why. With the flipped-row guard neutralised, the other
-	// rule below still fires about the same matrix — the pair is vetoed and no
-	// row claims the doorstep — so a test reading only "something was reported"
-	// stayed green through a mutation that had disarmed exactly the guard it
-	// names. Two correct findings about one mutated table are not
-	// interchangeable.
-	flippedProblems := strings.Join(vetoProblems(facts.Vetoes), "\n")
-	if !strings.Contains(flippedProblems, "before a process starts") {
-		t.Errorf("a row promising a client the pack vetoes passed: `feint up` would refuse what "+
-			"the README promises, which is the defect this table exists to make impossible\n  %s",
-			flippedProblems)
-	}
-
-	// And the other direction: a veto the table never learned about. Dropping
-	// the rows rather than editing them, because the silent failure is the one
-	// where nothing is written down at all.
-	var withoutRefusals []capabilityRow
-	for _, row := range restore {
-		if row.Support != capabilityRefused {
-			withoutRefusals = append(withoutRefusals, row)
-		}
-	}
-	capabilityMatrix = withoutRefusals
-	problems := vetoProblems(facts.Vetoes)
-	if len(problems) == 0 {
-		t.Error("a pack vetoes an engine and no row says so, and it passed: the refusal would " +
-			"exist in up.go with no generated sentence able to mention it")
-	}
-	if !strings.Contains(strings.Join(problems, "\n"), "exoscale") {
-		t.Errorf("the refusal names no pack, which is the one thing needed to fix it:\n  %s",
-			strings.Join(problems, "\n  "))
 	}
 }
 
@@ -262,18 +200,19 @@ func TestARefusedRowCarriesItsReasonAndItsMarker(t *testing.T) {
 		{"an unknown mode", func(row *capabilityRow) { row.Mode = "with a machine runtime" }, "mode"},
 	} {
 		t.Run(mutation.name, func(t *testing.T) {
+			// The row as it stood while the refusal was in force, planted:
+			// nothing in the matrix is refused since #644, and a guard about
+			// refused rows cannot wait for the world to be wrong again.
 			mutated := append([]capabilityRow{}, restore...)
-			touched := false
-			for i := range mutated {
-				if mutated[i].Support == capabilityRefused {
-					mutation.apply(&mutated[i])
-					touched = true
-					break
-				}
-			}
-			if !touched {
-				t.Fatal("no refused row to mutate")
-			}
+			mutated = append(mutated, capabilityRow{
+				Provider: "exoscale", Client: "terraform", Mode: capabilityControlPlane,
+				Support: capabilityRefused, Proof: provenInCI,
+				Marker: "exoscale/terraform-provider-exoscale#573",
+				Reason: "the published provider builds two clients and only one honours " +
+					"`EXOSCALE_API_ENDPOINT`, so an apply splits between this emulator and a " +
+					"paying account; exoscale/terraform-provider-exoscale#573",
+			})
+			mutation.apply(&mutated[len(mutated)-1])
 			capabilityMatrix = mutated
 			problems := matrixShapeProblems()
 			if len(problems) == 0 {

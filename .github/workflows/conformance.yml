@@ -394,6 +394,19 @@ jobs:
         if: matrix.client == 'terraform' || matrix.client == 'opentofu' || matrix.client == 'fields'
         run: tools/conformance/outscale/terraform.sh http://127.0.0.1:4599
 
+      # Exoscale, back after ten days out. The published provider used to
+      # honour EXOSCALE_API_ENDPOINT for one of the two clients it builds, so an
+      # apply split between this emulator and a paying account (#525, upstream
+      # exoscale/terraform-provider-exoscale#573). Upstream fixed it in #576;
+      # measured on 2026-09-05 through `feint proxy --forward
+      # '*.exoscale.com=<emulator>'`, v0.70.0 sent 57 requests to
+      # api-ch-{dk-2,gva-2}.exoscale.com and v0.71.0 sent none. The suite
+      # asserts that floor before it applies anything, so a registry that ever
+      # serves an older provider fails loudly here rather than quietly there.
+      - name: Run the Terraform conformance suite — Exoscale
+        if: matrix.client == 'terraform' || matrix.client == 'opentofu' || matrix.client == 'fields'
+        run: tools/conformance/exoscale/terraform.sh http://127.0.0.1:4599
+
       # The example stacks, which are examples and tests at once. They are
       # written the way a platform team writes Terraform rather than the way a
       # fixture is written, and that difference is measured rather than claimed:

@@ -274,25 +274,24 @@ run = [
 ]
 
 [tasks."conformance:exoscale-terraform"]
-description = "Suspended: no Terraform for Exoscale until upstream #573 — the script says why, and refuses"
-# The maintainer's decision of 2026-08-26, on #525's measurement: a `feint
-# down` on the Exoscale stack, run without the fork's dev_overrides, resolved
-# the published provider and sent five signed requests to
-# api-ch-*.exoscale.com. Since then no Terraform, the pinned fork included, is
-# pointed at the Exoscale pack; the exo CLI drives it (conformance:exo, and
-# the network, ssh and zones suites).
+description = "Run the real Exoscale Terraform provider against the running emulator"
+# Suspended from 2026-08-26 to 2026-09-05, and it came back on a measurement
+# rather than on an upstream release note. Until v0.71.0 the published provider
+# honoured EXOSCALE_API_ENDPOINT for one of the two clients it builds, so an
+# apply SPLIT between this emulator and a paying account (#525, upstream
+# exoscale/terraform-provider-exoscale#573). Upstream fixed it in #576.
 #
-# This task used to start an emulator and apply the stack through the fork
-# pinned in docs/limits.md — sixteen resources, empty second plan, clean
-# destroy, 2026-08-24, and that history stays in the script's header and in
-# docs/limits.md. It never counted towards conformance: a client this project
-# patched is not the official client. The task keeps its name so the person
-# who reaches for it gets the refusal and its reasons, not "task not found";
-# it starts nothing, so it needs no trap and no port.
+# What lifted the refusal, on examples/stacks/exoscale through
+# `feint proxy --forward '*.exoscale.com=<emulator>'`, 2026-09-05:
 #
-# Terraform returns here the day exoscale/terraform-provider-exoscale#573 is
-# fixed in the published provider.
-run = "tools/conformance/exoscale/terraform.sh"
+#   v0.70.0   15 created, no resource changes, 15 destroyed, 57 requests to
+#             api-ch-{dk-2,gva-2}.exoscale.com
+#   v0.71.0   15 created, no resource changes, 15 destroyed, NONE
+#
+# The first row is the control that makes the second mean anything. The script
+# asserts the v0.71.0 floor before it applies anything: below it, the split is
+# back.
+run = "tools/conformance/exoscale/terraform.sh http://$FEINT_ADDR"
 
 [tasks."conformance:ssh"]
 description = "Register a key, boot a server, log into it — on every provider. Needs FEINT_VM=incus or incus-vm"
@@ -605,11 +604,14 @@ tools/conformance/stacks.sh "http://$FEINT_ADDR"
 # they drive. Small, so it costs seconds; gated, so the first thing a reader
 # copies cannot rot unnoticed (#593).
 tools/conformance/quickstart.sh 127.0.0.1:4597
-# The leg that is not here, named so its absence reads as the decision it is:
-# no Terraform for Exoscale until upstream #573 is fixed (#525 — five signed
-# requests left for api-ch-*.exoscale.com from a `feint down`). The exo legs
-# below and the network/ssh/zones suites are what drives that pack.
-echo "exoscale terraform: skipped — no Terraform for Exoscale until upstream #573 (#525); the exo CLI drives this pack"
+# The leg that was not here for ten days, and is: Terraform against Exoscale,
+# suspended 2026-08-26 on #525's measurement and restored 2026-09-05 on another
+# one. Upstream fixed the split in exoscale/terraform-provider-exoscale#576 and
+# published v0.71.0; measured through `feint proxy --forward
+# '*.exoscale.com=<emulator>'`, v0.70.0 sent 57 requests to
+# api-ch-{dk-2,gva-2}.exoscale.com and v0.71.0 sent none. The script asserts the
+# floor before it applies anything.
+tools/conformance/exoscale/terraform.sh "http://$FEINT_ADDR"
 tools/conformance/exoscale/exo-cli.sh "http://$FEINT_ADDR"
 # The Exoscale zone is a datum (#278): a second emulator, on its own port and
 # configured for ch-gva-2, driven by the same real CLI. Two zones, two

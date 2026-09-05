@@ -175,24 +175,11 @@ func down(args []string, stdout, stderr io.Writer) int {
 		// and its state — still happens below, and it is the whole of what
 		// exists when no engine was ever allowed to build anything.
 		//
-		// TestDownSkipsAVetoedEngineOutLoudAndNeverRunsIt fails when this
-		// check is removed.
-		reason, err := engineVeto(decl)
-		switch {
-		case err != nil:
+		if err := runEngine(decl, "destroy", stdout, stderr); err != nil {
+			// Reported and carried on: leaving the emulator running because the
+			// engine failed would leave the operator with both problems.
 			fmt.Fprintf(stderr, "feint: %v\n", err)
 			failed = exitError
-		case reason != "":
-			fmt.Fprintf(stdout, "- %s destroy skipped: %s\n", decl.IaC.Engine, reason)
-			fmt.Fprintf(stdout, "  the emulator held whatever existed, and the stop below discards it; "+
-				"a terraform.tfstate left in %s describes nothing\n", decl.IaC.Directory)
-		default:
-			if err := runEngine(decl, "destroy", stdout, stderr); err != nil {
-				// Reported and carried on: leaving the emulator running because the
-				// engine failed would leave the operator with both problems.
-				fmt.Fprintf(stderr, "feint: %v\n", err)
-				failed = exitError
-			}
 		}
 	}
 	if *keep {
@@ -292,16 +279,6 @@ func preflight(decl *environment.File, skipIaC bool, stdout io.Writer) error {
 		// from this very verb's sibling, so the refusal falls here, before any
 		// process starts — the emulator-side guard never sees those requests.
 		//
-		// TestUpRefusesAVetoedEngineBeforeStartingAnything fails when this
-		// check is removed.
-		reason, err := engineVeto(decl)
-		if err != nil {
-			return err
-		}
-		if reason != "" {
-			return fmt.Errorf("`iac.engine: %s` is refused for `cloud.provider: %s`: %s\n\n%s",
-				decl.IaC.Engine, decl.Cloud.Provider, reason, waysPastTheEngineVeto(decl))
-		}
 		dir := decl.Resolve(decl.IaC.Directory)
 		info, err := os.Stat(dir)
 		if err != nil || !info.IsDir() {
@@ -347,62 +324,6 @@ func preflight(decl *environment.File, skipIaC bool, stdout io.Writer) error {
 // test assert is that `up` asks before it starts anything, and that the answer
 // carries a way through.
 var resolveRuntime = machineDriver
-
-// packEngineVeto is the optional half of a pack whose published IaC providers
-// cannot drive this emulator at all, so that pointing an engine at it must be
-// refused rather than half served.
-//
-// Optional and declared here rather than on emulator.Pack, for the reason
-// packEnvHazards is: which client splits is provider knowledge and lives in
-// the pack; this verb only carries the refusal to the doorstep, before any
-// process starts. A pack whose engines work (Scaleway, Outscale) does not
-// implement a method to say so — TestOnlyTheExoscalePackVetoesAnEngine holds
-// that boundary.
-type packEngineVeto interface {
-	// VetoEngine answers why the named engine must not run against this pack,
-	// or "" when it may. The reason has to name what remains possible: a wall
-	// with no door beside it gets worked around by copying the emulator.
-	VetoEngine(engine string) string
-}
-
-// engineVeto asks the declared provider's pack whether the declared engine may
-// run at all. Both callers — `up` before anything starts, `down` before the
-// destroy — ask the same question, because #525 measured the escape on `down`:
-// the doorstep that guards only the apply leaves the destroy to send the same
-// requests to the same real cloud.
-func engineVeto(decl *environment.File) (string, error) {
-	if decl.Cloud.Provider == "" || decl.IaC.Engine == "" {
-		return "", nil
-	}
-	srv, _, err := newServer(nil)
-	if err != nil {
-		return "", err
-	}
-	for _, p := range srv.Packs() {
-		if p.Name() != decl.Cloud.Provider {
-			continue
-		}
-		if veto, ok := p.(packEngineVeto); ok {
-			return veto.VetoEngine(decl.IaC.Engine), nil
-		}
-	}
-	return "", nil
-}
-
-// waysPastTheEngineVeto is the door beside that wall, on the model of
-// waysPastTheRuntimeRefusal below: every line is a command or an edit the
-// reader can make now. What replaces the engine — the pack's own CLI — is
-// named by the veto reason itself, because which client that is belongs to the
-// pack.
-func waysPastTheEngineVeto(decl *environment.File) string {
-	where := decl.Path
-	if where == "" {
-		where = environment.DefaultFile
-	}
-	return fmt.Sprintf(`Nothing was started. Two ways on:
-  feint up --no-iac                   the emulator alone, and the client the refusal names beside it
-  %s                          drop iac.engine, and the declaration stops asking for it`, where)
-}
 
 // waysPastTheRuntimeRefusal is the door beside the wall.
 //

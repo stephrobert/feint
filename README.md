@@ -47,15 +47,13 @@
 **Point Terraform and the official cloud CLIs at your own machine.**
 No cloud account, no cloud credentials, and nothing created anywhere.
 
-Terraform and OpenTofu drive Scaleway and Outscale. Each pack also has its
-own official CLI, and every one of them drives this emulator end to end:
+Terraform and OpenTofu drive Scaleway, Outscale and Exoscale. Each pack also
+has its own official CLI, and every one of them drives this emulator end to
+end:
 
 - **Scaleway** with `scw`.
 - **Outscale** with `octl`.
-- **Exoscale** with `exo`. Terraform and OpenTofu join it the day a
-  published release carries the fix for
-  exoscale/terraform-provider-exoscale#573, which `feint up` refuses at the
-  doorstep until one does.
+- **Exoscale** with `exo`.
 <!-- promise:end -->
 
 <!-- quickstart:start -->
@@ -789,7 +787,7 @@ those. Nothing else on your host is touched.
 |---|---|---|---|
 | Scaleway | REST JSON, `X-Auth-Token` | Terraform, OpenTofu, `scw` | usable |
 | Outscale | `POST /api/v1/<Action>`, AWS Signature v4 | Terraform, OpenTofu, `octl` | starter |
-| Exoscale | REST `/v2/<resource>`, asynchronous operations | `exo` | starter |
+| Exoscale | REST `/v2/<resource>`, asynchronous operations | Terraform, OpenTofu, `exo` | starter |
 
 Read *proven by* narrowly: these are the clients a workflow drives on every
 pull request. A suite that exists and runs only under `mise run conformance`
@@ -833,8 +831,8 @@ argument is that the upstream moves:
 | Client | Version proven in CI | Emulated provider |
 |---|---|---|
 | `scw` | 2.56.3 | Scaleway |
-| Terraform | 1.13.3 with providers `outscale/outscale ~> 1.7`, `scaleway/scaleway 2.81.0` | Outscale, Scaleway |
-| OpenTofu | 1.12.5 with providers `outscale/outscale ~> 1.7`, `scaleway/scaleway 2.81.0` | Outscale, Scaleway |
+| Terraform | 1.13.3 with providers `outscale/outscale ~> 1.7`, `scaleway/scaleway 2.81.0` | Exoscale, Outscale, Scaleway |
+| OpenTofu | 1.12.5 with providers `outscale/outscale ~> 1.7`, `scaleway/scaleway 2.81.0` | Exoscale, Outscale, Scaleway |
 | `octl` | 0.0.31 | Outscale |
 | `exo` | 1.95.6 | Exoscale |
 

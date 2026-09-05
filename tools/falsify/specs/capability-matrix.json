@@ -2,20 +2,6 @@
   "package": "./internal/cli/",
   "mutations": [
     {
-      "label": "the matrix stops asking the pack whether it vetoes the engine, so a row may promise Terraform on a pack `feint up` refuses before a process starts — #592, moved one storey down into the table",
-      "file": "internal/cli/capability.go",
-      "find": "\t\tif engine != \"\" && vetoes[row.Provider][engine] != \"\" {",
-      "replace": "\t\tif false && engine != \"\" && vetoes[row.Provider][engine] != \"\" {",
-      "test": "TestTheMatrixAndTheDoorstepCannotDisagree"
-    },
-    {
-      "label": "a veto no row carries stops being reported, so the refusal lives in up.go and no generated sentence can mention it",
-      "file": "internal/cli/capability.go",
-      "find": "\t\t\tif claimed[key] {\n\t\t\t\tcontinue\n\t\t\t}\n\t\t\tproblems = append(problems, fmt.Sprintf(\n\t\t\t\t\"the %s pack vetoes %s and capabilityMatrix has no row for it: the refusal exists in \"+",
-      "replace": "\t\t\tif claimed[key] || true {\n\t\t\t\tcontinue\n\t\t\t}\n\t\t\tproblems = append(problems, fmt.Sprintf(\n\t\t\t\t\"the %s pack vetoes %s and capabilityMatrix has no row for it: the refusal exists in \"+",
-      "test": "TestTheMatrixAndTheDoorstepCannotDisagree"
-    },
-    {
       "label": "a supported row stops being checked against the workflow that is supposed to prove it, so `proof` becomes decoration",
       "file": "internal/cli/capability.go",
       "find": "\t\tif !drives[key] {",
