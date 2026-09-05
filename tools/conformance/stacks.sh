@@ -45,6 +45,8 @@ if [ -z "$TF" ]; then
 fi
 command -v "$TF" >/dev/null 2>&1 || { echo "FAIL: neither tofu nor terraform is installed" >&2; exit 1; }
 
+command -v jq >/dev/null 2>&1 || { echo "FAIL: jq is not installed" >&2; exit 1; }
+
 fail() { echo "FAIL: $*" >&2; exit 1; }
 ok() { echo "  ok: $*"; }
 
@@ -68,10 +70,16 @@ echo "conformance: the example stacks against $ENDPOINT, with $TF"
 WORK=""
 STACK=""
 DESTROYED=1
+# How this stack is told where the emulator is. Two of the three take a
+# variable; the Exoscale provider has no endpoint attribute and reads
+# EXOSCALE_API_ENDPOINT, with the /v2 path inside the value. Held here rather
+# than at each of the four call sites below, which is what made adding a third
+# stack a rewrite instead of a line.
+VARS=()
 cleanup_stack() {
   [ -n "$WORK" ] || return 0
   if [ "$DESTROYED" = "0" ] && [ -f "$WORK/terraform.tfstate" ]; then
-    (cd "$WORK" && "$TF" destroy -no-color -auto-approve -var "endpoint=$ENDPOINT" >/dev/null 2>&1) \
+    (cd "$WORK" && "$TF" destroy -no-color -auto-approve ${VARS[@]+"${VARS[@]}"} >/dev/null 2>&1) \
       || echo "FAIL: could not destroy $STACK; resources may be left behind" >&2
   fi
   rm -rf "$WORK"
@@ -83,6 +91,27 @@ run_stack() { # name
   local name="$1"
   local src="$ROOT/examples/stacks/$name"
   [ -d "$src" ] || fail "no stack at $src"
+
+  case "$name" in
+    exoscale)
+      VARS=()
+      # The pack's own fake pair, exported last so it outranks whatever the
+      # caller's shell holds — the property #525 leaned on, and the one thing
+      # that stopped that incident from reaching a paying account.
+      # `set -a` around it, which is what the file's own header asks for: it
+      # holds assignments, not exports.
+      set -a
+      # shellcheck source=/dev/null
+      . "$ROOT/tools/conformance/exoscale/fake-credentials.env"
+      set +a
+      export EXOSCALE_API_ENDPOINT="$ENDPOINT/v2"
+      export EXOSCALE_ZONE="${EXOSCALE_ZONE:-ch-dk-2}"
+      export TF_VAR_zone="$EXOSCALE_ZONE"
+      ;;
+    *)
+      VARS=(-var "endpoint=$ENDPOINT")
+      ;;
+  esac
 
   # A copy, so the working directory of a repository nobody asked to dirty stays
   # clean: state files and provider caches belong to the run, not to the tree.
@@ -102,24 +131,39 @@ run_stack() { # name
 
   echo "- $name: init and apply"
   "$TF" init -no-color -upgrade >/dev/null || fail "$name: init failed"
-  "$TF" apply -no-color -auto-approve -var "endpoint=$ENDPOINT" >/dev/null \
+  "$TF" apply -no-color -auto-approve ${VARS[@]+"${VARS[@]}"} >/dev/null \
     || fail "$name: apply failed"
   ok "applied"
 
   # The assertion that separates a test from a demonstration. Both defects this
   # file's header names were caught here rather than by the apply.
-  echo "- $name: the second plan is empty"
-  local status=0
-  "$TF" plan -no-color -detailed-exitcode -var "endpoint=$ENDPOINT" >/dev/null 2>&1 || status=$?
-  case "$status" in
-    0) ok "no drift between what was sent and what is served" ;;
-    2) "$TF" plan -no-color -var "endpoint=$ENDPOINT" || true
-       fail "$name: the emulator does not read back what the stack sent" ;;
-    *) fail "$name: the second plan errored with status $status" ;;
-  esac
+  echo "- $name: the second plan changes no resource"
+  # Resources, not `-detailed-exitcode`. That flag answers 2 for ANY difference,
+  # outputs included, and Terraform itself prints "without changing any real
+  # infrastructure" for the case it then fails on: two outputs of the Exoscale
+  # stack are read through data sources and reported as additions on the second
+  # plan while every resource is a no-op (measured 2026-09-05).
+  #
+  # What this gate is for is resource drift — a route that could not point at a
+  # Net peering (#249), a tagged NIC that read back without its tags (#250) —
+  # and both of those are resource changes, so both still fail here.
+  "$TF" plan -no-color -out tfplan ${VARS[@]+"${VARS[@]}"} >/dev/null 2>&1 \
+    || fail "$name: the second plan errored"
+  local changes
+  changes="$("$TF" show -json tfplan | jq '[.resource_changes[]? | select(.change.actions != ["no-op"])] | length')"
+  if [ "$changes" != "0" ]; then
+    "$TF" plan -no-color ${VARS[@]+"${VARS[@]}"} || true
+    fail "$name: the emulator does not read back what the stack sent ($changes resource change(s))"
+  fi
+  ok "no resource changes"
+  # And the outputs, printed rather than judged: a difference here is worth
+  # seeing and is not infrastructure drift.
+  local outputs
+  outputs="$("$TF" show -json tfplan | jq '[.output_changes // {} | to_entries[] | select(.value.actions != ["no-op"])] | length')"
+  [ "$outputs" = "0" ] || echo "  note: $outputs output(s) would be recorded by an apply, no resource affected"
 
   echo "- $name: destroy"
-  "$TF" destroy -no-color -auto-approve -var "endpoint=$ENDPOINT" >/dev/null \
+  "$TF" destroy -no-color -auto-approve ${VARS[@]+"${VARS[@]}"} >/dev/null \
     || fail "$name: destroy failed"
   DESTROYED=1
   ok "destroyed"
@@ -128,5 +172,9 @@ run_stack() { # name
 
 run_stack scaleway
 run_stack outscale
+# Exoscale, applied here from 2026-09-05: suspended for ten days because the
+# published provider split its calls between this emulator and a paying account
+# (#525), restored on the measurement that showed v0.71.0 does not (#644).
+run_stack exoscale
 
 echo "conformance: the example stacks applied, re-planned empty and destroyed"

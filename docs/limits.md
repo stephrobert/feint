@@ -2284,37 +2284,67 @@ it: `CreateClient`, `getClient`, and the plugin-framework provider's
 serving it is the worst of the three outcomes: a half-success is
 indistinguishable from working until the invoice arrives.
 
-**And since 2026-08-26, the refusal starts one layer earlier: no Terraform for
-Exoscale, at all, until upstream fixes the split.** #525 measured why the
-user-agent guard alone was not enough: a `feint down` on the example stack,
+**That was true of every published provider up to and including v0.70.0.
+Upstream fixed it in [#576][exo-576], released as **v0.71.0** on 2026-08-31,
+and the refusal came off on 2026-09-05 — on a measurement, not on the release
+note.**
+
+Between 2026-08-26 and that date the refusal started one layer earlier still:
+no Terraform for Exoscale at all, fork included. #525 had measured why the
+user-agent guard alone was not enough — a `feint down` on the example stack,
 run without the fork's `dev_overrides`, resolved the published 0.70.0 and its
-refresh sent five signed requests to `api-ch-gva-2` and `api-ch-dk-2` — traffic
-that leaves for the real cloud never reaches an emulator-side guard. What
+refresh sent five signed requests to `api-ch-gva-2` and `api-ch-dk-2`. Traffic
+that leaves for the real cloud never reaches an emulator-side guard, and what
 stood between those requests and a real account was one unasserted property:
 `feint up` appends the pack's deliberately public credential pair after the
-caller's environment, so the fake pair wins and Exoscale refuses the
-signature. So the refusal now falls where the incident proved it must:
+caller's environment, so the fake pair wins and Exoscale refuses the signature.
+That property is now held by
+`TestThePacksOwnCredentialsOutrankTheCallersShell`.
 
-- **`feint up` and `feint down` refuse `iac.engine: terraform` (and
-  `opentofu`) for `cloud.provider: exoscale`** before any process starts —
-  neither an emulator nor an engine. The message names this measurement, the
-  upstream issue, and the client that remains.
-- **A `feint.yaml` cannot carry `FEINT_EXOSCALE_ALLOW_TERRAFORM`**: the
-  declaration schema refuses the name. The example stack used to set it,
-  which lifted the emulator's one refusal for whatever provider the engine
-  resolved — the published one, on the day of #525.
-- The variable itself survives, as a hand-export and nothing else:
+### What lifted it, and the control that makes it mean anything
 
-```bash
-FEINT_EXOSCALE_ALLOW_TERRAFORM=1 feint serve
-```
+The same instrument that closed the door opened it. `feint proxy --forward
+'*.exoscale.com=<emulator>'` accepts the `CONNECT`, terminates the TLS with a
+certificate minted for the run, records every host asked for, and sends the
+request to the emulator instead of the real host — so a provider that ignores
+its endpoint is **caught rather than obeyed**, and no measurement of this can
+reach a paying account whatever its answer. Driven against
+`examples/stacks/exoscale`, the published provider, no `dev_overrides` and no
+fork, 2026-09-05:
 
-What it is still for is narrow and named: pointing a candidate fix for
-[#573][exo-573] at this emulator to verify it no longer splits — the exact
-verification this project will owe the day upstream lands one. A guard with
-no way past it gets worked around by copying the emulator, which teaches
-nobody anything; three deliberate hand-gestures — export, serve, terraform —
-are the way past, and a file that travels is not.
+| provider | apply | second plan | destroy | hosts on the wire |
+|---|---|---|---|---|
+| v0.70.0 | 15 created | no resource changes | 15 destroyed | **57** to `api-ch-dk-2` and `api-ch-gva-2` |
+| v0.71.0 | 15 created | no resource changes | 15 destroyed | **none** |
+
+The v0.70.0 row is the control, and it is what makes the v0.71.0 row mean
+anything: an empty transcript proves nothing until the instrument has been
+shown able to report a full one.
+
+### What replaced the refusal: a floor
+
+A configuration pinned below v0.71.0 resolves a provider that still splits, so
+the refusal did not disappear — it acquired a version. The emulator reads the
+version out of the user agent the provider sets itself
+(`Exoscale-Terraform-Provider/0.70.0 (c4e8499d) …`, measured off the wire) and
+refuses anything older, naming the floor. A client it cannot parse is served:
+the refusal is for a version measured splitting, not for everything unfamiliar.
+
+`examples/stacks/exoscale` states `version = ">= 0.71.0"`, and
+`tools/conformance/exoscale/terraform.sh` asserts the resolved version against
+that floor before it applies anything.
+
+Three things went with the decision, rather than staying as names:
+
+- **`FEINT_EXOSCALE_ALLOW_TERRAFORM`**, whose only subject was verifying a
+  candidate fix by hand. The fix is released; driving a provider older than the
+  floor is a different feature with a different name, not a variable that turns
+  this off. The declaration schema's refusal of that name went with it.
+- **The `feint up` / `feint down` doorstep veto** (`packEngineVeto`), which no
+  pack implements any more. A mechanism with no implementer and guards with no
+  subject are what this repository calls an intention written in the past tense.
+- **The `up.go VetoEngine` proof kind** in the capability matrix, for the same
+  reason.
 
 The `exo` CLI is unaffected and is driven by the conformance suite: it reads
 `EXOSCALE_API_ENDPOINT` for everything.
@@ -2329,8 +2359,10 @@ fix, which is the condition written into every refusal above.
 
 ### The patched provider, while upstream decides
 
-**Retired from use on 2026-08-26 (#525): no Terraform for Exoscale, the fork
-included, until [#573][exo-573] is fixed upstream.** This section stays as the
+**Obsolete since 2026-09-05: upstream released the fix (v0.71.0) and the
+published provider drives this pack, so there is nothing left for a fork to
+do.** It had been retired from use on 2026-08-26 (#525). This section stays as
+the
 dated record of what the fork was for and what it proved — this repository
 does not rewrite its past, it dates it. Do not follow the recipe below to
 drive a stack; `feint up` refuses the engine, and
@@ -2423,6 +2455,7 @@ repeat the error `probed` exists to avoid. Exoscale's *preview* label came off
 on what `exo` proves, at EXO-2, and not on this.
 
 [exo-573]: https://github.com/exoscale/terraform-provider-exoscale/issues/573
+[exo-576]: https://github.com/exoscale/terraform-provider-exoscale/pull/576
 [fork]: https://github.com/stephrobert/terraform-provider-exoscale/tree/fix/v2-client-honours-api-endpoint
 
 ## A terminated Vm stays terminated, and stays

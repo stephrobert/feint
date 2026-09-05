@@ -3,41 +3,39 @@
 # per-id reads no published client makes, driven here through data sources.
 #
 # ---------------------------------------------------------------------------
-# SUSPENDED — no Terraform for Exoscale until upstream #573 is fixed (#525)
+# Terraform drives this pack again, from v0.71.0 (#644)
 # ---------------------------------------------------------------------------
 #
-# The published Exoscale provider cannot be pointed at a local emulator. It
-# builds two clients: one honours EXOSCALE_API_ENDPOINT, the other has
-# `.exoscale.com` compiled into its request path. An apply therefore does not
-# fail — it **splits**, half against the emulator and half against a paying
-# account with whatever credentials the environment holds. Filed upstream as
-# exoscale/terraform-provider-exoscale#573.
+# Until v0.71.0 the published provider honoured EXOSCALE_API_ENDPOINT for its
+# egoscale v3 client and built a v2 client with no endpoint option at all, so an
+# apply neither failed nor worked: it SPLIT between the emulator and a paying
+# account (upstream exoscale/terraform-provider-exoscale#573, this project's
+# #525). This stack was suspended from 2026-08-26 for exactly that.
 #
-# Since 2026-08-26, nothing runs this stack, and that is the decision rather
-# than a gap. A pinned four-line fork used to close the split for a by-hand
-# run — what it proved stays dated in docs/limits.md ("The patched provider,
-# while upstream decides") — and then #525 measured what every path around
-# the fork costs: a `feint down` in this directory, run without the fork's
-# dev_overrides, resolved the published 0.70.0 and sent five signed requests
-# to api-ch-*.exoscale.com. So today:
+# Upstream fixed it in #576, published v0.71.0 on 2026-08-31, and the refusal
+# came off on a measurement rather than that release note. Driven through
+# `feint proxy --forward '*.exoscale.com=<emulator>'` — which records every host
+# asked for and sends it to the emulator, so a provider ignoring its endpoint is
+# caught rather than obeyed — on this stack, 2026-09-05:
 #
-#   1. `feint up` and `feint down` refuse `iac.engine: terraform` (and
-#      opentofu) for Exoscale at the doorstep, before anything starts, and
-#      the emulator still refuses the provider by its user agent.
-#   2. **This stack is run by nothing.** While it ran by hand it was how the
-#      block-storage and instance-pool work of #12 and #232 got a second
-#      reader; the exo CLI suites carry that alone now. The Scaleway and
-#      Outscale stacks beside it are the ones the pull requests apply.
+#   v0.70.0   15 created, no resource changes, 15 destroyed, 57 requests to
+#             api-ch-{dk-2,gva-2}.exoscale.com
+#   v0.71.0   15 created, no resource changes, 15 destroyed, NONE
 #
-# The *.tf stays what it is — the platform shape this stack asserts — and
-# becomes runnable again the day the published provider honours its endpoint
-# for both clients.
+# The first row is the control that makes the second mean anything.
+#
+# THE VERSION FLOOR BELOW IS THE POINT. A configuration pinned under v0.71.0
+# walks straight back into the split, and the emulator refuses such a provider by
+# its user agent rather than serving half an apply.
 
 terraform {
   required_version = ">= 1.7.0"
   required_providers {
     exoscale = {
       source = "exoscale/exoscale"
+      # Not decoration: below this the provider splits its calls between this
+      # emulator and a paying account (#644, upstream #573).
+      version = ">= 0.71.0"
     }
   }
 }

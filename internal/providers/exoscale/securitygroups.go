@@ -176,6 +176,11 @@ type addRuleRequest struct {
 		Code int `json:"code"`
 		Type int `json:"type"`
 	} `json:"icmp"`
+	// The reference the client sends carries a `visibility` beside the id, and
+	// this reads the id alone — deliberately, and declared as such in
+	// tools/conformance/score.sh rather than silently: the API decides on the
+	// identifier, and the cloud's own answer on a rule reference carries no
+	// visibility either (ruleViews, corpus/exoscale/exo-cli.jsonl).
 	SecurityGroup *struct {
 		ID string `json:"id"`
 	} `json:"security-group"`

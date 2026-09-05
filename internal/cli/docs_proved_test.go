@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -32,6 +33,65 @@ func repoSources(t *testing.T) []exampleSource {
 // sourcesWithScript is the same list with one family's suite pointed at a copy,
 // which is how a test asks "what would the page say if CI stopped applying
 // this" without editing the repository.
+// sourcesWithUnappliedStack is repoSources with one stack's invocation removed
+// from a copy of the suite, so the renderer meets a stack CI does not apply.
+//
+// Since #644 the repository has none: every example stack is applied on every
+// pull request. A guard about the "no" column then has nothing to read, and
+// waiting for somebody to stop applying a stack is not a test strategy.
+func sourcesWithUnappliedStack(t *testing.T, stack string) []exampleSource {
+	t.Helper()
+	body, err := os.ReadFile(filepath.Join(repoRoot(t), stacksScript))
+	if err != nil {
+		t.Fatal(err)
+	}
+	trimmed := strings.Replace(string(body), "run_stack "+stack, "true # run_stack "+stack, 1)
+	if trimmed == string(body) {
+		t.Fatalf("%s names no `run_stack %s` line, so removing it plants nothing", stacksScript, stack)
+	}
+	copied := filepath.Join(t.TempDir(), "stacks.sh")
+	if err := os.WriteFile(copied, []byte(trimmed), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return sourcesWithScript(t, stacksScript, copied)
+}
+
+// sourcesWithUnpinnedStack is repoSources with one stack copied and its
+// provider version removed, so the renderer meets an entry that pins nothing.
+//
+// Same reason as above: #644 pinned the last unpinned entry, at the floor below
+// which that provider splits its calls between this emulator and a paying
+// account.
+func sourcesWithUnpinnedStack(t *testing.T, stack string) []exampleSource {
+	t.Helper()
+	root := repoRoot(t)
+	src := filepath.Join(root, stacksRoot, stack, "main.tf")
+	body, err := os.ReadFile(src) //nolint:gosec // a path this repository owns
+	if err != nil {
+		t.Fatal(err)
+	}
+	stripped := regexp.MustCompile(`(?m)^\s*version\s*=\s*"[^"]*"\n`).ReplaceAllString(string(body), "")
+	if stripped == string(body) {
+		t.Fatalf("%s pins nothing already, so removing its version plants nothing", src)
+	}
+	dir := filepath.Join(t.TempDir(), stack)
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte(stripped), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	sources := repoSources(t)
+	for i := range sources {
+		if sources[i].Family == stacksRoot {
+			sources[i].Root = filepath.Dir(dir)
+			return sources
+		}
+	}
+	t.Fatalf("no example source rooted at %s", stacksRoot)
+	return nil
+}
+
 func sourcesWithScript(t *testing.T, ciRef, script string) []exampleSource {
 	t.Helper()
 	sources := repoSources(t)
@@ -87,8 +147,19 @@ func TestTheProvedPageSeparatesAnExactPinFromAConstraintAndFromNothing(t *testin
 	}
 
 	// The stack that pins nothing. It must say so, and it must not borrow the
-	// number from another row.
-	none := rowContaining(t, rendered, "examples/stacks/exoscale")
+	// number from another row. Planted since #644, which pinned the last
+	// unpinned entry in the repository at the floor below which that provider
+	// splits its calls between this emulator and a paying account.
+	root := repoRoot(t)
+	stripped, err := renderProved(
+		filepath.Join(root, conformanceWorkflow),
+		filepath.Join(root, conformanceRoot),
+		sourcesWithUnpinnedStack(t, "exoscale"),
+	)
+	if err != nil {
+		t.Fatalf("render with an unpinned stack: %v", err)
+	}
+	none := rowContaining(t, stripped, "exoscale")
 	if !strings.Contains(none, "not pinned") {
 		t.Errorf("a required_providers entry with no version does not read as unpinned:\n  %s", none)
 	}
@@ -228,8 +299,17 @@ func TestAFixtureNoSuiteAppliesIsNotAProof(t *testing.T) {
 			"does not credit it:\n  %s", applied)
 	}
 	// The other half of the same derivation, on a stack that exists and that no
-	// `run_stack` line names.
-	unapplied := rowContaining(t, rendered, "examples/stacks/exoscale")
+	// `run_stack` line names. Planted since #644: the repository applies every
+	// stack it carries.
+	planted, err := renderProved(
+		filepath.Join(root, conformanceWorkflow),
+		filepath.Join(root, conformanceRoot),
+		sourcesWithUnappliedStack(t, "exoscale"),
+	)
+	if err != nil {
+		t.Fatalf("render with an unapplied stack: %v", err)
+	}
+	unapplied := rowContaining(t, planted, "examples/stacks/exoscale")
 	if !strings.HasSuffix(strings.TrimSpace(unapplied), "| no |") {
 		t.Errorf("a stack no suite applies is presented as applied in CI:\n  %s", unapplied)
 	}

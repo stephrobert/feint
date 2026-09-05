@@ -58,15 +58,13 @@
 **Pointez Terraform et les CLI officielles vers votre propre machine.**
 Aucun compte cloud, aucun identifiant de cloud, et rien de créé nulle part.
 
-Terraform et OpenTofu pilotent Scaleway et Outscale. Chaque pack a en plus
-son CLI officiel, et chacun d'eux pilote cet émulateur de bout en bout :
+Terraform et OpenTofu pilotent Scaleway, Outscale et Exoscale. Chaque pack a
+en plus son CLI officiel, et chacun d'eux pilote cet émulateur de bout en
+bout :
 
 - **Scaleway** avec `scw`.
 - **Outscale** avec `octl`.
-- **Exoscale** avec `exo`. Terraform et OpenTofu reviennent le jour où une
-  version publiée porte le correctif de
-  exoscale/terraform-provider-exoscale#573, que `feint up` refuse au
-  portillon jusque-là.
+- **Exoscale** avec `exo`.
 <!-- promise:end -->
 
 <!-- quickstart:start -->

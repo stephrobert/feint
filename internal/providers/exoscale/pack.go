@@ -9,7 +9,7 @@
 // reach the emulator through EXOSCALE_API_ENDPOINT, which the exo CLI honours
 // for everything. The Terraform provider honours it for only one of the two
 // clients it builds and reaches the real cloud with the other, so the pack
-// refuses it by user agent unless FEINT_EXOSCALE_ALLOW_TERRAFORM=1 is set —
+// refuses a provider below the version that fixed that (guardSplitClients) —
 // docs/limits.md carries the measurement and the upstream issue (#573).
 //
 // The pack serves the compute family (instances, templates, security groups,
@@ -22,9 +22,9 @@ package exoscale
 import (
 	"fmt"
 	"net/http"
-	"os"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -778,36 +778,49 @@ func (p *Pack) Declined() []emulator.Decline {
 
 // guardSplitClients refuses a client this emulator can only half serve.
 //
-// The Terraform provider honours EXOSCALE_API_ENDPOINT for its egoscale v3
-// client and builds a v2 client with no endpoint option at all. So an apply
-// does not fail and does not work: it splits. Some resources answer from here,
-// and the rest are created on the real cloud, in one run, with whatever
-// credentials the environment holds. Measured on 0.70.0, with outbound traffic
-// routed to a proxy that was not listening: `exoscale_ssh_key` tried
-// `https://api-ch-gva-2.exoscale.com/v2/ssh-key` with the variable set.
+// The Terraform provider used to honour EXOSCALE_API_ENDPOINT for its egoscale
+// v3 client and build a v2 client with no endpoint option at all, so an apply
+// neither failed nor worked: it SPLIT. Some resources answered from here, the
+// rest were created on the real cloud, in one run, with whatever credentials the
+// environment held. Upstream fixed that in
+// exoscale/terraform-provider-exoscale#576, published in v0.71.0 on 2026-08-31.
 //
-// Half-serving that client is the worst of the three outcomes. A clean refusal
-// tells the operator what is happening, at the moment it happens, in the
-// client's own dialect; a half-success is indistinguishable from working until
-// the invoice.
+// SO THE REFUSAL BECAME A FLOOR, and it was measured before it moved. The same
+// wire-level instrument that closed the door opened it: the published provider,
+// no dev_overrides and no fork, driven against this emulator through
+// `feint proxy --forward '*.exoscale.com=<emulator>'`, which accepts the
+// CONNECT, terminates the TLS and records every host asked for — so a provider
+// that ignores its endpoint is caught rather than obeyed. Measured 2026-09-05 on
+// examples/stacks/exoscale:
 //
-// The escape hatch is named rather than hidden: someone who understands the
-// split and wants the v3 half anyway sets FEINT_EXOSCALE_ALLOW_TERRAFORM=1, and
-// owns what the other half does. A guard with no way past it gets worked around
-// by copying the emulator, which teaches nothing.
+//	provider   apply      second plan            destroy     hosts on the wire
+//	v0.70.0    15 created no resource changes    15 destroyed 57 to api-ch-{dk-2,gva-2}
+//	v0.71.0    15 created no resource changes    15 destroyed NONE
 //
-// TestTheTerraformProviderIsRefused fails without this.
+// The v0.70.0 row is the POSITIVE CONTROL, and it is what makes the v0.71.0 row
+// mean anything: an empty transcript proves nothing until the instrument has
+// been shown able to report a full one. Without the proxy those 57 requests
+// reach a paying account, which is what #525 measured and this refusal was for.
+//
+// A client pinned below the floor walks straight back into that, so the guard
+// keeps a subject and the escape hatch loses its own:
+// FEINT_EXOSCALE_ALLOW_TERRAFORM existed to test a candidate fix by hand, the
+// fix is released, and driving a provider older than the floor is a different
+// feature with a different name — not a variable that turns this off.
+//
+// TestAProviderBelowTheFloorIsRefused and TestAProviderAtTheFloorIsServed fail
+// without this, one per half.
 func (p *Pack) guardSplitClients(routes []emulator.Route) []emulator.Route {
 	for i := range routes {
 		handler := routes[i].Handler
 		routes[i].Handler = func(w http.ResponseWriter, r *http.Request) {
-			if splitClient(r.UserAgent()) && os.Getenv("FEINT_EXOSCALE_ALLOW_TERRAFORM") == "" {
+			if version, below := providerBelowFloor(r.UserAgent()); below {
 				writeError(w, http.StatusBadRequest,
-					"the Exoscale Terraform provider only honours EXOSCALE_API_ENDPOINT for half of "+
-						"its calls: the rest reach the real cloud and create billable resources. "+
-						"feint refuses rather than serve half an apply. Set "+
-						"FEINT_EXOSCALE_ALLOW_TERRAFORM=1 if you understand that and want the half "+
-						"it can serve. See docs/limits.md.")
+					"the Exoscale Terraform provider "+version+" only honours EXOSCALE_API_ENDPOINT "+
+						"for half of its calls: the rest reach the real cloud and create billable "+
+						"resources. Upstream fixed that in "+terraformProviderFloor+"; pin at least "+
+						"that version. feint refuses rather than serve half an apply. "+
+						"See docs/limits.md.")
 				return
 			}
 			handler(w, r)
@@ -818,10 +831,75 @@ func (p *Pack) guardSplitClients(routes []emulator.Route) []emulator.Route {
 
 // splitClient recognises the Terraform provider by the user agent it sets
 // itself: `Exoscale-Terraform-Provider/<version> …`. The exo CLI sends its own
-// and is served normally, which is the point — this refuses one client, not a
-// product.
+// and is a different client family, which is what this separates — the zone
+// list answers the two differently (catalog.go).
+//
+// The name is historical: it was written when every version of this provider
+// split its calls between the emulator and the real cloud. Since v0.71.0 none
+// does, and what remains is the family, not the defect. providerBelowFloor
+// below is the one that still asks about the defect.
 func splitClient(userAgent string) bool {
 	return strings.Contains(userAgent, "Exoscale-Terraform-Provider")
+}
+
+// terraformProviderFloor is the first published provider that honours
+// EXOSCALE_API_ENDPOINT for both of the clients it builds
+// (exoscale/terraform-provider-exoscale#576).
+const terraformProviderFloor = "v0.71.0"
+
+// providerBelowFloor reads the version out of the provider's own user agent and
+// says whether it is older than the floor.
+//
+// The agent is measured, not guessed — recorded off the wire on 2026-09-05:
+//
+//	Exoscale-Terraform-Provider/0.70.0 (c4e8499d) Terraform-SDK/v2.40.0 …
+//
+// A client this cannot parse is SERVED, deliberately. The exo CLI sends its own
+// agent and must be; and an agent shape that changes upstream must not turn into
+// a blanket refusal of a provider that may well be fine. The refusal is for a
+// version this project has measured splitting, not for everything it fails to
+// recognise.
+func providerBelowFloor(userAgent string) (string, bool) {
+	const marker = "Exoscale-Terraform-Provider/"
+	at := strings.Index(userAgent, marker)
+	if at < 0 {
+		return "", false
+	}
+	rest := userAgent[at+len(marker):]
+	if cut := strings.IndexAny(rest, " \t"); cut >= 0 {
+		rest = rest[:cut]
+	}
+	if rest == "" {
+		return "", false
+	}
+	if olderThanFloor(rest) {
+		return rest, true
+	}
+	return "", false
+}
+
+// olderThanFloor compares a dotted version against terraformProviderFloor.
+//
+// A version it cannot read is not older: the same direction as above, and for
+// the same reason.
+func olderThanFloor(version string) bool {
+	floor := strings.TrimPrefix(terraformProviderFloor, "v")
+	got := strings.Split(strings.TrimPrefix(version, "v"), ".")
+	want := strings.Split(floor, ".")
+	for i := range want {
+		if i >= len(got) {
+			return true // 0.71 is below 0.71.0
+		}
+		a, err := strconv.Atoi(got[i])
+		if err != nil {
+			return false
+		}
+		b, _ := strconv.Atoi(want[i])
+		if a != b {
+			return a < b
+		}
+	}
+	return false
 }
 
 // apiPrefix is the whole of Exoscale's URL space here: their API description

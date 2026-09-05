@@ -188,11 +188,10 @@ func TestZonesCarryThisEmulatorsAddress(t *testing.T) {
 // only its, signposts every published zone this deployment does not serve,
 // each row pointing at a path this pack refuses with the mismatch named.
 func TestTheSplitClientsZoneListSignpostsTheOtherZones(t *testing.T) {
-	t.Setenv("FEINT_EXOSCALE_ALLOW_TERRAFORM", "1")
 	h := serve(t)
 
 	req := httptest.NewRequest("GET", "/v2/zone", strings.NewReader(""))
-	req.Header.Set("User-Agent", "Exoscale-Terraform-Provider/0.70.0 (something) Terraform-SDK/2.31.0")
+	req.Header.Set("User-Agent", "Exoscale-Terraform-Provider/0.71.0 (something) Terraform-SDK/2.31.0")
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {

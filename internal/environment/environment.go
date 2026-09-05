@@ -422,10 +422,7 @@ var fields = []Field{
 		Doc: "The environment the emulator's own process starts with — FEINT_BOOT_IMAGES and the other " +
 			"FEINT_* knobs, which are read server-side and so cannot be exported after the start. " +
 			"FEINT_* only: a declaration that could set any variable of a process it spawns would be a " +
-			"different kind of file. One name is refused outright: FEINT_EXOSCALE_ALLOW_TERRAFORM, " +
-			"because #525 measured a stack declaration arming it for whatever provider the engine " +
-			"resolved — an escape hatch that consequential is exported by hand, in the shell that runs " +
-			"`feint serve`, never carried by a file that travels.",
+			"different kind of file.",
 		ReadBy: []string{"up"},
 		assign: func(f *File, n node) error {
 			m, err := scalarMap(n, checkEnvName)

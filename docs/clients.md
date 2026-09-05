@@ -61,8 +61,8 @@ README that rots (#593).
 | Client | Version | Pinned in | Drives, in CI |
 |---|---|---|---|
 | `scw` | 2.56.3 | `.github/workflows/conformance.yml` (`SCW_VERSION`) | Scaleway |
-| Terraform | 1.13.3 | `.github/workflows/conformance.yml` (`TERRAFORM_VERSION`) | Outscale, Scaleway |
-| OpenTofu | 1.12.5 | `.github/workflows/conformance.yml` (`TOFU_VERSION`) | Outscale, Scaleway |
+| Terraform | 1.13.3 | `.github/workflows/conformance.yml` (`TERRAFORM_VERSION`) | Exoscale, Outscale, Scaleway |
+| OpenTofu | 1.12.5 | `.github/workflows/conformance.yml` (`TOFU_VERSION`) | Exoscale, Outscale, Scaleway |
 | `octl` | 0.0.31 | `.github/workflows/conformance.yml` (`OCTL_VERSION`) | Outscale |
 | `exo` | 1.95.6 | `.github/workflows/conformance.yml` (`EXO_VERSION`) | Exoscale |
 
@@ -77,7 +77,7 @@ Each row is one `required_providers` entry, read where it is written.
 | `tools/conformance/outscale/terraform` | `outscale/outscale` | `~> 1.7` | constraint: resolved fresh on each run, so the version that answered is not knowable here | yes |
 | `tools/conformance/outscale/terraform-doorway` | `outscale/outscale` | `~> 1.7` | constraint: resolved fresh on each run, so the version that answered is not knowable here | yes |
 | `tools/conformance/scaleway/terraform` | `scaleway/scaleway` | `2.81.0` | exact: the version that answered | yes |
-| `examples/stacks/exoscale` | `exoscale/exoscale` | — | not pinned: whatever the registry served that day | no |
+| `examples/stacks/exoscale` | `exoscale/exoscale` | `>= 0.71.0` | constraint: resolved fresh on each run, so the version that answered is not knowable here | yes |
 | `examples/stacks/outscale` | `outscale/outscale` | `~> 1.7` | constraint: resolved fresh on each run, so the version that answered is not knowable here | yes |
 | `examples/stacks/outscale/modules/net` | `outscale/outscale` | `~> 1.7` | constraint: resolved fresh on each run, so the version that answered is not knowable here | yes |
 | `examples/stacks/scaleway` | `scaleway/scaleway` | `2.81.0` | exact: the version that answered | yes |
@@ -91,19 +91,7 @@ that answered is not knowable from this repository — it is a floor, not a
 proof. **Not pinned** is not pinned: nothing here says which version ran, and
 no number is invented to fill the cell.
 
-The stacks the last column says CI does not apply are declared rather than
-merely absent, so a `no` is a decision somebody wrote down and not a stack
-nobody wired up:
-
-- `examples/stacks/exoscale` — suspended — no Terraform for Exoscale
-  until upstream exoscale/terraform-provider-exoscale#573 is fixed: the
-  published provider honours `EXOSCALE_API_ENDPOINT` for one of the two
-  clients it builds, so an apply splits between the emulator and a paying
-  account, and #525 measured five signed requests leaving for the real cloud
-  from a `feint down` on this stack (2026-08-26). `feint up` refuses the
-  engine at the doorstep; the exo CLI drives the pack instead. What the
-  pinned fork had proved stays dated in docs/limits.md: 16 resources, empty
-  second plan, clean destroy, 2026-08-24.
+Every stack under `examples/stacks/` is applied on every pull request.
 <!-- proved:end -->
 
 ## Which client may drive which pack
@@ -136,8 +124,8 @@ measuring the day something stops being written down.
 | Provider | Client | Mode | Support | Proof | Reason |
 |---|---|---|---|---|---|
 | Exoscale | `exo` | control plane | **supported** | `conformance workflow` | — |
-| Exoscale | OpenTofu | control plane | **refused** | `up.go VetoEngine` | OpenTofu resolves the same published provider from the same registry namespace, so it splits the same way and waits on the same release of exoscale/terraform-provider-exoscale#573 |
-| Exoscale | Terraform | control plane | **refused** | `up.go VetoEngine` | the published provider builds two clients and only one honours `EXOSCALE_API_ENDPOINT`, so an apply or a destroy splits between this emulator and a paying account (#525 counted five signed requests leaving for `api-ch-*.exoscale.com`). Upstream exoscale/terraform-provider-exoscale#573 is closed and its fix is merged into `master`; no published release carries it, the last tag being v0.70.0 of 17 July 2026 |
+| Exoscale | OpenTofu | control plane | **supported** | `conformance workflow` | — |
+| Exoscale | Terraform | control plane | **supported** | `conformance workflow` | — |
 | Outscale | `octl` | control plane | **supported** | `conformance workflow` | — |
 | Outscale | OpenTofu | control plane | **supported** | `conformance workflow` | — |
 | Outscale | Terraform | control plane | **supported** | `conformance workflow` | — |

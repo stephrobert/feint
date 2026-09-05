@@ -39,7 +39,8 @@ import (
 //  2. **The instruments already exist, and are asked rather than restated.** A
 //     `supported` row is confirmed by clientsProvenInCI — the same scan of
 //     .github/workflows/conformance.yml the status table and the client matrix
-//     read. A `refused` row is confirmed by asking the pack's own VetoEngine,
+//     read. A `refused` row was confirmed by asking the pack's own VetoEngine
+//     until #644 removed that mechanism with its last subject,
 //     which is the code `up` and `down` consult before a process starts. A
 //     matrix that disagreed with up.go would be #592 one storey lower.
 //  3. **The check runs in both directions.** A row nothing establishes is
@@ -88,9 +89,13 @@ const (
 	// clientsProvenInCI, which is the scan the status table and the client
 	// version matrix already share.
 	provenInCI capabilityProof = "conformance workflow"
-	// refusedAtTheDoorstep — the pack implements packEngineVeto and vetoes this
-	// engine, so `feint up` and `feint down` stop before starting anything.
-	refusedAtTheDoorstep capabilityProof = "up.go VetoEngine"
+	// A second kind lived here until #644: `up.go VetoEngine`, the pack-side
+	// veto that stopped `feint up` and `feint down` before any process
+	// started. It had exactly one subject — no Terraform for Exoscale while
+	// the published provider split its calls between this emulator and a
+	// paying account — and upstream fixed that in v0.71.0. A proof kind no row
+	// can rest on is a resolver nobody exercises, so it went with the
+	// mechanism rather than staying as a name.
 )
 
 // capabilityControlPlane is the only mode any row can claim today, and the
@@ -132,17 +137,6 @@ type capabilityRow struct {
 	Marker string
 }
 
-// upstreamExoscaleTerraform is the one marker in use, and it is the upstream
-// issue itself.
-//
-// Deliberately the issue and not a word like "refused": a sentence that names
-// the pair has to name what would change it, and a reader who meets the marker
-// can go and read whether it moved. As of 2026-08-28 the fix is merged into
-// upstream `master` (PR #576) and **no release carries it** — the last tag is
-// v0.70.0 of 17 July — which is why every sentence generated from this row says
-// *until a release carries it* rather than *until it is fixed*.
-const upstreamExoscaleTerraform = "exoscale/terraform-provider-exoscale#573"
-
 // capabilityMatrix is the whole of it, and it is deliberately short: a row per
 // pair some instrument establishes, and nothing else. A pair neither the
 // workflow drives nor a pack vetoes has no row, so a sentence claiming it is
@@ -158,22 +152,8 @@ var capabilityMatrix = []capabilityRow{
 	{Provider: "outscale", Client: "octl", Mode: capabilityControlPlane, Support: capabilitySupported, Proof: provenInCI},
 
 	{Provider: "exoscale", Client: "exo", Mode: capabilityControlPlane, Support: capabilitySupported, Proof: provenInCI},
-	{
-		Provider: "exoscale", Client: "terraform", Mode: capabilityControlPlane,
-		Support: capabilityRefused, Proof: refusedAtTheDoorstep, Marker: upstreamExoscaleTerraform,
-		Reason: "the published provider builds two clients and only one honours " +
-			"`EXOSCALE_API_ENDPOINT`, so an apply or a destroy splits between this emulator and a " +
-			"paying account (#525 counted five signed requests leaving for `api-ch-*.exoscale.com`). " +
-			"Upstream exoscale/terraform-provider-exoscale#573 is closed and its fix is merged into " +
-			"`master`; no published release carries it, the last tag being v0.70.0 of 17 July 2026",
-	},
-	{
-		Provider: "exoscale", Client: "opentofu", Mode: capabilityControlPlane,
-		Support: capabilityRefused, Proof: refusedAtTheDoorstep, Marker: upstreamExoscaleTerraform,
-		Reason: "OpenTofu resolves the same published provider from the same registry namespace, " +
-			"so it splits the same way and waits on the same release of " +
-			"exoscale/terraform-provider-exoscale#573",
-	},
+	{Provider: "exoscale", Client: "terraform", Mode: capabilityControlPlane, Support: capabilitySupported, Proof: provenInCI},
+	{Provider: "exoscale", Client: "opentofu", Mode: capabilityControlPlane, Support: capabilitySupported, Proof: provenInCI},
 }
 
 // capabilityRowFor answers the row for one pair, or nil when nothing
@@ -234,8 +214,6 @@ func capabilityClientName(token string) string {
 type packFacts struct {
 	// Providers is every mounted pack's own name.
 	Providers []string
-	// Vetoes is provider → engine → the reason the pack gives.
-	Vetoes map[string]map[string]string
 }
 
 func readPackFacts() (packFacts, error) {
@@ -243,23 +221,9 @@ func readPackFacts() (packFacts, error) {
 	if err != nil {
 		return packFacts{}, err
 	}
-	facts := packFacts{Vetoes: map[string]map[string]string{}}
+	facts := packFacts{}
 	for _, p := range srv.Packs() {
 		facts.Providers = append(facts.Providers, p.Name())
-		veto, ok := p.(packEngineVeto)
-		if !ok {
-			continue
-		}
-		// environment.Engines is the list `iac.engine` is validated against, so
-		// an engine added there is asked about here without this file changing.
-		for _, engine := range environment.Engines {
-			if reason := veto.VetoEngine(engine); reason != "" {
-				if facts.Vetoes[p.Name()] == nil {
-					facts.Vetoes[p.Name()] = map[string]string{}
-				}
-				facts.Vetoes[p.Name()][engine] = reason
-			}
-		}
 	}
 	sort.Strings(facts.Providers)
 	return facts, nil
@@ -286,15 +250,17 @@ func capabilityProblems(workflow string) []string {
 	if _, err := os.Stat(workflow); os.IsNotExist(err) {
 		return nil
 	}
-	facts, err := readPackFacts()
-	if err != nil {
-		return []string{fmt.Sprintf("cannot ask the packs what they serve and what they refuse: %v", err)}
+	// The packs are still asked, and the answer is still what a refusal would
+	// be resolved against: readPackFacts is what capabilityClaimProblems below
+	// reads for provider names. What it no longer carries is a veto map, since
+	// no pack vetoes an engine (#644).
+	if _, err := readPackFacts(); err != nil {
+		return []string{fmt.Sprintf("cannot ask the packs what they serve: %v", err)}
 	}
 
 	var problems []string
 	problems = append(problems, matrixShapeProblems()...)
 	problems = append(problems, provenInCIProblems(workflow)...)
-	problems = append(problems, vetoProblems(facts.Vetoes)...)
 	problems = append(problems, modeProblems(workflow)...)
 	sort.Strings(problems)
 	return problems
@@ -467,62 +433,6 @@ func provenInCIProblems(workflow string) []string {
 			"%s drives %s and capabilityMatrix has no row for it: every sentence claiming a client is "+
 				"derived from that table, so a proven pair with no row cannot be written down anywhere",
 			workflow, key))
-	}
-	return problems
-}
-
-// vetoProblems resolves every `up.go VetoEngine` proof against the packs, in
-// both directions.
-func vetoProblems(vetoes map[string]map[string]string) []string {
-	var problems []string
-	claimed := map[string]bool{}
-	for _, row := range capabilityMatrix {
-		key := row.Provider + "/" + row.Client
-		engine := capabilityEngineOf(row.Client)
-
-		if row.Proof == refusedAtTheDoorstep {
-			claimed[key] = true
-			if row.Support != capabilityRefused {
-				problems = append(problems, fmt.Sprintf(
-					"capabilityMatrix rests %s on %s and does not mark it refused: that proof is a "+
-						"refusal and can establish nothing else", key, refusedAtTheDoorstep))
-				continue
-			}
-			if engine == "" {
-				problems = append(problems, fmt.Sprintf(
-					"capabilityMatrix rests %s on %s and %s is not an engine `up` runs: no pack could "+
-						"veto it", key, refusedAtTheDoorstep, capabilityClientName(row.Client)))
-				continue
-			}
-			if vetoes[row.Provider][engine] == "" {
-				problems = append(problems, fmt.Sprintf(
-					"capabilityMatrix says the %s pack refuses %s at the doorstep and its VetoEngine "+
-						"lets that engine through: the table and up.go disagree, which is the defect "+
-						"this table exists to make impossible", row.Provider, engine))
-			}
-			continue
-		}
-
-		// A supported row for an engine a pack really vetoes is #592 exactly,
-		// written into the table instead of into the README.
-		if engine != "" && vetoes[row.Provider][engine] != "" {
-			problems = append(problems, fmt.Sprintf(
-				"capabilityMatrix marks %s %q and the %s pack vetoes %s before a process starts: "+
-					"`feint up` would refuse what the table promises",
-				key, row.Support, row.Provider, engine))
-		}
-	}
-
-	for provider, engines := range vetoes {
-		for engine := range engines {
-			key := provider + "/" + engine
-			if claimed[key] {
-				continue
-			}
-			problems = append(problems, fmt.Sprintf(
-				"the %s pack vetoes %s and capabilityMatrix has no row for it: the refusal exists in "+
-					"up.go and no generated sentence can say so", provider, engine))
-		}
 	}
 	return problems
 }
