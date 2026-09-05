@@ -1,6 +1,7 @@
 package scaleway
 
 import (
+	"context"
 	"net/http"
 	"net/netip"
 	"strings"
@@ -837,6 +838,12 @@ func (p *Pack) updateGatewayNetwork(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	current, _ := p.env.Store.Get(Name, kindGatewayNetwork, res.ID)
+	// The flag the client just changed is what every machine's plan reads, so
+	// the machines already on that network are asked for their plan again
+	// (#678). Before the answer, deliberately: a client that reads the
+	// attachment back and then dials its machine finds the route laid, which
+	// is what "a 200 is not evidence" means on this path.
+	_ = p.replayEgressOn(r.Context(), textOf(current.Attrs["private_network_id"]))
 	emulator.WriteJSON(w, http.StatusOK, p.gatewayNetworkView(current))
 }
 
@@ -852,6 +859,12 @@ func (p *Pack) deleteGatewayNetwork(w http.ResponseWriter, r *http.Request) {
 	// this pack created it, merely unheld when the client booked it first —
 	// the same split a NIC delete applies.
 	p.releaseHeldIPAMIPs(res.ID)
+	// And the way out goes with it: a machine that keeps a default route after
+	// its gateway is detached reaches the Internet the cloud would have cut
+	// off, which is the emulator being permissive in the direction that
+	// teaches a client something false (#678, the same reasoning ReplayEgress
+	// itself carries).
+	_ = p.replayEgressOn(r.Context(), textOf(res.Attrs["private_network_id"]))
 	// Like the gateway's own delete, v2 answers the deleted connection and the
 	// provider polls GetGatewayNetwork until 404.
 	emulator.WriteJSON(w, http.StatusOK, view)
@@ -871,4 +884,62 @@ func (p *Pack) gatewayNetworkView(res *resource.Resource) map[string]any {
 		"ipam_ip_id":         res.Attrs["ipam_ip_id"],
 		"zone":               res.Tenant.Zone,
 	}
+}
+
+// replayEgressOn gives every machine already on a Private Network the way out
+// its attachment now entitles it to, and takes back the one it no longer does
+// (#678).
+//
+// WHY A DAY-2 GESTURE NEEDED THIS. #647 built the path and measured it working
+// with `push_default_route` set at the creation of the attachment. Turning it on
+// afterwards changed nothing, and that is the ordinary gesture: attach a Public
+// Gateway to a network that already carries a platform, then enable the route.
+// Measured 2026-09-04 under `--vm incus-ovn`, on a machine holding zero public
+// address:
+//
+//	PATCH push_default_route=true
+//	GET   push_default_route -> true          the store holds it
+//	guest ip route show default -> (nothing)  nobody told the machine
+//	dns ok, tcp443 no                         it reaches its own switch, not the world
+//
+// So the two candidates the issue named are settled: the PATCH stores what it is
+// given, and nothing replayed the plan of the machines already there. The plan
+// is derived per machine (egressNetworkOf reads this flag), so the fix is to ask
+// for it again — ReplayEgress is idempotent and answers all three states, laying
+// a route, taking one back, or leaving it alone when the plan is silent.
+//
+// Every membership of the network, not only the running ones: ReplayEgress is a
+// no-op for a machine with no runtime name, and a stopped machine gets its route
+// at the next boot from the same plan.
+//
+// It answers how many machines it visited, which is what makes "only the
+// machines on THIS network" a property a test can hold rather than a sentence:
+// a replay that walked the whole account would be invisible from the outside on
+// a fixture with one network, and every fixture starts with one.
+//
+// TestEnablingTheDefaultRouteReachesTheMachinesAlreadyThere,
+// TestDetachingTheGatewayTakesTheWayOutBack and
+// TestAReplayVisitsOnlyTheMachinesOnThatNetwork fail without this.
+func (p *Pack) replayEgressOn(ctx context.Context, privateNetworkID string) int {
+	if privateNetworkID == "" {
+		return 0
+	}
+	visited := 0
+	reconciler := p.reconciler()
+	for _, nic := range p.env.Store.List(kindPrivateNIC, resource.Tenant{Provider: Name}) {
+		if nic.Runtime[runtimePrivateNetworkKey] != privateNetworkID {
+			continue
+		}
+		serverID := nic.Runtime[runtimeServerKey]
+		if serverID == "" {
+			continue
+		}
+		server, found := p.env.Store.Get(Name, kindServer, serverID)
+		if !found {
+			continue
+		}
+		reconciler.ReplayEgress(ctx, server)
+		visited++
+	}
+	return visited
 }

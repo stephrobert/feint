@@ -260,12 +260,88 @@ func (d *Incus) setGuestResolver(ctx context.Context, machine, device string) {
 	if err != nil || iface == "" {
 		return
 	}
-	if _, err := d.run(ctx, "exec", machine, "--",
-		"resolvectl", "dns", iface, d.resolver()); err != nil {
-		if isNotRunning(err) || isNotFound(err) || guestHasNoNetworkd(err) {
+	// Bounded retry, and the distinction it rests on is measured. Right after a
+	// start, systemd inside the guest is still coming up and resolvectl answers
+	// `Failed to connect to bus` — which reads exactly like an image that has no
+	// systemd-resolved at all, and was swallowed as such: on 2026-09-04, a
+	// rebooted machine came back with its default route and no name server, and
+	// nothing in the log said why, because the refusal was the tolerated one.
+	//
+	// So a bus that is not there yet is retried and an absent binary is not:
+	// Alpine answers `not found` once and for good, and waiting on it would
+	// charge every Alpine boot the whole budget.
+	// TestAResolverWaitsForTheGuestsBusButNotForAMissingBinary fails without
+	// this.
+	deadline := time.Now().Add(guestResolverWait)
+	for {
+		_, err := d.run(ctx, "exec", machine, "--", "resolvectl", "dns", iface, d.resolver())
+		if err == nil {
+			// A command that succeeded is not a resolver that HOLDS, and on a
+			// restart it does not: measured 2026-09-04, a rebooted machine came
+			// back with its default route and no name server, no error
+			// anywhere, because networkd finished configuring the link after
+			// this call and cleared what it had set.
+			//
+			// A read-back with a retry was written and REMOVED: it costs the
+			// whole budget on every path whose confirmation is late, and it
+			// took this package's unit suite from 6 s to 297 s while still
+			// leaving the shape broken, because runtime state is the wrong
+			// place for a value networkd owns. The durable answer is a networkd
+			// drop-in inside the guest, and it is followed as its own defect
+			// rather than bolted on here.
 			return
 		}
-		d.logger().Warn("the guest was not given the resolver its network stands for",
-			"machine", machine, "device", device, "resolver", d.resolver(), "error", err)
+		// The transient case is recognised FIRST, and that ordering is the
+		// test: systemd's bus refusal is spelled `Failed to connect to bus: No
+		// such file or directory`, which the permanent matcher below also
+		// accepts. Asked in the other order, every retry was skipped and the
+		// wait never happened.
+		if guestBusNotReady(err) {
+			if time.Now().After(deadline) {
+				d.logger().Warn("the guest's resolver service never answered, so it has no name server",
+					"machine", machine, "device", device, "resolver", d.resolver(), "error", err)
+				return
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(guestResolverPoll):
+			}
+			continue
+		}
+		if isNotRunning(err) || isNotFound(err) || guestHasNoResolvectl(err) {
+			return
+		}
+		{
+			d.logger().Warn("the guest was not given the resolver its network stands for",
+				"machine", machine, "device", device, "resolver", d.resolver(), "error", err)
+			return
+		}
 	}
+}
+
+// guestResolverPoll and guestResolverWait bound that retry. Seconds: this sits
+// on a boot a client is waiting on, and a resolved that has not answered in ten
+// seconds is not going to.
+const (
+	guestResolverPoll = 500 * time.Millisecond
+	guestResolverWait = 10 * time.Second
+)
+
+// guestBusNotReady is the transient half: systemd is there and not listening
+// yet.
+func guestBusNotReady(err error) bool {
+	return strings.Contains(strings.ToLower(err.Error()), "failed to connect to bus")
+}
+
+// guestHasNoResolvectl is the permanent half: the binary is absent, which is
+// Alpine and every image without systemd-resolved.
+func guestHasNoResolvectl(err error) bool {
+	msg := strings.ToLower(err.Error())
+	for _, known := range []string{"not found", "no such file or directory", "could not be found"} {
+		if strings.Contains(msg, known) {
+			return true
+		}
+	}
+	return false
 }

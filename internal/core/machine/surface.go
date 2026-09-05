@@ -155,6 +155,15 @@ func PackSurface() map[string]string {
 		"Reconciler.Route":           "make one public address reach the machine, the hot half",
 		"Reconciler.Unroute":         "take the route back, machine gone or not",
 		"Reconciler.ReplayAddresses": "hand a machine its promised addresses again after a boot",
+		// A pack owns the facts that decide a machine's entitlement to a way
+		// out, and one of them changes with no machine gesture at all: a Public
+		// Gateway attached to a Private Network, and the flag turned on
+		// afterwards (#678). Without this on the surface, the pack's only way
+		// to make a Day-2 change reach the machines already there is a reboot,
+		// which is not what a client performs and, measured, was not enough
+		// either. Idempotent, and it answers all three states — lay a route,
+		// take one back, or leave it alone when the plan is silent.
+		"Reconciler.ReplayEgress": "give the machines a network's attachment now entitles to a way out theirs, and take back the one it no longer does",
 
 		// S4 — networks. Ensure records the name only once the driver accepted
 		// it, which is the ordering two packs had wrong.
