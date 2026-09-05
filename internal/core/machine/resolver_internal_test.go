@@ -121,10 +121,12 @@ func TestAResolverThatIsTheUplinkIsRefused(t *testing.T) {
 func TestTheResolverIsAField(t *testing.T) {
 	f := &fakeRuntime{answers: map[string]string{
 		"ip -o link show dev": "2: eth1: <BROADCAST,MULTICAST,UP>\n",
+		"resolvectl dns eth1": "Link 2 (eth1): " + DefaultResolver + "\n",
 	}}
 	d := newFakeDriver(f)
 	d.OVN = true
 	d.Resolver = "192.0.2.53"
+	f.answers["resolvectl dns eth1"] = "Link 2 (eth1): 192.0.2.53\n"
 
 	d.settleGuestInterface(context.Background(), "srv", "eth1")
 
@@ -143,6 +145,7 @@ func TestTheResolverIsAField(t *testing.T) {
 func TestASettleGivesTheInterfaceItsResolver(t *testing.T) {
 	f := &fakeRuntime{answers: map[string]string{
 		"ip -o link show dev": "2: eth1: <BROADCAST,MULTICAST,UP>\n",
+		"resolvectl dns eth1": "Link 2 (eth1): " + DefaultResolver + "\n",
 	}}
 	d := newFakeDriver(f)
 	d.OVN = true
@@ -166,6 +169,7 @@ func TestASettleGivesTheInterfaceItsResolver(t *testing.T) {
 func TestABridgeGuestKeepsTheResolverItsLeaseCarries(t *testing.T) {
 	f := &fakeRuntime{answers: map[string]string{
 		"ip -o link show dev": "2: eth1: <BROADCAST,MULTICAST,UP>\n",
+		"resolvectl dns eth1": "Link 2 (eth1): " + DefaultResolver + "\n",
 	}}
 	d := newFakeDriver(f)
 	d.OVN = false

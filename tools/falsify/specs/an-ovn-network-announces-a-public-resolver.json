@@ -54,6 +54,30 @@
       "find": "\t\td.setGuestResolver(ctx, machine, device)\n\t}\n\treturn nil\n}",
       "replace": "\t\tif false {\n\t\t\td.setGuestResolver(ctx, machine, device)\n\t\t}\n\t}\n\treturn nil\n}",
       "test": "TestAFirstBootGivesTheGuestItsResolver"
+    },
+    {
+      "label": "a restart stops asking for the interface's resolver, so a rebooted machine is not even offered one",
+      "file": "internal/core/machine/incus_ovn.go",
+      "package": "./internal/core/machine/",
+      "find": "\t\td.setGuestResolver(ctx, machine, device)\n\t}\n\treturn routed\n}",
+      "replace": "\t\tif false {\n\t\t\td.setGuestResolver(ctx, machine, device)\n\t\t}\n\t}\n\treturn routed\n}",
+      "test": "TestARestartAsksForTheGuestsResolver"
+    },
+    {
+      "label": "the bus refusal is asked about after the missing-binary one, which is the ordering that skipped every retry and left a rebooted machine without a name server",
+      "file": "internal/core/machine/incus_resolver.go",
+      "package": "./internal/core/machine/",
+      "find": "\t\tif guestBusNotReady(err) {",
+      "replace": "\t\tif guestBusNotReady(err) && !guestHasNoResolvectl(err) {",
+      "test": "TestAResolverWaitsForTheGuestsBusButNotForAMissingBinary"
+    },
+    {
+      "label": "an image without resolvectl is retried for the whole budget, charging every Alpine boot ten seconds for a binary that will never appear",
+      "file": "internal/core/machine/incus_resolver.go",
+      "package": "./internal/core/machine/",
+      "find": "\t\tif isNotRunning(err) || isNotFound(err) || guestHasNoResolvectl(err) {\n\t\t\treturn\n\t\t}",
+      "replace": "\t\tif isNotRunning(err) || isNotFound(err) || guestHasNoResolvectl(err) {\n\t\t\tif time.Now().After(deadline) {\n\t\t\t\treturn\n\t\t\t}\n\t\t\ttime.Sleep(guestResolverPoll)\n\t\t\tcontinue\n\t\t}",
+      "test": "TestAResolverWaitsForTheGuestsBusButNotForAMissingBinary"
     }
   ]
 }

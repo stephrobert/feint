@@ -1201,6 +1201,17 @@ func (d *Incus) restoreGuestNetwork(ctx context.Context, machine string) error {
 		if err := d.installGuestPrivateRoutes(ctx, machine, devices.own[device]["network"], device); err != nil {
 			return errors.Join(routed, err)
 		}
+		// And the resolver, which a restart loses: the lease carries none since
+		// #684, and only the first boot set one. Measured 2026-09-04 under
+		// `--vm incus-ovn`, on a machine that had just been rebooted — the
+		// default route was back and `getent hosts` answered nothing, because
+		// nothing on this path had told the interface where to ask.
+		//
+		// Same call and same reason as settleFirstBoot's: setting a resolver
+		// lays no route and flushes nothing, so it is safe after the repairs
+		// rather than before them.
+		// TestARestartAsksForTheGuestsResolver fails without this.
+		d.setGuestResolver(ctx, machine, device)
 	}
 	return routed
 }

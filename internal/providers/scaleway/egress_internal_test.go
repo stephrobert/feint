@@ -1,6 +1,7 @@
 package scaleway
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -163,5 +164,37 @@ func TestAPushedDefaultRouteIsTheOnlyWayOutForAPrivateServer(t *testing.T) {
 	}
 	if !p.hasNoWayOut(server) {
 		t.Error("the attachment is gone and the server is still not refused its route")
+	}
+}
+
+// A replay reaches the machines on THAT network and nobody else (#678).
+//
+// The guard against an empty identifier is not defensive tidiness: a detach of a
+// half-built attachment hands one, and an empty identifier matches every NIC
+// that has not joined a network yet — so an unrelated platform would be
+// reconfigured by somebody else's gateway.
+func TestAReplayVisitsOnlyTheMachinesOnThatNetwork(t *testing.T) {
+	p := egressPack()
+	serverOn(p, "fnt-web")
+
+	// A NIC that joined nothing, which is what the empty-identifier guard is
+	// about: without it, an empty id matches this one and an unrelated machine
+	// is reconfigured by somebody else's gateway. A fixture without such a NIC
+	// cannot tell — the first version of this test had none and the mutation
+	// stayed green.
+	orphan := resource.New("nic-orphan", kindPrivateNIC,
+		resource.Tenant{Provider: Name, Zone: "fr-par-1"}, "available", p.env.Now())
+	orphan.Runtime = map[string]string{runtimeServerKey: "srv-1"}
+	p.env.Store.Put(orphan)
+
+	if got := p.replayEgressOn(context.Background(), "pn-1"); got != 1 {
+		t.Errorf("the replay visited %d machine(s) on their own network, want 1", got)
+	}
+	if got := p.replayEgressOn(context.Background(), "pn-somebody-else"); got != 0 {
+		t.Errorf("the replay visited %d machine(s) on another network's gesture, want 0", got)
+	}
+	if got := p.replayEgressOn(context.Background(), ""); got != 0 {
+		t.Errorf("an empty network identifier visited %d machine(s), want 0: "+
+			"a detach of a half-built attachment hands one, and it matches every NIC that joined nothing", got)
 	}
 }

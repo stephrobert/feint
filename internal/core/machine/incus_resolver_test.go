@@ -18,6 +18,7 @@ import (
 func TestADeviceSetGivesTheGuestBackItsInterface(t *testing.T) {
 	f := &fakeRuntime{answers: map[string]string{
 		"ip -o link show dev": "2: eth1: <BROADCAST,MULTICAST,UP>\n",
+		"resolvectl dns eth1": "Link 2 (eth1): " + DefaultResolver + "\n",
 	}}
 	d := newFakeDriver(f)
 
@@ -204,6 +205,7 @@ func TestAFirstBootGivesTheGuestItsResolver(t *testing.T) {
 		"network get fnt-net ipv4.address": "10.189.0.1/24\n",
 		"ip -4 -o addr show dev eth1":      "2: eth1    inet 10.189.0.2/24 scope global eth1\n",
 		"ip -o link show dev":              "2: eth1: <BROADCAST,MULTICAST,UP>\n",
+		"resolvectl dns eth1":              "Link 2 (eth1): " + DefaultResolver + "\n",
 	}}
 	d := newFakeDriver(f)
 	d.OVN = true
@@ -215,4 +217,91 @@ func TestAFirstBootGivesTheGuestItsResolver(t *testing.T) {
 		t.Fatalf("the boot left the interface without a resolver:\n%s",
 			strings.Join(f.commands(), "\n"))
 	}
+}
+
+// A restart ASKS for the interface's resolver, which is what this door can hold.
+//
+// The lease carries none since #684 and only the first boot set one, so a
+// rebooted machine had no name server at all — this call is what puts the
+// gesture on the restart path. It is not proof the guest ends up with one:
+// measured 2026-09-04 under `--vm incus-ovn`, the setting lands while networkd
+// is still configuring the link and is cleared a moment later, with the default
+// route back and `getent hosts` answering nothing. That half needs a networkd
+// drop-in rather than runtime state, and is followed as its own defect.
+func TestARestartAsksForTheGuestsResolver(t *testing.T) {
+	const ownedNIC = `{
+	  "expanded_devices": {"eth1": {"type": "nic", "network": "fnt-net", "ipv4.address": "10.189.0.2"}},
+	  "devices": {"eth1": {"type": "nic", "network": "fnt-net", "ipv4.address": "10.189.0.2"}}
+	}`
+	f := &fakeRuntime{answers: map[string]string{
+		"/1.0/instances/srv":               ownedNIC,
+		"network get fnt-net ipv4.address": "10.189.0.1/24\n",
+		"ip -4 -o addr show dev eth1":      "2: eth1    inet 10.189.0.2/24 scope global eth1\n",
+		"ip -o link show dev":              "2: eth1: <BROADCAST,MULTICAST,UP>\n",
+		"resolvectl dns eth1":              "Link 2 (eth1): " + DefaultResolver + "\n",
+	}}
+	d := newFakeDriver(f)
+	d.OVN = true
+
+	_ = d.restoreGuestNetwork(context.Background(), "srv")
+
+	if i := indexOfCall(f, "resolvectl dns eth1 "+DefaultResolver); i < 0 {
+		t.Fatalf("the restart left the interface without a resolver:\n%s",
+			strings.Join(f.commands(), "\n"))
+	}
+}
+
+// A bus that is not listening yet is waited for; a binary that is not there is
+// not.
+//
+// Both answer with an error, and both were swallowed as "this image has no
+// systemd-resolved". Measured 2026-09-04 while measuring #678: a rebooted
+// machine came back with its default route and no name server, and nothing in
+// the log said why, because the refusal was the tolerated one.
+func TestAResolverWaitsForTheGuestsBusButNotForAMissingBinary(t *testing.T) {
+	t.Run("the bus comes up", func(t *testing.T) {
+		const answers = 3
+		calls := 0
+		f := &fakeRuntime{answers: map[string]string{
+			"ip -o link show dev": "2: eth1: <BROADCAST,MULTICAST,UP>\n",
+			"resolvectl dns eth1": "Link 2 (eth1): " + DefaultResolver + "\n",
+		}}
+		f.hook = func(_ int, args []string) ([]byte, error, bool) {
+			if len(args) >= 4 && args[0] == "exec" && args[3] == "resolvectl" {
+				calls++
+				if calls < answers {
+					return nil, errors.New("Failed to connect to bus: No such file or directory"), true
+				}
+				return nil, nil, true
+			}
+			return nil, nil, false
+		}
+		d := newFakeDriver(f)
+		d.OVN = true
+		d.setGuestResolver(context.Background(), "srv", "eth1")
+		if calls < answers {
+			t.Fatalf("the driver gave up after %d attempts, before the bus answered at %d", calls, answers)
+		}
+	})
+
+	t.Run("the binary is absent", func(t *testing.T) {
+		calls := 0
+		f := &fakeRuntime{answers: map[string]string{
+			"ip -o link show dev": "2: eth1: <BROADCAST,MULTICAST,UP>\n",
+			"resolvectl dns eth1": "Link 2 (eth1): " + DefaultResolver + "\n",
+		}}
+		f.hook = func(_ int, args []string) ([]byte, error, bool) {
+			if len(args) >= 4 && args[0] == "exec" && args[3] == "resolvectl" {
+				calls++
+				return nil, errors.New("sh: resolvectl: not found"), true
+			}
+			return nil, nil, false
+		}
+		d := newFakeDriver(f)
+		d.OVN = true
+		d.setGuestResolver(context.Background(), "srv", "eth1")
+		if calls != 1 {
+			t.Fatalf("an Alpine guest was asked %d times for a binary it does not have, want 1", calls)
+		}
+	})
 }
