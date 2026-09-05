@@ -2,6 +2,7 @@ package machine
 
 import (
 	"context"
+	"net/netip"
 	"strings"
 	"time"
 )
@@ -256,6 +257,17 @@ func (d *Incus) setGuestResolver(ctx context.Context, machine, device string) {
 		// on-link. Nothing to add, and adding it would override a working one.
 		return
 	}
+	// Checked once, before either half. It is this driver's own field rather
+	// than client input, and it still reaches a shell inside the guest — what
+	// crosses a boundary is checked at the boundary, the lesson
+	// cloudinit.Spec.checkInjection cost this repository once already. Written
+	// on the drop-in alone, it left the resolvectl call below reachable.
+	// TestAResolverThatIsNotAnAddressReachesNoCommand fails without this.
+	if _, err := netip.ParseAddr(d.resolver()); err != nil {
+		d.logger().Warn("the resolver is not an address, so no guest is given one",
+			"machine", machine, "resolver", d.resolver())
+		return
+	}
 	iface, err := d.guestInterface(ctx, machine, device)
 	if err != nil || iface == "" {
 		return
@@ -272,6 +284,11 @@ func (d *Incus) setGuestResolver(ctx context.Context, machine, device string) {
 	// charge every Alpine boot the whole budget.
 	// TestAResolverWaitsForTheGuestsBusButNotForAMissingBinary fails without
 	// this.
+	// The drop-in first: it is what survives, and the runtime setting below is
+	// what makes the machine resolve now rather than at the next
+	// reconfiguration.
+	d.writeGuestResolverConfig(ctx, machine, iface)
+
 	deadline := time.Now().Add(guestResolverWait)
 	for {
 		_, err := d.run(ctx, "exec", machine, "--", "resolvectl", "dns", iface, d.resolver())
@@ -344,4 +361,80 @@ func guestHasNoResolvectl(err error) bool {
 		}
 	}
 	return false
+}
+
+// writeGuestResolverConfig puts the resolver where networkd reads it, so that
+// networkd's own next reconfiguration keeps it instead of clearing it (#696).
+//
+// Best effort throughout, like everything else on this path: an image with no
+// systemd-networkd has no unit to extend, and a machine that cannot be told
+// still boots and still carries its addresses.
+func (d *Incus) writeGuestResolverConfig(ctx context.Context, machine, iface string) {
+	// The caller checked it: setGuestResolver refuses a resolver that is not an
+	// address before it reaches either half.
+	resolver := d.resolver()
+	unit := d.guestNetworkUnit(ctx, machine, iface)
+	if unit == "" {
+		return
+	}
+	// `install -D` rather than mkdir and a redirect: one command, and it creates
+	// the directory it needs. The content is two fixed lines and one address
+	// this function has already parsed, so nothing here is client-shaped.
+	dropIn := "/etc/systemd/network/" + unit + ".d/feint-dns.conf"
+	script := "mkdir -p " + shellQuote(dropIn[:strings.LastIndex(dropIn, "/")]) +
+		" && printf '[Network]\nDNS=%s\n' " + shellQuote(resolver) + " > " + shellQuote(dropIn)
+	if _, err := d.run(ctx, "exec", machine, "--", "sh", "-c", script); err != nil {
+		if isNotRunning(err) || isNotFound(err) {
+			return
+		}
+		d.logger().Warn("the resolver could not be written where the guest's network stack reads it",
+			"machine", machine, "interface", iface, "unit", unit, "error", err)
+		return
+	}
+	// Read again, or the drop-in is a file nobody has looked at.
+	if err := d.reloadGuestNetwork(ctx, machine); err != nil {
+		d.logger().Warn("the guest was not told to read the resolver just written for it",
+			"machine", machine, "interface", iface, "error", err)
+	}
+}
+
+// guestNetworkUnit answers the .network unit networkd is using for an
+// interface, empty when it is using none.
+//
+// READ rather than derived. Netplan names its units by the shape of what it
+// rendered — 10-netplan-eth0.network for a named interface,
+// 10-netplan-attached.network for a match stanza — so a name this driver
+// guessed would attach the drop-in to nothing on half the machines it boots,
+// and silently: a drop-in for a unit that does not exist is a file, not an
+// error.
+func (d *Incus) guestNetworkUnit(ctx context.Context, machine, iface string) string {
+	out, err := d.run(ctx, "exec", machine, "--", "networkctl", "status", iface)
+	if err != nil {
+		return ""
+	}
+	for _, line := range strings.Split(string(out), "\n") {
+		_, after, found := strings.Cut(line, "Network File:")
+		if !found {
+			continue
+		}
+		path := strings.TrimSpace(after)
+		// `n/a` is what an unmanaged link answers, and it is a name this would
+		// otherwise happily build a directory for.
+		if path == "" || path == "n/a" {
+			return ""
+		}
+		return path[strings.LastIndex(path, "/")+1:]
+	}
+	return ""
+}
+
+// shellQuote wraps a value for `sh -c`, which is the only place this driver
+// builds a command line out of a string rather than out of an argv.
+//
+// Single quotes and the one escape that matters inside them. Every value that
+// reaches it here is already validated — a resolver parsed as an IP, a unit
+// name read out of networkctl — and this is the second lock rather than the
+// first.
+func shellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", `'\''`) + "'"
 }
