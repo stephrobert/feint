@@ -220,7 +220,7 @@ func (p *Pack) Routes() []emulator.Route {
 		// deleting the field. `exo compute elastic-ip update --description ""`
 		// issues a PUT and no DELETE, and so does the private network one.
 		{Method: "DELETE", Path: "/v2/private-network/{id}/{field}", Operation: operation("reset-private-network-field"), Handler: p.resetPrivateNetworkField,
-			Undriven: "the CLI clears a field by sending the update with an empty value, so the per-field DELETE the API declares is never issued"},
+			Undriven: "neither published client issues it: the CLI clears a field by sending the update with an empty value, and the Terraform provider (v0.71.0) makes no per-field reset call at all, its own code holding no Reset*() call site"},
 		{Method: "PUT", Path: "/v2/private-network/{id}:attach", Operation: operation("attach-instance-to-private-network"), Handler: p.attachInstanceToPrivateNetwork},
 		{Method: "PUT", Path: "/v2/private-network/{id}:detach", Operation: operation("detach-instance-from-private-network"), Handler: p.detachInstanceFromPrivateNetwork},
 		{Method: "PUT", Path: "/v2/private-network/{id}:update-ip", Operation: operation("update-private-network-instance-ip"), Handler: p.updatePrivateNetworkInstanceIP},
@@ -238,7 +238,7 @@ func (p *Pack) Routes() []emulator.Route {
 			// hardware Exoscale assigns, not something a client creates. With
 			// nothing in the list there is no id to read, and seeding a fake one
 			// would be inventing inventory — the thing docs/limits.md refuses.
-			Undriven: "the list this pack serves is empty, because an emulated account owns no dedicated hardware, so no client ever holds an id to read"},
+			Undriven: "the list this pack serves is empty, because an emulated account owns no dedicated hardware, so no client ever holds an id to read; the Terraform provider does model deploy targets and is stopped by the same emptiness, not by a gap in the client"},
 
 		// The first call the official CLI makes, and the address every call
 		// after it uses. Measured, not assumed: see catalog.go.
@@ -252,7 +252,7 @@ func (p *Pack) Routes() []emulator.Route {
 		{Method: "POST", Path: "/v2/instance/{id}:create-snapshot", Operation: operation("create-snapshot"), Handler: p.createSnapshot},
 		{Method: "GET", Path: "/v2/snapshot", Operation: operation("list-snapshots"), Handler: p.listSnapshots},
 		{Method: "GET", Path: "/v2/snapshot/{id}", Operation: operation("get-snapshot"), Handler: p.getSnapshot,
-			Undriven: "`exo compute instance snapshot show` lists the snapshots and picks the one it wants in the client, so the per-id read is never called"},
+			Undriven: "`exo compute instance snapshot show` lists the snapshots and picks the one it wants in the client, so the per-id read is never called, and the Terraform provider (v0.71.0) reads block-storage snapshots by id but never an instance one"},
 		{Method: "DELETE", Path: "/v2/snapshot/{id}", Operation: operation("delete-snapshot"), Handler: p.deleteSnapshot},
 		{Method: "POST", Path: "/v2/instance/{id}:revert-snapshot", Operation: operation("revert-instance-to-snapshot"), Handler: p.revertInstanceToSnapshot},
 		// The CLI has a flag for this — `instance-template register
@@ -262,21 +262,21 @@ func (p *Pack) Routes() []emulator.Route {
 		// back an object-storage address this emulator does not serve), so the
 		// whole path stops before anything could reach :promote.
 		{Method: "POST", Path: "/v2/snapshot/{id}:promote", Operation: operation("promote-snapshot-to-template"), Handler: p.promoteSnapshotToTemplate,
-			Undriven: "the CLI's --from-snapshot promotes through export-snapshot and a URL, which this pack declines, so it never issues the promote call the SDK declares"},
+			Undriven: "the CLI's --from-snapshot promotes through export-snapshot and a URL, which this pack declines, so it never issues the promote call the SDK declares, and the Terraform provider (v0.71.0) holds no Promote*() call site at all"},
 		{Method: "POST", Path: "/v2/template", Operation: operation("register-template"), Handler: p.registerTemplate},
 		{Method: "POST", Path: "/v2/template/{id}", Operation: operation("copy-template"), Handler: p.copyTemplate,
-			Undriven: "copying a template targets another zone, and this emulator serves exactly one, so the CLI has nothing to copy to and no subcommand that would ask"},
+			Undriven: "copying a template targets another zone, and this emulator serves exactly one, so the CLI has nothing to copy to and no subcommand that would ask; the Terraform provider (v0.71.0) never copies one either"},
 		{Method: "PUT", Path: "/v2/template/{id}", Operation: operation("update-template"), Handler: p.updateTemplate,
-			Undriven: "`exo compute instance-template` offers register, list, show and delete, and no update, so a client cannot rename a template it owns"},
+			Undriven: "`exo compute instance-template` offers register, list, show and delete, and no update, so a client cannot rename a template it owns, and the Terraform provider (v0.71.0) only ever calls GetTemplate"},
 		{Method: "DELETE", Path: "/v2/template/{id}", Operation: operation("delete-template"), Handler: p.deleteTemplate},
 		// The account-level reads and the two field resets, same triage (#173).
 		{Method: "GET", Path: "/v2/organization", Operation: operation("get-organization"), Handler: p.getOrganization},
 		{Method: "GET", Path: "/v2/event", Operation: operation("list-events"), Handler: p.listEvents},
 		{Method: "POST", Path: "/v2/instance/{id}:enable-tpm", Operation: operation("enable-tpm"), Handler: p.enableTPM},
 		{Method: "DELETE", Path: "/v2/instance/{id}/{field}", Operation: operation("reset-instance-field"), Handler: p.resetInstanceField,
-			Undriven: "the CLI clears a field by sending the update with an empty value, so the per-field DELETE the API declares is never issued"},
+			Undriven: "neither published client issues it: the CLI clears a field by sending the update with an empty value, and the Terraform provider (v0.71.0) makes no per-field reset call at all, its own code holding no Reset*() call site"},
 		{Method: "DELETE", Path: "/v2/elastic-ip/{id}/{field}", Operation: operation("reset-elastic-ip-field"), Handler: p.resetElasticIPField,
-			Undriven: "the CLI clears a field by sending the update with an empty value, so the per-field DELETE the API declares is never issued"},
+			Undriven: "neither published client issues it: the CLI clears a field by sending the update with an empty value, and the Terraform provider (v0.71.0) makes no per-field reset call at all, its own code holding no Reset*() call site"},
 		{Method: "GET", Path: "/v2/instance-type", Operation: operation("list-instance-types"), Handler: p.listInstanceTypes},
 		{Method: "GET", Path: "/v2/instance-type/{id}", Operation: operation("get-instance-type"), Handler: p.getInstanceType},
 
@@ -330,7 +330,7 @@ func (p *Pack) Routes() []emulator.Route {
 		{Method: "PUT", Path: "/v2/instance-pool/{id}:scale", Operation: operation("scale-instance-pool"), Handler: p.scaleInstancePool},
 		{Method: "PUT", Path: "/v2/instance-pool/{id}:evict", Operation: operation("evict-instance-pool-members"), Handler: p.evictInstancePoolMembers},
 		{Method: "DELETE", Path: "/v2/instance-pool/{id}/{field}", Operation: operation("reset-instance-pool-field"), Handler: p.resetInstancePoolField,
-			Undriven: "the CLI clears a field by sending the update with an empty value, so the per-field DELETE the API declares is never issued"},
+			Undriven: "neither published client issues it: the CLI clears a field by sending the update with an empty value, and the Terraform provider (v0.71.0) makes no per-field reset call at all, its own code holding no Reset*() call site"},
 
 		// SSH keys. On the critical path of a create: the official CLI
 		// registers one of its own before it posts the instance.
@@ -341,7 +341,7 @@ func (p *Pack) Routes() []emulator.Route {
 		// counted rather than invented.
 		{Method: "GET", Path: "/v2/quota", Operation: operation("list-quotas"), Handler: p.listQuotas},
 		{Method: "GET", Path: "/v2/quota/{name}", Operation: operation("get-quota"), Handler: p.getQuota,
-			Undriven: "`exo limits` reads the whole quota list and prints it, so the per-name read has no client path even though the SDK declares one"},
+			Undriven: "`exo limits` reads the whole quota list and prints it, so the per-name read has no client path even though the SDK declares one, and the word Quota does not appear anywhere in the Terraform provider's own code (v0.71.0)"},
 		{Method: "GET", Path: "/v2/ssh-key/{name}", Operation: operation("get-ssh-key"), Handler: p.getSSHKey},
 		{Method: "DELETE", Path: "/v2/ssh-key/{name}", Operation: operation("delete-ssh-key"), Handler: p.deleteSSHKey},
 
@@ -367,7 +367,7 @@ func (p *Pack) Routes() []emulator.Route {
 		{Method: "DELETE", Path: "/v2/load-balancer/{id}", Operation: operation("delete-load-balancer"), Handler: p.deleteLoadBalancer},
 		{Method: "POST", Path: "/v2/load-balancer/{id}/service", Operation: operation("add-service-to-load-balancer"), Handler: p.addServiceToLoadBalancer},
 		{Method: "GET", Path: "/v2/load-balancer/{id}/service/{serviceID}", Operation: operation("get-load-balancer-service"), Handler: p.getLoadBalancerService,
-			Undriven: "`exo compute load-balancer service show` reads the balancer list and picks its service out of the balancer it found, so the per-id service read is never called"},
+			Undriven: "`exo compute load-balancer service show` reads the balancer list and picks its service out of the balancer it found, so the per-id service read is never called, and the Terraform provider does the same: resource_exoscale_nlb_service.go reads the balancer by id and takes its service from the answer"},
 		{Method: "PUT", Path: "/v2/load-balancer/{id}/service/{serviceID}", Operation: operation("update-load-balancer-service"), Handler: p.updateLoadBalancerService},
 		{Method: "DELETE", Path: "/v2/load-balancer/{id}/service/{serviceID}", Operation: operation("delete-load-balancer-service"), Handler: p.deleteLoadBalancerService},
 		// The two per-field resets, and their reason is NOT the sentence every
@@ -380,9 +380,9 @@ func (p *Pack) Routes() []emulator.Route {
 		// field at all, by update or by reset, and copying the familiar sentence
 		// here would have recorded a behaviour this client does not have.
 		{Method: "DELETE", Path: "/v2/load-balancer/{id}/{field}", Operation: operation("reset-load-balancer-field"), Handler: p.resetLoadBalancerField,
-			Undriven: "`exo compute load-balancer update --description \"\"` sends an empty body rather than the empty value, so this CLI clears no field by either route and the per-field DELETE is never issued"},
+			Undriven: "`exo compute load-balancer update --description \"\"` sends an empty body rather than the empty value, so this CLI clears no field by either route, and the Terraform provider (v0.71.0) issues no per-field reset either"},
 		{Method: "DELETE", Path: "/v2/load-balancer/{id}/service/{serviceID}/{field}", Operation: operation("reset-load-balancer-service-field"), Handler: p.resetLoadBalancerServiceField,
-			Undriven: "`exo compute load-balancer service update --description \"\"` sends only the healthcheck block it re-sends on every call, so this CLI clears no field by either route and the per-field DELETE is never issued"},
+			Undriven: "`exo compute load-balancer service update --description \"\"` sends only the healthcheck block it re-sends on every call, so this CLI clears no field by either route, and the Terraform provider (v0.71.0) issues no per-field reset either"},
 	})
 }
 
