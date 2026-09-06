@@ -48,34 +48,29 @@ Then, when you are done:
 which destroys what the declaration built and stops the emulator, saying what it
 discards.
 
-### The Exoscale stack is suspended: `feint up` refuses its engine
+### The Exoscale stack runs, from provider v0.71.0
 
-No Terraform for Exoscale, until upstream fixes
-[#573](https://github.com/exoscale/terraform-provider-exoscale/issues/573):
-the published provider builds two clients and only one honours
-`EXOSCALE_API_ENDPOINT`, so an apply or destroy **splits** between the
-emulator and a paying account. #525 measured exactly that from `feint down`
-on this stack — five signed requests left for `api-ch-*.exoscale.com` — so
-the refusal now falls at the doorstep, before anything starts:
+It did not, from 2026-08-26 to 2026-09-05, and the history is dated in
+[limits.md](limits.md#the-exoscale-terraform-provider-is-refused-and-why): the
+published provider built two clients and only one honoured
+`EXOSCALE_API_ENDPOINT`, so an apply or destroy **split** between the emulator
+and a paying account (#525 measured exactly that from `feint down` on this
+stack, five signed requests leaving for `api-ch-*.exoscale.com`), and
+`feint up` refused the engine at the doorstep. Upstream fixed the v2 client in
+v0.71.0 (exoscale/terraform-provider-exoscale#576), #644 measured the published
+provider against this pack before believing the release note, and the refusal
+became a [floor](limits.md#what-replaced-the-refusal-a-floor): the stack pins
+`>= 0.71.0`, and the emulator refuses an older provider by user agent, naming
+the version to pin. There is no doorstep veto left for a declaration to hit.
 
 ```bash
 cd examples/stacks/exoscale && feint up
-# feint: `iac.engine: terraform` is refused for `cloud.provider: exoscale`: …
-# Nothing was started. Two ways on: …
 ```
 
-That refusal is the stack's declared state, not a defect. The exo CLI drives
-the Exoscale pack end to end (`feint up --no-iac`, then
-`eval "$(feint env exoscale)"` and `exo`), and the whole history — the split,
-the fork that once proved the surface holds, and the condition of Terraform's
-return — is dated in
-[limits.md](limits.md#the-exoscale-terraform-provider-is-refused-and-why).
-
-A declaration cannot lift the emulator-side refusal either:
-`FEINT_EXOSCALE_ALLOW_TERRAFORM` is refused by name in `emulator.env`, because
-this stack's own `feint.yaml` carried it on the day of #525 and armed it for
-whatever provider the engine resolved. The variable survives as a hand-export
-to `feint serve`, for verifying a candidate upstream fix, and nothing else.
+`FEINT_EXOSCALE_ALLOW_TERRAFORM`, the hand-export that once lifted the
+emulator's refusal and that this stack's `feint.yaml` carried on the day of
+#525, no longer exists: nothing reads it, and `emulator.env` no longer refuses
+it by name (#701).
 
 ## What the file is, and what it is not
 
@@ -139,10 +134,7 @@ script.
    undeclared `TF_VAR_` is ignored, where `-var endpoint=…` fails outright on a
    stack that declares no such variable.
 4. **FEINT_\* knobs are read server-side**, so exporting one after the emulator
-   started leaves it unread. `emulator.env` sets them before the spawn — with
-   one name refused outright since #525: `FEINT_EXOSCALE_ALLOW_TERRAFORM`,
-   which a stack declaration once armed for whatever provider the engine
-   resolved, is a hand-export to `feint serve` or nothing.
+   started leaves it unread. `emulator.env` sets them before the spawn.
 
 ## Machines, and the refusal that comes before them
 

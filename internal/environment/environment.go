@@ -572,30 +572,24 @@ func (f *File) check() error {
 // alone, and a declaration able to set any variable of a process it spawns is
 // a different and much larger thing. Refusing names both facts.
 //
-// One of this project's own names is refused too, and by name.
-// examples/stacks/exoscale/feint.yaml used to carry
-// FEINT_EXOSCALE_ALLOW_TERRAFORM: "1", and #525 measured what that arms: the
-// declaration lifted the emulator's one Terraform refusal for whatever
-// provider the engine resolved — the published one, that day — and five
-// signed requests left for api-ch-*.exoscale.com. A declaration travels with
-// a stack to machines and shells its author never sees, so an escape hatch
-// that consequential is exported by hand, in the shell that runs
-// `feint serve`, by someone who has read docs/limits.md — never by a file.
+// One of this project's own names was refused here too, by name, from #525
+// to #644: FEINT_EXOSCALE_ALLOW_TERRAFORM, which
+// examples/stacks/exoscale/feint.yaml carried on the day a declaration arming
+// it let the published Exoscale provider split a run between the emulator and
+// the real cloud. The variable left with #644, when that refusal became a
+// version floor the emulator judges on the first request: nothing reads the
+// name any more, and #644 recorded the schema's refusal of it as gone while
+// the check outlived it (#701). A guard on a name nothing reads is the
+// intention written in the past tense this repository names first, so it is
+// gone now, with the test that held it; both are in git log for the day an
+// escape hatch that consequential returns.
 //
 // TestAnEnvironmentVariableOutsideTheProjectsOwnIsRefused fails without the
-// prefix check; TestTheDeclarationCannotArmTheExoscaleTerraformEscape fails
-// without the name check.
+// prefix check.
 func checkEnvName(name string) error {
 	if !strings.HasPrefix(name, "FEINT_") {
 		return fmt.Errorf("%q: this block sets the emulator's own knobs, so a name has to start with "+
 			"FEINT_; export anything else in the shell that runs `feint up`", name)
-	}
-	if name == "FEINT_EXOSCALE_ALLOW_TERRAFORM" {
-		return fmt.Errorf("%q: refused since #525, when a stack declaration arming it let the published "+
-			"Exoscale provider split a run between the emulator and the real cloud. It is exported by "+
-			"hand, in the shell that runs `feint serve`, or not at all — and `feint up` refuses "+
-			"`iac.engine: terraform` for Exoscale regardless, until upstream "+
-			"exoscale/terraform-provider-exoscale#573 is fixed", name)
 	}
 	for _, c := range name {
 		if (c < 'A' || c > 'Z') && (c < '0' || c > '9') && c != '_' {

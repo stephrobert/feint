@@ -5,6 +5,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/stephrobert/feint/internal/core/emulator"
+	"github.com/stephrobert/feint/internal/providers/exoscale"
 )
 
 // What is pinned here is the accident, not the feature.
@@ -62,28 +65,32 @@ func TestEnvPutsNothingButExportsOnStdout(t *testing.T) {
 	}
 }
 
-// The Exoscale note is the reason the Note field exists, and what it warns about
-// has changed twice as the clients did. It said the exo CLI ignores these
-// variables, until a contributor showed it reads them (#51); it now says the
+// The Exoscale note is the reason the Note field exists, and what it says has
+// changed three times as the clients did. It said the exo CLI ignores these
+// variables, until a contributor showed it reads them (#51); it said the
 // Terraform provider honours EXOSCALE_API_ENDPOINT for its v3 client and not
-// its v2 one, so an apply splits between this emulator and the real cloud.
+// its v2 one, so an apply splits between this emulator and the real cloud; and
+// it kept saying so for a day after #644 had turned that refusal into a version
+// floor (#701). What the note says is the pack's to hold, next to the constant
+// it reads: TestTheEnvNoteNamesTheFloor in internal/providers/exoscale.
 //
-// What this test holds is the property that does not change with a client: a
-// warning that costs money if unread reaches stderr, and never stdout, where
-// eval would execute it.
+// What this test holds is the property that does not change with a client: the
+// note the pack declares reaches stderr whole, and never stdout, where eval
+// would execute it.
 func TestEnvSendsItsNoteToStderr(t *testing.T) {
 	code, printed, errOut := run("env", "exoscale")
 	if code != 0 {
 		t.Fatalf("exited %d: %s", code, errOut)
 	}
-	if !strings.Contains(errOut, "terraform") {
-		t.Fatalf("the exoscale caveat is not on stderr: %q", errOut)
+	want := exoscale.New(emulator.DefaultEnv()).Env("http://127.0.0.1:4599").Note
+	if want == "" {
+		t.Fatal("the exoscale pack declares no note, so this test would be holding nothing")
 	}
-	if !strings.Contains(errOut, "billable") {
-		t.Fatalf("the caveat does not say what it costs: %q", errOut)
+	if !strings.Contains(errOut, want) {
+		t.Fatalf("the exoscale note is not on stderr whole:\nwant %q\n got %q", want, errOut)
 	}
-	if strings.Contains(printed, "terraform") {
-		t.Fatalf("the caveat leaked onto stdout, where eval would execute it:\n%s", printed)
+	if strings.Contains(strings.ToLower(printed), "terraform") {
+		t.Fatalf("the note leaked onto stdout, where eval would execute it:\n%s", printed)
 	}
 }
 

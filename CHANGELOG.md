@@ -307,6 +307,23 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Fixed
 
+- **`feint env exoscale` tells a Terraform user what the emulator does today**
+  (#701). The note on stderr still said, a day after #644 had lifted the
+  refusal, that the provider honours `EXOSCALE_API_ENDPOINT` for half of itself
+  and that Terraform must not be pointed here — the first thing a Terraform
+  user reads, telling them the opposite of what the run then did. It now says
+  the published provider drives this pack from v0.71.0
+  (exoscale/terraform-provider-exoscale#576), to pin at least that version,
+  and that an older one is refused by user agent, naming the floor; it reads
+  the floor from the constant the refusal reads, so the two cannot drift apart
+  again. The same stale sentence was measured in four documents and one guard,
+  and all say the same thing now: `docs/confidence.md` answered **no** to a
+  Terraform run against Exoscale, `docs/environment.md` and `examples/stacks/`
+  said `feint up` refuses the engine at a doorstep #644 had removed, and
+  `emulator.env` still refused `FEINT_EXOSCALE_ALLOW_TERRAFORM` by name — a
+  variable nothing reads since #644, whose refusal #644 itself recorded as
+  gone. It is gone now.
+
 - **`reverse: null` clears a flexible IP's reverse, and reads back null** (#676).
   The SDK sends the reverse as a `NullableStringValue` whose JSON is a literal
   `null` to clear, and the emulator read it into a `*string`, where a null and

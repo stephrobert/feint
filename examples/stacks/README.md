@@ -1,13 +1,13 @@
-# Three platform stacks, two applied on every pull request
+# Three platform stacks, applied on every pull request
 
 These are not snippets. Each stack is the shape a platform team ends up with,
 written the way the surveyed third-party stacks are written — modules,
 `for_each` over typed variables, a `terraform.tfvars.example`, zones asked
-from the API rather than hardcoded. The Scaleway and Outscale stacks run
-against Feint in CI on every pull request — apply, an empty second plan,
-destroy — with no cloud account and nothing billed. The Exoscale one is
-suspended, for a reason
-[measured below](#the-exoscale-stack-is-suspended-no-terraform-for-exoscale).
+from the API rather than hardcoded. All three run against Feint in CI on
+every pull request — apply, a second plan that changes no resource, destroy —
+with no cloud account and nothing billed. The Exoscale one only since
+2026-09-05, for a reason
+[measured below](#the-exoscale-stack-was-suspended-and-what-lifted-it).
 
 ## Running one
 
@@ -62,7 +62,7 @@ Resource counts are measured — the number the apply reports — not estimated.
   plan. The route through the NAT service is coverage the conformance
   fixtures do not have: they create a NAT service and never route through it.
 
-### `exoscale/` — 13 resources, 3 machines
+### `exoscale/` — 15 resources, 3 machines
 
 - **Builds**: two managed private networks with declared lease ranges,
   per-tier security groups (one rule naming the other group rather than an
@@ -80,8 +80,9 @@ Resource counts are measured — the number the apply reports — not estimated.
   must read back as sent. While it ran, it was the Terraform reader of the
   block-storage and instance-pool work of #12 and #232, which the exo CLI
   suite now exercises alone.
-- **Suspended, run by nothing** — no Terraform for Exoscale until upstream
-  \#573 is fixed, [measured below](#the-exoscale-stack-is-suspended-no-terraform-for-exoscale).
+- **Applied on every pull request since 2026-09-05**, on the published
+  provider from v0.71.0, after ten days suspended for a reason
+  [measured below](#the-exoscale-stack-was-suspended-and-what-lifted-it).
 
 ## What a run proves, and the rule that makes the stacks grow
 
@@ -163,39 +164,45 @@ first run. The commit a tag is cut from gets the same image run on `main`
 after the merge, which is what makes the image eventually published a proven
 one.
 
-## The Exoscale stack is suspended: no Terraform for Exoscale
+## The Exoscale stack was suspended, and what lifted it
 
-The published Exoscale provider builds two clients: one honours
-`EXOSCALE_API_ENDPOINT`, the other has `.exoscale.com` compiled in. An apply
-therefore does not fail — it **splits**, half against the emulator and half
+Up to 0.70.0 the published Exoscale provider built two clients: one honoured
+`EXOSCALE_API_ENDPOINT`, the other had `.exoscale.com` compiled in. An apply
+therefore did not fail — it **split**, half against the emulator and half
 against a paying account (upstream
 [#573](https://github.com/exoscale/terraform-provider-exoscale/issues/573)).
 The whole measurement is in
 [docs/limits.md](../../docs/limits.md#the-exoscale-terraform-provider-is-refused-and-why).
 
-**Since 2026-08-26, nothing runs this stack, and that is the decision, not a
-gap.** A pinned four-line fork used to close the split for a by-hand run, and
-what it proved stays dated in limits.md — 13 resources on 2026-08-18, then 16
-with block storage and private networking on 2026-08-24, empty second plan and
-clean destroy both times. Then #525 measured what every path around the fork
-costs: a `feint down` in this directory, run without the fork's
-`dev_overrides`, resolved the published 0.70.0 and sent five signed requests
-to `api-ch-*.exoscale.com`. A client this project patched could never count
-towards conformance anyway, so the fork's only role was keeping this path
+**From 2026-08-26 to 2026-09-05, nothing ran this stack, and that was the
+decision, not a gap.** A pinned four-line fork used to close the split for a
+by-hand run, and what it proved stays dated in limits.md — 13 resources on
+2026-08-18, then 16 with block storage and private networking on 2026-08-24,
+empty second plan and clean destroy both times. Then #525 measured what every
+path around the fork costs: a `feint down` in this directory, run without the
+fork's `dev_overrides`, resolved the published 0.70.0 and sent five signed
+requests to `api-ch-*.exoscale.com`. A client this project patched could never
+count towards conformance anyway, so the fork's only role was keeping this path
 warm, and #525 priced it.
 
-So today:
+Upstream fixed the v2 client in v0.71.0
+([#576](https://github.com/exoscale/terraform-provider-exoscale/issues/576),
+2026-08-31), and #644 measured the published provider against the emulator
+before believing the release note — through a proxy that records every host a
+provider asks for, with 0.70.0 as the positive control: 57 requests to the real
+cloud on 0.70.0, none on 0.71.0. So today:
 
-- `feint up` and `feint down` here **refuse the engine at the doorstep**,
-  before an emulator or a Terraform process starts, naming #573 and the exo
-  CLI;
-- the stack's `feint.yaml` no longer carries
-  `FEINT_EXOSCALE_ALLOW_TERRAFORM`, and the declaration schema refuses that
-  name outright;
-- the `*.tf` stays what it is — the platform shape this stack asserts — and
-  becomes runnable again the day upstream fixes #573 in the published
-  provider. The exo CLI drives the Exoscale pack in CI in the meantime
-  (`exo-cli.sh`, `network.sh`, `ssh.sh`, `zones.sh`).
+- `tools/conformance/stacks.sh` applies this stack beside the two others on the
+  terraform and opentofu legs of every pull request, and
+  `tools/conformance/exoscale/terraform.sh` asserts the resolved provider
+  against the floor before it applies anything;
+- `main.tf` pins `>= 0.71.0`, and the emulator refuses an older provider by
+  user agent, naming the version to pin
+  ([the floor](../../docs/limits.md#what-replaced-the-refusal-a-floor)): a
+  configuration pinned below it fails at its first request rather than at a
+  paying account;
+- `feint up` and `feint down` here run the engine like anywhere else; the
+  doorstep veto and `FEINT_EXOSCALE_ALLOW_TERRAFORM` went with the decision.
 
 ## Offering your stack: what we ask, and what we do with it
 
