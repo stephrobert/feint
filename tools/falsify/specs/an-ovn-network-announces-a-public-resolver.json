@@ -78,6 +78,54 @@
       "find": "\t\tif isNotRunning(err) || isNotFound(err) || guestHasNoResolvectl(err) {\n\t\t\treturn\n\t\t}",
       "replace": "\t\tif isNotRunning(err) || isNotFound(err) || guestHasNoResolvectl(err) {\n\t\t\tif time.Now().After(deadline) {\n\t\t\t\treturn\n\t\t\t}\n\t\t\ttime.Sleep(guestResolverPoll)\n\t\t\tcontinue\n\t\t}",
       "test": "TestAResolverWaitsForTheGuestsBusButNotForAMissingBinary"
+    },
+    {
+      "label": "the resolver is left as runtime state, which networkd clears the moment it finishes configuring the link",
+      "file": "internal/core/machine/incus_resolver.go",
+      "package": "./internal/core/machine/",
+      "find": "\td.writeGuestResolverConfig(ctx, machine, iface)\n",
+      "replace": "\tif false {\n\t\td.writeGuestResolverConfig(ctx, machine, iface)\n\t}\n",
+      "test": "TestAResolverIsWrittenWhereNetworkdReadsIt"
+    },
+    {
+      "label": "the drop-in goes to /run, which a container restart wipes — and a restart is the event this defect was measured on",
+      "file": "internal/core/machine/incus_resolver.go",
+      "package": "./internal/core/machine/",
+      "find": "\tdropIn := \"/etc/systemd/network/\" + unit + \".d/feint-dns.conf\"",
+      "replace": "\tdropIn := \"/run/systemd/network/\" + unit + \".d/feint-dns.conf\"",
+      "test": "TestAResolverIsWrittenWhereNetworkdReadsIt"
+    },
+    {
+      "label": "the unit name is guessed from the interface instead of read from the guest, so the drop-in extends nothing on every machine netplan named by shape",
+      "file": "internal/core/machine/incus_resolver.go",
+      "package": "./internal/core/machine/",
+      "find": "\tunit := d.guestNetworkUnit(ctx, machine, iface)",
+      "replace": "\tunit := \"10-netplan-\" + iface + \".network\" + d.guestNetworkUnit(ctx, machine, iface)[:0]",
+      "test": "TestAResolverIsWrittenWhereNetworkdReadsIt"
+    },
+    {
+      "label": "an unmanaged link's `n/a` is taken for a unit name, so a directory is built from nothing",
+      "file": "internal/core/machine/incus_resolver.go",
+      "package": "./internal/core/machine/",
+      "find": "\t\tif path == \"\" || path == \"n/a\" {",
+      "replace": "\t\tif path == \"\" || path == \"n/a\" && false {",
+      "test": "TestAnInterfaceWithNoUnitGetsNoDropIn"
+    },
+    {
+      "label": "the drop-in is written and networkd never told to read it, so the file is one nobody has looked at",
+      "file": "internal/core/machine/incus_resolver.go",
+      "package": "./internal/core/machine/",
+      "find": "\tif err := d.reloadGuestNetwork(ctx, machine); err != nil {\n\t\td.logger().Warn(\"the guest was not told to read the resolver just written for it\",\n\t\t\t\"machine\", machine, \"interface\", iface, \"error\", err)\n\t}",
+      "replace": "\tif false {\n\t\tif err := d.reloadGuestNetwork(ctx, machine); err != nil {\n\t\t\td.logger().Warn(\"the guest was not told to read the resolver just written for it\",\n\t\t\t\t\"machine\", machine, \"interface\", iface, \"error\", err)\n\t\t}\n\t}",
+      "test": "TestAResolverIsWrittenWhereNetworkdReadsIt"
+    },
+    {
+      "label": "a resolver that is not an address reaches the shell inside the guest",
+      "file": "internal/core/machine/incus_resolver.go",
+      "package": "./internal/core/machine/",
+      "find": "\tif _, err := netip.ParseAddr(d.resolver()); err != nil {",
+      "replace": "\tif _, err := netip.ParseAddr(d.resolver()); err != nil && false {",
+      "test": "TestAResolverThatIsNotAnAddressReachesNoCommand"
     }
   ]
 }

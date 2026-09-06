@@ -305,3 +305,102 @@ func TestAResolverWaitsForTheGuestsBusButNotForAMissingBinary(t *testing.T) {
 		}
 	})
 }
+
+// The resolver is written where networkd reads it, under the unit networkd
+// says it is using (#696).
+//
+// `resolvectl dns` sets runtime state, and networkd clears it the moment it
+// finishes configuring the link: measured 2026-09-04, a rebooted machine came
+// back with its default route and no name server at all, no error anywhere,
+// because the command had succeeded and the value was gone a moment later.
+func TestAResolverIsWrittenWhereNetworkdReadsIt(t *testing.T) {
+	f := &fakeRuntime{answers: map[string]string{
+		"ip -o link show dev": "2: eth1: <BROADCAST,MULTICAST,UP>\n",
+		"networkctl status eth1": "● 3: eth1\n" +
+			"       Link File: /usr/lib/systemd/network/99-default.link\n" +
+			"    Network File: /run/systemd/network/10-netplan-attached.network\n" +
+			"           State: routable (configured)\n",
+		"resolvectl dns eth1": "Link 3 (eth1): " + DefaultResolver + "\n",
+	}}
+	d := newFakeDriver(f)
+	d.OVN = true
+
+	d.setGuestResolver(context.Background(), "srv", "eth1")
+
+	wrote := indexOfCall(f, "feint-dns.conf")
+	if wrote < 0 {
+		t.Fatalf("nothing was written where networkd reads it:\n%s", strings.Join(f.commands(), "\n"))
+	}
+	written := f.commands()[wrote]
+	// The unit is the one the guest named, not one this driver guessed: netplan
+	// names its units by shape, so a guess attaches the drop-in to nothing on
+	// half the machines and does it silently.
+	if !strings.Contains(written, "10-netplan-attached.network.d") {
+		t.Errorf("the drop-in does not sit under the unit the guest named:\n  %s", written)
+	}
+	// /etc, not /run: /run is a tmpfs a container restart wipes, and a restart
+	// is the event this defect was measured on.
+	if !strings.Contains(written, "/etc/systemd/network/") {
+		t.Errorf("the drop-in is written where a restart erases it:\n  %s", written)
+	}
+	if !strings.Contains(written, DefaultResolver) {
+		t.Errorf("the drop-in names no resolver:\n  %s", written)
+	}
+	// And networkd is told to read it, or the file is one nobody has looked at.
+	reload := indexOfCall(f, "networkctl reload")
+	if reload < 0 || reload < wrote {
+		t.Errorf("the drop-in was written at %d and read at %d:\n%s",
+			wrote, reload, strings.Join(f.commands(), "\n"))
+	}
+}
+
+// An interface networkd manages with no unit gets no drop-in, rather than a
+// directory named after nothing.
+//
+// `n/a` is what `networkctl status` prints for an unmanaged link, and it is a
+// name this would otherwise happily build a path from.
+func TestAnInterfaceWithNoUnitGetsNoDropIn(t *testing.T) {
+	for _, answer := range []string{
+		"    Network File: n/a\n",
+		"       Link File: /usr/lib/systemd/network/99-default.link\n",
+	} {
+		f := &fakeRuntime{answers: map[string]string{
+			"ip -o link show dev":    "2: eth1: <BROADCAST,MULTICAST,UP>\n",
+			"networkctl status eth1": answer,
+			"resolvectl dns eth1":    "Link 3 (eth1): " + DefaultResolver + "\n",
+		}}
+		d := newFakeDriver(f)
+		d.OVN = true
+
+		d.setGuestResolver(context.Background(), "srv", "eth1")
+
+		if i := indexOfCall(f, "feint-dns.conf"); i >= 0 {
+			t.Errorf("a link networkd manages with no unit got a drop-in anyway (%q):\n%s",
+				answer, strings.Join(f.commands(), "\n"))
+		}
+	}
+}
+
+// A resolver that is not an address reaches no command line at all.
+//
+// It is this driver's own field rather than client input, and it still crosses
+// into a shell inside the guest — what crosses a boundary is checked at the
+// boundary, which is the lesson cloudinit.Spec.checkInjection cost this
+// repository once already.
+func TestAResolverThatIsNotAnAddressReachesNoCommand(t *testing.T) {
+	f := &fakeRuntime{answers: map[string]string{
+		"ip -o link show dev":    "2: eth1: <BROADCAST,MULTICAST,UP>\n",
+		"networkctl status eth1": "    Network File: /run/systemd/network/10-netplan-eth1.network\n",
+	}}
+	d := newFakeDriver(f)
+	d.OVN = true
+	d.Resolver = "1.1.1.1\nexit\n#"
+
+	d.setGuestResolver(context.Background(), "srv", "eth1")
+
+	for _, call := range f.commands() {
+		if strings.Contains(call, "exit") || strings.Contains(call, "feint-dns.conf") {
+			t.Fatalf("a resolver that is not an address reached a command line:\n  %q", call)
+		}
+	}
+}
