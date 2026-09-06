@@ -1,0 +1,40 @@
+{
+  "package": "./internal/providers/exoscale/",
+  "mutations": [
+    {
+      "label": "the create stops storing the labels, so a labelled address reads back without them, which is #703 verbatim",
+      "file": "internal/providers/exoscale/elasticips.go",
+      "find": "\tif len(req.Labels) > 0 {\n\t\tres.Attrs[\"labels\"] = labelsToAttr(req.Labels)\n\t}\n\tp.env.Store.Put(res)",
+      "replace": "\tif len(req.Labels) > 0 && false {\n\t\tres.Attrs[\"labels\"] = labelsToAttr(req.Labels)\n\t}\n\tp.env.Store.Put(res)",
+      "test": "TestAnElasticIPReadsItsLabelsBack"
+    },
+    {
+      "label": "the view stops serving the labels it holds, so get and list answer without them while the store has them",
+      "file": "internal/providers/exoscale/elasticips.go",
+      "find": "\tif labels, _ := res.Attrs[\"labels\"].(map[string]any); len(labels) > 0 {\n\t\tout[\"labels\"] = labels\n\t}",
+      "replace": "\tif labels, _ := res.Attrs[\"labels\"].(map[string]any); len(labels) > 0 && false {\n\t\tout[\"labels\"] = labels\n\t}",
+      "test": "TestAnElasticIPReadsItsLabelsBack"
+    },
+    {
+      "label": "the update stops applying the labels it is sent, so a second apply that changes them converges on nothing",
+      "file": "internal/providers/exoscale/elasticips.go",
+      "find": "\t\tif req.Labels != nil {\n\t\t\tstored.Attrs[\"labels\"] = labelsToAttr(req.Labels)\n\t\t}",
+      "replace": "\t\tif req.Labels != nil && false {\n\t\t\tstored.Attrs[\"labels\"] = labelsToAttr(req.Labels)\n\t\t}",
+      "test": "TestAnElasticIPUpdateReplacesItsLabelsAndSilenceKeepsThem"
+    },
+    {
+      "label": "an update that does not name labels clears them, which is the absent-versus-empty confusion of #404 on this resource",
+      "file": "internal/providers/exoscale/elasticips.go",
+      "find": "\t\tif req.Labels != nil {\n\t\t\tstored.Attrs[\"labels\"] = labelsToAttr(req.Labels)\n\t\t}",
+      "replace": "\t\tif req.Labels != nil || true {\n\t\t\tstored.Attrs[\"labels\"] = labelsToAttr(req.Labels)\n\t\t}",
+      "test": "TestAnElasticIPUpdateReplacesItsLabelsAndSilenceKeepsThem"
+    },
+    {
+      "label": "the reset list grows labels back, a field the API description does not declare resettable on an elastic IP",
+      "file": "internal/providers/exoscale/account.go",
+      "find": "var resettableElasticIPFields = map[string]string{\n\t\"description\": \"description\",\n}",
+      "replace": "var resettableElasticIPFields = map[string]string{\n\t\"description\": \"description\",\n\t\"labels\":      \"labels\",\n}",
+      "test": "TestOnlyTheDescriptionOfAnElasticIPIsResettable"
+    }
+  ]
+}

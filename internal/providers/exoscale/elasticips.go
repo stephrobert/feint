@@ -12,7 +12,8 @@ import (
 )
 
 // Elastic IPs, in the measured shape: {addressfamily, cidr, description, id,
-// ip}, description omitted when empty. Attach and detach are actions on the IP
+// ip}, description omitted when empty, and labels when the client set some:
+// the schema declares them, and a labelled stack reads them back (#703). Attach and detach are actions on the IP
 // naming the instance, and the operation they mint refers to the elastic IP,
 // not the instance — that is what the recording shows the provider waiting on.
 //
@@ -151,6 +152,14 @@ func (p *Pack) createElasticIP(w http.ResponseWriter, r *http.Request) {
 	if req.Healthcheck != nil {
 		res.Attrs["healthcheck"] = req.Healthcheck
 	}
+	// Stored on create and served by elasticIPView, the way the private network
+	// does (#703): the request struct declared the field for as long as the pack
+	// existed and nothing read it, so a labelled stack's second plan was never
+	// empty. Absent rather than empty when none, the omission habit measured on
+	// this API. TestAnElasticIPReadsItsLabelsBack fails without this.
+	if len(req.Labels) > 0 {
+		res.Attrs["labels"] = labelsToAttr(req.Labels)
+	}
 	p.env.Store.Put(res)
 	p.writeOperation(w, p.operationReferring(nounElasticIP, res.ID))
 }
@@ -238,6 +247,14 @@ func (p *Pack) updateElasticIP(w http.ResponseWriter, r *http.Request) {
 		if req.Healthcheck != nil {
 			stored.Attrs["healthcheck"] = req.Healthcheck
 		}
+		// Nil is a field the client did not send, and it stays; an empty map is
+		// the client clearing the labels, which is how the CLI clears any field
+		// on this API (measured: an update with an empty value, never the
+		// per-field DELETE). TestAnElasticIPUpdateReplacesItsLabelsAndSilenceKeepsThem
+		// fails on either half without this.
+		if req.Labels != nil {
+			stored.Attrs["labels"] = labelsToAttr(req.Labels)
+		}
 		stored.Updated = p.env.Now()
 		return nil
 	})
@@ -321,6 +338,9 @@ func elasticIPView(res *resource.Resource) map[string]any {
 	}
 	if healthcheck, ok := res.Attrs["healthcheck"].(map[string]any); ok {
 		out["healthcheck"] = healthcheck
+	}
+	if labels, _ := res.Attrs["labels"].(map[string]any); len(labels) > 0 {
+		out["labels"] = labels
 	}
 	return out
 }
