@@ -1,0 +1,26 @@
+{
+  "package": "./internal/providers/outscale/",
+  "mutations": [
+    {
+      "label": "the prefix check never fires, and ReadVms answers 200 and an empty list on a value the cloud refuses, which is #396 verbatim",
+      "file": "internal/providers/outscale/vms.go",
+      "find": "\t\t\tif !strings.HasPrefix(id, \"i-\") {",
+      "replace": "\t\t\tif !strings.HasPrefix(id, \"i-\") && false {",
+      "test": "TestReadVmsRefusesAFilterValueThatIsNotAnIdentifier"
+    },
+    {
+      "label": "the check refuses the prefix this pack mints, so a real identifier is refused along with the fake one",
+      "file": "internal/providers/outscale/vms.go",
+      "find": "\t\t\tif !strings.HasPrefix(id, \"i-\") {",
+      "replace": "\t\t\tif !strings.HasPrefix(id, \"vm-\") {",
+      "test": "TestReadVmsRefusesAFilterValueThatIsNotAnIdentifier"
+    },
+    {
+      "label": "the refusal carries the pack's default code instead of the one read off the wire, so a client keyed on 4104 sees a different refusal",
+      "file": "internal/providers/outscale/errors.go",
+      "find": "\tcodeInvalidIDPrefix = \"4104\"",
+      "replace": "\tcodeInvalidIDPrefix = \"4001\"",
+      "test": "TestReadVmsRefusesAFilterValueThatIsNotAnIdentifier"
+    }
+  ]
+}

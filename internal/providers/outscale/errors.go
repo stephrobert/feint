@@ -23,6 +23,12 @@ const (
 	// codeInvalidParameter covers a malformed or missing argument. No SDK helper
 	// classifies this range, so the number carries no behaviour.
 	codeInvalidParameter = "4001"
+	// codeInvalidIDPrefix is the one code of this file read off the wire rather
+	// than chosen for a range: corpus/outscale/oapi-cli-refusals.jsonl,
+	// 2026-08-21, ReadVms with a VmIds value that is not an identifier answers
+	// 400 and Errors [{Code 4104, Type InvalidParameterValue, Details "the
+	// provided value does not respect the expected ID prefix"}] (#396).
+	codeInvalidIDPrefix = "4104"
 	// codeResourceNotFound sits in 5000-5999 so osc.IsNotFound reports true.
 	codeResourceNotFound = "5063"
 	// codeImageDoesNotExist is what the real cloud answers CreateVms on an

@@ -367,6 +367,19 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Corrigé
 
+- **`osc/Client.ReadVms` refuse une valeur de `VmIds` qui n'est pas un
+  identifiant** (#396), comme le vrai compte, et comme aucune autre lecture.
+  L'enregistrement du 2026-08-21 (`corpus/outscale/oapi-cli-refusals.jsonl`)
+  a envoyé `["not-an-identifier"]` à dix-sept lectures : `ReadVms` a répondu
+  400 avec `Errors [{Code 4104, Type InvalidParameterValue, Details "the
+  provided value does not respect the expected ID prefix"}]`, et les seize
+  autres 200 avec une liste vide. Cet émulateur répondait 200 aux dix-sept.
+  Il refuse désormais sur `ReadVms` seul, avec le code enregistré, et un test
+  envoie la même valeur à chaque filtre d'identifiants déclaré de chaque autre
+  lecture, `VmIds` de `ReadVmsState` compris, et tient leur 200 : l'asymétrie
+  est celle de l'amont, la reproduire sur une lecture est le correctif, sur
+  dix-sept ce serait seize divergences nouvelles. Les deux exemptions du
+  corpus qui nommaient cette issue sont retirées.
 - **Un refus de validation Exoscale porte son tableau `errors`** (#397).
   `exoscale/v2.create-private-network` et `exoscale/v2.update-private-network`
   refusaient une plage déclarée à l'envers, ou à moitié, ou une création sans
