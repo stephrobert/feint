@@ -6,9 +6,9 @@
     "none"
   ],
   "generated_from": {
-    "contracts": "b1c322d461683911",
+    "contracts": "baa67f26c312f9fc",
     "shapes": "cac046c206cc9fc8",
-    "suites": "4c5637e8c0710ff6"
+    "suites": "3501d9ae3f71fc1a"
   },
   "operations": {
     "account/v3/ProjectAPI.CreateProject": {
@@ -54,6 +54,24 @@
       "dataplane": true,
       "shape": "unobserved",
       "behaviour": true,
+      "negative": false
+    },
+    "baremetal/v1/API.ListOffers": {
+      "driven": true,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": false,
+      "negative": false
+    },
+    "baremetal/v1/API.ListServers": {
+      "driven": true,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": false,
       "negative": false
     },
     "block/v1/API.CreateSnapshot": {
@@ -615,12 +633,12 @@
       "negative": false
     },
     "exoscale/v2.get-block-storage-snapshot": {
-      "driven": false,
+      "driven": true,
       "probed": "refusal",
-      "contract": "unchecked",
-      "dataplane": false,
+      "contract": "clean",
+      "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "exoscale/v2.get-block-storage-volume": {
@@ -642,12 +660,12 @@
       "negative": false
     },
     "exoscale/v2.get-elastic-ip": {
-      "driven": false,
+      "driven": true,
       "probed": "response",
       "contract": "clean",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "exoscale/v2.get-instance": {
@@ -660,12 +678,12 @@
       "negative": false
     },
     "exoscale/v2.get-instance-pool": {
-      "driven": false,
+      "driven": true,
       "probed": "response",
       "contract": "clean",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "exoscale/v2.get-instance-type": {
@@ -678,12 +696,12 @@
       "negative": false
     },
     "exoscale/v2.get-load-balancer": {
-      "driven": false,
+      "driven": true,
       "probed": "response",
       "contract": "clean",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "exoscale/v2.get-load-balancer-service": {
@@ -696,10 +714,10 @@
       "negative": false
     },
     "exoscale/v2.get-operation": {
-      "driven": false,
+      "driven": true,
       "probed": "response",
       "contract": "clean",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "observed",
       "behaviour": false,
       "negative": false
@@ -737,7 +755,7 @@
       "contract": "clean",
       "dataplane": true,
       "shape": "observed",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "exoscale/v2.get-snapshot": {
