@@ -330,6 +330,18 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Corrigé
 
+- **Un refus de validation Exoscale porte son tableau `errors`** (#397).
+  `exoscale/v2.create-private-network` et `exoscale/v2.update-private-network`
+  refusaient une plage déclarée à l'envers, ou à moitié, ou une création sans
+  nom, avec `{"message": …}` seul, là où l'enregistrement du 2026-08-21
+  (`corpus/exoscale/exo-refusals.jsonl`, un vrai compte ch-gva-2) montre
+  `{"message": …, "errors": [{"message": …}]}` sur les deux 400 enregistrés.
+  Le même enregistrement montre cinq 404 et un 409 sans le tableau : c'est la
+  forme d'un échec de validation et non celle d'une erreur, et elle n'est
+  écrite que sur ces refus. Un 404 porte toujours le message et rien d'autre,
+  et un test tient cette moitié. L'exemption du corpus qui nommait cette issue
+  est retirée, et `feint corpus --check` compare désormais les deux échanges
+  enregistrés au lieu de les excuser.
 - **`osc/Client.ReadImages` et `osc/Client.ReadSnapshots` servent
   `Filters.AccountAliases`** (#700), le filtre que l'exemple `ReadImages` du
   contrat utilise lui-même. Les deux lectures le refusaient avec le 4001 qui

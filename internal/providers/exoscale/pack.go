@@ -1573,6 +1573,29 @@ func writeError(w http.ResponseWriter, status int, message string) {
 	emulator.WriteJSON(w, status, map[string]any{"message": message})
 }
 
+// writeValidationError is the refusal of a field's value, and it carries the
+// errors array writeError does not (#397).
+//
+// corpus/exoscale/exo-refusals.jsonl, recorded 2026-08-21 against a real
+// ch-gva-2 account: the two 400s of create-private-network with a range
+// declared backwards answer {"message": …, "errors": [{"message": …}]}; the
+// five 404s and the one 409 of the same recording answer {"message": …} alone.
+// So the array is the shape of a validation failure and not of an error, and
+// it is written here rather than in writeError, where it would put an empty
+// array on six answers the cloud gives without one. The texts are redacted in
+// the recording; the item carries the same sentence as the message, which is
+// the one thing this emulator knows about the field it refused.
+//
+// TestARangeRefusalCarriesItsErrorsArray fails without this on every
+// validation it names; TestARefusalThatIsNotAValidationCarriesNoErrorsArray
+// fails the day writeError grows the array.
+func writeValidationError(w http.ResponseWriter, message string) {
+	emulator.WriteJSON(w, http.StatusBadRequest, map[string]any{
+		"message": message,
+		"errors":  []map[string]any{{"message": message}},
+	})
+}
+
 // Env implements emulator.Pack.
 //
 // This is the provider where an environment is not enough, and the Note field

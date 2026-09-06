@@ -186,7 +186,7 @@ func (p *Pack) createPrivateNetwork(w http.ResponseWriter, r *http.Request) {
 		name = *req.Name
 	}
 	if name == "" {
-		writeError(w, http.StatusBadRequest, "name is required")
+		writeValidationError(w, "name is required")
 		return
 	}
 	if strings.ContainsAny(name+stringOf(req.Description), "\n\r\x00") {
@@ -195,7 +195,9 @@ func (p *Pack) createPrivateNetwork(w http.ResponseWriter, r *http.Request) {
 	}
 	dhcp, managed, err := managedRangeOf(stringOf(req.StartIP), stringOf(req.EndIP), stringOf(req.Netmask))
 	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
+		// The recorded refusal (#397): a range declared backwards answers the
+		// validation shape, errors array included.
+		writeValidationError(w, err.Error())
 		return
 	}
 
@@ -476,7 +478,7 @@ func (p *Pack) updatePrivateNetwork(w http.ResponseWriter, r *http.Request) {
 	}
 	dhcp, managed, err := managedRangeOf(startIP, endIP, netmask)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
+		writeValidationError(w, err.Error())
 		return
 	}
 	oldRange, wasManaged := rangeOf(res)
