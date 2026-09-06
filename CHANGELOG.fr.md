@@ -390,6 +390,32 @@ change ni l'un ni l'autre a sa place dans `git log`.
   déclaration n'est pas un écho, et c'est la distinction que #83 a tranchée sur
   les trois packs.
 
+### Modifié
+
+- **Cinq lectures Exoscale cessent d'affirmer qu'aucun client ne les pilote**
+  (#644, découvert par #631). Chacune portait une raison `Route.Undriven`
+  écrite à propos d'`exo`, et quatre d'entre elles nommaient leur propre
+  condition d'expiration dans la même phrase : le provider Terraform lit *bien*
+  par identifiant, et cela ne comptait pas parce que le build atteignant cet
+  émulateur était le fork rustiné qu'épinglait `docs/limits.md`, « un client que
+  ce projet a rustiné n'est pas le client officiel ». La version publiée v0.71.0
+  pilote ce pack depuis #644 : la condition a été remplie, non contournée, et
+  `get-block-storage-snapshot`, `get-elastic-ip`, `get-instance-pool`,
+  `get-load-balancer` et `get-operation` sont pilotées. La dernière est le cas
+  intéressant : sa raison se terminait sur une phrase qui s'est révélée être une
+  prédiction, à savoir que la route reste montée parce que le jour où un client
+  interrogera, il doit la trouver servie plutôt qu'en `404` ; et le provider
+  interroge chaque opération que le SDK lui rend, terminale ou non. La liste
+  « servi, et piloté par aucun client » de `docs/routes.md` passe de 18 à 13
+  pour ce pack, et les raisons qui subsistent portent toujours sur `exo`,
+  toujours mesurées, désormais seul client à les atteindre.
+
+  Personne ne l'aurait remarqué : le registre `coverage/evidence.json` n'avait
+  pas été régénéré depuis #683, il portait donc encore les chiffres d'avant ce
+  provider, et `TestEveryUndrivenOperationSaysWhy` n'avait rien à quoi se
+  comparer. #631 l'a régénéré pour ses deux propres lignes, et les cinq raisons
+  périmées sont sorties avec.
+
 ### Corrigé
 
 - **`osc/Client.ReadVms` refuse une valeur de `VmIds` qui n'est pas un

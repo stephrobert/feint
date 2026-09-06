@@ -866,7 +866,7 @@ are in `coverage/`, one artefact per provider.
 | `GET` | `/v2/quota/{name}` | `exoscale/v2.get-quota` | `no-client` |
 | `GET` | `/v2/quota` | `exoscale/v2.list-quotas` | `client` `contract` `shape` `runtime` `probe` |
 
-### Served, and driven by no client (18)
+### Served, and driven by no client (13)
 
 Mounted operations no official client reaches, each with the reason. They
 are not refusals: they answer, and the probe validates them against the
@@ -876,20 +876,15 @@ left for a reader to infer from an absent token. A line disappears from
 this list the day a client drives its operation, and a test refuses a
 reason that outlived its cause.
 
-- `block-storage` — 1 operation — `exo compute block-storage snapshot show` lists the snapshots and picks its one in the client, so the per-id read has no caller among the published clients
 - `compute` — 4 operations — the CLI clears a field by sending the update with an empty value, so the per-field DELETE the API declares is never issued
-- `compute` — 1 operation — `exo compute elastic-ip show` takes the address a user reads off a list, so it filters the list it already has rather than reading by id
 - `compute` — 1 operation — `exo compute instance snapshot show` lists the snapshots and picks the one it wants in the client, so the per-id read is never called
-- `compute` — 1 operation — `exo compute instance-pool show` lists the pools and picks its one in the client, then reads the members it names, so the per-id pool read has no caller
 - `compute` — 1 operation — `exo compute instance-template` offers register, list, show and delete, and no update, so a client cannot rename a template it owns
 - `compute` — 1 operation — `exo compute load-balancer service show` reads the balancer list and picks its service out of the balancer it found, so the per-id service read is never called
 - `compute` — 1 operation — `exo compute load-balancer service update --description ""` sends only the healthcheck block it re-sends on every call, so this CLI clears no field by either route and the per-field DELETE is never issued
-- `compute` — 1 operation — `exo compute load-balancer show` resolves a balancer by name, which it does by listing and filtering in the client, so the per-id read has no caller among the published clients
 - `compute` — 1 operation — `exo compute load-balancer update --description ""` sends an empty body rather than the empty value, so this CLI clears no field by either route and the per-field DELETE is never issued
 - `compute` — 1 operation — copying a template targets another zone, and this emulator serves exactly one, so the CLI has nothing to copy to and no subcommand that would ask
 - `compute` — 1 operation — the CLI's --from-snapshot promotes through export-snapshot and a URL, which this pack declines, so it never issues the promote call the SDK declares
 - `compute` — 1 operation — the list this pack serves is empty, because an emulated account owns no dedicated hardware, so no client ever holds an id to read
-- `general` — 1 operation — every operation this pack answers is already terminal, so no client has anything to poll for; it stays served for the client that polls anyway
 - `quotas` — 1 operation — `exo limits` reads the whole quota list and prints it, so the per-name read has no client path even though the SDK declares one
 
 ### Declined on purpose (270)

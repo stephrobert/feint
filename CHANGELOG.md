@@ -364,6 +364,31 @@ what this project is judged on: **a response shape a client can observe**, and
   A declaration is not an echo, which is the distinction #83 closed on all three
   packs.
 
+### Changed
+
+- **Five Exoscale reads stop claiming no client drives them** (#644, found by
+  #631). Each carried a `Route.Undriven` reason written about `exo`, and four
+  of them named their own expiry condition in the same breath: the Terraform
+  provider *does* read by id, and it did not count because the build reaching
+  this emulator was the patched fork `docs/limits.md` pinned, "a client this
+  project patched is not the official client". The published v0.71.0 drives
+  this pack since #644, so the condition was met rather than argued away, and
+  `get-block-storage-snapshot`, `get-elastic-ip`, `get-instance-pool`,
+  `get-load-balancer` and `get-operation` are driven. The last one is the
+  interesting case: its reason ended on a sentence that turned out to be a
+  prediction, that the route stays mounted because the day a client polls it
+  must find it served rather than `404`, and the provider polls every operation
+  the SDK returns, terminal or not. `docs/routes.md`'s "served, and driven by
+  no client" list falls from 18 to 13 for this pack, and the reasons that stay
+  are still about `exo`, still measured, and now the only client that reaches
+  them.
+
+  Nobody would have noticed: the register `coverage/evidence.json` had not been
+  regenerated since #683, so it still carried figures from before that provider
+  ran, and `TestEveryUndrivenOperationSaysWhy` had nothing to compare against.
+  #631 regenerated it for its own two rows and the five stale reasons came out
+  with it.
+
 ### Fixed
 
 - **`osc/Client.ReadVms` refuses a `VmIds` value that is not an identifier**

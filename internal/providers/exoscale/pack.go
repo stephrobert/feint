@@ -143,15 +143,16 @@ func (p *Pack) Routes() []emulator.Route {
 		{Method: "POST", Path: "/v2/instance", Operation: operation("create-instance"), Handler: p.createInstance},
 		{Method: "GET", Path: "/v2/instance/{id}", Operation: operation("get-instance"), Handler: p.getInstance},
 		{Method: "DELETE", Path: "/v2/instance/{id}", Operation: operation("delete-instance"), Handler: p.deleteInstance},
-		// The polling read of this pack's own async model, and the one operation
-		// that is undriven *because* the emulator is fast (#174): every
-		// operation this pack returns is already in its terminal state, so a
-		// client with nothing to wait for never asks again. It stays mounted
-		// because the day an operation is not instantaneous — a machine
-		// runtime taking seconds to start a container — a client that polls
-		// must find it served rather than 404.
-		{Method: "GET", Path: "/v2/operation/{id}", Operation: operation("get-operation"), Handler: p.getOperation,
-			Undriven: "every operation this pack answers is already terminal, so no client has anything to poll for; it stays served for the client that polls anyway"},
+		// The polling read of this pack's own async model. It carried an
+		// Undriven reason until #644 — every operation this pack returns is
+		// already in its terminal state, so a client with nothing to wait for
+		// never asks again (#174) — and that reason ended on a sentence that
+		// turned out to be a prediction: it stays mounted because the day a
+		// client polls, it must find the route served rather than 404. The
+		// published Terraform provider polls it, terminal or not, because the
+		// SDK reads an operation back after every asynchronous call rather
+		// than trusting the state it was handed.
+		{Method: "GET", Path: "/v2/operation/{id}", Operation: operation("get-operation"), Handler: p.getOperation},
 
 		// The lifecycle, batch 2 of docs/roadmap-exoscale-iaas.md. The verbs live
 		// in the same path segment as the identifier — PUT /instance/{id}:stop —
@@ -196,8 +197,11 @@ func (p *Pack) Routes() []emulator.Route {
 		// Elastic IPs, attachment included.
 		{Method: "POST", Path: "/v2/elastic-ip", Operation: operation("create-elastic-ip"), Handler: p.createElasticIP},
 		{Method: "GET", Path: "/v2/elastic-ip", Operation: operation("list-elastic-ips"), Handler: p.listElasticIPs},
-		{Method: "GET", Path: "/v2/elastic-ip/{id}", Operation: operation("get-elastic-ip"), Handler: p.getElasticIP,
-			Undriven: "`exo compute elastic-ip show` takes the address a user reads off a list, so it filters the list it already has rather than reading by id"},
+		// `exo compute elastic-ip show` still takes the address a user reads off
+		// a list, so it filters the list it already has rather than reading by
+		// id. That was this route's Undriven reason until #644, when the
+		// published Terraform provider became a second client and read by id.
+		{Method: "GET", Path: "/v2/elastic-ip/{id}", Operation: operation("get-elastic-ip"), Handler: p.getElasticIP},
 		{Method: "PUT", Path: "/v2/elastic-ip/{id}", Operation: operation("update-elastic-ip"), Handler: p.updateElasticIP},
 		{Method: "DELETE", Path: "/v2/elastic-ip/{id}", Operation: operation("delete-elastic-ip"), Handler: p.deleteElasticIP},
 		{Method: "PUT", Path: "/v2/elastic-ip/{id}:attach", Operation: operation("attach-instance-to-elastic-ip"), Handler: p.attachInstanceToElasticIP},
@@ -291,20 +295,19 @@ func (p *Pack) Routes() []emulator.Route {
 		{Method: "PUT", Path: "/v2/block-storage/{id}:resize-volume", Operation: operation("resize-block-storage-volume"), Handler: p.resizeBlockVolume},
 		{Method: "POST", Path: "/v2/block-storage/{id}:create-snapshot", Operation: operation("create-block-storage-snapshot"), Handler: p.createBlockSnapshot},
 		{Method: "GET", Path: "/v2/block-storage-snapshot", Operation: operation("list-block-storage-snapshots"), Handler: p.listBlockSnapshots},
-		{Method: "GET", Path: "/v2/block-storage-snapshot/{id}", Operation: operation("get-block-storage-snapshot"), Handler: p.getBlockSnapshot,
-			// The fourth per-id read this CLI never makes, and the pattern is
-			// now established rather than suspected: `exo` resolves a security
-			// group, an elastic IP, an instance snapshot and this one by listing
-			// and filtering in the client, because a user names a resource and
-			// the API keys it by id. Measured on each (#174).
-			//
-			// The Terraform provider *does* call it — measured against the
-			// patched fork docs/limits.md pins, where an apply of
-			// exoscale_block_storage_volume_snapshot reads it back by id. That
-			// is why the route is served rather than declined, and it is not why
-			// it would be driven: a client this project patched is not the
-			// official client, and that section says so.
-			Undriven: "`exo compute block-storage snapshot show` lists the snapshots and picks its one in the client, so the per-id read has no caller among the published clients"},
+		// The fourth per-id read this CLI never makes, and the pattern is
+		// established rather than suspected: `exo` resolves a security group, an
+		// elastic IP, an instance snapshot and this one by listing and filtering
+		// in the client, because a user names a resource and the API keys it by
+		// id. Measured on each (#174).
+		//
+		// The Terraform provider *does* call it, and since #644 that counts: an
+		// apply of exoscale_block_storage_volume_snapshot reads it back by id,
+		// on the published v0.71.0 rather than on the fork docs/limits.md used
+		// to pin. The Undriven reason this route carried said in as many words
+		// that a client this project patched is not the official client. The
+		// official one arrived.
+		{Method: "GET", Path: "/v2/block-storage-snapshot/{id}", Operation: operation("get-block-storage-snapshot"), Handler: p.getBlockSnapshot},
 		{Method: "PUT", Path: "/v2/block-storage-snapshot/{id}", Operation: operation("update-block-storage-snapshot"), Handler: p.updateBlockSnapshot},
 		{Method: "DELETE", Path: "/v2/block-storage-snapshot/{id}", Operation: operation("delete-block-storage-snapshot"), Handler: p.deleteBlockSnapshot},
 
@@ -315,12 +318,13 @@ func (p *Pack) Routes() []emulator.Route {
 		// mechanism in the machine layer stays as it is.
 		{Method: "POST", Path: "/v2/instance-pool", Operation: operation("create-instance-pool"), Handler: p.createInstancePool},
 		{Method: "GET", Path: "/v2/instance-pool", Operation: operation("list-instance-pools"), Handler: p.listInstancePools},
-		{Method: "GET", Path: "/v2/instance-pool/{id}", Operation: operation("get-instance-pool"), Handler: p.getInstancePool,
-			// The fifth per-id read this CLI resolves by listing and filtering in
-			// the client. Measured on this one too rather than assumed from the
-			// pattern: `exo compute instance-pool show` calls list-instance-pools,
-			// then get-instance and get-template to render the members it found.
-			Undriven: "`exo compute instance-pool show` lists the pools and picks its one in the client, then reads the members it names, so the per-id pool read has no caller"},
+		// The fifth per-id read this CLI resolves by listing and filtering in the
+		// client. Measured on this one too rather than assumed from the pattern:
+		// `exo compute instance-pool show` calls list-instance-pools, then
+		// get-instance and get-template to render the members it found. It is
+		// still true, and it stopped being the whole truth at #644: the
+		// published Terraform provider reads the pool by id.
+		{Method: "GET", Path: "/v2/instance-pool/{id}", Operation: operation("get-instance-pool"), Handler: p.getInstancePool},
 		{Method: "PUT", Path: "/v2/instance-pool/{id}", Operation: operation("update-instance-pool"), Handler: p.updateInstancePool},
 		{Method: "DELETE", Path: "/v2/instance-pool/{id}", Operation: operation("delete-instance-pool"), Handler: p.deleteInstancePool},
 		{Method: "PUT", Path: "/v2/instance-pool/{id}:scale", Operation: operation("scale-instance-pool"), Handler: p.scaleInstancePool},
@@ -348,17 +352,17 @@ func (p *Pack) Routes() []emulator.Route {
 		// and why nothing here reaches the machine runtime.
 		{Method: "POST", Path: "/v2/load-balancer", Operation: operation("create-load-balancer"), Handler: p.createLoadBalancer},
 		{Method: "GET", Path: "/v2/load-balancer", Operation: operation("list-load-balancers"), Handler: p.listLoadBalancers},
-		{Method: "GET", Path: "/v2/load-balancer/{id}", Operation: operation("get-load-balancer"), Handler: p.getLoadBalancer,
-			// The sixth per-id read this CLI never makes, measured on this one
-			// rather than assumed from the pattern: `exo compute load-balancer
-			// show`, `service show` and `list` all issue GET /v2/load-balancer and
-			// filter in the client (recorded 2026-08-21 through a proxy that keeps
-			// the Host header, so the zone signpost points back at it). The
-			// Terraform provider's `data "exoscale_nlb"` does read by id, and that
-			// is why the route is served rather than declined — but the build that
-			// reaches this emulator is the fork docs/limits.md pins, and a client
-			// this project patched is not the official client.
-			Undriven: "`exo compute load-balancer show` resolves a balancer by name, which it does by listing and filtering in the client, so the per-id read has no caller among the published clients"},
+		// The sixth per-id read this CLI never makes, measured on this one
+		// rather than assumed from the pattern: `exo compute load-balancer
+		// show`, `service show` and `list` all issue GET /v2/load-balancer and
+		// filter in the client (recorded 2026-08-21 through a proxy that keeps
+		// the Host header, so the zone signpost points back at it). The
+		// Terraform provider's `data "exoscale_nlb"` does read by id, and since
+		// #644 that is the published v0.71.0 rather than the fork
+		// docs/limits.md used to pin. The Undriven reason this route carried
+		// named that build as the thing standing between it and a driver; the
+		// condition was met rather than argued away.
+		{Method: "GET", Path: "/v2/load-balancer/{id}", Operation: operation("get-load-balancer"), Handler: p.getLoadBalancer},
 		{Method: "PUT", Path: "/v2/load-balancer/{id}", Operation: operation("update-load-balancer"), Handler: p.updateLoadBalancer},
 		{Method: "DELETE", Path: "/v2/load-balancer/{id}", Operation: operation("delete-load-balancer"), Handler: p.deleteLoadBalancer},
 		{Method: "POST", Path: "/v2/load-balancer/{id}/service", Operation: operation("add-service-to-load-balancer"), Handler: p.addServiceToLoadBalancer},
