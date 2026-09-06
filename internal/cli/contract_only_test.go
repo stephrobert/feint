@@ -23,6 +23,9 @@ func TestContractOnlyOperationsAreTriaged(t *testing.T) {
 		"instance/v1.SetSecurityGroupRule",
 		"instance/v1.SetSnapshot",
 		"instance/v1.SetVolume",
+		// In the portal document on 2026-09-06 and not in scaleway-sdk-go at
+		// cb7f357; surfaced by the contract refresh #631 made.
+		"instance/v2alpha1.DetachAndDeletePrivateNetworkInterface",
 	}
 
 	problems, err := contractOnlyGaps(record, "scaleway", only)

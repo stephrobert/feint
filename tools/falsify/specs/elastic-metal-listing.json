@@ -1,0 +1,54 @@
+{
+  "package": "./internal/providers/scaleway/",
+  "mutations": [
+    {
+      "label": "the list ignores `page` and answers the whole fleet on every page, so the Python SDK's list_servers_all never meets the empty page it stops on (#631)",
+      "file": "internal/providers/scaleway/baremetal.go",
+      "find": "\tstart, end := page.slice(len(all))\n\tservers := make([]any, 0, end-start)",
+      "replace": "\tstart, end := 0, len(all)\n\t_, _ = page.slice(len(all))\n\tservers := make([]any, 0, end-start)",
+      "test": "TestTheSecondPageOfAnElasticMetalListIsEmpty"
+    },
+    {
+      "label": "an empty fleet answers null where the SDK decodes an array, the shape a client pages again",
+      "file": "internal/providers/scaleway/baremetal.go",
+      "find": "\tservers := make([]any, 0, end-start)\n",
+      "replace": "\tservers := []any(nil)\n\t_ = make([]any, 0, end-start)\n",
+      "test": "TestAnEmptyElasticMetalFleetListsAsEmpty"
+    },
+    {
+      "label": "the route accepts every Scaleway zone, so a zone where the product does not exist answers an empty fleet instead of a refusal",
+      "file": "internal/providers/scaleway/baremetal.go",
+      "find": "\tzone, ok := zoneIn(w, r, baremetalZones)\n\tif !ok {\n\t\treturn\n\t}\n\tscope, ok := p.scopeNamed(",
+      "replace": "\tzone, ok := zoneIn(w, r, knownZones)\n\t_ = baremetalZones\n\tif !ok {\n\t\treturn\n\t}\n\tscope, ok := p.scopeNamed(",
+      "test": "TestAnElasticMetalZoneOutsideTheProductIsRefused"
+    },
+    {
+      "label": "tags matches on the first tag alone, so every extra tag silently widens the filter — the class #277 measured on instance/v1",
+      "file": "internal/providers/scaleway/baremetal.go",
+      "find": "\t\tif len(tags) > 0 && !hasEveryTag(res, tags) {\n",
+      "replace": "\t\tif len(tags) > 0 && !hasEveryTag(res, tags[:1]) {\n",
+      "test": "TestElasticMetalFiltersNarrowTheFleet"
+    },
+    {
+      "label": "the status filter is read and then ignored, which the dropped-parameter gate cannot see",
+      "file": "internal/providers/scaleway/baremetal.go",
+      "find": "\t\tif len(statuses) > 0 && !contains(statuses, res.State) {\n",
+      "replace": "\t\tif len(statuses) > 0 && !contains(statuses, res.State) && false {\n",
+      "test": "TestElasticMetalFiltersNarrowTheFleet"
+    },
+    {
+      "label": "the catalogue answers nothing whatever the fleet declares, so `scw baremetal server list` prints an empty offer name for every server",
+      "file": "internal/providers/scaleway/baremetal.go",
+      "find": "\t\toffers = append(offers, baremetalOfferView(zone, rec))\n",
+      "replace": "\t\toffers = append(offers, baremetalOfferView(zone, rec))[:0]\n",
+      "test": "TestTheOfferCatalogueIsWhatTheFleetDeclares"
+    },
+    {
+      "label": "an address whose seed named no family is reported IPv4 whatever it is, and the inventory files a v6 host under the wrong family",
+      "file": "internal/providers/scaleway/baremetal.go",
+      "find": "\tif ip := net.ParseIP(address); ip != nil && ip.To4() == nil {\n",
+      "replace": "\tif ip := net.ParseIP(address); ip != nil && ip.To4() == nil && false {\n",
+      "test": "TestASeededElasticMetalServerListsWithTheFieldsAnInventoryReads"
+    }
+  ]
+}

@@ -2,6 +2,7 @@
   "provider": "scaleway",
   "products": [
     "account",
+    "baremetal",
     "block",
     "iam",
     "instance",

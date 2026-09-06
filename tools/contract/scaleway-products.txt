@@ -58,3 +58,10 @@ public-gateway/v2 vpcgw/v2
 # resource, and the ContractAPI signs subscription contracts, which is declined
 # in the pack.
 account/project/v3 account/v3
+# Elastic Metal (#631). The portal slug differs from the SDK package, as the
+# header measured: /en/developers/api/elastic-metal/v1/schema.yml answers 200
+# on 2026-09-06 and the SDK calls the package baremetal. Two routes are served,
+# the listing a fleet inventory needs and the offer catalogue the CLI joins to
+# it; the contract checks both against this document, including the six zones
+# its {zone} parameter enumerates.
+elastic-metal/v1 baremetal/v1

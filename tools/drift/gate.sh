@@ -32,7 +32,12 @@ OUTSCALE_SDK="${FEINT_SDK_OUTSCALE:-.upstream/osc-sdk-go}"
 # the first call every third-party VPC stack makes, so the product stopped being
 # one nobody reaches. Adding it here is what puts its twelve operations in front
 # of the triage — two served, ten declined with a reason.
-SCALEWAY_PRODUCTS="${FEINT_PRODUCTS:-instance,vpc,ipam,iam,marketplace,block,lb,vpcgw,account}"
+# baremetal joined on 2026-09-06 with #631: a fleet inventory enumerates Elastic
+# Metal, and the route it needs is served, plus the catalogue read the CLI makes
+# right after it. Adding it here is what puts the product's thirty-seven
+# operations in front of the triage — two served, thirty-five declined with a
+# reason.
+SCALEWAY_PRODUCTS="${FEINT_PRODUCTS:-instance,vpc,ipam,iam,marketplace,block,lb,vpcgw,account,baremetal}"
 
 [ -x "$FEINT" ] || { echo "no feint binary at $FEINT (build it: mise run build)" >&2; exit 1; }
 

@@ -1502,4 +1502,52 @@ scw vpc private-network delete "$nic_pn2_id" region=fr-par >/dev/null \
 prove_end "$span"
 ok "retagged, and idempotent on a second run"
 
+# ---- Elastic Metal: the one route a fleet inventory needs (#631) ---------------
+#
+# There is no create: a bare-metal server enters through the state door, the way
+# an operator's fleet file does, and `scw baremetal server list` — the official
+# client, decoding into the SDK's Server — is what proves the answer's shape.
+# The offer_name it prints is the CATALOGUE's, joined by offer_id after the
+# servers answered (serverListBuilder, measured 2026-09-06), which is why the
+# seed carries an offer_id and the assertion reads the name back through it.
+# Read-modify-write rather than a bare PUT, because the door replaces the whole
+# store and everything this suite made so far must survive the seed. No proof
+# span: a behaviour span wants a lifecycle the store saw, and this block reads.
+echo "- baremetal: a seeded server is listed with its addresses"
+state="$(curl -sf "$ENDPOINT/_feint/state")" || fail "the emulator does not answer /_feint/state"
+printf '%s' "$state" | jq --arg project "$SCW_DEFAULT_PROJECT_ID" --arg zone "$ZONE" '
+  .resources += [{
+    ID: "6f1d2c3b-4a5e-4f60-8b7c-9d0e1f2a3b4c", Kind: "baremetal/server",
+    Tenant: {Provider: "scaleway", Project: $project, Zone: $zone},
+    State: "ready", Created: "2026-09-01T10:00:00Z", Updated: "2026-09-01T10:00:00Z",
+    Attrs: {
+      name: "conformance-metal-1", offer_id: "9d4c5e6f-7a80-4b93-8caf-2b3c4d5e6f70",
+      offer_name: "EM-A210R-HDD", tags: ["conformance", "metal"],
+      ips: [{address: "203.0.113.10", version: "IPv4", reverse_status: "active"},
+            {address: "2001:db8::10"}],
+      boot_type: "normal", ping_status: "ping_status_up", protected: false
+    }
+  }]' | curl -sf -X PUT --data-binary @- "$ENDPOINT/_feint/state" >/dev/null \
+  || fail "the state door refused the seeded Elastic Metal server"
+listed="$(scw baremetal server list zone="$ZONE" -o json 2>&1)" \
+  || fail "baremetal server list rejected by the CLI: $listed"
+printf '%s' "$listed" | jq -e '
+  any(.[]; .name == "conformance-metal-1"
+           and ((.ips | map(.version) | sort) == ["IPv4", "IPv6"])
+           and .status == "ready"
+           and .offer_name == "EM-A210R-HDD")' >/dev/null \
+  || fail "the seeded server is missing, its addresses lost their family, or the offer join lost its name: $listed"
+ok "listed, with an IPv4 and an IPv6 each naming its family, and the offer name joined from the catalogue"
+
+# tags is a conjunction: both tags find it, a tag it does not carry does not.
+both="$(scw baremetal server list zone="$ZONE" tags.0=conformance tags.1=metal -o json 2>&1)" \
+  || fail "baremetal list with tags rejected: $both"
+printf '%s' "$both" | jq -e 'any(.[]; .name == "conformance-metal-1")' >/dev/null \
+  || fail "the server carries both tags and the filter lost it: $both"
+none="$(scw baremetal server list zone="$ZONE" tags.0=nobody-tagged-this -o json 2>&1)" \
+  || fail "baremetal list with an absent tag rejected: $none"
+printf '%s' "$none" | jq -e 'length == 0' >/dev/null \
+  || fail "a tag nothing carries still found a server: $none"
+ok "filtered by tags"
+
 echo "conformance: scw CLI passed"

@@ -31,6 +31,11 @@
         "operation": "instance/v1.SetVolume",
         "status": "backlog",
         "reason": "the PUT whole-object sibling of UpdateVolume, which this pack serves. Reachable only by a client generated from the portal document, never by scaleway-sdk-go"
+      },
+      {
+        "operation": "instance/v2alpha1.DetachAndDeletePrivateNetworkInterface",
+        "status": "backlog",
+        "reason": "POST .../private-network-interfaces/{id}/detach-and-delete, in the portal document on 2026-09-06 and not wrapped by scaleway-sdk-go at cb7f357, so no client built on the SDK (scw, the Terraform provider) can reach it yet; surfaced by the contract refresh #631 made. The pack serves this family: the v2alpha1 reads (privatenics_v2alpha1.go) and the v1 detach. The day the SDK wraps it, the scan puts it in front of the triage"
       }
     ]
   }

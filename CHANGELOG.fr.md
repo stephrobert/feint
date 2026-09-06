@@ -19,6 +19,31 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Ajouté
 
+- **Elastic Metal est listé : `baremetal/v1/API.ListServers`, et le catalogue
+  que le CLI lui joint, `baremetal/v1/API.ListOffers`** (#631). Le produit
+  n'est pas émulé et rien d'autre ne l'est : aucune offre en stock, rien n'est
+  commandé, installé ni redémarré, et les trente-cinq autres opérations sont
+  déclinées avec leur raison. La liste existe parce qu'un inventaire de parc
+  doit énumérer le produit pour décrire un parc mixte, et elle a été mesurée
+  avant d'être écrite : `scw baremetal server list` (2.56.3) appelle
+  `GET /baremetal/v1/zones/{zone}/servers?order_by=created_at_asc&page=1` et
+  s'arrêtait sur le 501 que le préfixe non routé répondait ; le
+  `list_servers_all` du SDK Python (scaleway 2.12.0) pagine avec `page` seul
+  jusqu'à une page vide. L'issue dimensionnait le produit à une route et le
+  code du CLI en dit deux : une fois les serveurs répondus, la même commande
+  lit `ListOffers` et imprime le nom du catalogue pour l'`offer_id` de chaque
+  serveur, donc le catalogue répond une offre par `offer_id` distinct parmi
+  les serveurs semés, `stock: empty`, rien d'inventé autour du nom que la
+  graine lui a donné. Un serveur entre par la porte d'état (`serve
+  --state`, `PUT /_feint/state`) comme Kind `baremetal/server` avec les noms
+  de champs du SDK dans Attrs, et la vue répond tout le jeu de champs du
+  `Server` du SDK, `ips[].version` compris, dérivé de l'adresse quand la
+  graine ne le dit pas. Le produit est sous le gate de dérive et le contrat
+  (`elastic-metal/v1`, le slug du portail pour le `baremetal` du SDK), et la
+  suite `scw` sème un serveur et le liste. La réponse pour une zone hors des
+  six que le produit déclare est une convention de ce pack, pas un
+  enregistrement ; `docs/limits.md` le dit.
+
 - **Un opérateur qui déclare son catalogue voit ses fautes de frappe
   refusées, et personne d'autre ne change** (#126) :
   `feint serve --strict-catalog catalog.json`, que `feint start` transmet.
@@ -364,6 +389,32 @@ change ni l'un ni l'autre a sa place dans `git log`.
   écho, et elle fonctionne maintenant parce que l'opérateur le déclare. Une
   déclaration n'est pas un écho, et c'est la distinction que #83 a tranchée sur
   les trois packs.
+
+### Modifié
+
+- **Cinq lectures Exoscale cessent d'affirmer qu'aucun client ne les pilote**
+  (#644, découvert par #631). Chacune portait une raison `Route.Undriven`
+  écrite à propos d'`exo`, et quatre d'entre elles nommaient leur propre
+  condition d'expiration dans la même phrase : le provider Terraform lit *bien*
+  par identifiant, et cela ne comptait pas parce que le build atteignant cet
+  émulateur était le fork rustiné qu'épinglait `docs/limits.md`, « un client que
+  ce projet a rustiné n'est pas le client officiel ». La version publiée v0.71.0
+  pilote ce pack depuis #644 : la condition a été remplie, non contournée, et
+  `get-block-storage-snapshot`, `get-elastic-ip`, `get-instance-pool`,
+  `get-load-balancer` et `get-operation` sont pilotées. La dernière est le cas
+  intéressant : sa raison se terminait sur une phrase qui s'est révélée être une
+  prédiction, à savoir que la route reste montée parce que le jour où un client
+  interrogera, il doit la trouver servie plutôt qu'en `404` ; et le provider
+  interroge chaque opération que le SDK lui rend, terminale ou non. La liste
+  « servi, et piloté par aucun client » de `docs/routes.md` passe de 18 à 13
+  pour ce pack, et les raisons qui subsistent portent toujours sur `exo`,
+  toujours mesurées, désormais seul client à les atteindre.
+
+  Personne ne l'aurait remarqué : le registre `coverage/evidence.json` n'avait
+  pas été régénéré depuis #683, il portait donc encore les chiffres d'avant ce
+  provider, et `TestEveryUndrivenOperationSaysWhy` n'avait rien à quoi se
+  comparer. #631 l'a régénéré pour ses deux propres lignes, et les cinq raisons
+  périmées sont sorties avec.
 
 ### Corrigé
 

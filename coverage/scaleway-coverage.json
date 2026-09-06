@@ -1,8 +1,8 @@
 {
   "provider": "scaleway",
-  "total": 498,
-  "implemented": 189,
-  "declined": 309,
+  "total": 535,
+  "implemented": 191,
+  "declined": 344,
   "unknown": 0,
   "orphans": null,
   "products": [
@@ -18,6 +18,29 @@
           "total": 12,
           "implemented": 5,
           "declined": 7,
+          "unknown": 0
+        }
+      ]
+    },
+    {
+      "product": "baremetal",
+      "total": 37,
+      "implemented": 2,
+      "declined": 35,
+      "unknown": 0,
+      "versions": [
+        {
+          "version": "v1",
+          "total": 33,
+          "implemented": 2,
+          "declined": 31,
+          "unknown": 0
+        },
+        {
+          "version": "v3",
+          "total": 4,
+          "implemented": 0,
+          "declined": 4,
           "unknown": 0
         }
       ]
@@ -188,6 +211,13 @@
       "unknown": 0
     },
     {
+      "group": "baremetal",
+      "total": 37,
+      "implemented": 2,
+      "declined": 35,
+      "unknown": 0
+    },
+    {
       "group": "block",
       "total": 27,
       "implemented": 22,
@@ -323,6 +353,263 @@
       "product": "account",
       "version": "v3",
       "status": "implemented"
+    },
+    {
+      "operation": "baremetal/v1/API.AddOptionServer",
+      "product": "baremetal",
+      "reason": "it edits a seeded server — its name, tags and protection, the reverse of one of its addresses, the options it subscribes to — and the seed is the operator's file: an edit accepted here would be undone by the next restore, or would silently diverge from what the operator declared",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "baremetal/v1/API.BatchCreateServers",
+      "product": "baremetal",
+      "reason": "ordering Elastic Metal is a paid commitment on hardware the cloud delivers in minutes to hours, and a server here is seeded through the state door, never ordered: an order this emulator accepted would be a delivery nobody makes",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "baremetal/v1/API.CreateServer",
+      "product": "baremetal",
+      "reason": "ordering Elastic Metal is a paid commitment on hardware the cloud delivers in minutes to hours, and a server here is seeded through the state door, never ordered: an order this emulator accepted would be a delivery nobody makes",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "baremetal/v1/API.DeleteOptionServer",
+      "product": "baremetal",
+      "reason": "it edits a seeded server — its name, tags and protection, the reverse of one of its addresses, the options it subscribes to — and the seed is the operator's file: an edit accepted here would be undone by the next restore, or would silently diverge from what the operator declared",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "baremetal/v1/API.DeleteServer",
+      "product": "baremetal",
+      "reason": "it acts on the hardware behind a server — an install writes an OS to its disks, a reboot, a start and a stop cycle its power, a delete returns it to stock — and there is no hardware behind a seeded server for any of that to happen to",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "baremetal/v1/API.GetBMCAccess",
+      "product": "baremetal",
+      "reason": "BMC access is a remote console on the hardware's management controller, opened with a password the cloud generates for the session; there is no controller behind a seeded server and no session to open on it",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "baremetal/v1/API.GetDefaultPartitioningSchema",
+      "product": "baremetal",
+      "reason": "it reads one offer, the OS and options an offer accepts, or a partitioning schema, and nothing here is in stock: the catalogue ListOffers answers is what the seeded fleet declares and nothing more (baremetal.go), an OS or an option describes an install this emulator does not perform, and a partitioning schema does too",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "baremetal/v1/API.GetOS",
+      "product": "baremetal",
+      "reason": "it reads one offer, the OS and options an offer accepts, or a partitioning schema, and nothing here is in stock: the catalogue ListOffers answers is what the seeded fleet declares and nothing more (baremetal.go), an OS or an option describes an install this emulator does not perform, and a partitioning schema does too",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "baremetal/v1/API.GetOffer",
+      "product": "baremetal",
+      "reason": "it reads one offer, the OS and options an offer accepts, or a partitioning schema, and nothing here is in stock: the catalogue ListOffers answers is what the seeded fleet declares and nothing more (baremetal.go), an OS or an option describes an install this emulator does not perform, and a partitioning schema does too",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "baremetal/v1/API.GetOption",
+      "product": "baremetal",
+      "reason": "it reads one offer, the OS and options an offer accepts, or a partitioning schema, and nothing here is in stock: the catalogue ListOffers answers is what the seeded fleet declares and nothing more (baremetal.go), an OS or an option describes an install this emulator does not perform, and a partitioning schema does too",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "baremetal/v1/API.GetServer",
+      "product": "baremetal",
+      "reason": "it reads one server by identifier, its events or its metrics, and the measured clients never do: an inventory enumerates (the stephrobert.scaleway plugin's own comment says it never reads one by one), and the events and metrics of a seeded server would describe a life it did not live here",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "baremetal/v1/API.GetServerMetrics",
+      "product": "baremetal",
+      "reason": "it reads one server by identifier, its events or its metrics, and the measured clients never do: an inventory enumerates (the stephrobert.scaleway plugin's own comment says it never reads one by one), and the events and metrics of a seeded server would describe a life it did not live here",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "baremetal/v1/API.InstallServer",
+      "product": "baremetal",
+      "reason": "it acts on the hardware behind a server — an install writes an OS to its disks, a reboot, a start and a stop cycle its power, a delete returns it to stock — and there is no hardware behind a seeded server for any of that to happen to",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "baremetal/v1/API.ListOS",
+      "product": "baremetal",
+      "reason": "it reads one offer, the OS and options an offer accepts, or a partitioning schema, and nothing here is in stock: the catalogue ListOffers answers is what the seeded fleet declares and nothing more (baremetal.go), an OS or an option describes an install this emulator does not perform, and a partitioning schema does too",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "baremetal/v1/API.ListOffers",
+      "product": "baremetal",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "baremetal/v1/API.ListOptions",
+      "product": "baremetal",
+      "reason": "it reads one offer, the OS and options an offer accepts, or a partitioning schema, and nothing here is in stock: the catalogue ListOffers answers is what the seeded fleet declares and nothing more (baremetal.go), an OS or an option describes an install this emulator does not perform, and a partitioning schema does too",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "baremetal/v1/API.ListServerEvents",
+      "product": "baremetal",
+      "reason": "it reads one server by identifier, its events or its metrics, and the measured clients never do: an inventory enumerates (the stephrobert.scaleway plugin's own comment says it never reads one by one), and the events and metrics of a seeded server would describe a life it did not live here",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "baremetal/v1/API.ListServers",
+      "product": "baremetal",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "baremetal/v1/API.ListSettings",
+      "product": "baremetal",
+      "reason": "the product's settings are per-project switches on the real account, one type in the SDK today (smtp: whether a project's servers may send mail), and nothing here sends anything",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "baremetal/v1/API.MigrateServerToMonthlyOffer",
+      "product": "baremetal",
+      "reason": "ordering Elastic Metal is a paid commitment on hardware the cloud delivers in minutes to hours, and a server here is seeded through the state door, never ordered: an order this emulator accepted would be a delivery nobody makes",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "baremetal/v1/API.RebootServer",
+      "product": "baremetal",
+      "reason": "it acts on the hardware behind a server — an install writes an OS to its disks, a reboot, a start and a stop cycle its power, a delete returns it to stock — and there is no hardware behind a seeded server for any of that to happen to",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "baremetal/v1/API.StartBMCAccess",
+      "product": "baremetal",
+      "reason": "BMC access is a remote console on the hardware's management controller, opened with a password the cloud generates for the session; there is no controller behind a seeded server and no session to open on it",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "baremetal/v1/API.StartServer",
+      "product": "baremetal",
+      "reason": "it acts on the hardware behind a server — an install writes an OS to its disks, a reboot, a start and a stop cycle its power, a delete returns it to stock — and there is no hardware behind a seeded server for any of that to happen to",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "baremetal/v1/API.StopBMCAccess",
+      "product": "baremetal",
+      "reason": "BMC access is a remote console on the hardware's management controller, opened with a password the cloud generates for the session; there is no controller behind a seeded server and no session to open on it",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "baremetal/v1/API.StopServer",
+      "product": "baremetal",
+      "reason": "it acts on the hardware behind a server — an install writes an OS to its disks, a reboot, a start and a stop cycle its power, a delete returns it to stock — and there is no hardware behind a seeded server for any of that to happen to",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "baremetal/v1/API.UpdateIP",
+      "product": "baremetal",
+      "reason": "it edits a seeded server — its name, tags and protection, the reverse of one of its addresses, the options it subscribes to — and the seed is the operator's file: an edit accepted here would be undone by the next restore, or would silently diverge from what the operator declared",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "baremetal/v1/API.UpdateServer",
+      "product": "baremetal",
+      "reason": "it edits a seeded server — its name, tags and protection, the reverse of one of its addresses, the options it subscribes to — and the seed is the operator's file: an edit accepted here would be undone by the next restore, or would silently diverge from what the operator declared",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "baremetal/v1/API.UpdateSetting",
+      "product": "baremetal",
+      "reason": "the product's settings are per-project switches on the real account, one type in the SDK today (smtp: whether a project's servers may send mail), and nothing here sends anything",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "baremetal/v1/API.ValidatePartitioningSchema",
+      "product": "baremetal",
+      "reason": "it reads one offer, the OS and options an offer accepts, or a partitioning schema, and nothing here is in stock: the catalogue ListOffers answers is what the seeded fleet declares and nothing more (baremetal.go), an OS or an option describes an install this emulator does not perform, and a partitioning schema does too",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "baremetal/v1/PrivateNetworkAPI.AddServerPrivateNetwork",
+      "product": "baremetal",
+      "reason": "it attaches a bare-metal server to a Private Network, and a seeded server holds no NIC this pack's VPC could carry: the one measured inventory declares it joins no private network for this product (joins_private_networks = False), and an attach served without the network behind it would publish a membership nothing routes",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "baremetal/v1/PrivateNetworkAPI.DeleteServerPrivateNetwork",
+      "product": "baremetal",
+      "reason": "it attaches a bare-metal server to a Private Network, and a seeded server holds no NIC this pack's VPC could carry: the one measured inventory declares it joins no private network for this product (joins_private_networks = False), and an attach served without the network behind it would publish a membership nothing routes",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "baremetal/v1/PrivateNetworkAPI.ListServerPrivateNetworks",
+      "product": "baremetal",
+      "reason": "it attaches a bare-metal server to a Private Network, and a seeded server holds no NIC this pack's VPC could carry: the one measured inventory declares it joins no private network for this product (joins_private_networks = False), and an attach served without the network behind it would publish a membership nothing routes",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "baremetal/v1/PrivateNetworkAPI.SetServerPrivateNetworks",
+      "product": "baremetal",
+      "reason": "it attaches a bare-metal server to a Private Network, and a seeded server holds no NIC this pack's VPC could carry: the one measured inventory declares it joins no private network for this product (joins_private_networks = False), and an attach served without the network behind it would publish a membership nothing routes",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "baremetal/v3/PrivateNetworkAPI.AddServerPrivateNetwork",
+      "product": "baremetal",
+      "reason": "it attaches a bare-metal server to a Private Network, and a seeded server holds no NIC this pack's VPC could carry: the one measured inventory declares it joins no private network for this product (joins_private_networks = False), and an attach served without the network behind it would publish a membership nothing routes",
+      "version": "v3",
+      "status": "declined"
+    },
+    {
+      "operation": "baremetal/v3/PrivateNetworkAPI.DeleteServerPrivateNetwork",
+      "product": "baremetal",
+      "reason": "it attaches a bare-metal server to a Private Network, and a seeded server holds no NIC this pack's VPC could carry: the one measured inventory declares it joins no private network for this product (joins_private_networks = False), and an attach served without the network behind it would publish a membership nothing routes",
+      "version": "v3",
+      "status": "declined"
+    },
+    {
+      "operation": "baremetal/v3/PrivateNetworkAPI.ListServerPrivateNetworks",
+      "product": "baremetal",
+      "reason": "it attaches a bare-metal server to a Private Network, and a seeded server holds no NIC this pack's VPC could carry: the one measured inventory declares it joins no private network for this product (joins_private_networks = False), and an attach served without the network behind it would publish a membership nothing routes",
+      "version": "v3",
+      "status": "declined"
+    },
+    {
+      "operation": "baremetal/v3/PrivateNetworkAPI.SetServerPrivateNetworks",
+      "product": "baremetal",
+      "reason": "it attaches a bare-metal server to a Private Network, and a seeded server holds no NIC this pack's VPC could carry: the one measured inventory declares it joins no private network for this product (joins_private_networks = False), and an attach served without the network behind it would publish a membership nothing routes",
+      "version": "v3",
+      "status": "declined"
     },
     {
       "operation": "block/v1/API.CreateSnapshot",
