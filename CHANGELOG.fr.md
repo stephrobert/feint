@@ -19,6 +19,24 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Ajouté
 
+- **Un volume Outscale est `creating` avant d'être `available`, un snapshot
+  `in-queue` avant d'être `completed`, et un snapshot pris pendant `creating`
+  rencontre le `409 InvalidVolumeState` mesuré** (#124), sous
+  `feint serve --consistency eventual`. Mesuré contre un vrai compte le
+  2026-08-08 : `osc/Client.CreateVolume` répond `State: "creating"`,
+  `osc/Client.CreateSnapshot` émis avant que le volume ne se stabilise est
+  refusé en 409 avec le code `6007`, et un snapshot naît `in-queue` avec
+  `Progress: 0`. Ici les deux se stabilisaient d'un coup, si bien que ce refus
+  ne pouvait jamais se déclencher, et une garde avait été essayée puis annulée
+  pour cette raison précise. Le planificateur de #637 rend l'état atteignable
+  sans horloge, une observation par lecture ; la garde lit le volume sans
+  l'observer (`Store.Peek`), parce que la première version consommait l'état
+  même qu'elle vérifiait. Le texte de `Details` n'a pas été enregistré et
+  vient de cet émulateur ; le statut, le type et le code sont ceux de la
+  mesure, et `osc.IsConflict` classe ce code comme il classe celui du cloud.
+  Mode éteint, rien ne bouge : un volume est `available` et un snapshot
+  `completed` d'un coup, octet pour octet, et un test tient cette moitié.
+
 - **Un backend gagne et perd un serveur à la fois** (`lb/v1/ZonedAPI.AddBackendServers`,
   `lb/v1/ZonedAPI.RemoveBackendServers`, #676). Refusées parce que le provider
   Terraform réconcilie un pool par `SetBackendServers` seul, ce qui est vrai de
@@ -300,11 +318,9 @@ change ni l'un ni l'autre a sa place dans `git log`.
   d'échec, parce que raconter un chemin vers un `running` jamais atteint est la
   réponse plausible et fausse que ce projet existe pour éviter.
 
-  Ce que cela ne couvre pas encore, c'est le reste de #124 : les chaînes Outscale
-  `creating → available` et `in-queue → completed`, et le refus `409
-  InvalidVolumeState` qui avait été annulé faute d'un état atteignable. Le
-  mécanisme dont elles ont besoin est celui-ci ; ce qui manque, ce sont les
-  chaînes et la garde.
+  Les chaînes Outscale `creating → available` et `in-queue → completed`, et le
+  refus `409 InvalidVolumeState` qui avait été annulé faute d'un état
+  atteignable, ont suivi sur le même mécanisme (#124, plus haut).
 
 - **Un projet est désormais un registre, et `account/v3` sait y écrire** (#391).
   `account/v3/ProjectAPI.CreateProject`, `account/v3/ProjectAPI.UpdateProject`

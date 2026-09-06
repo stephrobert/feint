@@ -22,8 +22,14 @@ import (
 
 const (
 	volumeStateAvailable = "available"
-	volumeStateInUse     = "in-use"
-	defaultVolumeType    = "standard"
+	// volumeStateCreating is where a real volume is born: measured on
+	// 2026-08-08, CreateVolume answers it and the volume settles later. Here
+	// it is the first step of the chain a create pushes, walked one
+	// observation at a time under `feint serve --consistency eventual` and
+	// dropped on the floor by default (#124).
+	volumeStateCreating = "creating"
+	volumeStateInUse    = "in-use"
+	defaultVolumeType   = "standard"
 )
 
 type createVolumeRequest struct {
@@ -94,9 +100,21 @@ func (p *Pack) createVolume(w http.ResponseWriter, r *http.Request) {
 		// the same claim.
 		res.Attrs["SnapshotId"] = req.SnapshotID
 	}
+	// The chain a real volume walks, creating then available (#124). State
+	// holds the settled value so the default mode answers what it always
+	// answered; the store walks Pending one observation at a time when the
+	// operator asked for eventual consistency, and the create below answers
+	// through Get so that it is the first observation, as the cloud's create
+	// answers "creating". TestAVolumeIsCreatingThenAvailableUnderEventualConsistency
+	// and TestVolumesAndSnapshotsSettleAtOnceByDefault hold the two modes.
+	res.Pending = []string{volumeStateCreating, volumeStateAvailable}
 	p.env.Store.Put(res)
+	answered := res
+	if fresh, ok := p.env.Store.Get(Name, kindVolume, res.ID); ok {
+		answered = fresh
+	}
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"Volume":          p.volumeView(res),
+		"Volume":          p.volumeView(answered),
 		"ResponseContext": p.context(),
 	})
 }

@@ -17,6 +17,23 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Added
 
+- **An Outscale volume is `creating` before it is `available`, a snapshot
+  `in-queue` before it is `completed`, and a snapshot taken during `creating`
+  meets the measured `409 InvalidVolumeState`** (#124), under
+  `feint serve --consistency eventual`. Measured against a real account on
+  2026-08-08: `osc/Client.CreateVolume` answers `State: "creating"`,
+  `osc/Client.CreateSnapshot` issued before the volume settles is refused with
+  409 and code `6007`, and a snapshot is born `in-queue` with `Progress: 0`.
+  Here both settled at once, so that refusal could never fire, and a guard for
+  it had been tried and reverted for exactly that reason. #637's scheduler
+  makes the state reachable without a clock, one observation per read; the
+  guard reads the volume without observing it (`Store.Peek`), because the
+  first version consumed the very state it checked. The `Details` wording was
+  not recorded and is this emulator's; the status, type and code are the
+  measurement's, and `osc.IsConflict` classifies the code as it classifies the
+  cloud's. With the mode off, nothing moves: a volume is `available` and a
+  snapshot `completed` at once, byte for byte, and a test holds that half.
+
 - **A backend gains and loses one server at a time** (`lb/v1/ZonedAPI.AddBackendServers`,
   `lb/v1/ZonedAPI.RemoveBackendServers`, #676). Declined because the Terraform
   provider reconciles a pool through `SetBackendServers` alone, which is true
@@ -279,10 +296,9 @@ what this project is judged on: **a response shape a client can observe**, and
   failed answers its failed state, because narrating a path towards a `running`
   it never reached is the plausible-wrong answer this project exists to avoid.
 
-  What this does not yet cover is the rest of #124: the Outscale `creating →
-  available` and `in-queue → completed` chains, and the `409 InvalidVolumeState`
-  refusal that was reverted for want of a reachable state. The mechanism those
-  need is this one; what is missing is the chains and the guard.
+  The Outscale `creating → available` and `in-queue → completed` chains, and
+  the `409 InvalidVolumeState` refusal that was reverted for want of a
+  reachable state, followed on the same mechanism (#124, below).
 
 - **A project is a register now, and `account/v3` can write to it** (#391).
   `account/v3/ProjectAPI.CreateProject`, `account/v3/ProjectAPI.UpdateProject`

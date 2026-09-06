@@ -493,12 +493,13 @@ vol_id="$(printf '%s' "$vol" | jq -r '.Volume.VolumeId // empty')"
 printf '%s' "$vol" | jq -e '.Volume | has("SnapshotId") | not' >/dev/null \
   || fail "a plain volume carries a SnapshotId key the real cloud omits: $vol"
 
-# Transitions are immediate here, and that is a decision docs/limits.md carries:
-# a fresh volume is available and its snapshot completed at once. The real cloud
-# passes through "creating" and refuses a snapshot taken during that window with
-# 409 InvalidVolumeState (6007), measured on 2026-08-08 — deliberately not
-# reproduced, because making a client wait for information that does not exist
-# here is the regression that limit exists to prevent.
+# Transitions are immediate by default, and that is a decision docs/limits.md
+# carries: a fresh volume is available and its snapshot completed at once, which
+# is what this suite runs against. The real cloud passes through "creating" and
+# refuses a snapshot taken during that window with 409 InvalidVolumeState (6007),
+# measured on 2026-08-08; since #124 that is what `feint serve --consistency
+# eventual` answers, one state per read and never on a clock, and the unit tests
+# of the pack hold it. The default mode this suite measures does not move.
 printf '%s' "$vol" | jq -e '.Volume.State == "available"' >/dev/null \
   || fail "a fresh volume is not available: $vol"
 

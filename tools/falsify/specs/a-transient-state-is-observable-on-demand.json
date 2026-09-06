@@ -1,0 +1,47 @@
+{
+  "package": "./internal/providers/outscale/",
+  "mutations": [
+    {
+      "label": "the volume chain loses its creating step, so the state the 409 guards is unreachable again and the create answers available under the mode",
+      "file": "internal/providers/outscale/volumes.go",
+      "find": "\tres.Pending = []string{volumeStateCreating, volumeStateAvailable}",
+      "replace": "\tres.Pending = []string{volumeStateCreating, volumeStateAvailable}[1:]",
+      "test": "TestAVolumeIsCreatingThenAvailableUnderEventualConsistency"
+    },
+    {
+      "label": "the guard never fires, and a snapshot of a creating volume is accepted: the refusal measured on 2026-08-08, unserved again",
+      "file": "internal/providers/outscale/snapshots.go",
+      "find": "\tif volume.State == volumeStateCreating {",
+      "replace": "\tif volume.State == volumeStateCreating && false {",
+      "test": "TestASnapshotOfAVolumeStillCreatingIsRefusedWithTheMeasuredConflict"
+    },
+    {
+      "label": "the guard reads the volume with Get, consumes the creating state it was about to check, and never fires: the defect the reverted version had",
+      "file": "internal/providers/outscale/snapshots.go",
+      "find": "\tvolume, found := p.env.Store.Peek(Name, kindVolume, req.VolumeID)",
+      "replace": "\tvolume, found := p.env.Store.Get(Name, kindVolume, req.VolumeID)",
+      "test": "TestASnapshotOfAVolumeStillCreatingIsRefusedWithTheMeasuredConflict"
+    },
+    {
+      "label": "the snapshot chain loses its in-queue step, so a fresh snapshot reads completed under the mode",
+      "file": "internal/providers/outscale/snapshots.go",
+      "find": "\tres.Pending = []string{snapshotStateInQueue, snapshotStateCompleted}",
+      "replace": "\tres.Pending = []string{snapshotStateInQueue, snapshotStateCompleted}[1:]",
+      "test": "TestASnapshotOfAVolumeStillCreatingIsRefusedWithTheMeasuredConflict"
+    },
+    {
+      "label": "a snapshot in-queue reports Progress 100, a value the cloud never answers for that state",
+      "file": "internal/providers/outscale/snapshots.go",
+      "find": "\tif res.State == snapshotStateInQueue {",
+      "replace": "\tif res.State == snapshotStateInQueue && false {",
+      "test": "TestASnapshotOfAVolumeStillCreatingIsRefusedWithTheMeasuredConflict"
+    },
+    {
+      "label": "the chains are walked whatever the mode, and the default stops being immediate: every suite and client reads creating where it read available",
+      "file": "internal/providers/outscale/volumes.go",
+      "find": "\tres.Pending = []string{volumeStateCreating, volumeStateAvailable}\n\tp.env.Store.Put(res)",
+      "replace": "\tres.Pending = []string{volumeStateCreating, volumeStateAvailable}\n\tres.PendingOnlySignal = true\n\tp.env.Store.Put(res)",
+      "test": "TestVolumesAndSnapshotsSettleAtOnceByDefault"
+    }
+  ]
+}
