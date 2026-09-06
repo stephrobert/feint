@@ -307,6 +307,18 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Fixed
 
+- **An Exoscale validation refusal carries its `errors` array** (#397).
+  `exoscale/v2.create-private-network` and `exoscale/v2.update-private-network`
+  refused a range declared backwards, or half declared, or a create with no
+  name, with `{"message": …}` alone, where the recording of 2026-08-21
+  (`corpus/exoscale/exo-refusals.jsonl`, a real ch-gva-2 account) shows
+  `{"message": …, "errors": [{"message": …}]}` on both recorded 400s. The
+  same recording shows five 404s and one 409 without the array, so it is the
+  shape of a validation failure and not of an error, and it is written on
+  those refusals alone: a 404 still carries the message and nothing else,
+  and a test holds that half. The corpus exemption naming this issue is gone,
+  and `feint corpus --check` now compares the two recorded exchanges rather
+  than excusing them.
 - **`osc/Client.ReadImages` and `osc/Client.ReadSnapshots` serve
   `Filters.AccountAliases`** (#700), the filter the contract's own `ReadImages`
   example uses. Both reads refused it with the 4001 that names what they

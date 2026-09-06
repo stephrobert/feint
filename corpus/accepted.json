@@ -278,14 +278,6 @@
   ],
   "accepted": [
     {
-      "file": "exoscale/exo-refusals.jsonl",
-      "operation": "exoscale/v2.create-private-network",
-      "kind": "absent",
-      "path": "errors",
-      "reason": "The status and the refusal are right and the body is short one key: the cloud carries an errors array naming the field it refused, this emulator carries the message alone. Adding the array unconditionally would put an empty one on the refusals the cloud answers without it, so a fix waits for a recording that shows both shapes.",
-      "issue": "https://github.com/stephrobert/feint/issues/397"
-    },
-    {
       "file": "outscale/oapi-cli-lb-shapes.jsonl",
       "operation": "osc/Client.DeleteLoadBalancer",
       "kind": "absent",

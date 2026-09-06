@@ -1,0 +1,26 @@
+{
+  "package": "./internal/providers/exoscale/",
+  "mutations": [
+    {
+      "label": "the create's range refusal goes back to the bare message, which is #397 verbatim",
+      "file": "internal/providers/exoscale/privatenetworks.go",
+      "find": "\tdhcp, managed, err := managedRangeOf(stringOf(req.StartIP), stringOf(req.EndIP), stringOf(req.Netmask))\n\tif err != nil {\n\t\t// The recorded refusal (#397): a range declared backwards answers the\n\t\t// validation shape, errors array included.\n\t\twriteValidationError(w, err.Error())",
+      "replace": "\tdhcp, managed, err := managedRangeOf(stringOf(req.StartIP), stringOf(req.EndIP), stringOf(req.Netmask))\n\tif err != nil {\n\t\t// The recorded refusal (#397): a range declared backwards answers the\n\t\t// validation shape, errors array included.\n\t\twriteError(w, http.StatusBadRequest, err.Error())\n\t\t_ = writeValidationError",
+      "test": "TestARangeRefusalCarriesItsErrorsArray"
+    },
+    {
+      "label": "the update's range refusal goes back to the bare message, so the same validation answers two shapes",
+      "file": "internal/providers/exoscale/privatenetworks.go",
+      "find": "\tdhcp, managed, err := managedRangeOf(startIP, endIP, netmask)\n\tif err != nil {\n\t\twriteValidationError(w, err.Error())",
+      "replace": "\tdhcp, managed, err := managedRangeOf(startIP, endIP, netmask)\n\tif err != nil {\n\t\twriteError(w, http.StatusBadRequest, err.Error())\n\t\t_ = writeValidationError",
+      "test": "TestARangeRefusalCarriesItsErrorsArray"
+    },
+    {
+      "label": "every refusal grows an errors array, which puts an empty one on the six answers the cloud gives without it: the second divergence #397 warned about",
+      "file": "internal/providers/exoscale/pack.go",
+      "find": "\temulator.WriteJSON(w, status, map[string]any{\"message\": message})",
+      "replace": "\temulator.WriteJSON(w, status, map[string]any{\"message\": message, \"errors\": []map[string]any{}})",
+      "test": "TestARefusalThatIsNotAValidationCarriesNoErrorsArray"
+    }
+  ]
+}
