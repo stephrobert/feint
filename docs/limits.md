@@ -369,7 +369,7 @@ Feint controls neither the client's process nor its DNS. `feint proxy` sees
 every request that reaches it and, by construction, none that does not. The
 scan above reads text, so it cannot see a value passed at runtime
 (`-backend-config`, a variable), a module fetched at init, or the next product
-whose client composes its endpoint upstream tomorrow — the weekly drift scan
+whose client composes its endpoint upstream tomorrow — the nightly drift scan
 reads SDK surfaces, not endpoint construction, so it will not see that one
 either. **In general, the escape is undetectable from inside the emulator, and
 an approximate guard would be worse than none: it would license exactly the

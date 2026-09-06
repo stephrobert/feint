@@ -86,7 +86,7 @@ The offer is concrete rather than a request for attention:
 
 Your own clients already run against it on every pull request here — `scw`,
 `octl`, `exo`, Terraform and OpenTofu — and the upstream surface of your SDK
-is scanned weekly, so an operation you add shows up as untriaged until somebody
+is scanned every night, so an operation you add shows up as untriaged until somebody
 decides about it.
 
 Two things would change what this project can prove about your cloud:

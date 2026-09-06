@@ -74,8 +74,10 @@ follows that from memory.
   coverage --document ... --contract-only ...` cross-checks the two inventories
   and exits 2 on an operation nobody decided about.
 
-Weekly, `.github/workflows/drift.yml` scans and opens a pull request when
-something moved. The human work is triage.
+Every night, `.github/workflows/drift.yml` scans and opens a pull request when
+something moved. The human work is triage. A night where the scan could not
+conclude opens one `scheduled-red` issue through `night-report.yml`, closed by
+the first green night (#705).
 
 ### What `total` counts, and why a document can declare more
 

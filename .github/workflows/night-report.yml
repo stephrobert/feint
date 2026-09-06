@@ -12,7 +12,8 @@
 # Why a reusable workflow rather than a block in each scheduled caller: a
 # control copied into every caller is a control one caller forgets (CLAUDE.md
 # states it, and #335/#502 are both that story). runtime-proof.yml consumes it
-# first; falsify.yml, conformance.yml and corpus-cloud.yml can adopt it with a
+# first and drift.yml second (#705); falsify.yml, conformance.yml and
+# corpus-cloud.yml can adopt it with a
 # six-line job when their turn comes.
 #
 # Why the decisions live in tools/ci/night-report.sh rather than in a run:

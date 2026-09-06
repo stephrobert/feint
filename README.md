@@ -1102,8 +1102,10 @@ mise run drift:check     # exit 2 if the upstream surface moved
 mise run drift:update    # after triaging: implement, or decline with a reason
 ```
 
-A weekly job runs the scan and **opens a pull request** the moment upstream moves.
-The human work is triage.
+A nightly job runs the scan and **opens a pull request** the moment upstream moves.
+The human work is triage. A night where the scan could not conclude opens one
+issue, updated, closed by the first green night, so a broken scan is never a job
+log nobody opens.
 
 ---
 
@@ -1140,7 +1142,7 @@ not need to diagnose anything — a configuration and an error message are enoug
 
 Feint can be the local test backend for your own Terraform examples and SDK
 tests. Your clients already run against it here on every pull request, and your
-SDK's surface is scanned weekly. What would change what this project can prove
+SDK's surface is scanned every night. What would change what this project can prove
 about your cloud is a sandbox account or redacted recordings — the shapes gate
 compares this emulator's answers with what the real cloud returned, and recording
 needs an account. The offer, and what this project will never do, are both in
