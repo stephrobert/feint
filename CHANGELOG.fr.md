@@ -330,6 +330,24 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Corrigé
 
+- **Une elastic IP Exoscale relit ses labels** (#703).
+  `exoscale/v2.create-elastic-ip` et `exoscale/v2.update-elastic-ip`
+  déclaraient `labels` dans leur structure de requête et ne stockaient rien,
+  et aucune vue ne servait le champ : `exoscale/v2.get-elastic-ip` et
+  `exoscale/v2.list-elastic-ips` répondaient une adresse étiquetée sans
+  labels alors que sa description, venue du même corps, revenait bien, et le
+  second plan d'une stack qui étiquette son adresse n'était jamais vide.
+  Mesuré le 2026-09-05 avec le SDK Python, et sous le provider 0.71.0 comme
+  `Plan: 0 to add, 1 to change` sur la seule ressource des vingt-trois qui
+  porte des labels. Stockés à la création,
+  remplacés à la mise à jour quand le client envoie le champ et intacts quand
+  il ne l'envoie pas, vidés par une map vide, servis quand ils existent et
+  absents sinon, comme le private network le faisait déjà. La même passe a
+  ramené `exoscale/v2.reset-elastic-ip-field` à ce que la description d'API
+  déclare,
+  `description` seul : le pack y acceptait `labels` et `healthcheck`, absents
+  de l'énumération du contrat, et le premier répondait 200 en vidant un champ
+  jamais stocké.
 - **`feint env exoscale` dit à un utilisateur de Terraform ce que l'émulateur
   fait aujourd'hui** (#701). La note sur stderr disait encore, un jour après
   que #644 a levé le refus, que le provider honore `EXOSCALE_API_ENDPOINT`

@@ -307,6 +307,22 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Fixed
 
+- **An Exoscale elastic IP reads its labels back** (#703).
+  `exoscale/v2.create-elastic-ip` and `exoscale/v2.update-elastic-ip` declared
+  `labels` in their request structs and stored nothing, and no view served the
+  field, so `exoscale/v2.get-elastic-ip` and `exoscale/v2.list-elastic-ips`
+  answered a labelled address without labels while its description, from the
+  same body, came back fine, and the second plan of a stack that labels its
+  address was never empty: measured on 2026-09-05 with the Python SDK, and
+  under provider 0.71.0 as `Plan: 0 to add, 1 to change` on the one resource
+  of twenty-three carrying labels.
+  Stored on create, replaced on update when the client sends the field and
+  left alone when it does not, cleared by an empty map, served when non-empty
+  and absent otherwise, the way the private network already did. The same
+  pass narrowed `exoscale/v2.reset-elastic-ip-field` to what the API description declares,
+  `description` alone: the pack accepted `labels` and `healthcheck` there,
+  neither in the contract's enum, and the first answered 200 while clearing a
+  field it had never stored.
 - **`feint env exoscale` tells a Terraform user what the emulator does today**
   (#701). The note on stderr still said, a day after #644 had lifted the
   refusal, that the provider honours `EXOSCALE_API_ENDPOINT` for half of itself

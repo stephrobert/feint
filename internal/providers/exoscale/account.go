@@ -115,10 +115,14 @@ var resettableInstanceFields = map[string]string{
 	"tpm-enabled": "tpm-enabled",
 }
 
+// resettableElasticIPFields is the enum their API description declares for
+// reset-elastic-ip-field, and it is one entry long: description. It used to
+// list healthcheck and labels too, neither of which the contract names, and
+// labels was not even stored, so that reset answered 200 and cleared nothing
+// (#703). A list wider than the enum answers 200 where the API refuses.
+// TestOnlyTheDescriptionOfAnElasticIPIsResettable fails when it grows.
 var resettableElasticIPFields = map[string]string{
 	"description": "description",
-	"healthcheck": "healthcheck",
-	"labels":      "labels",
 }
 
 func (p *Pack) resetInstanceField(w http.ResponseWriter, r *http.Request) {
