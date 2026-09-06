@@ -173,6 +173,27 @@ func (p *Pack) readVms(w http.ResponseWriter, r *http.Request) {
 	if p.refuseFilters(w, req.Filters, vmFilters) {
 		return
 	}
+	// ReadVms alone refuses a VmIds value that is not an identifier (#396).
+	//
+	// Measured, not deduced: the same probe, ["not-an-identifier"], was sent
+	// to seventeen reads of a real account on 2026-08-21
+	// (corpus/outscale/oapi-cli-refusals.jsonl), and this is the only one the
+	// cloud refused; the sixteen others answered 200 and an empty list. So the
+	// check lives here and in no shared layer, on purpose: an emulator that
+	// validated all seventeen would be wrong sixteen times. The prefix is the
+	// one the refusal names, and the one this pack mints (newVMID).
+	// TestReadVmsRefusesAFilterValueThatIsNotAnIdentifier fails without this;
+	// TestEveryOtherReadAcceptsAFilterValueThatIsNotAnIdentifier fails the day
+	// it spreads.
+	if ids, present, _ := req.Filters.strings("VmIds"); present {
+		for _, id := range ids {
+			if !strings.HasPrefix(id, "i-") {
+				p.writeError(w, http.StatusBadRequest, codeInvalidIDPrefix, typeInvalidParameter,
+					"the provided value does not respect the expected ID prefix")
+				return
+			}
+		}
+	}
 
 	vms := make([]map[string]any, 0)
 	for _, res := range p.env.Store.List(kindVM, resource.Tenant{Provider: Name}) {

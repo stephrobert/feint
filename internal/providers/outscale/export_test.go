@@ -35,7 +35,15 @@ func DeclaredFilters() map[string][]DeclaredFilter {
 	for action, specs := range filtersByAction {
 		row := make([]DeclaredFilter, 0, len(specs))
 		for _, spec := range specs {
-			row = append(row, DeclaredFilter{Name: spec.Name, Absent: absentValue(spec.Kind)})
+			absent := absentValue(spec.Kind)
+			// ReadVms refuses a VmIds value that is not an identifier (#396,
+			// measured on that read alone), so the value nothing carries has to
+			// wear the prefix there, or the sweep would be refused rather than
+			// answered empty.
+			if action == "ReadVms" && spec.Name == "VmIds" {
+				absent = `["i-` + impossibleText + `"]`
+			}
+			row = append(row, DeclaredFilter{Name: spec.Name, Absent: absent})
 		}
 		out[action] = row
 	}

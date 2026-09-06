@@ -575,22 +575,6 @@
     },
     {
       "file": "outscale/oapi-cli-refusals.jsonl",
-      "operation": "osc/Client.ReadVms",
-      "kind": "absent",
-      "path": "Errors",
-      "reason": "ReadVms is the only one of seventeen Outscale reads that refuses a filter value which is not an identifier; the other sixteen answer 200 with an empty list, measured in the same run. Reproducing a one-operation inconsistency is a decision, and validating all seventeen would be wrong sixteen times.",
-      "issue": "https://github.com/stephrobert/feint/issues/396"
-    },
-    {
-      "file": "outscale/oapi-cli-refusals.jsonl",
-      "operation": "osc/Client.ReadVms",
-      "kind": "status",
-      "path": "",
-      "reason": "ReadVms is the only one of seventeen Outscale reads that refuses a filter value which is not an identifier; the other sixteen answer 200 with an empty list, measured in the same run. Reproducing a one-operation inconsistency is a decision, and validating all seventeen would be wrong sixteen times.",
-      "issue": "https://github.com/stephrobert/feint/issues/396"
-    },
-    {
-      "file": "outscale/oapi-cli-refusals.jsonl",
       "operation": "osc/Client.UpdateImage",
       "kind": "status",
       "path": "",

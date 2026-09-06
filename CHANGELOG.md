@@ -341,6 +341,19 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Fixed
 
+- **`osc/Client.ReadVms` refuses a `VmIds` value that is not an identifier**
+  (#396), as the real account does and as no other read does. The recording
+  of 2026-08-21 (`corpus/outscale/oapi-cli-refusals.jsonl`) sent
+  `["not-an-identifier"]` to seventeen reads: `ReadVms` answered 400 with
+  `Errors [{Code 4104, Type InvalidParameterValue, Details "the provided
+  value does not respect the expected ID prefix"}]`, and the sixteen others
+  answered 200 and an empty list. This emulator answered 200 on all
+  seventeen. It now refuses on `ReadVms` alone, with the recorded code, and a
+  test sends the same value to every declared identifier filter of every
+  other read, `ReadVmsState`'s `VmIds` included, and holds their 200: the
+  asymmetry is upstream's, and reproducing it on one read is the fix, on
+  seventeen it would be sixteen new divergences. The two corpus exemptions
+  naming this issue are gone.
 - **An Exoscale validation refusal carries its `errors` array** (#397).
   `exoscale/v2.create-private-network` and `exoscale/v2.update-private-network`
   refused a range declared backwards, or half declared, or a create with no
