@@ -875,7 +875,8 @@ and the API never mentions.
 It boots for one reason, and the reason has to be declared because it is a
 harness choice rather than a recorded one: the register names "nine TF_VARs
 (keys, region, vm type, image id, keypair name, three DNS IPs)" **without naming
-the image id**, so this replay supplied `ami-00000001`, an OMI the emulated
+the image id**, so this replay supplied `ami-00000001` (renamed `ami-fe1a7001`
+by #395, after this survey), an OMI the emulated
 catalogue holds. Same pack, same runtime, same evening as the four Outscale
 entries that started nothing on `ami-a3ca408c` / `ami-538af795` / `ami-47899c77`.
 The only variable that differs is whether the identifier is in the catalogue, and

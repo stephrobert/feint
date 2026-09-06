@@ -113,12 +113,12 @@ osc() { octl --config "$WORK/config.json" --no-upgrade -o raw iaas api "$@" </de
 
 echo "- octl: an ImageId that names nothing is the recorded 400, code 5023"
 refused "octl on an undeclared image" "5023" osc CreateVms --ImageId ami-1234567a --VmType tinav6.c1r1p2
-refused "octl on an undeclared type" "declared catalogue" osc CreateVms --ImageId ami-00000001 --VmType tinav6.c2r4p2
+refused "octl on an undeclared type" "declared catalogue" osc CreateVms --ImageId ami-fe1a7001 --VmType tinav6.c2r4p2
 ok "refused with the recorded code on the image, and on the type"
 
 echo "- octl: the catalogue a client reads is the one the create accepts"
 images="$(osc ReadImages)" || fail "ReadImages rejected: $images"
-printf '%s' "$images" | jq -e '[.Images[].ImageId] == ["ami-00000001"]' >/dev/null \
+printf '%s' "$images" | jq -e '[.Images[].ImageId] == ["ami-fe1a7001"]' >/dev/null \
   || fail "ReadImages lists more than the declared image: $images"
 types="$(osc ReadVmTypes)" || fail "ReadVmTypes rejected: $types"
 printf '%s' "$types" | jq -e '[.VmTypes[].VmTypeName] == ["tinav6.c1r1p2"]' >/dev/null \
@@ -126,7 +126,7 @@ printf '%s' "$types" | jq -e '[.VmTypes[].VmTypeName] == ["tinav6.c1r1p2"]' >/de
 ok "one image and one type on offer, the declared ones"
 
 echo "- octl: the declared image and type still create"
-vm="$(osc CreateVms --ImageId ami-00000001 --VmType tinav6.c1r1p2)" || fail "CreateVms refused the declared pair: $vm"
+vm="$(osc CreateVms --ImageId ami-fe1a7001 --VmType tinav6.c1r1p2)" || fail "CreateVms refused the declared pair: $vm"
 vm_id="$(printf '%s' "$vm" | jq -r '.Vms[0].VmId // empty')"
 [ -n "$vm_id" ] || fail "no VmId in the answer: $vm"
 osc DeleteVms --VmIds "$vm_id" >/dev/null || fail "DeleteVms rejected"

@@ -117,7 +117,7 @@ public="$(printf '%s' "$created_ip" | jq -r '.PublicIp.PublicIp // empty')"
 ok "$public ($ip_id)"
 
 echo "- boot a Vm carrying the keypair"
-vm="$(osc CreateVms --ImageId ami-00000001 --VmType tinav6.c1r1p2 --KeypairName "$KEY_NAME")" \
+vm="$(osc CreateVms --ImageId ami-fe1a7001 --VmType tinav6.c1r1p2 --KeypairName "$KEY_NAME")" \
   || fail "CreateVms rejected: $vm"
 vm_id="$(printf '%s' "$vm" | jq -r '.Vms[0].VmId // empty')"
 [ -n "$vm_id" ] || fail "no VmId in the create response: $vm"

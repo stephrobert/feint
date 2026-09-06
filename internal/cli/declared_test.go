@@ -24,7 +24,7 @@ func TestServeRefusesADeclarationNamingAKindNoPackChecks(t *testing.T) {
 	}
 
 	// The typo: "image" for "images", on a pack that checks images and types.
-	_, err = loadDeclared(write("typo.json", `{"outscale": {"image": ["ami-00000001"]}}`), srv.Packs())
+	_, err = loadDeclared(write("typo.json", `{"outscale": {"image": ["ami-fe1a7001"]}}`), srv.Packs())
 	if err == nil {
 		t.Fatal("a declaration naming a kind no pack checks was accepted")
 	}
@@ -38,7 +38,7 @@ func TestServeRefusesADeclarationNamingAKindNoPackChecks(t *testing.T) {
 	// The accepting half: every kind of the three packs, as documented.
 	declared, err := loadDeclared(write("ok.json", `{
 		"scaleway": {"images": ["debian_bookworm"], "types": ["DEV1-S"]},
-		"outscale": {"images": ["ami-00000001"], "types": ["tinav6.c1r1p2"]},
+		"outscale": {"images": ["ami-fe1a7001"], "types": ["tinav6.c1r1p2"]},
 		"exoscale": {"templates": ["11111111-1111-4111-8111-111111111111"], "types": ["21624abb-764e-4def-81d7-9fc54b5957fb"]}
 	}`), srv.Packs())
 	if err != nil {

@@ -125,31 +125,42 @@ var createImageBsuKeys = []string{"SnapshotId", "VolumeSize", "VolumeType", "Del
 //
 // #395 measured what happens otherwise: the sanitiser hands out prefixed
 // identifiers as a shared counter in eight hexadecimal digits, so ami-00000001
-// came out naming a catalogue image of this emulator and two corpus exemptions
-// exist to carry the confusion. #389 added three snapshots and three volume
-// identifiers to this file; numbering them the same way would have widened a
-// known defect for free.
+// came out of a recording naming a catalogue image of this emulator, and two
+// corpus exemptions carried the confusion until the images moved. #389 had
+// already numbered its snapshots and volumes outside the space; the images
+// followed with #395, and this test holds all three tables plus the boot map.
 //
-// The test is on the objects #389 added, not on the pre-existing ami- ones:
-// those are #395's to move, and asserting on them here would make this test
-// fail for somebody else's issue.
+// The cross-pack half, which reads every pack's source rather than one
+// catalogue, is TestNoPackFixtureLivesInTheSanitisersMintingSpace in
+// internal/cli.
 func TestTheCatalogueIdentifiersStayOutOfTheMintingSpace(t *testing.T) {
-	if len(catalogueSnapshots) == 0 {
-		t.Fatal("the catalogue holds no snapshot, so this test measures nothing")
+	if len(catalogueSnapshots) == 0 || len(images) == 0 || len(runtimeImages) == 0 {
+		t.Fatal("the catalogue holds no snapshot, image or boot, so this test measures nothing")
 	}
+	var ids []string
 	for _, snapshot := range catalogueSnapshots {
 		for _, key := range []string{"SnapshotId", "VolumeId"} {
 			id, _ := snapshot[key].(string)
-			_, hex, ok := strings.Cut(id, "-")
-			if !ok {
-				t.Errorf("%s %q carries no prefix", key, id)
-				continue
-			}
-			// The mint counts up from one, so a value the counter can reach in
-			// any plausible recording is one with leading zeros.
-			if strings.HasPrefix(hex, "0000") {
-				t.Errorf("%s %q sits in the sanitiser's minting space, which is #395", key, id)
-			}
+			ids = append(ids, key+" "+id)
+		}
+	}
+	for _, image := range images {
+		id, _ := image["ImageId"].(string)
+		ids = append(ids, "ImageId "+id)
+	}
+	for id := range runtimeImages {
+		ids = append(ids, "boot "+id)
+	}
+	for _, entry := range ids {
+		_, hex, ok := strings.Cut(entry[strings.LastIndex(entry, " ")+1:], "-")
+		if !ok {
+			t.Errorf("%s carries no prefix", entry)
+			continue
+		}
+		// The mint counts up from one, so a value the counter can reach in
+		// any plausible recording is one with leading zeros.
+		if strings.HasPrefix(hex, "0000") {
+			t.Errorf("%s sits in the sanitiser's minting space, which is #395", entry)
 		}
 	}
 }

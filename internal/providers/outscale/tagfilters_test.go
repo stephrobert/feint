@@ -121,7 +121,7 @@ func TestTagFiltersReachEveryReadTheRecordingExercised(t *testing.T) {
 
 	_, subnetID := netAndSubnet(t, ts, "10.92.0.0/16", "10.92.1.0/24")
 	status, vm := post(t, ts, "CreateVms",
-		`{"ImageId":"ami-00000001","SubnetId":"`+subnetID+`","BootOnCreation":false}`)
+		`{"ImageId":"ami-fe1a7001","SubnetId":"`+subnetID+`","BootOnCreation":false}`)
 	if status != http.StatusOK {
 		t.Fatalf("CreateVms: %d (%v)", status, vm)
 	}

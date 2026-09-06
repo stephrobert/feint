@@ -381,7 +381,7 @@ func TestAnUnknownImageStillYieldsARootVolume(t *testing.T) {
 	// entry rather than to nothing. A falsification proved the earlier version
 	// of this test blind to that — it only asked whether some volume existed,
 	// so resolving the image to nothing at all left it green.
-	_, catalogue := post(t, ts, "ReadImages", `{"Filters":{"ImageIds":["ami-00000001"]}}`)
+	_, catalogue := post(t, ts, "ReadImages", `{"Filters":{"ImageIds":["ami-fe1a7001"]}}`)
 	def, _ := catalogue["Images"].([]any)[0].(map[string]any)
 	defMappings, _ := def["BlockDeviceMappings"].([]any)
 	defMapping, _ := defMappings[0].(map[string]any)
@@ -494,7 +494,7 @@ func TestAFailedBatchLeavesNoRootVolume(t *testing.T) {
 	// Two of the three addresses taken, so the batch below can place one more
 	// machine and no second.
 	if status, out := post(t, ts, "CreateVms",
-		`{"ImageId":"ami-00000001","MaxVmsCount":2,"SubnetId":"`+subnetID+`"}`); status != http.StatusOK {
+		`{"ImageId":"ami-fe1a7001","MaxVmsCount":2,"SubnetId":"`+subnetID+`"}`); status != http.StatusOK {
 		t.Fatalf("the setup create answered %d: %v", status, out)
 	}
 
@@ -502,7 +502,7 @@ func TestAFailedBatchLeavesNoRootVolume(t *testing.T) {
 	was := readIDs(before, "Volumes", "VolumeId")
 
 	status, out := post(t, ts, "CreateVms",
-		`{"ImageId":"ami-00000001","MaxVmsCount":3,"SubnetId":"`+subnetID+`"}`)
+		`{"ImageId":"ami-fe1a7001","MaxVmsCount":3,"SubnetId":"`+subnetID+`"}`)
 	if status == http.StatusOK {
 		t.Fatalf("CreateVms placed three machines in a subnet holding one free address: %v", out)
 	}
@@ -538,7 +538,7 @@ func TestAMachineFromAnImageWithNoMappingGetsAnUnsourcedRootVolume(t *testing.T)
 
 	// A machine to cut the image from, which is the only way to reach an image
 	// with no device mapping.
-	_, madeVM := post(t, ts, "CreateVms", `{"ImageId":"ami-00000001"}`)
+	_, madeVM := post(t, ts, "CreateVms", `{"ImageId":"ami-fe1a7001"}`)
 	sourceVM, _ := madeVM["Vms"].([]any)[0].(map[string]any)
 	sourceID, _ := sourceVM["VmId"].(string)
 

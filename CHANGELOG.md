@@ -859,6 +859,26 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Changed
 
+- **The Outscale catalogue's images are `ami-fe1a7001`, `ami-fe1a7002` and
+  `ami-fe1a7003`, no longer `ami-00000001..3`** (#395); its seven net access
+  point services are `pl-fe1a7001..7`, no longer `pl-00000001..7`; and the
+  Exoscale default security group is `fe1a7000-0000-4000-8000-000000000001`,
+  no longer `00000000-0000-4000-8000-000000000001`. All three lived in the
+  namespace the
+  corpus sanitiser mints (`feint transcript --sanitise`: prefixed identifiers
+  as a counter in eight hexadecimal digits, UUIDs under
+  `00000000-0000-4000-8000-`), so a sanitised recording could name a fixture of
+  this emulator where it meant an object of the account: measured on
+  `corpus/outscale/oapi-cli-refusals.jsonl`, where `osc/Client.DeleteImage`
+  and `osc/Client.UpdateImage` on an image the cloud refused with 400 replayed
+  as `ami-00000002`, found the catalogue, and answered 409 "belongs to the
+  emulated catalogue". The two corpus exemptions carrying that are gone, and
+  `feint corpus --check` compares the exchanges. A test in `internal/cli`
+  reads every string literal of every pack's source with the sanitiser's own
+  recogniser, so no pack can move a fixture back in. A client that hardcoded
+  `ami-00000001` changes one value; the README, the quickstart and every
+  conformance fixture did.
+
 - **`instance/v1/API.ListVolumesTypes` stays declined and its reason is replaced**
   (#625). The old one said a type list "would describe capabilities and
   constraints nothing here can honour", which could not be what separates it from

@@ -475,7 +475,7 @@ cat > /tmp/osc.json <<'EOF'
 }
 EOF
 
-octl --config /tmp/osc.json -o raw iaas api CreateVms --ImageId ami-00000001 --VmType tinav6.c1r1p2
+octl --config /tmp/osc.json -o raw iaas api CreateVms --ImageId ami-fe1a7001 --VmType tinav6.c1r1p2
 octl --config /tmp/osc.json -o raw iaas api ReadVms
 ```
 

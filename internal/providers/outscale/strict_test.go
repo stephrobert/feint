@@ -31,29 +31,29 @@ func strictServer(t *testing.T, declaration string) *httptest.Server {
 }
 
 func TestAStrictCatalogueRefusesAnUndeclaredImageAndType(t *testing.T) {
-	ts := strictServer(t, `{"outscale": {"images": ["ami-00000001"], "types": ["tinav6.c1r1p2"]}}`)
+	ts := strictServer(t, `{"outscale": {"images": ["ami-fe1a7001"], "types": ["tinav6.c1r1p2"]}}`)
 
 	// The typo: 400, code 5023, InvalidResource, the recorded refusal of an
 	// image that does not exist.
-	status, out := post(t, ts, "CreateVms", `{"ImageId":"ami-00000002","VmType":"tinav6.c1r1p2"}`)
+	status, out := post(t, ts, "CreateVms", `{"ImageId":"ami-fe1a7002","VmType":"tinav6.c1r1p2"}`)
 	if status != http.StatusBadRequest {
 		t.Fatalf("an undeclared image answered %d: %v", status, out)
 	}
 	errs, _ := out["Errors"].([]any)
 	first, _ := errs[0].(map[string]any)
-	if first["Code"] != "5023" || first["Type"] != "InvalidResource" || !strings.Contains(first["Details"].(string), "ami-00000002") {
+	if first["Code"] != "5023" || first["Type"] != "InvalidResource" || !strings.Contains(first["Details"].(string), "ami-fe1a7002") {
 		t.Errorf("the refusal is not the recorded one: %v", first)
 	}
 
 	// A type outside the declaration.
-	status, out = post(t, ts, "CreateVms", `{"ImageId":"ami-00000001","VmType":"tinav6.c2r4p2"}`)
+	status, out = post(t, ts, "CreateVms", `{"ImageId":"ami-fe1a7001","VmType":"tinav6.c2r4p2"}`)
 	if status != http.StatusBadRequest {
 		t.Fatalf("an undeclared type answered %d: %v", status, out)
 	}
 
 	// The accepting half, or a guard refusing every create would pass the two
 	// above: the declared pair creates a machine.
-	status, out = post(t, ts, "CreateVms", `{"ImageId":"ami-00000001","VmType":"tinav6.c1r1p2"}`)
+	status, out = post(t, ts, "CreateVms", `{"ImageId":"ami-fe1a7001","VmType":"tinav6.c1r1p2"}`)
 	if status != http.StatusOK {
 		t.Fatalf("the declared image and type answered %d: %v", status, out)
 	}
@@ -75,7 +75,7 @@ func TestAStrictCatalogueRefusesAnUndeclaredImageAndType(t *testing.T) {
 	_, images := post(t, ts, "ReadImages", `{}`)
 	for _, entry := range images["Images"].([]any) {
 		id, _ := entry.(map[string]any)["ImageId"].(string)
-		if id == "ami-00000002" || id == "ami-00000003" {
+		if id == "ami-fe1a7002" || id == "ami-fe1a7003" {
 			t.Errorf("ReadImages lists %s, outside the declaration", id)
 		}
 	}
@@ -90,7 +90,7 @@ func TestAStrictCatalogueRefusesAnUndeclaredImageAndType(t *testing.T) {
 // machine here, which is #392's standing decision.
 func TestNoDeclarationChangesNothing(t *testing.T) {
 	ts := newServer(t)
-	if status, out := post(t, ts, "CreateVms", `{"ImageId":"ami-00000002","VmType":"tinav6.c2r4p2"}`); status != http.StatusOK {
+	if status, out := post(t, ts, "CreateVms", `{"ImageId":"ami-fe1a7002","VmType":"tinav6.c2r4p2"}`); status != http.StatusOK {
 		t.Fatalf("without a declaration a create was refused: %d %v", status, out)
 	}
 	if status, out := post(t, ts, "CreateVms", `{"ImageId":"ami-99999999","VmType":"tinav6.c1r1p2"}`); status != http.StatusOK {

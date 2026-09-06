@@ -1,0 +1,36 @@
+{
+  "mutations": [
+    {
+      "label": "a catalogue image moves back into the sanitiser's minting space, which is #395 verbatim",
+      "file": "internal/providers/outscale/catalog.go",
+      "package": "./internal/providers/outscale/",
+      "find": "\t\t{\"ImageId\": \"ami-fe1a7001\", \"ImageName\": \"Ubuntu-24.04-2025.01\",",
+      "replace": "\t\t{\"ImageId\": \"ami-00000001\", \"ImageName\": \"Ubuntu-24.04-2025.01\",",
+      "test": "TestTheCatalogueIdentifiersStayOutOfTheMintingSpace"
+    },
+    {
+      "label": "the same image, seen from the cross-pack scan rather than the pack's own test",
+      "file": "internal/providers/outscale/catalog.go",
+      "package": "./internal/cli/",
+      "find": "\t\t{\"ImageId\": \"ami-fe1a7001\", \"ImageName\": \"Ubuntu-24.04-2025.01\",",
+      "replace": "\t\t{\"ImageId\": \"ami-00000001\", \"ImageName\": \"Ubuntu-24.04-2025.01\",",
+      "test": "TestNoPackFixtureLivesInTheSanitisersMintingSpace"
+    },
+    {
+      "label": "the Exoscale default security group goes back to the first UUID every sanitised corpus mints",
+      "file": "internal/providers/exoscale/securitygroups.go",
+      "package": "./internal/cli/",
+      "find": "\tdefaultSecurityGroupID = \"fe1a7000-0000-4000-8000-000000000001\"",
+      "replace": "\tdefaultSecurityGroupID = \"00000000-0000-4000-8000-000000000001\"",
+      "test": "TestNoPackFixtureLivesInTheSanitisersMintingSpace"
+    },
+    {
+      "label": "the scan stops recognising a minted value, and its planted witness is what catches it: a control that finds nothing must first prove it can find",
+      "file": "internal/cli/fixtures_test.go",
+      "package": "./internal/cli/",
+      "find": "\t\t\tif corpus.Minted(candidate) {",
+      "replace": "\t\t\tif corpus.Minted(candidate) && false {",
+      "test": "TestNoPackFixtureLivesInTheSanitisersMintingSpace"
+    }
+  ]
+}

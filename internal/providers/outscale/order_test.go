@@ -77,7 +77,7 @@ func TestAMachinesSecurityGroupsAnswerInIdentifierOrder(t *testing.T) {
 	asked := []string{want[1], want[0]}
 
 	created := call(t, ts, doc, "CreateVms",
-		`{"ImageId":"ami-00000001","SubnetId":"`+subnetID+`","BootOnCreation":false,`+
+		`{"ImageId":"ami-fe1a7001","SubnetId":"`+subnetID+`","BootOnCreation":false,`+
 			`"SecurityGroupIds":["`+asked[0]+`","`+asked[1]+`"]}`)
 	vms, _ := created["Vms"].([]any)
 	if len(vms) != 1 {
@@ -172,7 +172,7 @@ func TestAMachineAnswersUserDataAndTagsEvenWithNeither(t *testing.T) {
 
 	_, subnetID := netAndSubnet(t, ts, "10.63.0.0/16", "10.63.1.0/24")
 	created := call(t, ts, doc, "CreateVms",
-		`{"ImageId":"ami-00000001","SubnetId":"`+subnetID+`","BootOnCreation":false}`)
+		`{"ImageId":"ami-fe1a7001","SubnetId":"`+subnetID+`","BootOnCreation":false}`)
 	vms, _ := created["Vms"].([]any)
 	if len(vms) != 1 {
 		t.Fatalf("no machine was created: %v", created)

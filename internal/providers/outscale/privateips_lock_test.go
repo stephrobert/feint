@@ -121,7 +121,7 @@ func TestAnAddressLinkDoesNotHoldTheAddressLockAcrossTheRuntime(t *testing.T) {
 	// and this test would measure the absence of the call again — under the
 	// old derived name it silently reconfigured a machine the Vm never started.
 	status, doc := doAction(t, ts, "CreateVms",
-		`{"ImageId":"ami-00000001","VmType":"tinav4.c1r1p2","SubnetId":"`+subnet+`"}`)
+		`{"ImageId":"ami-fe1a7001","VmType":"tinav4.c1r1p2","SubnetId":"`+subnet+`"}`)
 	if status != http.StatusOK {
 		t.Fatalf("CreateVms answered %d: %v", status, doc)
 	}

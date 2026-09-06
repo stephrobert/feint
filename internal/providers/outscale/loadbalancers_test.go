@@ -135,7 +135,7 @@ func TestBackendVmsRegisterAndUnlink(t *testing.T) {
 	sgID := aSecurityGroup(t, ts, netID, "sg_lb")
 
 	created := call(t, ts, doc, "CreateVms",
-		`{"ImageId":"ami-00000001","VmType":"tinav6.c1r1","SubnetId":"`+subnetID+`"}`)
+		`{"ImageId":"ami-fe1a7001","VmType":"tinav6.c1r1","SubnetId":"`+subnetID+`"}`)
 	vms, _ := created["Vms"].([]any)
 	vmID, _ := vms[0].(map[string]any)["VmId"].(string)
 

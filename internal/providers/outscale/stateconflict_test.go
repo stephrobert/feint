@@ -29,7 +29,7 @@ func conflictCode(body map[string]any) string {
 func TestStartVmsRefusesAMachineAlreadyRunning(t *testing.T) {
 	ts := newServer(t)
 
-	status, created := post(t, ts, "CreateVms", `{"ImageId":"ami-00000001","VmType":"tinav4.c1r1p2"}`)
+	status, created := post(t, ts, "CreateVms", `{"ImageId":"ami-fe1a7001","VmType":"tinav4.c1r1p2"}`)
 	if status != http.StatusOK {
 		t.Fatalf("CreateVms: %d (%v)", status, created)
 	}
@@ -94,7 +94,7 @@ func TestLinkVolumeStillRefusesAVolumeHeldElsewhere(t *testing.T) {
 	ts := newServer(t)
 
 	newVM := func() string {
-		status, created := post(t, ts, "CreateVms", `{"ImageId":"ami-00000001","VmType":"tinav4.c1r1p2"}`)
+		status, created := post(t, ts, "CreateVms", `{"ImageId":"ami-fe1a7001","VmType":"tinav4.c1r1p2"}`)
 		if status != http.StatusOK {
 			t.Fatalf("CreateVms: %d (%v)", status, created)
 		}

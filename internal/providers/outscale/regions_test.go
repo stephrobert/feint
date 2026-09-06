@@ -109,7 +109,7 @@ func TestANonDefaultRegionAgreesWithItself(t *testing.T) {
 	}
 
 	vm := call(t, ts, doc, "CreateVms",
-		`{"ImageId":"ami-00000001","BootOnCreation":false,`+
+		`{"ImageId":"ami-fe1a7001","BootOnCreation":false,`+
 			`"Placement":{"SubregionName":"cloudgouv-eu-west-1c"}}`)
 	assertPlacement(t, vm, "cloudgouv-eu-west-1c", "default", "a Vm placed in the region's third zone")
 	id := firstVMID(t, vm)
@@ -118,7 +118,7 @@ func TestANonDefaultRegionAgreesWithItself(t *testing.T) {
 
 	// A Vm with nothing said lands in the region's own first zone, never in
 	// the default region's.
-	silent := call(t, ts, doc, "CreateVms", `{"ImageId":"ami-00000001","BootOnCreation":false}`)
+	silent := call(t, ts, doc, "CreateVms", `{"ImageId":"ami-fe1a7001","BootOnCreation":false}`)
 	assertPlacement(t, silent, "cloudgouv-eu-west-1a", "default", "a Vm with no Placement")
 
 	// And the default region's zones are refused here, by every door: this
@@ -127,7 +127,7 @@ func TestANonDefaultRegionAgreesWithItself(t *testing.T) {
 	for _, probe := range []struct{ action, body string }{
 		{"CreateSubnet", `{"NetId":"` + netID + `","IpRange":"10.66.2.0/24","SubregionName":"eu-west-2a"}`},
 		{"CreateVolume", `{"SubregionName":"eu-west-2a","Size":7}`},
-		{"CreateVms", `{"ImageId":"ami-00000001","BootOnCreation":false,"Placement":{"SubregionName":"eu-west-2a"}}`},
+		{"CreateVms", `{"ImageId":"ami-fe1a7001","BootOnCreation":false,"Placement":{"SubregionName":"eu-west-2a"}}`},
 	} {
 		status, refused := post(t, ts, probe.action, probe.body)
 		if status != http.StatusBadRequest {

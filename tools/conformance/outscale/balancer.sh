@@ -125,7 +125,7 @@ sub_id="$(osc CreateSubnet --NetId "$net_id" --IpRange "$SUBBLOCK" | jq -r '.Sub
 
 launch() {
   local doc
-  doc="$(osc CreateVms --ImageId ami-00000003 --VmType tinav6.c1r1p2 --SubnetId "$sub_id")" \
+  doc="$(osc CreateVms --ImageId ami-fe1a7003 --VmType tinav6.c1r1p2 --SubnetId "$sub_id")" \
     || { echo "CreateVms rejected: $doc" >&2; return 1; }
   printf '%s' "$doc" | jq -r '.Vms[0].VmId + " " + .Vms[0].PrivateIp'
 }

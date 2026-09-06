@@ -26,7 +26,16 @@ const (
 
 	// defaultSecurityGroupID is stable across runs: a client that recorded it
 	// yesterday must find the same group today, the way it would upstream.
-	defaultSecurityGroupID = "00000000-0000-4000-8000-000000000001"
+	//
+	// Outside the UUID space the corpus sanitiser mints, deliberately (#395):
+	// that space is 00000000-0000-4000-8000-<counter>, and this group used to be
+	// its very first value, the one every sanitised recording of this pack
+	// hands to whatever UUID it met first. A fixture a recording can name is a
+	// replay that measures the fixture where the recording meant an object of
+	// the account. fe1a7… is the convention the Outscale catalogue uses for the
+	// same reason. TestNoPackFixtureLivesInTheSanitisersMintingSpace in
+	// internal/cli fails without this.
+	defaultSecurityGroupID = "fe1a7000-0000-4000-8000-000000000001"
 
 	// securityGroupVisibility is what every group of an emulated account
 	// answers. Their enum is private|public and public names the groups

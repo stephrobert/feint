@@ -87,7 +87,7 @@ func aBalancedStack(t *testing.T, ts *httptest.Server) (vmA, vmB, vip string) {
 	launch := func() string {
 		t.Helper()
 		out := call(t, ts, contractDoc, "CreateVms",
-			`{"ImageId":"ami-00000003","VmType":"tinav6.c1r1p2","SubnetId":"`+subnet+`"}`)
+			`{"ImageId":"ami-fe1a7003","VmType":"tinav6.c1r1p2","SubnetId":"`+subnet+`"}`)
 		vms, _ := out["Vms"].([]any)
 		if len(vms) == 0 {
 			t.Fatalf("CreateVms answered no machine: %v", out)
@@ -416,7 +416,7 @@ func TestAPartialDeliveryIsRecordedAndSaidAtWarn(t *testing.T) {
 	launch := func() (id, ip string) {
 		t.Helper()
 		out := call(t, ts, doc, "CreateVms",
-			`{"ImageId":"ami-00000003","VmType":"tinav6.c1r1p2","SubnetId":"`+subnet+`"}`)
+			`{"ImageId":"ami-fe1a7003","VmType":"tinav6.c1r1p2","SubnetId":"`+subnet+`"}`)
 		vms, _ := out["Vms"].([]any)
 		if len(vms) == 0 {
 			t.Fatalf("CreateVms answered no machine: %v", out)

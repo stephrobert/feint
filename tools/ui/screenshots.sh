@@ -60,7 +60,7 @@ post "$Z/ips" '{"project":"11111111-1111-1111-1111-111111111111"}'
 post "/vpc/v2/regions/fr-par/vpcs" '{"name":"demo-vpc"}'
 post "/vpc/v2/regions/fr-par/private-networks" '{"name":"demo-net","subnets":["10.10.0.0/24"]}'
 post "/api/v1/CreateKeypair" '{"KeypairName":"demo","PublicKey":"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIr6pEFlAFO3YU0DNW/r8SkpjdbptN9ockkO2BtIolSD demo@feint"}'
-post "/api/v1/CreateVms" '{"ImageId":"ami-00000001","VmType":"tinav6.c1r1p2","KeypairName":"demo"}'
+post "/api/v1/CreateVms" '{"ImageId":"ami-fe1a7001","VmType":"tinav6.c1r1p2","KeypairName":"demo"}'
 post "/v2/ssh-key" '{"name":"exo-key","public-key":"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIr6pEFlAFO3YU0DNW/r8SkpjdbptN9ockkO2BtIolSD demo@feint"}'
 post "/v2/instance" '{"name":"exo-1","instance-type":{"id":"21624abb-764e-4def-81d7-9fc54b5957fb"},"template":{"id":"11111111-1111-1111-1111-111111111111"},"disk-size":10,"ssh-keys":[{"name":"exo-key"}]}'
 curl -sf "$Z/servers" -o /dev/null || true

@@ -395,7 +395,7 @@ printf '%s' "$image_list" | jq -e --arg s "$snapshot_id" \
 # And the catalogue is still there beside it.
 all_images="$(curl -sf -X POST "$ENDPOINT/api/v1/ReadImages" -H 'Content-Type: application/json' -d '{}')" \
   || fail "ReadImages rejected"
-printf '%s' "$all_images" | jq -e '[.Images[] | select(.ImageId == "ami-00000001")] | length == 1' >/dev/null \
+printf '%s' "$all_images" | jq -e '[.Images[] | select(.ImageId == "ami-fe1a7001")] | length == 1' >/dev/null \
   || fail "the fixed catalogue vanished once an image was registered: $all_images"
 ok "volume linked, snapshot completed, image cut from it and listed"
 

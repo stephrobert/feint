@@ -916,6 +916,28 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Modifié
 
+- **Les images du catalogue Outscale sont `ami-fe1a7001`, `ami-fe1a7002` et
+  `ami-fe1a7003`, et non plus `ami-00000001..3`** (#395) ; ses sept services
+  de point d'accès réseau sont `pl-fe1a7001..7`, et non plus
+  `pl-00000001..7` ; et le groupe de sécurité par défaut d'Exoscale est
+  `fe1a7000-0000-4000-8000-000000000001`, et non plus
+  `00000000-0000-4000-8000-000000000001`. Les trois vivaient dans
+  l'espace de noms que le sanitiseur de corpus frappe (`feint transcript
+  --sanitise` : les identifiants préfixés comme un compteur sur huit chiffres
+  hexadécimaux, les UUID sous `00000000-0000-4000-8000-`), si bien qu'un
+  enregistrement assaini pouvait nommer une fixture de cet émulateur là où il
+  désignait un objet du compte : mesuré sur
+  `corpus/outscale/oapi-cli-refusals.jsonl`, où `osc/Client.DeleteImage` et
+  `osc/Client.UpdateImage` sur une image que le cloud avait refusée en 400
+  étaient rejoués comme `ami-00000002`, trouvaient le catalogue, et répondaient
+  409 « belongs to the emulated catalogue ». Les deux exemptions du corpus qui
+  portaient cela sont retirées, et `feint corpus --check` compare les
+  échanges. Un test dans `internal/cli` lit chaque littéral de chaîne de la
+  source de chaque pack avec le reconnaisseur du sanitiseur lui-même, de sorte
+  qu'aucun pack ne peut y ramener une fixture. Un client qui avait écrit
+  `ami-00000001` en dur change une valeur ; le README, le quickstart et chaque
+  fixture de conformance l'ont fait.
+
 - **`instance/v1/API.ListVolumesTypes` reste refusée et sa raison est remplacée**
   (#625). L'ancienne disait qu'une liste de types « décrirait des capacités et
   des contraintes que rien ici ne peut honorer », ce qui ne pouvait pas être ce

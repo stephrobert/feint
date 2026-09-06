@@ -143,7 +143,7 @@ func aLinkedVm(t *testing.T, ts *httptest.Server) (vmID, ipID, address string) {
 	if address == "" {
 		t.Fatal("no address allocated")
 	}
-	_, out = post(t, ts, "CreateVms", `{"ImageId":"ami-00000001","VmType":"tinav6.c1r1p2"}`)
+	_, out = post(t, ts, "CreateVms", `{"ImageId":"ami-fe1a7001","VmType":"tinav6.c1r1p2"}`)
 	vms, _ := out["Vms"].([]any)
 	vm, _ := vms[0].(map[string]any)
 	vmID, _ = vm["VmId"].(string)
@@ -213,7 +213,7 @@ func TestAPoisonedPublicIpIsNeverRouted(t *testing.T) {
 	stored.Attrs["PublicIp"] = poison
 	env.Store.Commit(base, stored, env.Now())
 
-	_, out = post(t, ts, "CreateVms", `{"ImageId":"ami-00000001","VmType":"tinav6.c1r1p2"}`)
+	_, out = post(t, ts, "CreateVms", `{"ImageId":"ami-fe1a7001","VmType":"tinav6.c1r1p2"}`)
 	vms, _ := out["Vms"].([]any)
 	vm, _ := vms[0].(map[string]any)
 	vmID, _ := vm["VmId"].(string)

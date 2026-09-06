@@ -99,7 +99,7 @@ func TestEveryResponseMatchesTheContract(t *testing.T) {
 		`{"KeypairName":"conformance","PublicKey":"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIr6pEFlAFO3YU0DNW/r8SkpjdbptN9ockkO2BtIolSD conformance@feint"}`)
 
 	created := call(t, ts, doc, "CreateVms",
-		`{"ImageId":"ami-00000001","VmType":"tinav6.c1r1p2","KeypairName":"conformance"}`)
+		`{"ImageId":"ami-fe1a7001","VmType":"tinav6.c1r1p2","KeypairName":"conformance"}`)
 	id := firstVMID(t, created)
 
 	call(t, ts, doc, "ReadVms", `{"Filters":{"VmIds":["`+id+`"]}}`)

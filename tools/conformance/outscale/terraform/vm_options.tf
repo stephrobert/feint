@@ -14,7 +14,7 @@
 # The suite's own "second plan is empty" gate is what bites if any of the
 # three reads back a constant again.
 resource "outscale_vm" "options" {
-  image_id = "ami-00000002"
+  image_id = "ami-fe1a7002"
   vm_type  = "tinav6.c1r1"
 
   boot_mode                      = "legacy"

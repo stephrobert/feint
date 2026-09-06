@@ -45,11 +45,11 @@ provider "outscale" {
 }
 
 resource "outscale_vm" "quickstart" {
-  # A catalogue OMI: ami-00000003 is one of the identifiers the emulator can
+  # A catalogue OMI: ami-fe1a7003 is one of the identifiers the emulator can
   # really boot. An unknown one applies fine with no machine runtime and is
   # refused the moment somebody turns one on, which is a first example teaching
   # a habit that breaks later.
-  image_id = "ami-00000003"
+  image_id = "ami-fe1a7003"
   vm_type  = "tinav6.c1r1p2"
 }
 
