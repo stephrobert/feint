@@ -441,6 +441,15 @@ func (p *Pack) createServer(w http.ResponseWriter, r *http.Request) {
 		writeInvalidArguments(w, ArgumentError{ArgumentName: "commercial_type", Reason: "required"})
 		return
 	}
+	// The declared catalogue, when the operator wrote one (#126): strict.go.
+	if p.undeclaredType(req.CommercialType) {
+		refuseUndeclaredType(w, req.CommercialType)
+		return
+	}
+	if p.undeclaredImage(req.Image) {
+		refuseUndeclaredImage(w, orDefault(req.Image, defaultImageLabel))
+		return
+	}
 
 	now := p.env.Now()
 	if p.refuseUnknownProject(w, req.Project, projectDeniedToInstance) {

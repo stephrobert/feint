@@ -25,6 +25,12 @@ const (
 	codeInvalidParameter = "4001"
 	// codeResourceNotFound sits in 5000-5999 so osc.IsNotFound reports true.
 	codeResourceNotFound = "5063"
+	// codeImageDoesNotExist is what the real cloud answers CreateVms on an
+	// ImageId that names nothing, read off the wire: 400, InvalidResource,
+	// "The ImageId '…' doesn't exist." (corpus/outscale/oapi-cli-refusals.jsonl,
+	// 2026-08-21). Served under a declared catalogue (#126) and nowhere else,
+	// since by default an unknown image is accepted on purpose (#392).
+	codeImageDoesNotExist = "5023"
 	// codeResourceConflict sits in 9000-9999 so osc.IsConflict reports true. It
 	// is what a delete blocked by a dependency answers.
 	codeResourceConflict = "9029"

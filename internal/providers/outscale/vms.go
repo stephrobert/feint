@@ -249,6 +249,10 @@ func (p *Pack) createVms(w http.ResponseWriter, r *http.Request) {
 		p.badRequest(w, "ImageId is required")
 		return
 	}
+	// The declared catalogue, when the operator wrote one (#126): strict.go.
+	if p.refuseUndeclared(w, req.ImageID, orDefault(req.VMType, defaultVMType)) {
+		return
+	}
 	if !p.validVmFields(w, req.KeypairName, req.UserData) {
 		return
 	}

@@ -421,6 +421,9 @@ func (p *Pack) readVmTypes(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]map[string]any, 0, len(vmTypes))
 	for _, vmType := range vmTypes {
+		if p.env.Declared.Refuses(Name, "types", stringOf(vmType["VmTypeName"])) {
+			continue
+		}
 		if matchesStrings(req.Filters, "VmTypeNames", stringOf(vmType["VmTypeName"])) {
 			out = append(out, vmType)
 		}
@@ -465,6 +468,12 @@ func (p *Pack) readImages(w http.ResponseWriter, r *http.Request) {
 
 	out := make([]map[string]any, 0, len(images))
 	for _, image := range images {
+		// A catalogue image outside the declared catalogue is not listed
+		// either (#126): a client that reads before it creates finds what the
+		// create would accept.
+		if p.env.Declared.Refuses(Name, "images", stringOf(image["ImageId"])) {
+			continue
+		}
 		if imageMatches(image, req.Filters) {
 			out = append(out, image)
 		}

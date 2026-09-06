@@ -19,6 +19,27 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Ajouté
 
+- **Un opérateur qui déclare son catalogue voit ses fautes de frappe
+  refusées, et personne d'autre ne change** (#126) :
+  `feint serve --strict-catalog catalog.json`, que `feint start` transmet.
+  Le fichier nomme, par provider, les images, templates et types de machine
+  que le projet autorise ; une création hors de ce catalogue est refusée dans
+  la forme d'erreur propre à chaque cloud, ainsi que la lecture que le client
+  fait d'abord, de sorte que `scw`, `oapi-cli`, Terraform et `exo` rendent
+  leur chemin « introuvable » ordinaire. Ce que chaque pack refuse, sous
+  quelle forme, et lesquelles de ces formes ont été enregistrées sur un vrai
+  compte, tient dans une table de `docs/limits.md` : `osc/Client.CreateVms`
+  répond le `400`/`5023`/`InvalidResource` enregistré ;
+  `instance/v1/API.GetImage`, `marketplace/v2/API.ListLocalImages` et
+  `instance/v1/API.CreateServer` le `404 not_found` enregistré ;
+  `exoscale/v2.create-instance` et `create-instance-pool` le `404` de ce
+  pack, non enregistré sur une création. Une sorte que le fichier ne nomme
+  pas n'est pas vérifiée ; une sorte qu'aucun pack ne vérifie est refusée
+  avant que quoi que ce soit n'écoute, parce qu'une ligne que personne
+  n'applique se lit exactement comme une ligne que quelqu'un applique. Sans
+  le drapeau, rien ne bouge : le mode de compatibilité est identique octet
+  pour octet, la suite de conformance y tourne, et « les identifiants ne
+  sont vérifiés contre rien » de `docs/limits.md` reste vrai mot pour mot.
 - **Un volume Outscale est `creating` avant d'être `available`, un snapshot
   `in-queue` avant d'être `completed`, et un snapshot pris pendant `creating`
   rencontre le `409 InvalidVolumeState` mesuré** (#124), sous

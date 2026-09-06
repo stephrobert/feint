@@ -40,6 +40,13 @@ func (p *Pack) getImage(w http.ResponseWriter, r *http.Request) {
 		emulator.WriteJSON(w, http.StatusOK, map[string]any{"image": p.clientImageView(res)})
 		return
 	}
+	// The declared catalogue (#126): the CLI resolves an image here before it
+	// creates, so this is where its ordinary not-found path starts.
+	// TestAStrictCatalogueRefusesAnUndeclaredImageAndType fails without this.
+	if p.undeclaredImage(id) {
+		refuseUndeclaredImage(w, id)
+		return
+	}
 	label := defaultImageLabel
 	switch l, known := labelByID[id]; {
 	case id == "":

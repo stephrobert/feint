@@ -202,6 +202,12 @@ func (p *Pack) listServerTypes(w http.ResponseWriter, r *http.Request) {
 	}
 	names := make([]string, 0, len(catalogue))
 	for name := range catalogue {
+		// A type outside the declared catalogue is not offered (#126): the
+		// Terraform provider validates a type against this list before it
+		// creates, so this is where its ordinary refusal starts.
+		if p.undeclaredType(name) {
+			continue
+		}
 		names = append(names, name)
 	}
 	sort.Strings(names)
@@ -212,7 +218,7 @@ func (p *Pack) listServerTypes(w http.ResponseWriter, r *http.Request) {
 	}
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
 		"servers":     page,
-		"total_count": len(catalogue),
+		"total_count": len(names),
 	})
 }
 
@@ -226,6 +232,12 @@ func (p *Pack) listLocalImages(w http.ResponseWriter, r *http.Request) {
 	label := q.Get("image_label")
 	if label == "" {
 		label = defaultImageLabel
+	}
+	// The declared catalogue (#126): the recorded answer to a label that
+	// names nothing is a 404, and this is the lookup the CLI makes first.
+	if p.undeclaredImage(label) {
+		refuseUndeclaredImage(w, label)
+		return
 	}
 	zone := q.Get("zone")
 	if zone == "" {

@@ -283,6 +283,12 @@ func (p *Pack) listTemplates(w http.ResponseWriter, r *http.Request) {
 	switch visibility {
 	case "", "public":
 		for _, t := range p.templates {
+			// A template outside the declared catalogue is not listed (#126):
+			// a client that reads before it creates finds what the create
+			// would accept.
+			if id, _ := t["id"].(string); p.env.Declared.Refuses(Name, "templates", id) {
+				continue
+			}
 			if matches(t) {
 				out = append(out, t)
 			}
@@ -312,7 +318,14 @@ func (p *Pack) storedTemplates() []*resource.Resource {
 }
 
 func (p *Pack) listInstanceTypes(w http.ResponseWriter, _ *http.Request) {
-	emulator.WriteJSON(w, http.StatusOK, map[string]any{"instance-types": p.instanceTypes})
+	out := make([]map[string]any, 0, len(p.instanceTypes))
+	for _, t := range p.instanceTypes {
+		if id, _ := t["id"].(string); p.env.Declared.Refuses(Name, "types", id) {
+			continue
+		}
+		out = append(out, t)
+	}
+	emulator.WriteJSON(w, http.StatusOK, map[string]any{"instance-types": out})
 }
 
 // getTemplate and getInstanceType answer the by-id reads a client makes once it
@@ -322,7 +335,7 @@ func (p *Pack) listInstanceTypes(w http.ResponseWriter, _ *http.Request) {
 func (p *Pack) getTemplate(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	for _, t := range p.templates {
-		if t["id"] == id {
+		if t["id"] == id && !p.env.Declared.Refuses(Name, "templates", id) {
 			emulator.WriteJSON(w, http.StatusOK, t)
 			return
 		}
@@ -338,7 +351,7 @@ func (p *Pack) getTemplate(w http.ResponseWriter, r *http.Request) {
 
 func (p *Pack) getInstanceType(w http.ResponseWriter, r *http.Request) {
 	for _, t := range p.instanceTypes {
-		if t["id"] == r.PathValue("id") {
+		if t["id"] == r.PathValue("id") && !p.env.Declared.Refuses(Name, "types", r.PathValue("id")) {
 			emulator.WriteJSON(w, http.StatusOK, t)
 			return
 		}

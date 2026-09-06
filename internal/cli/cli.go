@@ -233,11 +233,19 @@ const (
 // clock does not strand a resource mid-chain. One addition to one existing verb;
 // nothing was removed, no exit code moved.
 //
+// Version 25 adds `serve --strict-catalog` and carries it on `start` (#126):
+// the operator's declared catalogue, outside which a create naming an image,
+// a template or a machine type is refused in each cloud's own shape. Unset
+// by default, which is what this emulator has always done and what
+// docs/limits.md documents, so a pipeline keyed on version 24 sees no change
+// in any answer. Two additions to two existing verbs; nothing was removed,
+// no exit code moved.
+//
 // The surface itself is frozen in testdata/frozen/cli.json, compared by
 // TestTheFrozenSurfacesStillMatchTheirFixture, and a fixture regenerated
 // without bumping this constant fails TestASurfaceChangeDemandsItsVersionBump.
 // The procedure for a deliberate change is in RELEASING.md ("Frozen surfaces").
-const cliSurfaceVersion = 24
+const cliSurfaceVersion = 25
 
 // Run executes one command and returns the process exit code.
 func Run(args []string, stdout, stderr io.Writer) int {
@@ -337,7 +345,7 @@ Usage:
                     [--cleanup] [--resolver <ip>] [--contracts <dir>] [--coverage <dir>] [--shapes <dir>]
                     [--log-level info|debug] [--expose-to-network]
                     [--projects <name>[,<name>...]]
-                    [--consistency immediate|eventual]
+                    [--consistency immediate|eventual] [--strict-catalog <file>]
                     Serve the three emulated clouds on one port, in the
                     foreground. --expose-to-network is the only way off
                     loopback, and it disarms the anti-rebinding guard: this
@@ -346,7 +354,10 @@ Usage:
                     --consistency eventual walks the states a real cloud passes
                     through, one per read, so a client waiting on a reboot has
                     something to observe; immediate is the default and settles
-                    every action at once.
+                    every action at once. --strict-catalog refuses a create
+                    naming an image, a template or a machine type outside the
+                    catalogue you declared, in each cloud's own error shape;
+                    without it any identifier is accepted (docs/limits.md).
 
   feint up         [--file feint.yaml] [--runtime off|incus|incus-vm|incus-ovn|auto]
                     [--timeout 2m] [--no-iac]
@@ -368,7 +379,7 @@ Usage:
 
   feint start      [--addr :4599] [--state <file>] [--vm off|incus|incus-vm|incus-ovn|auto]
                     [--cleanup] [--resolver <ip>] [--contracts <dir>] [--log-level info|debug]
-                    [--projects <name>[,<name>...]]
+                    [--projects <name>[,<name>...]] [--strict-catalog <file>]
                     [--timeout 30s] [--detach] [--foreground]
                     Same, detached: records the instance, waits until it
                     answers, prints where the log is. Refuses to adopt an
@@ -959,6 +970,7 @@ func serve(args []string, stdout io.Writer) error {
 	coverageDir := fs.String("coverage", "coverage", "directory holding the versioned coverage artefacts the page reads")
 	expose := fs.Bool("expose-to-network", false, "listen off loopback, which disarms the browser guard: read what it costs before setting it")
 	consistency := fs.String("consistency", "immediate", "immediate settles every action at once; eventual walks the states a real cloud passes through, one per read, so a client's waiter has something to observe")
+	strictCatalog := fs.String("strict-catalog", "", "refuse a create naming an image, a template or a machine type outside this declared catalogue (a JSON file, docs/limits.md); unset, the compatibility mode, accepts any identifier")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -1074,6 +1086,23 @@ func serve(args []string, stdout io.Writer) error {
 			"so a client waiting on a reboot has something to observe")
 	default:
 		return fmt.Errorf("--consistency %q: the modes are immediate and eventual", *consistency)
+	}
+
+	// The declared catalogue, and the default is the decision (#126): nothing
+	// is checked unless the operator asserted their own contract, because a
+	// team's first move is an existing stack with production identifiers
+	// hardcoded, and an emulator with no inventory has no business refusing
+	// them. With the file, a typo is refused where the real cloud would refuse
+	// an identifier that names nothing, in each pack's own error shape.
+	if *strictCatalog != "" {
+		declared, err := loadDeclared(*strictCatalog, srv.Packs())
+		if err != nil {
+			return err
+		}
+		env.Declared = declared
+		for _, line := range declared.Summary() {
+			fmt.Fprintln(stdout, "strict catalogue: "+line+"; an identifier outside it is refused")
+		}
 	}
 
 	// Set after newServer, which cannot know the flag. At debug the runtime's

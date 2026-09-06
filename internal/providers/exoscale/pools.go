@@ -212,6 +212,15 @@ func (p *Pack) createInstancePool(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "the template is not one this zone offers")
 		return
 	}
+	// The declared catalogue (#126): a pool names the same two catalogue
+	// objects an instance does, and the same declaration decides.
+	instanceTypeID := ""
+	if req.InstanceType != nil {
+		instanceTypeID = req.InstanceType.ID
+	}
+	if p.refuseUndeclared(w, templateID, instanceTypeID) {
+		return
+	}
 
 	now := p.env.Now()
 	pool := resource.New(p.env.NewID(), kindPool, resource.Tenant{Provider: Name}, poolRunning, now)

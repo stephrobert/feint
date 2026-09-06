@@ -1157,6 +1157,10 @@ func (p *Pack) createInstance(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "disk-size is required")
 		return
 	}
+	// The declared catalogue, when the operator wrote one (#126): strict.go.
+	if p.refuseUndeclared(w, req.Template.ID, req.InstanceType.ID) {
+		return
+	}
 	if strings.ContainsAny(req.Name, "\n\r\x00") {
 		writeError(w, http.StatusBadRequest, "name carries control characters")
 		return
