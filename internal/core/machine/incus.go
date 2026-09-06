@@ -84,6 +84,14 @@ type Incus struct {
 	// second half is the conformance suite's job and cannot be faked.
 	runner func(ctx context.Context, args ...string) ([]byte, error)
 
+	// resolverPoll and resolverWait override how the resolver path waits for a
+	// guest to be ready to be asked, and are only ever set by a test. The
+	// budget is measured — a guest first names its network unit around fourteen
+	// seconds after the poweron (#694) — so a suite that could not shorten it
+	// would pay that measurement on every case.
+	resolverPoll time.Duration
+	resolverWait time.Duration
+
 	// statPath replaces the filesystem lookup Verify uses to decide whether the
 	// OVN northbound socket exists, and is only ever set by a test. Existence,
 	// never a connection: the socket is root-owned (srwxr-x--- root root) and

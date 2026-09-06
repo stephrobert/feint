@@ -126,6 +126,78 @@
       "find": "\tif _, err := netip.ParseAddr(d.resolver()); err != nil {",
       "replace": "\tif _, err := netip.ParseAddr(d.resolver()); err != nil && false {",
       "test": "TestAResolverThatIsNotAnAddressReachesNoCommand"
+    },
+    {
+      "label": "the unit lookup is asked once with no retry, which is what left a cold-attached machine with no drop-in at all (#694)",
+      "file": "internal/core/machine/incus_resolver.go",
+      "package": "./internal/core/machine/",
+      "find": "\t\tif time.Now().After(deadline) {\n\t\t\t// Said, not swallowed.",
+      "replace": "\t\tif time.Now().After(deadline) || true {\n\t\t\t// Said, not swallowed. A drop-in that was never written is a machine",
+      "test": "TestTheUnitLookupWaitsForTheGuest"
+    },
+    {
+      "label": "a guest that never names a unit is swallowed again, so a machine with no resolver leaves no trace in the log",
+      "file": "internal/core/machine/incus_resolver.go",
+      "package": "./internal/core/machine/",
+      "find": "\t\t\td.logger().Warn(\"the guest never named a network unit, so it has no resolver of ours\",",
+      "replace": "\t\t\td.logger().Debug(\"the guest never named a network unit, so it has no resolver of ours\",",
+      "test": "TestAUnitThatNeverAppearsIsSaid"
+    },
+    {
+      "label": "an answered ask with no unit is retried like a failure, which charges every boot the whole budget for nothing",
+      "file": "internal/core/machine/incus_resolver.go",
+      "package": "./internal/core/machine/",
+      "find": "\t\tif err == nil {\n\t\t\treturn \"\"\n\t\t}",
+      "replace": "\t\tif err == nil && false {\n\t\t\treturn \"\"\n\t\t}",
+      "test": "TestAnInterfaceWithNoUnitGetsNoDropIn"
+    },
+    {
+      "label": "the unit lookup is asked once with no retry, which is what left a cold-attached machine with no drop-in at all",
+      "file": "internal/core/machine/incus_resolver.go",
+      "package": "./internal/core/machine/",
+      "find": "\t\tif time.Now().After(deadline) {\n\t\t\t// Said, not swallowed. A drop-in that was never written is a machine",
+      "replace": "\t\tif time.Now().After(deadline) || true {\n\t\t\t// Said, not swallowed. A drop-in that was never written is a machine",
+      "test": "TestTheUnitLookupWaitsForTheGuest"
+    },
+    {
+      "label": "a guest that never names a unit is swallowed again, which is how this stayed invisible in the log while being obvious in the guest",
+      "file": "internal/core/machine/incus_resolver.go",
+      "package": "./internal/core/machine/",
+      "find": "\t\t\td.logger().Warn(\"the guest never named a network unit, so it has no resolver of ours\",",
+      "replace": "\t\t\td.logger().Debug(\"the guest never named a network unit, so it has no resolver of ours\",",
+      "test": "TestAUnitThatNeverAppearsIsSaid"
+    },
+    {
+      "label": "an interface that has not appeared yet is read as an image with no networkctl, so the lookup gives up on a guest about to be ready",
+      "file": "internal/core/machine/incus_resolver.go",
+      "package": "./internal/core/machine/",
+      "find": "\t\tif !isNotRunning(err) && !guestBusNotReady(err) && !guestLinkNotThereYet(err, iface) &&\n\t\t\tguestHasNoNetworkd(err) {",
+      "replace": "\t\tif !isNotRunning(err) && !guestBusNotReady(err) && guestLinkNotThereYet(err, iface) &&\n\t\t\tguestHasNoNetworkd(err) {",
+      "test": "TestALinkThatIsNotThereYetIsWaitedFor"
+    },
+    {
+      "label": "an answer that named no unit is retried, so every fixture that answers nothing pays the whole budget",
+      "file": "internal/core/machine/incus_resolver.go",
+      "package": "./internal/core/machine/",
+      "find": "\t\tif err == nil {\n\t\t\treturn \"\"\n\t\t}",
+      "replace": "\t\tif err == nil && false {\n\t\t\treturn \"\"\n\t\t}",
+      "test": "TestAnInterfaceWithNoUnitGetsNoDropIn"
+    },
+    {
+      "label": "a machine that is still starting is read as an image with no networkctl, which is what burned the whole budget against a container that had not booted",
+      "file": "internal/core/machine/incus_resolver.go",
+      "package": "./internal/core/machine/",
+      "find": "\t\tif !isNotRunning(err) && !guestBusNotReady(err) && !guestLinkNotThereYet(err, iface) &&\n\t\t\tguestHasNoNetworkd(err) {",
+      "replace": "\t\tif isNotRunning(err) {\n\t\t\treturn \"\"\n\t\t}\n\t\tif !isNotRunning(err) && !guestBusNotReady(err) && !guestLinkNotThereYet(err, iface) &&\n\t\t\tguestHasNoNetworkd(err) {",
+      "test": "TestAMachineStillStartingIsWaitedFor"
+    },
+    {
+      "label": "the bus refusal is matched by one wording only, so the wording the guest actually sends falls through to the permanent matcher and the lookup gives up on its first ask",
+      "file": "internal/core/machine/incus_resolver.go",
+      "package": "./internal/core/machine/",
+      "find": "\treturn strings.Contains(msg, \"failed to connect\") && strings.Contains(msg, \"bus\")",
+      "replace": "\treturn strings.Contains(msg, \"failed to connect\") && strings.Contains(msg, \"bus\") && strings.Contains(msg, \"to bus\")",
+      "test": "TestABusRefusalIsRecognisedInBothWordings"
     }
   ]
 }
