@@ -859,6 +859,23 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Changed
 
+- **The upstream drift scan runs every night and reports through the
+  night-report mechanism** (#705). `.github/workflows/drift.yml` ran on Monday
+  alone, and a scan that failed for a reason other than "the surface moved" (a
+  clone that would not fetch, a build that broke, a push that was refused) left
+  a job log and nothing else, the failure mode #501/#502 measured on the
+  runtime proof. The scan is on a nightly cron now, and a `night` job adopts
+  `night-report.yml`: a night where the scan could not conclude opens one
+  `scheduled-red` issue, updated, closed by the first green night. The two
+  outcomes stay apart, and the tests hold that rather than a comment: the
+  surface moving is the pull request, as always, never a red night (the
+  `Coverage report` step's `continue-on-error` keeps the job green), and the
+  pull request stays conditional on a real diff, because a pull request every
+  night would teach everyone to close them unread. Measured on the five
+  scheduled runs since 2026-08-03: all green, none moved the surface, none went
+  red, so the two nights that matter are derived from the real payload of
+  2026-08-31 and say so.
+
 - **The Outscale catalogue's images are `ami-fe1a7001`, `ami-fe1a7002` and
   `ami-fe1a7003`, no longer `ami-00000001..3`** (#395); its seven net access
   point services are `pl-fe1a7001..7`, no longer `pl-00000001..7`; and the

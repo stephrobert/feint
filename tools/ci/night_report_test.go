@@ -254,3 +254,72 @@ func TestARedWithNoFailingStepBlamesTheRunNotASuite(t *testing.T) {
 		}
 	}
 }
+
+// The drift scan adopts the mechanism (#705), and the two outcomes it has to
+// keep apart are held here rather than asserted in a workflow comment.
+//
+// drift-quiet is the field-trimmed payload of run 33365885627, the scheduled
+// run of 2026-08-31: nothing moved, so `propose` and `report` were skipped. No
+// scheduled drift run has ever moved the surface or gone red, so the two other
+// nights are derived from that payload and say so. drift-moved turns the
+// `Coverage report` step's conclusion to failure while its job stays success,
+// which is what continue-on-error produces on a night the surface moved, and
+// marks the pull request and issue jobs success. drift-red turns the `Checkout
+// the Scaleway SDK` step and its job to failure and skips the steps behind it.
+
+// oneOpenDriftIssue is what `gh issue list` answers once a red drift night has
+// opened the issue: the exact title the script composes for that workflow.
+const oneOpenDriftIssue = `[{"number": 601, "title": "Red scheduled night: Upstream drift"}]`
+
+// A quiet night — the two jobs behind the scan skipped — is green, and a green
+// night with nothing open writes nothing.
+func TestADriftNightWhereNothingMovedIsGreen(t *testing.T) {
+	code, out, calls := runReport(t, "drift-quiet", "33365885627", noOpenIssue, true)
+	if code != 0 {
+		t.Fatalf("exit %d:\n%s", code, out)
+	}
+	if !strings.Contains(out, "verdict: green") {
+		t.Errorf("a quiet drift night, propose and report skipped, is not green:\n%s", out)
+	}
+	if calls != "" {
+		t.Errorf("a green night with no open issue wrote something:\n%s", calls)
+	}
+}
+
+// The surface moving is the mechanism working, not a red night: the pull
+// request carries it, and this job closes what a real red night had opened.
+func TestADriftNightWhereTheSurfaceMovedIsNotARedNight(t *testing.T) {
+	code, out, calls := runReport(t, "drift-moved", "33365885627", oneOpenDriftIssue, true)
+	if code != 0 {
+		t.Fatalf("exit %d:\n%s", code, out)
+	}
+	if !strings.Contains(out, "verdict: green") {
+		t.Errorf("a night where the surface moved reads as red, so every drift would open the red-night issue:\n%s", out)
+	}
+	if strings.Contains(calls, "issue create") || strings.Contains(calls, "issue comment") {
+		t.Errorf("a night where the surface moved wrote to the red-night issue:\n%s", calls)
+	}
+	if !strings.Contains(calls, "issue close 601") {
+		t.Errorf("the green night left the drift issue open:\n%s", calls)
+	}
+}
+
+// A night where the scan could not conclude opens the issue, names the step
+// and the job, and titles it for this workflow.
+func TestADriftNightThatCouldNotConcludeOpensTheIssue(t *testing.T) {
+	code, out, calls := runReport(t, "drift-red", "33365885627", noOpenIssue, true)
+	if code != 0 {
+		t.Fatalf("exit %d:\n%s", code, out)
+	}
+	if !strings.Contains(out, "verdict: red") {
+		t.Fatalf("a scan whose checkout failed is not a red night:\n%s", out)
+	}
+	for _, want := range []string{"Red scheduled night: Upstream drift", "Checkout the Scaleway SDK", "Compare with the upstream SDK"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("the report does not carry %q:\n%s", want, out)
+		}
+	}
+	if !strings.Contains(calls, "issue create") {
+		t.Errorf("the first red drift night did not open the issue:\n%s", calls)
+	}
+}

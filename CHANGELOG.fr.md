@@ -916,6 +916,24 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Modifié
 
+- **Le scan de dérive amont tourne chaque nuit et rapporte par le mécanisme
+  de nuit** (#705). `.github/workflows/drift.yml` ne tournait que le lundi, et
+  un scan qui échouait pour une autre raison que « la surface a bougé » (un
+  clone qui ne récupère pas, un build cassé, un push refusé) ne laissait qu'un
+  journal de job, le mode d'échec que #501/#502 ont mesuré sur la preuve du
+  runtime. Le scan est sur un cron nocturne, et un job `night` adopte
+  `night-report.yml` : une nuit où le scan n'a pas pu conclure ouvre une seule
+  issue `scheduled-red`, mise à jour, fermée par la première nuit verte. Les
+  deux issues restent distinctes, et ce sont les tests qui le tiennent plutôt
+  qu'un commentaire : une surface qui bouge, c'est la pull request, comme
+  toujours, jamais une nuit rouge (le `continue-on-error` de l'étape
+  `Coverage report` garde le job vert), et la pull request reste conditionnée
+  à une vraie dérive, parce qu'une pull request chaque nuit apprendrait à tout
+  le monde à les fermer sans les lire. Mesuré sur les cinq runs planifiés
+  depuis le 2026-08-03 : tous verts, aucun n'a fait bouger la surface, aucun
+  n'a rougi, donc les deux nuits qui comptent sont dérivées de la charge
+  réelle du 2026-08-31 et le disent.
+
 - **Les images du catalogue Outscale sont `ami-fe1a7001`, `ami-fe1a7002` et
   `ami-fe1a7003`, et non plus `ami-00000001..3`** (#395) ; ses sept services
   de point d'accès réseau sont `pl-fe1a7001..7`, et non plus

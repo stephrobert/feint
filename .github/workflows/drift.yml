@@ -3,16 +3,25 @@ name: Upstream drift
 # The automation the whole project hangs on.
 #
 # Provider APIs move constantly: Scaleway added 453 SDK methods and removed 26 over twelve months.
-# Nobody tracks that by hand. Every Monday this job re-reads the upstream SDK, recomputes the
+# Nobody tracks that by hand. Every night this job re-reads the upstream SDK, recomputes the
 # coverage baseline, and opens a pull request when something appeared, disappeared, or was silently
 # renamed. An upstream change therefore always lands as a reviewable diff, never as silence.
+#
+# Nightly since #705; it was Monday only, and at the rate above a week is not a rounding error.
+# Two outcomes, kept apart on purpose. The surface moved: a pull request, as always — that is the
+# mechanism working, not a failure, and the `Coverage report` step's continue-on-error is what keeps
+# the job green on that night. The scan could not run or could not conclude — a clone that would
+# not fetch, a build that broke, a push that was refused: the `night` job at the bottom opens one
+# issue through night-report.yml, updated, closed by the first green night. A nightly job that
+# opened a pull request every night would teach everyone to close them unread, so the pull
+# request stays conditional on a real diff; tools/ci/drift_workflow_test.go holds both halves.
 #
 # The same check runs on every pull request (without the PR-opening part), so a change that makes
 # the emulator claim an operation that no longer exists upstream fails before merge.
 
 on:
   schedule:
-    - cron: '17 6 * * 1'   # Monday 06:17 UTC
+    - cron: '23 1 * * *'   # 01:23 UTC, every night; the other nightly workflows sit at 02:31, 03:43 and 04:17
   pull_request:
   workflow_dispatch:
 
@@ -259,7 +268,7 @@ jobs:
           git push --force-with-lease origin "$branch"
           if [ -z "$(gh pr list --head "$branch" --json number --jq '.[0].number')" ]; then
             gh pr create --head "$branch" --title "chore(drift): upstream API surface moved" \
-              --body "The weekly scan found a change in the upstream SDK surface. Review the baseline diff: each added entry is an operation that appeared upstream and has not been triaged yet. Implement it, or add it to the pack's Declined list."
+              --body "The nightly scan found a change in the upstream SDK surface. Review the baseline diff: each added entry is an operation that appeared upstream and has not been triaged yet. Implement it, or add it to the pack's Declined list."
           fi
 
   # An issue rather than only a pull request, because the two say different
@@ -301,8 +310,8 @@ jobs:
           name: triage
           path: /tmp/
 
-      # One issue, updated, never a new one per week. A scan that opens an issue
-      # every Monday teaches everyone to close them unread, which is the failure
+      # One issue, updated, never a new one per night. A scan that opens an issue
+      # every night teaches everyone to close them unread, which is the failure
       # mode this whole mechanism exists to avoid.
       - name: Open or update the issue
         env:
@@ -313,7 +322,7 @@ jobs:
           title="Upstream API surface moved"
 
           {
-            echo "The weekly scan found operations upstream that nobody has triaged."
+            echo "The nightly scan found operations upstream that nobody has triaged."
             echo
             echo "Each one is a decision, not a task: **implement it**, or **add it to the"
             echo "pack's \`Declined()\` with the reason**. \"Not done yet\" and \"out of scope\""
@@ -350,3 +359,27 @@ jobs:
               --description "The upstream API surface moved and needs triage" 2>/dev/null || true
             gh issue create --title "$title" --label drift --body-file /tmp/issue.md
           fi
+
+  # A red night opens an issue, a green one closes it (#705): the mechanism
+  # runtime-proof.yml adopted first, as a reusable workflow, because a block
+  # copied into each scheduled caller is a control one caller forgets.
+  #
+  # What it reports is the other outcome from the two jobs above: not "the
+  # surface moved", which the pull request and the drift issue already carry,
+  # but "the scan could not run or could not conclude" — the SDK checkout that
+  # would not fetch, the build that broke, the push `propose` could not make.
+  # The `Coverage report` step runs under continue-on-error, so a night where
+  # the surface moved leaves the `drift` job green and this job silent; a
+  # failure anywhere else in the three jobs is a red night. Its decisions live
+  # in tools/ci/night-report.sh, and tools/ci/night_report_test.go drives them
+  # over the payloads of a quiet drift night, one where the surface moved, and
+  # one where the checkout failed.
+  night:
+    name: A red night opens the issue, a green one closes it
+    needs: [drift, propose, report]
+    if: always() && github.event_name == 'schedule'
+    permissions:
+      contents: read
+      actions: read
+      issues: write
+    uses: ./.github/workflows/night-report.yml

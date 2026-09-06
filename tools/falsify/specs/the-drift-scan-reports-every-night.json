@@ -1,0 +1,36 @@
+{
+  "mutations": [
+    {
+      "label": "the scan goes back to Monday, and the blind window between an upstream change and anyone learning of it is a week again (#705)",
+      "file": ".github/workflows/drift.yml",
+      "package": "./tools/ci/",
+      "find": "    - cron: '23 1 * * *'",
+      "replace": "    - cron: '23 1 * * 1'",
+      "test": "TestTheDriftWorkflowReportsEveryNight"
+    },
+    {
+      "label": "the night job stops running under always(), so the one night it exists for, a failed scan, skips the job that would report it",
+      "file": ".github/workflows/drift.yml",
+      "package": "./tools/ci/",
+      "find": "    if: always() && github.event_name == 'schedule'\n    permissions:\n      contents: read\n      actions: read\n      issues: write\n    uses: ./.github/workflows/night-report.yml",
+      "replace": "    if: github.event_name == 'schedule' && always()\n    permissions:\n      contents: read\n      actions: read\n      issues: write\n    uses: ./.github/workflows/night-report.yml",
+      "test": "TestTheDriftWorkflowReportsEveryNight"
+    },
+    {
+      "label": "the pull request opens every scheduled night whatever the scan found, which teaches everyone to close them unread",
+      "file": ".github/workflows/drift.yml",
+      "package": "./tools/ci/",
+      "find": "    if: github.event_name == 'schedule' && needs.drift.outputs.changed == 'true'\n    runs-on: ubuntu-24.04\n    permissions:\n      contents: write        # push the branch",
+      "replace": "    if: github.event_name == 'schedule' && (needs.drift.outputs.changed == 'true' || true)\n    runs-on: ubuntu-24.04\n    permissions:\n      contents: write        # push the branch",
+      "test": "TestTheDriftWorkflowReportsEveryNight"
+    },
+    {
+      "label": "a skipped job counts as red, so every quiet night, propose and report skipped, opens the red-night issue",
+      "file": "tools/ci/night-report.sh",
+      "package": "./tools/ci/",
+      "find": "   | select(.conclusion != \"success\" and .conclusion != \"skipped\" and .conclusion != \"neutral\")",
+      "replace": "   | select(.conclusion != \"success\" and .conclusion != \"skipped-never\" and .conclusion != \"neutral\")",
+      "test": "TestADriftNightWhereNothingMovedIsGreen"
+    }
+  ]
+}
