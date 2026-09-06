@@ -876,16 +876,16 @@ left for a reader to infer from an absent token. A line disappears from
 this list the day a client drives its operation, and a test refuses a
 reason that outlived its cause.
 
-- `compute` — 4 operations — the CLI clears a field by sending the update with an empty value, so the per-field DELETE the API declares is never issued
-- `compute` — 1 operation — `exo compute instance snapshot show` lists the snapshots and picks the one it wants in the client, so the per-id read is never called
-- `compute` — 1 operation — `exo compute instance-template` offers register, list, show and delete, and no update, so a client cannot rename a template it owns
-- `compute` — 1 operation — `exo compute load-balancer service show` reads the balancer list and picks its service out of the balancer it found, so the per-id service read is never called
-- `compute` — 1 operation — `exo compute load-balancer service update --description ""` sends only the healthcheck block it re-sends on every call, so this CLI clears no field by either route and the per-field DELETE is never issued
-- `compute` — 1 operation — `exo compute load-balancer update --description ""` sends an empty body rather than the empty value, so this CLI clears no field by either route and the per-field DELETE is never issued
-- `compute` — 1 operation — copying a template targets another zone, and this emulator serves exactly one, so the CLI has nothing to copy to and no subcommand that would ask
-- `compute` — 1 operation — the CLI's --from-snapshot promotes through export-snapshot and a URL, which this pack declines, so it never issues the promote call the SDK declares
-- `compute` — 1 operation — the list this pack serves is empty, because an emulated account owns no dedicated hardware, so no client ever holds an id to read
-- `quotas` — 1 operation — `exo limits` reads the whole quota list and prints it, so the per-name read has no client path even though the SDK declares one
+- `compute` — 4 operations — neither published client issues it: the CLI clears a field by sending the update with an empty value, and the Terraform provider (v0.71.0) makes no per-field reset call at all, its own code holding no Reset*() call site
+- `compute` — 1 operation — `exo compute instance snapshot show` lists the snapshots and picks the one it wants in the client, so the per-id read is never called, and the Terraform provider (v0.71.0) reads block-storage snapshots by id but never an instance one
+- `compute` — 1 operation — `exo compute instance-template` offers register, list, show and delete, and no update, so a client cannot rename a template it owns, and the Terraform provider (v0.71.0) only ever calls GetTemplate
+- `compute` — 1 operation — `exo compute load-balancer service show` reads the balancer list and picks its service out of the balancer it found, so the per-id service read is never called, and the Terraform provider does the same: resource_exoscale_nlb_service.go reads the balancer by id and takes its service from the answer
+- `compute` — 1 operation — `exo compute load-balancer service update --description ""` sends only the healthcheck block it re-sends on every call, so this CLI clears no field by either route, and the Terraform provider (v0.71.0) issues no per-field reset either
+- `compute` — 1 operation — `exo compute load-balancer update --description ""` sends an empty body rather than the empty value, so this CLI clears no field by either route, and the Terraform provider (v0.71.0) issues no per-field reset either
+- `compute` — 1 operation — copying a template targets another zone, and this emulator serves exactly one, so the CLI has nothing to copy to and no subcommand that would ask; the Terraform provider (v0.71.0) never copies one either
+- `compute` — 1 operation — the CLI's --from-snapshot promotes through export-snapshot and a URL, which this pack declines, so it never issues the promote call the SDK declares, and the Terraform provider (v0.71.0) holds no Promote*() call site at all
+- `compute` — 1 operation — the list this pack serves is empty, because an emulated account owns no dedicated hardware, so no client ever holds an id to read; the Terraform provider does model deploy targets and is stopped by the same emptiness, not by a gap in the client
+- `quotas` — 1 operation — `exo limits` reads the whole quota list and prints it, so the per-name read has no client path even though the SDK declares one, and the word Quota does not appear anywhere in the Terraform provider's own code (v0.71.0)
 
 ### Declined on purpose (270)
 
