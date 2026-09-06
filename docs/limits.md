@@ -1006,25 +1006,32 @@ would consume the first state it just pushed. And a failed action walks no chain
 a `running` it never reached is exactly the plausible-wrong answer this project
 exists to avoid.
 
-**What the mode does not yet do** is the rest of #124: the Outscale volume
-(`creating` → `available`) and snapshot (`in-queue` → `completed`) chains, and
-with them the `409 InvalidVolumeState` refusal the next paragraph explains cannot
-be served. The mechanism those need is the one this section describes; what is
-missing is the chains and the guard, not the scheduler.
-
-**What follows from this is that a refusal which only exists during a transient
-state cannot be reproduced**, and one has been measured. Against a real Outscale
-account on 2026-08-08: `CreateVolume` answers `State: "creating"`, and a
+**The Outscale half walks under the same mode since #124.** Against a real
+Outscale account on 2026-08-08: `CreateVolume` answers `State: "creating"`, a
 `CreateSnapshot` issued before the volume settles is refused with
-`409 InvalidVolumeState` (code `6007`); a snapshot is born `in-queue` with
-`Progress: 0` and only later `completed`. Here a volume is `available` and a
-snapshot `completed` at once, so that refusal never fires and a script which
-snapshots a volume immediately succeeds locally and can fail on the real cloud.
+`409 InvalidVolumeState` (code `6007`), and a snapshot is born `in-queue` with
+`Progress: 0` and only later `completed`. With the mode on, that is what this
+emulator answers:
 
-Serving it was tried and reverted, and the reason is worth keeping: reproducing
-the refusal requires the transient state to exist, and any guard written for a
-state this emulator cannot reach is a control that can never fire — the "a
-comment is not a control" defect, in code rather than in prose.
+| action | states answered, in order |
+|---|---|
+| `CreateVolume` | `creating` on the create, then `available` |
+| `CreateSnapshot` during `creating` | `409 InvalidVolumeState`, code `6007` |
+| `CreateSnapshot` once `available` | `in-queue` with `Progress: 0` on the create, then `completed` at `100` |
+
+The refusal's `Details` wording was not recorded and is this emulator's; its
+status, type and code are the measurement's, and `osc.IsConflict` classifies
+the code the way it classifies the cloud's. With the mode off, a volume is
+`available` and a snapshot `completed` at once, byte for byte what every suite
+read before.
+
+Serving that refusal had been tried and reverted once, and the reason is worth
+keeping: a guard written for a state this emulator cannot reach is a control
+that can never fire — the "a comment is not a control" defect, in code rather
+than in prose. What made it servable is the mode, not a clock; and the guard
+reads the volume without observing it (`Store.Peek`), because a read that
+advanced the chain would consume the very state it checks and never fire, which
+is the defect the first version had.
 
 The line, for whoever adds the next resource: **a state invariant is served when
 the state it names is reachable here.** `LinkVolume` on an already-linked volume,

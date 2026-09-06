@@ -28,12 +28,19 @@ const (
 	// codeResourceConflict sits in 9000-9999 so osc.IsConflict reports true. It
 	// is what a delete blocked by a dependency answers.
 	codeResourceConflict = "9029"
+	// codeInvalidVolumeState is read off the wire rather than chosen for a
+	// range: a real account, 2026-08-08, refused CreateSnapshot on a volume
+	// still "creating" with 409 InvalidVolumeState and this code (#124).
+	// osc.IsConflict covers 6000-6999 too, so a client branches on it the way
+	// it branches on the cloud's.
+	codeInvalidVolumeState = "6007"
 )
 
 const (
-	typeInvalidParameter = "InvalidParameterValue"
-	typeInvalidResource  = "InvalidResource"
-	typeResourceConflict = "ResourceConflict"
+	typeInvalidParameter   = "InvalidParameterValue"
+	typeInvalidResource    = "InvalidResource"
+	typeResourceConflict   = "ResourceConflict"
+	typeInvalidVolumeState = "InvalidVolumeState"
 )
 
 // writeError emits the Outscale error envelope.

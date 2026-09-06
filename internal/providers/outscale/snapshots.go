@@ -29,7 +29,14 @@ import (
 // permissions and is declined with the IAM family: one implicit account,
 // nothing to grant.
 
-const kindSnapshot = "snapshot"
+const (
+	kindSnapshot = "snapshot"
+	// A real snapshot is born in-queue with Progress 0 and reads completed
+	// later (measured 2026-08-08): the chain a create pushes here, walked by
+	// the store under eventual consistency and dropped by default (#124).
+	snapshotStateInQueue   = "in-queue"
+	snapshotStateCompleted = "completed"
+)
 
 type createSnapshotRequest struct {
 	VolumeID    string `json:"VolumeId"`
@@ -52,9 +59,23 @@ func (p *Pack) createSnapshot(w http.ResponseWriter, r *http.Request) {
 		p.badRequest(w, "VolumeId is required; importing or copying a snapshot is not emulated")
 		return
 	}
-	volume, found := p.env.Store.Get(Name, kindVolume, req.VolumeID)
+	// Peek, not Get: this read is the emulator's own, to decide, and an
+	// observation here would advance the volume past the very state the guard
+	// below checks, so the refusal could never fire. That is the defect the
+	// first version of this guard had, and the reason it was reverted (#124).
+	volume, found := p.env.Store.Peek(Name, kindVolume, req.VolumeID)
 	if !found {
 		p.notFound(w, "volume", req.VolumeID)
+		return
+	}
+	// The refusal measured on 2026-08-08, servable since the state it names is
+	// reachable: 409 InvalidVolumeState, code 6007. The wording of Details was
+	// not recorded; the code and the type were.
+	// TestASnapshotOfAVolumeStillCreatingIsRefusedWithTheMeasuredConflict
+	// fails without this, and without Peek above.
+	if volume.State == volumeStateCreating {
+		p.writeError(w, http.StatusConflict, codeInvalidVolumeState, typeInvalidVolumeState,
+			"the volume "+req.VolumeID+" is still creating; a snapshot can be taken once it is available")
 		return
 	}
 	// Through the shared reader: the plain `.(int)` this used to be yielded 0
@@ -66,7 +87,7 @@ func (p *Pack) createSnapshot(w http.ResponseWriter, r *http.Request) {
 	size := resource.Int(volume, "Size")
 
 	now := p.env.Now()
-	res := resource.New(newID("snap", p.env.NewID()), kindSnapshot, resource.Tenant{Provider: Name}, "completed", now)
+	res := resource.New(newID("snap", p.env.NewID()), kindSnapshot, resource.Tenant{Provider: Name}, snapshotStateCompleted, now)
 	res.Attrs = map[string]any{
 		"VolumeId":    req.VolumeID,
 		"VolumeSize":  size,
@@ -78,9 +99,17 @@ func (p *Pack) createSnapshot(w http.ResponseWriter, r *http.Request) {
 		},
 		"Tags": []any{},
 	}
+	// in-queue, then completed: the chain the store walks under eventual
+	// consistency, answered through Get so the create is its first
+	// observation (#124).
+	res.Pending = []string{snapshotStateInQueue, snapshotStateCompleted}
 	p.env.Store.Put(res)
+	answered := res
+	if fresh, ok := p.env.Store.Get(Name, kindSnapshot, res.ID); ok {
+		answered = fresh
+	}
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"Snapshot":        snapshotView(res),
+		"Snapshot":        snapshotView(answered),
 		"ResponseContext": p.context(),
 	})
 }
@@ -166,6 +195,11 @@ func snapshotView(res *resource.Resource) map[string]any {
 	}
 	out["SnapshotId"] = res.ID
 	out["State"] = res.State
+	// Progress follows the state: a snapshot in-queue has done nothing yet,
+	// measured as Progress 0 on the cloud (#124).
+	if res.State == snapshotStateInQueue {
+		out["Progress"] = 0
+	}
 	out["AccountId"] = accountID
 	// The Snapshot schema declares AccountAlias beside AccountId, and one owner
 	// has one alias (#700). TestEveryImageAndSnapshotCarriesItsOwnerAlias fails
