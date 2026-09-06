@@ -19,6 +19,31 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Ajouté
 
+- **Elastic Metal est listé : `baremetal/v1/API.ListServers`, et le catalogue
+  que le CLI lui joint, `baremetal/v1/API.ListOffers`** (#631). Le produit
+  n'est pas émulé et rien d'autre ne l'est : aucune offre en stock, rien n'est
+  commandé, installé ni redémarré, et les trente-cinq autres opérations sont
+  déclinées avec leur raison. La liste existe parce qu'un inventaire de parc
+  doit énumérer le produit pour décrire un parc mixte, et elle a été mesurée
+  avant d'être écrite : `scw baremetal server list` (2.56.3) appelle
+  `GET /baremetal/v1/zones/{zone}/servers?order_by=created_at_asc&page=1` et
+  s'arrêtait sur le 501 que le préfixe non routé répondait ; le
+  `list_servers_all` du SDK Python (scaleway 2.12.0) pagine avec `page` seul
+  jusqu'à une page vide. L'issue dimensionnait le produit à une route et le
+  code du CLI en dit deux : une fois les serveurs répondus, la même commande
+  lit `ListOffers` et imprime le nom du catalogue pour l'`offer_id` de chaque
+  serveur, donc le catalogue répond une offre par `offer_id` distinct parmi
+  les serveurs semés, `stock: empty`, rien d'inventé autour du nom que la
+  graine lui a donné. Un serveur entre par la porte d'état (`serve
+  --state`, `PUT /_feint/state`) comme Kind `baremetal/server` avec les noms
+  de champs du SDK dans Attrs, et la vue répond tout le jeu de champs du
+  `Server` du SDK, `ips[].version` compris, dérivé de l'adresse quand la
+  graine ne le dit pas. Le produit est sous le gate de dérive et le contrat
+  (`elastic-metal/v1`, le slug du portail pour le `baremetal` du SDK), et la
+  suite `scw` sème un serveur et le liste. La réponse pour une zone hors des
+  six que le produit déclare est une convention de ce pack, pas un
+  enregistrement ; `docs/limits.md` le dit.
+
 - **Un opérateur qui déclare son catalogue voit ses fautes de frappe
   refusées, et personne d'autre ne change** (#126) :
   `feint serve --strict-catalog catalog.json`, que `feint start` transmet.

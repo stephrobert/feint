@@ -11,8 +11,8 @@
     {
       "label": "a project filter is ignored, so the isolation the previous behaviour was defending is gone with it",
       "file": "internal/providers/scaleway/servers.go",
-      "find": "\tif project := q.Get(\"project\"); project != \"\" {\n\t\treturn resource.Tenant{Provider: Name, Project: project, Zone: zone}, true\n\t}",
-      "replace": "\tif project := q.Get(\"project\"); project != \"\" && false {\n\t\treturn resource.Tenant{Provider: Name, Project: project, Zone: zone}, true\n\t}",
+      "find": "\tif project := q.Get(projectParam); project != \"\" {\n\t\treturn resource.Tenant{Provider: Name, Project: project, Zone: zone}, true\n\t}",
+      "replace": "\tif project := q.Get(projectParam); project != \"\" && false {\n\t\treturn resource.Tenant{Provider: Name, Project: project, Zone: zone}, true\n\t}",
       "test": "TestListsAreScopedToTheProject"
     },
     {

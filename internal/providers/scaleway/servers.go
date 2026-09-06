@@ -207,11 +207,18 @@ func (p *Pack) tenant(zone string) resource.Tenant {
 // TestAnUnfilteredListAnswersEveryProjectLikeTheCloud and
 // TestAnOrganizationFilterPartitionsTheFleet fail without this.
 func (p *Pack) scopeOf(w http.ResponseWriter, r *http.Request, zone string) (resource.Tenant, bool) {
+	return p.scopeNamed(w, r, zone, "project", "organization")
+}
+
+// scopeNamed is scopeOf over the parameter names one operation uses: the
+// instance API says project and organization, baremetal/v1's ListServers
+// says project_id and organization_id (baremetal.go). Same rule, one reader.
+func (p *Pack) scopeNamed(w http.ResponseWriter, r *http.Request, zone, projectParam, organizationParam string) (resource.Tenant, bool) {
 	q := r.URL.Query()
-	if project := q.Get("project"); project != "" {
+	if project := q.Get(projectParam); project != "" {
 		return resource.Tenant{Provider: Name, Project: project, Zone: zone}, true
 	}
-	organization := q.Get("organization")
+	organization := q.Get(organizationParam)
 	if organization == "" {
 		return p.tenant(zone), true
 	}
@@ -219,7 +226,7 @@ func (p *Pack) scopeOf(w http.ResponseWriter, r *http.Request, zone string) (res
 	// shape, one reader.
 	if !looksLikeUUID(organization) {
 		writeInvalidArguments(w, ArgumentError{
-			ArgumentName: "organization",
+			ArgumentName: organizationParam,
 			Reason:       "constraint",
 			HelpMessage:  organization + " is not a valid UUID.",
 		})
@@ -367,8 +374,15 @@ func (p *Pack) rootVolume(server *resource.Resource, name, project, organization
 // zoneOf validates the {zone} path segment and writes the error response itself
 // when it is unknown, so handlers stay a single early return.
 func zoneOf(w http.ResponseWriter, r *http.Request) (string, bool) {
+	return zoneIn(w, r, knownZones)
+}
+
+// zoneIn is zoneOf over a product's own list. Elastic Metal exists in six of
+// the ten zones (baremetal.go), and a list answered empty for a zone where the
+// product does not exist is the confusing silence this check is for.
+func zoneIn(w http.ResponseWriter, r *http.Request, known map[string]bool) (string, bool) {
 	zone := r.PathValue("zone")
-	if !knownZones[zone] {
+	if !known[zone] {
 		writeInvalidArguments(w, ArgumentError{
 			ArgumentName: "zone",
 			Reason:       "constraint",

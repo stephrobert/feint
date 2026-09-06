@@ -17,6 +17,31 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Added
 
+- **Elastic Metal is listed: `baremetal/v1/API.ListServers`, and the
+  catalogue the CLI joins to it, `baremetal/v1/API.ListOffers`** (#631). The
+  product is not emulated and nothing else of it is: no offer is in stock,
+  nothing is ordered, installed or rebooted, and the thirty-five other
+  operations are declined with their reason. The listing exists because a
+  fleet inventory has to enumerate the product to describe a mixed fleet, and
+  it was measured before it was written: `scw baremetal server list` (2.56.3)
+  calls `GET /baremetal/v1/zones/{zone}/servers?order_by=created_at_asc&page=1`
+  and stopped on the 501 the unrouted prefix answered; the Python SDK's
+  `list_servers_all` (scaleway 2.12.0) pages with `page` alone until a page
+  comes back empty. The issue sized the product at one route and the CLI's
+  source says two: once the servers answered, the same command read
+  `ListOffers` and printed the catalogue's name for each server's `offer_id`,
+  so the catalogue answers one offer per distinct `offer_id` among the seeded
+  servers, `stock: empty`, nothing invented around the name the seed gave it.
+  A server enters through the state door (`serve --state`,
+  `PUT /_feint/state`) as Kind `baremetal/server` with the SDK's field names in
+  Attrs, and the view answers the SDK's whole `Server` field set,
+  `ips[].version` included, derived from the address when the seed did not
+  say. The product is under the drift gate and the contract (`elastic-metal/v1`,
+  the portal's slug for the SDK's `baremetal`), and the `scw` suite seeds one
+  server and lists it. The answer for a zone outside the six the product
+  declares is this pack's convention, not a recording; `docs/limits.md` says
+  so.
+
 - **An operator who declares their catalogue gets their typos refused, and
   nobody else changes** (#126): `feint serve --strict-catalog catalog.json`,
   and `feint start` carries it. The file names, per provider, the images,

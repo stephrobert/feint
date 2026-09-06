@@ -418,6 +418,87 @@ no flag here can change that. That sentence is the honest end of this section:
 where the network permits the escape, Feint can at most name the measured
 paths before the run — which is what `feint doctor` now does.
 
+## Elastic Metal is an inventory here, not a product (#631)
+
+Two operations of `baremetal/v1` are served, `ListServers` and `ListOffers`,
+and the thirty-five others of the product are declined with their reason in
+the pack. The listing exists because a fleet inventory has to enumerate the
+product to describe a mixed fleet, and it was measured before it was written,
+on 2026-09-06: `scw baremetal server list` (2.56.3) calls
+`GET /baremetal/v1/zones/{zone}/servers?order_by=created_at_asc&page=1`, and
+the Python SDK's `list_servers_all` (scaleway 2.12.0, what the
+`stephrobert.scaleway` inventory plugin drives) sends `organization_id` on
+every call and pages with `page` alone until a page comes back empty.
+
+**The catalogue is what the fleet declares.** The issue sized the product at
+one route; the CLI's source says two. Once `ListServers` answered, the same
+command called `GET /baremetal/v1/zones/{zone}/offers?page=1&subscription_period=unknown_subscription_period`
+and printed the catalogue's name for each server's `offer_id` in place of the
+server's own `offer_name` (`serverListBuilder`, scaleway-cli), so a 501 there
+failed the listing and an empty catalogue would erase every offer name the
+operator seeded. `ListOffers` therefore answers one offer per distinct
+`offer_id` among the zone's seeded servers, carrying the seed's name and
+nothing invented around it: `stock: empty`, `enable: false`, no price, no
+disk, no CPU. Any client reading `GET /offers` gets the same offers;
+`scw baremetal offer list` is not one that gets through, because it then reads
+`GET /product-catalog/v2alpha1/public-catalog/products?product_types=elastic_metal`,
+a third product this emulator does not serve, and fails on that 501
+(measured 2026-09-06). The offer catalogue is served for the join the server
+listing makes, not for the offer command.
+
+**A server is seeded, never created.** There is no `CreateServer`: ordering
+Elastic Metal is a paid commitment on hardware the cloud delivers in minutes
+to hours, and an offer catalogue with nothing in stock behind it is the
+catalogue trap one product out. A bare-metal server enters through the state
+door, `serve --state <file>` or `PUT /_feint/state`, as a resource of Kind
+`baremetal/server` whose Attrs use the SDK's own field names:
+
+```json
+{
+  "format": "feint-snapshot",
+  "version": 1,
+  "resources": [{
+    "ID": "6f1d2c3b-4a5e-4f60-8b7c-9d0e1f2a3b4c",
+    "Kind": "baremetal/server",
+    "Tenant": {"Provider": "scaleway", "Project": "11111111-1111-1111-1111-111111111111", "Zone": "fr-par-1"},
+    "State": "ready",
+    "Created": "2026-09-01T10:00:00Z",
+    "Updated": "2026-09-01T10:00:00Z",
+    "Attrs": {
+      "name": "db-1",
+      "offer_name": "EM-A210R-HDD",
+      "tags": ["db", "prod"],
+      "ips": [
+        {"address": "203.0.113.10", "version": "IPv4", "reverse": "db-1.example.net", "reverse_status": "active"},
+        {"address": "2001:db8::10"}
+      ],
+      "boot_type": "normal",
+      "ping_status": "ping_status_up"
+    }
+  }]
+}
+```
+
+`State` is the server's `status` (the SDK's enum: `ready`, `stopped`,
+`delivering`, `ordered`, ...), `Tenant.Project` its `project_id`, and every
+field of the SDK's `Server` the seed omits is answered as the SDK's own "not
+said" member (`unknown_boot_type`, `ping_status_unknown`, `null` for
+`install`) rather than a plausible value. An address whose seed names no
+`version` gets the family of the address itself. A restored resource is an
+untrusted input: Attrs are decoded through the SDK's types, so a value of the
+wrong type is dropped, never served under the SDK's field name.
+
+**What is not measured.** No recording of this product exists in `corpus/`,
+so three answers are this pack's convention rather than the cloud's: a zone
+outside the six the product declares (`fr-par-3`, `nl-ams-3`, `pl-waw-1`,
+`it-mil-1`) is refused with the `invalid_arguments` every other zoned list of
+this pack answers, where the inventory plugin would read a 404 as "product
+unavailable here" and a 400 as a discovery failure; `name` filters by
+substring, `instance/v1`'s documented reading; and a `status` value outside
+the enum matches nothing rather than being refused. A recording that
+contradicts one of these is the thing to change it, and `GET` on an empty
+zone is the cheapest recording a real account can make.
+
 ## Managed Kubernetes is not emulated, and a CRUD-only version is refused (#283)
 
 Kapsule (Scaleway) and SKS (Exoscale) are the most-demanded unserved surface
@@ -2760,7 +2841,7 @@ proof.
 |---|---|--:|---|
 | Exoscale | `2.0.0` | 473 | *assumed* by this emulator |
 | Outscale | `1.42.0` | 655 | **declared** by the provider |
-| Scaleway | `instance/v1, instance/v2alpha1, vpc/v2, ipam/v1, iam/v1alpha1, marketplace/v2, block/v1, block/v1alpha1, lb/v1, vpcgw/v2, account/v3` | 632 | **declared** by the provider |
+| Scaleway | `instance/v1, instance/v2alpha1, vpc/v2, ipam/v1, iam/v1alpha1, marketplace/v2, block/v1, block/v1alpha1, lb/v1, vpcgw/v2, account/v3, baremetal/v1` | 707 | **declared** by the provider |
 <!-- contracts:end -->
 
 **Declared** means the provider wrote `additionalProperties: false` themselves:

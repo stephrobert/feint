@@ -494,6 +494,18 @@ func (p *Pack) Routes() []emulator.Route {
 		{Method: "POST", Path: "/account/v3/projects", Operation: "account/v3/ProjectAPI.CreateProject", Handler: p.createProject},
 		{Method: "PATCH", Path: "/account/v3/projects/{id}", Operation: "account/v3/ProjectAPI.UpdateProject", Handler: p.updateProject},
 		{Method: "DELETE", Path: "/account/v3/projects/{id}", Operation: "account/v3/ProjectAPI.DeleteProject", Handler: p.deleteProject},
+
+		// ---- baremetal/v1: the inventory's route, and the CLI's join (#631) --
+		//
+		// Elastic Metal is not emulated; its listing is, because a fleet
+		// inventory has to enumerate the product to describe a mixed fleet.
+		// The offer catalogue is served because `scw baremetal server list`
+		// joins it right after the servers and prints its names — measured,
+		// and the reason a product the issue sized at one route serves two.
+		// baremetal.go carries both measurements and how a server comes to
+		// exist without a create.
+		{Method: "GET", Path: "/baremetal/v1/zones/{zone}/servers", Operation: "baremetal/v1/API.ListServers", Handler: p.listBaremetalServers},
+		{Method: "GET", Path: "/baremetal/v1/zones/{zone}/offers", Operation: "baremetal/v1/API.ListOffers", Handler: p.listBaremetalOffers},
 	}
 }
 
@@ -538,6 +550,8 @@ var productPrefixes = []string{
 	// products the #74 report measured answering in plain text.
 	"/lb/v1/",
 	"/vpc-gw/v2/",
+	// Since #631: Elastic Metal's listing, the one route of the product.
+	"/baremetal/v1/",
 
 	// Published by Scaleway and not served here. They are declared so that a
 	// client reaching one gets a Scaleway error envelope rather than net/http's
@@ -548,7 +562,6 @@ var productPrefixes = []string{
 	"/audit-trail/v1alpha1/",
 	"/autoscaling/v1alpha1/",
 	"/autoscaling/v1alpha2/",
-	"/baremetal/v1/",
 	"/baremetal/v3/",
 	"/billing/v2/",
 	"/billing/v2beta1/",
@@ -1265,6 +1278,68 @@ func (p *Pack) Declined() []emulator.Decline {
 			"account/v3/ContractAPI.DownloadContractSignature",
 			"account/v3/ContractAPI.ListContractSignatures",
 			"account/v3/ContractAPI.ValidateContractSignature"),
+
+		// ---- baremetal/v1 and v3, the product #631 brought under the gate ---
+		//
+		// Two operations are served (baremetal.go): ListServers, because a
+		// fleet inventory enumerates its bare metal and does nothing else with
+		// it, measured on `scw baremetal server list` and on the Python SDK's
+		// list_servers_all; and ListOffers, because that same CLI command
+		// joins the catalogue right after the servers. These thirty-five are
+		// the rest of the product, and each says what the emulator would have
+		// to have in order to answer. A bare-metal server here is seeded
+		// through the state door, and that one fact is behind most of them.
+
+		emulator.Because("ordering Elastic Metal is a paid commitment on hardware the cloud delivers in minutes to hours, and a server here is seeded through the state door, never ordered: an order this emulator accepted would be a delivery nobody makes",
+			"baremetal/v1/API.CreateServer",
+			"baremetal/v1/API.BatchCreateServers",
+			"baremetal/v1/API.MigrateServerToMonthlyOffer"),
+
+		emulator.Because("it acts on the hardware behind a server — an install writes an OS to its disks, a reboot, a start and a stop cycle its power, a delete returns it to stock — and there is no hardware behind a seeded server for any of that to happen to",
+			"baremetal/v1/API.InstallServer",
+			"baremetal/v1/API.RebootServer",
+			"baremetal/v1/API.StartServer",
+			"baremetal/v1/API.StopServer",
+			"baremetal/v1/API.DeleteServer"),
+
+		emulator.Because("it edits a seeded server — its name, tags and protection, the reverse of one of its addresses, the options it subscribes to — and the seed is the operator's file: an edit accepted here would be undone by the next restore, or would silently diverge from what the operator declared",
+			"baremetal/v1/API.UpdateServer",
+			"baremetal/v1/API.UpdateIP",
+			"baremetal/v1/API.AddOptionServer",
+			"baremetal/v1/API.DeleteOptionServer"),
+
+		emulator.Because("it reads one server by identifier, its events or its metrics, and the measured clients never do: an inventory enumerates (the stephrobert.scaleway plugin's own comment says it never reads one by one), and the events and metrics of a seeded server would describe a life it did not live here",
+			"baremetal/v1/API.GetServer",
+			"baremetal/v1/API.ListServerEvents",
+			"baremetal/v1/API.GetServerMetrics"),
+
+		emulator.Because("it reads one offer, the OS and options an offer accepts, or a partitioning schema, and nothing here is in stock: the catalogue ListOffers answers is what the seeded fleet declares and nothing more (baremetal.go), an OS or an option describes an install this emulator does not perform, and a partitioning schema does too",
+			"baremetal/v1/API.GetOffer",
+			"baremetal/v1/API.ListOS",
+			"baremetal/v1/API.GetOS",
+			"baremetal/v1/API.ListOptions",
+			"baremetal/v1/API.GetOption",
+			"baremetal/v1/API.GetDefaultPartitioningSchema",
+			"baremetal/v1/API.ValidatePartitioningSchema"),
+
+		emulator.Because("BMC access is a remote console on the hardware's management controller, opened with a password the cloud generates for the session; there is no controller behind a seeded server and no session to open on it",
+			"baremetal/v1/API.GetBMCAccess",
+			"baremetal/v1/API.StartBMCAccess",
+			"baremetal/v1/API.StopBMCAccess"),
+
+		emulator.Because("the product's settings are per-project switches on the real account, one type in the SDK today (smtp: whether a project's servers may send mail), and nothing here sends anything",
+			"baremetal/v1/API.ListSettings",
+			"baremetal/v1/API.UpdateSetting"),
+
+		emulator.Because("it attaches a bare-metal server to a Private Network, and a seeded server holds no NIC this pack's VPC could carry: the one measured inventory declares it joins no private network for this product (joins_private_networks = False), and an attach served without the network behind it would publish a membership nothing routes",
+			"baremetal/v1/PrivateNetworkAPI.AddServerPrivateNetwork",
+			"baremetal/v1/PrivateNetworkAPI.DeleteServerPrivateNetwork",
+			"baremetal/v1/PrivateNetworkAPI.ListServerPrivateNetworks",
+			"baremetal/v1/PrivateNetworkAPI.SetServerPrivateNetworks",
+			"baremetal/v3/PrivateNetworkAPI.AddServerPrivateNetwork",
+			"baremetal/v3/PrivateNetworkAPI.DeleteServerPrivateNetwork",
+			"baremetal/v3/PrivateNetworkAPI.ListServerPrivateNetworks",
+			"baremetal/v3/PrivateNetworkAPI.SetServerPrivateNetworks"),
 	)
 }
 
