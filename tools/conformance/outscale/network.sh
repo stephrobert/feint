@@ -182,7 +182,7 @@ ok "the mask on the host is the mask the client asked for"
 # A Subnet nothing can be placed on is a demo. The pack declared SubnetId on
 # CreateVms and read nothing, so a client got a 200 and a Vm that was nowhere.
 echo "- a Vm placed on the Subnet carries the address the API published"
-vm="$(osc CreateVms --ImageId ami-00000001 --VmType tinav6.c1r1p2 --SubnetId "$sub_id")" \
+vm="$(osc CreateVms --ImageId ami-fe1a7001 --VmType tinav6.c1r1p2 --SubnetId "$sub_id")" \
   || fail "CreateVms rejected a SubnetId: $vm"
 vm_id="$(printf '%s' "$vm" | jq -r '.Vms[0].VmId')"
 private_ip="$(printf '%s' "$vm" | jq -r '.Vms[0].PrivateIp // empty')"
@@ -268,9 +268,9 @@ sub_a="$(osc CreateSubnet --NetId "$net_a" --IpRange "${PEER_BLOCK_A%.0.0/16}.1.
 sub_b="$(osc CreateSubnet --NetId "$net_b" --IpRange "${PEER_BLOCK_B%.0.0/16}.1.0/24" | jq -r '.Subnet.SubnetId')"
 [ -n "$sub_a" ] && [ -n "$sub_b" ] || fail "the two Subnets were not created"
 
-vm_a_doc="$(osc CreateVms --ImageId ami-00000003 --VmType tinav6.c1r1p2 --SubnetId "$sub_a")" \
+vm_a_doc="$(osc CreateVms --ImageId ami-fe1a7003 --VmType tinav6.c1r1p2 --SubnetId "$sub_a")" \
   || fail "CreateVms rejected in $sub_a: $vm_a_doc"
-vm_b_doc="$(osc CreateVms --ImageId ami-00000003 --VmType tinav6.c1r1p2 --SubnetId "$sub_b")" \
+vm_b_doc="$(osc CreateVms --ImageId ami-fe1a7003 --VmType tinav6.c1r1p2 --SubnetId "$sub_b")" \
   || fail "CreateVms rejected in $sub_b: $vm_b_doc"
 vm_a="$(printf '%s' "$vm_a_doc" | jq -r '.Vms[0].VmId')"
 vm_b="$(printf '%s' "$vm_b_doc" | jq -r '.Vms[0].VmId')"
@@ -366,7 +366,7 @@ wait_until 30 reach \
 ok "the existing machine still reaches $ip_b after the create"
 
 echo "- a machine born in that Subnet joins the active peering (#508)"
-born_doc="$(osc CreateVms --ImageId ami-00000003 --VmType tinav6.c1r1p2 --SubnetId "$born_sub")" \
+born_doc="$(osc CreateVms --ImageId ami-fe1a7003 --VmType tinav6.c1r1p2 --SubnetId "$born_sub")" \
   || fail "CreateVms rejected in $born_sub: $born_doc"
 born_vm="$(printf '%s' "$born_doc" | jq -r '.Vms[0].VmId')"
 born_ip="$(printf '%s' "$born_doc" | jq -r '.Vms[0].PrivateIp // empty')"
@@ -410,7 +410,7 @@ same_sub="$(osc CreateSubnet --NetId "$net_a" --IpRange "${PEER_BLOCK_A%.0.0/16}
 if [ -z "$same_sub" ]; then
   skip "a second Subnet of the same Net was refused; the accepting half is not measured"
 else
-  same_doc="$(osc CreateVms --ImageId ami-00000003 --VmType tinav6.c1r1p2 --SubnetId "$same_sub")"
+  same_doc="$(osc CreateVms --ImageId ami-fe1a7003 --VmType tinav6.c1r1p2 --SubnetId "$same_sub")"
   same_vm="$(printf '%s' "$same_doc" | jq -r '.Vms[0].VmId')"
   same_ip="$(printf '%s' "$same_doc" | jq -r '.Vms[0].PrivateIp // empty')"
   wait_until 60 machine_carries "feint-osc-$same_vm" "$same_ip" || true

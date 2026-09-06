@@ -204,7 +204,7 @@ if [ -n "$HAVE_OSC" ]; then
 EOF
   osc_net="$(osc CreateNet --IpRange "$OSC_BLOCK" | jq -r '.Net.NetId')"
   osc_sub="$(osc CreateSubnet --NetId "$osc_net" --IpRange "$OSC_SUBBLOCK" | jq -r '.Subnet.SubnetId')"
-  osc_doc="$(osc CreateVms --ImageId ami-00000003 --VmType tinav6.c1r1p2 --SubnetId "$osc_sub")"
+  osc_doc="$(osc CreateVms --ImageId ami-fe1a7003 --VmType tinav6.c1r1p2 --SubnetId "$osc_sub")"
   osc_vm="$(printf '%s' "$osc_doc" | jq -r '.Vms[0].VmId')"
   osc_priv="$(printf '%s' "$osc_doc" | jq -r '.Vms[0].PrivateIp // empty')"
   [ -n "$osc_vm" ] && [ -n "$osc_priv" ] || fail "the outscale Vm was not created with a PrivateIp"

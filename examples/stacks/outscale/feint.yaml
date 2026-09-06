@@ -14,7 +14,7 @@ emulator:
 
 runtime:
   mode: off
-  # ami-00000001, which the catalogue maps to ubuntu:24.04: what every Vm here
+  # ami-fe1a7001, which the catalogue maps to ubuntu:24.04: what every Vm here
   # boots once the mode above is not `off`. Checked before anything starts.
   images:
     - ubuntu/24.04

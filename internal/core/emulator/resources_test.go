@@ -133,7 +133,7 @@ func TestNoProviderViewSerializesRuntime(t *testing.T) {
 	// field — only that this test can write a map.
 	creates := []struct{ method, path, body string }{
 		{"POST", "/instance/v1/zones/fr-par-1/servers", `{"name":"demo","commercial_type":"DEV1-S"}`},
-		{"POST", "/api/v1/CreateVms", `{"ImageId":"ami-00000001","VmType":"tinav6.c1r1p2"}`},
+		{"POST", "/api/v1/CreateVms", `{"ImageId":"ami-fe1a7001","VmType":"tinav6.c1r1p2"}`},
 		{"POST", "/v2/instance", `{"name":"demo","instance-type":{"id":"21624abb-764e-4def-81d7-9fc54b5957fb"},` +
 			`"template":{"id":"11111111-1111-4111-8111-111111111111"},"disk-size":10}`},
 	}

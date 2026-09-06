@@ -343,7 +343,7 @@ func outscaleLinked(t *testing.T) (*machine.Recorder, http.Handler, string) {
 	ipID := id(t, ip, "PublicIp", "PublicIpId")
 
 	vms := post("CreateVms",
-		`{"ImageId":"ami-00000001","VmType":"tinav6.c1r1p2","SecurityGroupIds":["`+sgID+`"]}`)
+		`{"ImageId":"ami-fe1a7001","VmType":"tinav6.c1r1p2","SecurityGroupIds":["`+sgID+`"]}`)
 	list, _ := vms["Vms"].([]any)
 	if len(list) != 1 {
 		t.Fatalf("CreateVms answered %d Vms, want 1: %v", len(list), vms)

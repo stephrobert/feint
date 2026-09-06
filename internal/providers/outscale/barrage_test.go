@@ -108,7 +108,7 @@ func TestAnOutscaleBarrageLeavesTheStoreCoherent(t *testing.T) {
 				handed <- nestedID(ip, "PublicIp", "PublicIp")
 
 				status, vm := postRaw(ts, "CreateVms",
-					fmt.Sprintf(`{"ImageId":"ami-00000001","SubnetId":%q}`, subnetID))
+					fmt.Sprintf(`{"ImageId":"ami-fe1a7001","SubnetId":%q}`, subnetID))
 				if status != http.StatusOK {
 					problems <- fmt.Sprintf("%s-%d: CreateVms answered %d", tag, i, status)
 					continue

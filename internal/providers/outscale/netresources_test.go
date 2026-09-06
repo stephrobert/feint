@@ -232,7 +232,7 @@ func TestTheNetCataloguesAreFixedAndFilterable(t *testing.T) {
 	}
 	one := firstOf(t, call(t, ts, doc, "ReadNetAccessPointServices",
 		`{"Filters":{"ServiceNames":["com.outscale.eu-west-2.api"]}}`), "Services")
-	if one["ServiceId"] != "pl-00000001" {
+	if one["ServiceId"] != "pl-fe1a7001" {
 		t.Fatalf("the api service is not the fixed one: %v", one)
 	}
 }

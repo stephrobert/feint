@@ -52,9 +52,9 @@ func runtimePack(driver machine.Runtime) *Pack {
 // identifier outside the table resolves to nothing at all.
 func TestOutscaleImageResolutionIsExact(t *testing.T) {
 	rows := map[string]machine.Image{
-		"ami-00000001": {Ref: "ubuntu:24.04", User: "outscale"},
-		"ami-00000002": {Ref: "debian:12", User: "outscale"},
-		"ami-00000003": {Ref: "alpine:3.21", User: "outscale"},
+		"ami-fe1a7001": {Ref: "ubuntu:24.04", User: "outscale"},
+		"ami-fe1a7002": {Ref: "debian:12", User: "outscale"},
+		"ami-fe1a7003": {Ref: "alpine:3.21", User: "outscale"},
 	}
 	if len(rows) != len(runtimeImages) {
 		t.Fatalf("the table serves %d OMIs and this test knows %d: add the row here, one per OMI", len(runtimeImages), len(rows))
@@ -143,7 +143,7 @@ func TestAServedOmiBootsWithItsLogin(t *testing.T) {
 	res := &resource.Resource{
 		ID:    "i-00000001",
 		State: stateStopped,
-		Attrs: map[string]any{"ImageId": "ami-00000002"},
+		Attrs: map[string]any{"ImageId": "ami-fe1a7002"},
 	}
 
 	p.powerOn(context.Background(), res)

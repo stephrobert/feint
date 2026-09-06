@@ -97,7 +97,7 @@ func storedVM(p *Pack, groupIDs ...string) *resource.Resource {
 	now := p.env.Now()
 	res := resource.New(newVMID(p.env.NewID()), kindVM, resource.Tenant{Provider: Name}, stateStopped, now)
 	res.Attrs = map[string]any{
-		"ImageId":          "ami-00000001",
+		"ImageId":          "ami-fe1a7001",
 		"VmType":           defaultVMType,
 		"SecurityGroupIds": groupIDs,
 	}

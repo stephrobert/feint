@@ -118,7 +118,7 @@ func TestLinkingAnFGpuTwiceIsRefused(t *testing.T) {
 	_, subnetID := netAndSubnet(t, ts, "10.95.0.0/16", "10.95.1.0/24")
 	newVM := func() string {
 		status, made := post(t, ts, "CreateVms",
-			`{"ImageId":"ami-00000001","SubnetId":"`+subnetID+`","BootOnCreation":false}`)
+			`{"ImageId":"ami-fe1a7001","SubnetId":"`+subnetID+`","BootOnCreation":false}`)
 		if status != http.StatusOK {
 			t.Fatalf("CreateVms: %d (%v)", status, made)
 		}

@@ -653,7 +653,7 @@ feint serve --strict-catalog catalog.json
 ```json
 {
   "scaleway": {"images": ["debian_bookworm"], "types": ["DEV1-S", "PLAY2-PICO"]},
-  "outscale": {"images": ["ami-00000001"], "types": ["tinav6.c2r4p2"]},
+  "outscale": {"images": ["ami-fe1a7001"], "types": ["tinav6.c2r4p2"]},
   "exoscale": {"templates": ["11111111-1111-4111-8111-111111111111"], "types": ["21624abb-764e-4def-81d7-9fc54b5957fb"]}
 }
 ```
@@ -2003,9 +2003,12 @@ not from the emulator:
 
 | image | AMI | address carried after the create answered |
 |---|---|---|
-| `ubuntu:24.04` | `ami-00000001` | 27 ms, 32 ms |
-| `debian:12` | `ami-00000002` | 46 ms, 35 ms |
-| `alpine:3.21` | `ami-00000003` | **never** |
+| `ubuntu:24.04` | `ami-fe1a7001` | 27 ms, 32 ms |
+| `debian:12` | `ami-fe1a7002` | 46 ms, 35 ms |
+| `alpine:3.21` | `ami-fe1a7003` | **never** |
+
+(The three were `ami-00000001..3` when this was measured; #395 moved them out
+of the corpus sanitiser's minting space, and nothing about the boot changed.)
 
 `never` is measured, not inferred: six alpine machines, ceilings of 45 s, 90 s
 and 180 s, none of them carried it. Station of the maintainer, 2026-08-29,

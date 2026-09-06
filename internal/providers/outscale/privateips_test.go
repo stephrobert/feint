@@ -143,7 +143,7 @@ func TestALinkedAddressIsNotHandedToTheNextVm(t *testing.T) {
 	// Every Vm the Subnet can still hold, and none of them may take one.
 	for range 5 {
 		status, doc := doAction(t, ts, "CreateVms",
-			`{"ImageId":"ami-00000001","VmType":"tinav6.c1r1p2","SubnetId":"`+sub+`"}`)
+			`{"ImageId":"ami-fe1a7001","VmType":"tinav6.c1r1p2","SubnetId":"`+sub+`"}`)
 		if status != http.StatusOK {
 			break
 		}

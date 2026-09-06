@@ -79,7 +79,7 @@ func TestASecurityGroupLifecycleMatchesTheRecordedShapes(t *testing.T) {
 	// A machine wears the group it asked for, and the view resolves the pair.
 	_, _ = post(t, ts, "CreateSubnet", `{"NetId":"`+netID+`","IpRange":"10.20.1.0/24"}`)
 	vmCreated := call(t, ts, doc, "CreateVms",
-		`{"ImageId":"ami-00000001","VmType":"tinav6.c1r1p2","SecurityGroupIds":["`+sgID+`"]}`)
+		`{"ImageId":"ami-fe1a7001","VmType":"tinav6.c1r1p2","SecurityGroupIds":["`+sgID+`"]}`)
 	vms, _ := vmCreated["Vms"].([]any)
 	vm, _ := vms[0].(map[string]any)
 	worn, _ := vm["SecurityGroups"].([]any)
@@ -106,7 +106,7 @@ func TestASecurityGroupLifecycleMatchesTheRecordedShapes(t *testing.T) {
 
 	// An unknown group on a create is a refusal, not a machine without rules.
 	if status, body := post(t, ts, "CreateVms",
-		`{"ImageId":"ami-00000001","VmType":"tinav6.c1r1p2","SecurityGroupIds":["sg-00000000"]}`); status == http.StatusOK {
+		`{"ImageId":"ami-fe1a7001","VmType":"tinav6.c1r1p2","SecurityGroupIds":["sg-00000000"]}`); status == http.StatusOK {
 		t.Fatalf("an unknown security group was accepted on a create: %v", body)
 	}
 

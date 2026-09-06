@@ -566,22 +566,6 @@
       "issue": "https://github.com/stephrobert/feint/issues/392"
     },
     {
-      "file": "outscale/oapi-cli-refusals.jsonl",
-      "operation": "osc/Client.DeleteImage",
-      "kind": "status",
-      "path": "",
-      "reason": "THIS IS THE INSTRUMENT, NOT THE PACK. The sanitiser mints Outscale identifiers as a counter in eight hexadecimal digits, and the Outscale catalogue's own images are ami-00000001..3, so the recording's second prefixed value came out naming a catalogue image of this emulator: the refusal recorded against an image that does not exist replays against one that does, and answers 409 instead of 400. Nothing here is a measurement of the pack until the two namespaces are disjoint.",
-      "issue": "https://github.com/stephrobert/feint/issues/395"
-    },
-    {
-      "file": "outscale/oapi-cli-refusals.jsonl",
-      "operation": "osc/Client.UpdateImage",
-      "kind": "status",
-      "path": "",
-      "reason": "THIS IS THE INSTRUMENT, NOT THE PACK. The sanitiser mints Outscale identifiers as a counter in eight hexadecimal digits, and the Outscale catalogue's own images are ami-00000001..3, so the recording's second prefixed value came out naming a catalogue image of this emulator: the refusal recorded against an image that does not exist replays against one that does, and answers 409 instead of 400. Nothing here is a measurement of the pack until the two namespaces are disjoint.",
-      "issue": "https://github.com/stephrobert/feint/issues/395"
-    },
-    {
       "file": "scaleway/scw-billed-shapes.jsonl",
       "operation": "block/v1alpha1/API.DeleteSnapshot",
       "kind": "status",

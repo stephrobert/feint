@@ -50,7 +50,7 @@ func TestAVmReadsBackItsOwnOptions(t *testing.T) {
 	doc := contractDoc(t)
 
 	created := call(t, ts, doc, "CreateVms",
-		`{"ImageId":"ami-00000001","VmType":"tinav6.c1r1","BootOnCreation":false,`+
+		`{"ImageId":"ami-fe1a7001","VmType":"tinav6.c1r1","BootOnCreation":false,`+
 			`"BootMode":"legacy","Performance":"medium","VmInitiatedShutdownBehavior":"restart",`+
 			`"TpmEnabled":true,`+
 			`"ShutdownBehaviorConfiguration":{"GuestAction":"terminate","HostAction":"stop"},`+
@@ -87,7 +87,7 @@ func TestAVmCreatedWithDefaultsReadsThePlatformOnes(t *testing.T) {
 	doc := contractDoc(t)
 
 	created := call(t, ts, doc, "CreateVms",
-		`{"ImageId":"ami-00000001","VmType":"tinav6.c1r1","BootOnCreation":false}`)
+		`{"ImageId":"ami-fe1a7001","VmType":"tinav6.c1r1","BootOnCreation":false}`)
 	vm := vmOf(t, created)
 	assertVmOptions(t, vm, map[string]any{
 		"BootMode":                    "uefi",
@@ -115,7 +115,7 @@ func TestTheVmTypePerformanceFlagWins(t *testing.T) {
 	doc := contractDoc(t)
 
 	created := call(t, ts, doc, "CreateVms",
-		`{"ImageId":"ami-00000001","VmType":"tinav6.c1r1p3","BootOnCreation":false,"Performance":"highest"}`)
+		`{"ImageId":"ami-fe1a7001","VmType":"tinav6.c1r1p3","BootOnCreation":false,"Performance":"highest"}`)
 	assertVmOptions(t, vmOf(t, created), map[string]any{"Performance": "medium"},
 		"a p3 type beside Performance=highest")
 }
@@ -129,7 +129,7 @@ func TestUpdateVmMovesTheOptions(t *testing.T) {
 	doc := contractDoc(t)
 
 	created := call(t, ts, doc, "CreateVms",
-		`{"ImageId":"ami-00000001","VmType":"tinav6.c1r1","BootOnCreation":false,"Performance":"medium"}`)
+		`{"ImageId":"ami-fe1a7001","VmType":"tinav6.c1r1","BootOnCreation":false,"Performance":"medium"}`)
 	id := firstVMID(t, created)
 
 	updated := call(t, ts, doc, "UpdateVm",
@@ -168,11 +168,11 @@ func TestVmOptionsOutsideTheirEnumAreRefused(t *testing.T) {
 		label string
 		body  string
 	}{
-		{"BootMode", `{"ImageId":"ami-00000001","BootMode":"bios"}`},
-		{"Performance", `{"ImageId":"ami-00000001","Performance":"turbo"}`},
-		{"VmInitiatedShutdownBehavior", `{"ImageId":"ami-00000001","VmInitiatedShutdownBehavior":"hibernate"}`},
-		{"GuestAction", `{"ImageId":"ami-00000001","ShutdownBehaviorConfiguration":{"GuestAction":"restart"}}`},
-		{"SecureBoot", `{"ImageId":"ami-00000001","ActionsOnNextBoot":{"SecureBoot":"maybe"}}`},
+		{"BootMode", `{"ImageId":"ami-fe1a7001","BootMode":"bios"}`},
+		{"Performance", `{"ImageId":"ami-fe1a7001","Performance":"turbo"}`},
+		{"VmInitiatedShutdownBehavior", `{"ImageId":"ami-fe1a7001","VmInitiatedShutdownBehavior":"hibernate"}`},
+		{"GuestAction", `{"ImageId":"ami-fe1a7001","ShutdownBehaviorConfiguration":{"GuestAction":"restart"}}`},
+		{"SecureBoot", `{"ImageId":"ami-fe1a7001","ActionsOnNextBoot":{"SecureBoot":"maybe"}}`},
 	}
 	for _, tc := range cases {
 		status, out := post(t, ts, "CreateVms", tc.body)

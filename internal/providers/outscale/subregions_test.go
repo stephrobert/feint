@@ -51,7 +51,7 @@ func TestAVmCreatedInANamedSubregionReadsBackInIt(t *testing.T) {
 	doc := contractDoc(t)
 
 	created := call(t, ts, doc, "CreateVms",
-		`{"ImageId":"ami-00000001","BootOnCreation":false,`+
+		`{"ImageId":"ami-fe1a7001","BootOnCreation":false,`+
 			`"Placement":{"SubregionName":"eu-west-2b","Tenancy":"dedicated"}}`)
 	assertPlacement(t, created, "eu-west-2b", "dedicated", "the create's own answer")
 	id := firstVMID(t, created)
@@ -109,7 +109,7 @@ func TestAVmInheritsItsSubnetsSubregion(t *testing.T) {
 	}
 
 	vm := call(t, ts, doc, "CreateVms",
-		`{"ImageId":"ami-00000001","SubnetId":"`+subnetID+`","BootOnCreation":false}`)
+		`{"ImageId":"ami-fe1a7001","SubnetId":"`+subnetID+`","BootOnCreation":false}`)
 	assertPlacement(t, vm, "eu-west-2b", "default", "a Vm placed by its Subnet alone")
 
 	// The Subnet answers the zone filter from the stored fact.
@@ -132,7 +132,7 @@ func TestAVmWithoutAPlacementReadsBackTheDefault(t *testing.T) {
 	ts := newServer(t)
 	doc := contractDoc(t)
 
-	created := call(t, ts, doc, "CreateVms", `{"ImageId":"ami-00000001","BootOnCreation":false}`)
+	created := call(t, ts, doc, "CreateVms", `{"ImageId":"ami-fe1a7001","BootOnCreation":false}`)
 	assertPlacement(t, created, "eu-west-2a", "default", "a Vm with no Placement")
 }
 
@@ -210,7 +210,7 @@ func TestWhatACreateAcceptsTheCatalogueDeclares(t *testing.T) {
 	for _, probe := range []struct{ action, body string }{
 		{"CreateSubnet", `{"NetId":"` + netID + `","IpRange":"10.64.9.0/24","SubregionName":"cloudgouv-eu-west-1a"}`},
 		{"CreateVolume", `{"SubregionName":"cloudgouv-eu-west-1a","Size":10}`},
-		{"CreateVms", `{"ImageId":"ami-00000001","BootOnCreation":false,"Placement":{"SubregionName":"cloudgouv-eu-west-1a"}}`},
+		{"CreateVms", `{"ImageId":"ami-fe1a7001","BootOnCreation":false,"Placement":{"SubregionName":"cloudgouv-eu-west-1a"}}`},
 	} {
 		status, refused := post(t, ts, probe.action, probe.body)
 		if status != http.StatusBadRequest {
@@ -228,7 +228,7 @@ func TestAPlacementContradictingTheSubnetIsRefused(t *testing.T) {
 	_, subnetID := netAndSubnet(t, ts, "10.65.0.0/16", "10.65.1.0/24") // default zone
 
 	status, out := post(t, ts, "CreateVms",
-		`{"ImageId":"ami-00000001","SubnetId":"`+subnetID+`","BootOnCreation":false,`+
+		`{"ImageId":"ami-fe1a7001","SubnetId":"`+subnetID+`","BootOnCreation":false,`+
 			`"Placement":{"SubregionName":"eu-west-2b"}}`)
 	if status != http.StatusBadRequest {
 		t.Fatalf("a Placement contradicting the Subnet answered %d: %v", status, out)

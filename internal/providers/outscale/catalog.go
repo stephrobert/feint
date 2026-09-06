@@ -250,13 +250,17 @@ const catalogueDate = "2025-01-01T00:00:00.000Z"
 //
 // The identifiers are deliberately outside the corpus sanitiser's minting
 // space. It hands out prefixed identifiers as a shared counter in eight
-// hexadecimal digits (internal/corpus/corpus.go), so ami-00000001..3 collide
-// with recorded values and #395 carries the two corpus exemptions that
-// collision costs. Numbering three more objects the same way would have widened
-// a known defect for no gain; fe1a7… is as valid an Outscale identifier and
-// cannot be reached by a small counter.
+// hexadecimal digits (internal/corpus/corpus.go), and the catalogue's images
+// were ami-fe1a7001..3 until #395: a recording's second prefixed value came
+// out of the sanitiser naming a catalogue image, and a DeleteImage the cloud
+// had refused with 400 replayed as a 409 "belongs to the emulated catalogue",
+// a plausible verdict on a request nobody made. The images moved to fe1a7…,
+// where these snapshots already were: as valid an Outscale identifier, and
+// one a small counter cannot reach.
 //
-// TestTheCatalogueIdentifiersStayOutOfTheMintingSpace fails without that choice.
+// TestTheCatalogueIdentifiersStayOutOfTheMintingSpace fails without that
+// choice, and TestNoPackFixtureLivesInTheSanitisersMintingSpace in
+// internal/cli holds it for every pack.
 var catalogueSnapshots = []map[string]any{
 	{"SnapshotId": "snap-fe1a7001", "VolumeId": "vol-fe1a7001", "VolumeSize": 10, "Description": "Ubuntu-24.04-2025.01 root"},
 	{"SnapshotId": "snap-fe1a7002", "VolumeId": "vol-fe1a7002", "VolumeSize": 10, "Description": "Debian-12-2025.01 root"},
@@ -328,9 +332,9 @@ func catalogueSnapshotOf(i int) map[string]any { return catalogueSnapshots[i] }
 
 var images = func() []map[string]any {
 	out := []map[string]any{
-		{"ImageId": "ami-00000001", "ImageName": "Ubuntu-24.04-2025.01", "Architecture": "x86_64", "State": "available", "RootDeviceType": "bsu", "SecureBoot": false, "AccountId": accountID, "ProductCodes": []any{linuxProductCode}},
-		{"ImageId": "ami-00000002", "ImageName": "Debian-12-2025.01", "Architecture": "x86_64", "State": "available", "RootDeviceType": "bsu", "SecureBoot": false, "AccountId": accountID, "ProductCodes": []any{linuxProductCode}},
-		{"ImageId": "ami-00000003", "ImageName": "Alpine-3.21-2025.01", "Architecture": "x86_64", "State": "available", "RootDeviceType": "bsu", "SecureBoot": false, "AccountId": accountID, "ProductCodes": []any{linuxProductCode}},
+		{"ImageId": "ami-fe1a7001", "ImageName": "Ubuntu-24.04-2025.01", "Architecture": "x86_64", "State": "available", "RootDeviceType": "bsu", "SecureBoot": false, "AccountId": accountID, "ProductCodes": []any{linuxProductCode}},
+		{"ImageId": "ami-fe1a7002", "ImageName": "Debian-12-2025.01", "Architecture": "x86_64", "State": "available", "RootDeviceType": "bsu", "SecureBoot": false, "AccountId": accountID, "ProductCodes": []any{linuxProductCode}},
+		{"ImageId": "ami-fe1a7003", "ImageName": "Alpine-3.21-2025.01", "Architecture": "x86_64", "State": "available", "RootDeviceType": "bsu", "SecureBoot": false, "AccountId": accountID, "ProductCodes": []any{linuxProductCode}},
 	}
 	// Added here rather than written into each literal: three copies of the
 	// same structure is three places for it to drift, and a fourth image would
@@ -360,9 +364,9 @@ var images = func() []map[string]any {
 // An identifier outside this map resolves to nothing, and the shared binding
 // refuses the boot rather than substituting an OS the client never named (#83).
 var runtimeImages = map[string]machine.Image{
-	"ami-00000001": {Ref: "ubuntu:24.04", User: DefaultUser},
-	"ami-00000002": {Ref: "debian:12", User: DefaultUser},
-	"ami-00000003": {Ref: "alpine:3.21", User: DefaultUser},
+	"ami-fe1a7001": {Ref: "ubuntu:24.04", User: DefaultUser},
+	"ami-fe1a7002": {Ref: "debian:12", User: DefaultUser},
+	"ami-fe1a7003": {Ref: "alpine:3.21", User: DefaultUser},
 }
 
 // accountID is the one account this emulator has. Outscale account IDs are
@@ -560,21 +564,23 @@ func (p *Pack) readSubregions(w http.ResponseWriter, r *http.Request) {
 // real region publishes (measured, X-2 sweep, 2026-08-08:
 // com.outscale.<region>.{api,fcu,lbu,eim,icu,oos,directlink}), templated on the
 // emulated region so a client that builds the name from its own region finds
-// it. The ids are stable so a client can hardcode one, and the ranges are
-// TEST-NET blocks (RFC 5737): a documented-fictional address for a fictional
-// facility, matching what ReadPublicIpRanges publishes.
+// it. The ids are stable so a client can hardcode one, and outside the corpus
+// sanitiser's minting space like every fixture of this file (#395: they were
+// pl-00000001..7, the counter's first seven values); the ranges are TEST-NET
+// blocks (RFC 5737): a documented-fictional address for a fictional facility,
+// matching what ReadPublicIpRanges publishes.
 //
 // Built per pack rather than held in a package variable since #290, because
 // the region the names carry is the pack's datum, not the package's constant.
 func netAccessPointServices(region string) []map[string]any {
 	return []map[string]any{
-		{"ServiceId": "pl-00000001", "ServiceName": "com.outscale." + region + ".api", "IpRanges": []any{"192.0.2.0/24"}},
-		{"ServiceId": "pl-00000002", "ServiceName": "com.outscale." + region + ".fcu", "IpRanges": []any{"192.0.2.0/24"}},
-		{"ServiceId": "pl-00000003", "ServiceName": "com.outscale." + region + ".lbu", "IpRanges": []any{"192.0.2.0/24"}},
-		{"ServiceId": "pl-00000004", "ServiceName": "com.outscale." + region + ".eim", "IpRanges": []any{"192.0.2.0/24"}},
-		{"ServiceId": "pl-00000005", "ServiceName": "com.outscale." + region + ".icu", "IpRanges": []any{"192.0.2.0/24"}},
-		{"ServiceId": "pl-00000006", "ServiceName": "com.outscale." + region + ".oos", "IpRanges": []any{"198.51.100.0/24"}},
-		{"ServiceId": "pl-00000007", "ServiceName": "com.outscale." + region + ".directlink", "IpRanges": []any{"198.51.100.0/24"}},
+		{"ServiceId": "pl-fe1a7001", "ServiceName": "com.outscale." + region + ".api", "IpRanges": []any{"192.0.2.0/24"}},
+		{"ServiceId": "pl-fe1a7002", "ServiceName": "com.outscale." + region + ".fcu", "IpRanges": []any{"192.0.2.0/24"}},
+		{"ServiceId": "pl-fe1a7003", "ServiceName": "com.outscale." + region + ".lbu", "IpRanges": []any{"192.0.2.0/24"}},
+		{"ServiceId": "pl-fe1a7004", "ServiceName": "com.outscale." + region + ".eim", "IpRanges": []any{"192.0.2.0/24"}},
+		{"ServiceId": "pl-fe1a7005", "ServiceName": "com.outscale." + region + ".icu", "IpRanges": []any{"192.0.2.0/24"}},
+		{"ServiceId": "pl-fe1a7006", "ServiceName": "com.outscale." + region + ".oos", "IpRanges": []any{"198.51.100.0/24"}},
+		{"ServiceId": "pl-fe1a7007", "ServiceName": "com.outscale." + region + ".directlink", "IpRanges": []any{"198.51.100.0/24"}},
 	}
 }
 

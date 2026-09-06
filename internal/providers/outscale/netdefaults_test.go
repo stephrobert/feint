@@ -153,7 +153,7 @@ func TestAVmInANetHasANic(t *testing.T) {
 
 	netID, subnetID := netAndSubnet(t, ts, "10.9.0.0/16", "10.9.1.0/24")
 	created := call(t, ts, doc, "CreateVms",
-		`{"ImageId":"ami-00000001","VmType":"tinav6.c1r1p2","SubnetId":"`+subnetID+`","BootOnCreation":false}`)
+		`{"ImageId":"ami-fe1a7001","VmType":"tinav6.c1r1p2","SubnetId":"`+subnetID+`","BootOnCreation":false}`)
 	vms, _ := created["Vms"].([]any)
 	vm, _ := vms[0].(map[string]any)
 	vmID, _ := vm["VmId"].(string)

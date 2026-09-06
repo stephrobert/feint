@@ -33,7 +33,7 @@ func TestATerminatedVmsAddressReturnsToItsSubnet(t *testing.T) {
 
 	create := func() (int, string, string) {
 		status, out := postRaw(ts, "CreateVms",
-			fmt.Sprintf(`{"ImageId":"ami-00000001","SubnetId":%q,"BootOnCreation":false}`, subnetID))
+			fmt.Sprintf(`{"ImageId":"ami-fe1a7001","SubnetId":%q,"BootOnCreation":false}`, subnetID))
 		vms, _ := out["Vms"].([]any)
 		if len(vms) == 0 {
 			return status, "", ""

@@ -84,7 +84,7 @@ Type "SUB=$(osc ReadSubnets | jq -r .Subnets[0].SubnetId)"
 Enter
 Sleep 2s
 
-Type "osc CreateVms --ImageId ami-00000001 --VmType tinav6.c1r1p2 --SubnetId $SUB | jq -c .Vms[0]"
+Type "osc CreateVms --ImageId ami-fe1a7001 --VmType tinav6.c1r1p2 --SubnetId $SUB | jq -c .Vms[0]"
 Enter
 Sleep 5s
 

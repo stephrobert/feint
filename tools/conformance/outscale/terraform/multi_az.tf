@@ -30,7 +30,7 @@ resource "outscale_subnet" "azb" {
 }
 
 resource "outscale_vm" "azb" {
-  image_id  = "ami-00000003"
+  image_id  = "ami-fe1a7003"
   vm_type   = "tinav6.c1r1p2"
   subnet_id = outscale_subnet.azb.subnet_id
 
