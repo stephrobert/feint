@@ -17,6 +17,24 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Added
 
+- **An operator who declares their catalogue gets their typos refused, and
+  nobody else changes** (#126): `feint serve --strict-catalog catalog.json`,
+  and `feint start` carries it. The file names, per provider, the images,
+  templates and machine types the project allows; a create outside it is
+  refused in each cloud's own error shape, and so is the lookup the client
+  makes first, so `scw`, `oapi-cli`, Terraform and `exo` render their ordinary
+  not-found path. What each pack refuses and in which shape, and which of
+  those shapes were recorded on a real account, is a table in
+  `docs/limits.md`: `osc/Client.CreateVms` answers the recorded
+  `400`/`5023`/`InvalidResource`; `instance/v1/API.GetImage`,
+  `marketplace/v2/API.ListLocalImages` and `instance/v1/API.CreateServer`
+  the recorded `404 not_found`; `exoscale/v2.create-instance` and
+  `create-instance-pool` this pack's `404`, unrecorded on a create. A kind
+  the file does not mention is not checked; a kind no pack checks is refused
+  before anything listens, because a line nobody enforces reads exactly like
+  one somebody does. Without the flag nothing moves: the compatibility mode
+  is byte-identical, the conformance suite runs in it, and
+  `docs/limits.md`'s "identifiers are not checked" stays true word for word.
 - **An Outscale volume is `creating` before it is `available`, a snapshot
   `in-queue` before it is `completed`, and a snapshot taken during `creating`
   meets the measured `409 InvalidVolumeState`** (#124), under

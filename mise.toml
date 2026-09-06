@@ -235,6 +235,13 @@ run = [
 description = "Apply the example stacks — realistic platform configurations, not fixtures"
 run = "tools/conformance/stacks.sh http://$FEINT_ADDR"
 
+[tasks."conformance:strict"]
+description = "Drive scw, octl and exo against an emulator started with --strict-catalog: a typo is refused, a declared identifier creates"
+depends = ["build"]
+# On a port of its own (4595), because this suite starts and stops an emulator
+# of its own: the mode is the subject, and the shared run must never carry it.
+run = "tools/conformance/strict.sh"
+
 [tasks."conformance:quickstart"]
 description = "Run the README's own four commands: `feint up` on examples/quickstart, an empty second plan, `feint down`"
 depends = ["build"]
@@ -624,6 +631,13 @@ tools/conformance/exoscale/zones.sh
 # scw through a 403, terraform through 503, 503, 200 — which is the half of
 # every client's behaviour nothing here could observe before.
 tools/conformance/faults.sh
+# The declared catalogue (#126), on an emulator and a port of its own for the
+# reason faults.sh has one: its subject is a mode of the emulator, and the
+# shared run never starts with the flag, so the compatibility mode every other
+# suite measures stays byte-identical. What it drives is the three real
+# clients meeting a typo — scw, octl and exo, each on its ordinary not-found
+# path — and creating on a declared identifier.
+tools/conformance/strict.sh
 # The refusals a real cloud actually answered (#390), reissued from the
 # committed corpora against this run's emulator. It is the only thing here that
 # can raise the `negative` axis: an injected fault deliberately cannot, so the

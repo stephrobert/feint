@@ -54,6 +54,12 @@ type Env struct {
 	// are opaque strings the operator chose; nothing here knows any provider's
 	// vocabulary, which is what keeps this field in the neutral core.
 	BootImages map[string]machine.Image
+	// Declared is the catalogue the operator asserted as their own contract
+	// (`serve --strict-catalog`, #126): per provider, the identifiers each kind
+	// of catalogue object may name. Nil, the default, checks nothing. Neutral
+	// for the reason BootImages is: the core holds strings and answers whether
+	// a value is among them; every kind name is a pack's own vocabulary.
+	Declared *Declared
 	// Projects names the tenancies the emulated account holds, in the order the
 	// operator declared them (--projects, parsed by ParseProjects). Empty means
 	// the pack's own single default, which is what every existing declaration

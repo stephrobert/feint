@@ -644,10 +644,42 @@ here, and will be caught in production.** Feint proves that a request is
 well-formed and that the response is shaped like the provider's, not that the
 resources it names exist.
 
-If you need that check, it belongs in your own validation. If the trade-off ever
-turns out to be the wrong one, the place to change it is `resolveImage` in
-`internal/providers/scaleway/images.go`, and the change must come with a way to
-keep hardcoded production ids working.
+If you need that check, declare your catalogue (#126):
+
+```bash
+feint serve --strict-catalog catalog.json
+```
+
+```json
+{
+  "scaleway": {"images": ["debian_bookworm"], "types": ["DEV1-S", "PLAY2-PICO"]},
+  "outscale": {"images": ["ami-00000001"], "types": ["tinav6.c2r4p2"]},
+  "exoscale": {"templates": ["11111111-1111-4111-8111-111111111111"], "types": ["21624abb-764e-4def-81d7-9fc54b5957fb"]}
+}
+```
+
+The file is the operator's own contract, versioned in their repository: per
+provider, the identifiers each kind may name. A kind the file does not mention
+is not checked, so the half you know can be asserted alone; a kind no pack
+checks (`"image"` for `"images"`) is refused before anything listens, because a
+line nobody enforces reads exactly like one somebody does. Without the flag,
+nothing above moves: the compatibility mode is byte-identical, and the
+conformance suite runs in it.
+
+With it, a create naming an identifier outside the declaration is refused in
+each cloud's own shape, and so is the lookup the client makes first, so the real
+client renders its ordinary not-found path:
+
+| pack | what is checked | the refusal | measured? |
+|---|---|---|---|
+| Scaleway | `images` (label or marketplace UUID, either form covers the other), `types` | `404 not_found` on `image` for `GET /images/{id}`, the marketplace label lookup and `POST /servers`; `400 invalid_arguments` on `commercial_type`; `/products/servers` lists the declared types only | the `not_found` shape on an identifier naming nothing, recorded 2026-08-21 (`corpus/scaleway/scw-refusals.jsonl`); the exact answer to a type fr-par does not sell, no |
+| Outscale | `images`, `types` | `CreateVms`: `400`, code `5023`, `InvalidResource`, "The ImageId '…' doesn't exist."; `400`, code `4001` on a `VmType`; `ReadImages` and `ReadVmTypes` list the declared entries only | the image refusal, recorded 2026-08-21 (`corpus/outscale/oapi-cli-refusals.jsonl`); the type refusal, no |
+| Exoscale | `templates`, `types` | `create-instance` and `create-instance-pool`: `404 {"message": …}`; `list-templates`, `get-template`, `list-instance-types` and `get-instance-type` answer the declared entries only | the 404 shape of a resource that does not exist, recorded; the cloud's answer to a create naming a template it does not offer, no |
+
+An object the client registered itself (an image cut from a machine, a template
+it uploaded) is the client's own and is never refused by the declaration: the
+declaration is about what the fixed catalogue may answer for. Zones are not a
+kind yet.
 
 **A project identifier is the exception, since #391.** It used to be the same
 trade — `GET /account/v3/projects/{id}` echoed any identifier, so a stack

@@ -37,6 +37,10 @@ type serveFlags struct {
 	contracts string
 	projects  string
 	resolver  string
+	// strictCatalog travels to serve like the rest: `feint start` is `serve`
+	// in the background, and a mode `start` could not name is a mode the
+	// lifecycle verbs cannot test (#126).
+	strictCatalog string
 }
 
 // args renders the flags back into a `serve` command line.
@@ -57,6 +61,9 @@ func (f serveFlags) args() []string {
 	if f.projects != "" {
 		out = append(out, "--projects", f.projects)
 	}
+	if f.strictCatalog != "" {
+		out = append(out, "--strict-catalog", f.strictCatalog)
+	}
 	return out
 }
 
@@ -76,6 +83,7 @@ func bindServeFlags(fs *flag.FlagSet) *serveFlags {
 	//
 	// TestStartRelaysTheDeclaredProjectsToServe fails without this.
 	fs.StringVar(&f.projects, "projects", "", "comma-separated project names the emulated account holds, in order")
+	fs.StringVar(&f.strictCatalog, "strict-catalog", "", "refuse a create naming an image, a template or a machine type outside this declared catalogue (JSON); unset accepts any identifier")
 	return f
 }
 

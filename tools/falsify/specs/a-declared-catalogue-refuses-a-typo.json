@@ -1,0 +1,60 @@
+{
+  "mutations": [
+    {
+      "label": "the declaration allows everything, so an operator who wrote their catalogue gets exactly what one who wrote nothing gets: the typo ships green",
+      "file": "internal/core/emulator/declared.go",
+      "package": "./internal/providers/outscale/",
+      "find": "\treturn set[id], true\n}",
+      "replace": "\treturn set[id] || true, true\n}",
+      "test": "TestAStrictCatalogueRefusesAnUndeclaredImageAndType"
+    },
+    {
+      "label": "a declaration naming a kind no pack checks is accepted, and that line reads enforced while checking nothing",
+      "file": "internal/core/emulator/declared.go",
+      "package": "./internal/core/emulator/",
+      "find": "\t\t\tif !checked[kind] {",
+      "replace": "\t\t\tif !checked[kind] && false {",
+      "test": "TestADeclarationNamingAKindNoPackChecksIsRefused"
+    },
+    {
+      "label": "Outscale accepts an undeclared image on CreateVms, the typo case of #126 on the one pack whose refusal was recorded",
+      "file": "internal/providers/outscale/strict.go",
+      "package": "./internal/providers/outscale/",
+      "find": "\tif p.undeclaredImage(imageID) {",
+      "replace": "\tif p.undeclaredImage(imageID) && false {",
+      "test": "TestAStrictCatalogueRefusesAnUndeclaredImageAndType"
+    },
+    {
+      "label": "Outscale refuses a registered image the declaration does not name, so a client cannot boot the image it just cut",
+      "file": "internal/providers/outscale/strict.go",
+      "package": "./internal/providers/outscale/",
+      "find": "\tif _, registered := p.env.Store.Peek(Name, kindImage, id); registered {\n\t\treturn false\n\t}",
+      "replace": "\tif _, registered := p.env.Store.Peek(Name, kindImage, id); registered && false {\n\t\treturn false\n\t}",
+      "test": "TestAStrictCatalogueRefusesAnUndeclaredImageAndType"
+    },
+    {
+      "label": "Scaleway serves an undeclared image on GET /images/{id}, where the CLI resolves before it creates",
+      "file": "internal/providers/scaleway/images.go",
+      "package": "./internal/providers/scaleway/",
+      "find": "\tif p.undeclaredImage(id) {\n\t\trefuseUndeclaredImage(w, id)",
+      "replace": "\tif p.undeclaredImage(id) && false {\n\t\trefuseUndeclaredImage(w, id)",
+      "test": "TestAStrictCatalogueRefusesAnUndeclaredImageAndType"
+    },
+    {
+      "label": "Scaleway creates a server on an undeclared commercial type",
+      "file": "internal/providers/scaleway/servers.go",
+      "package": "./internal/providers/scaleway/",
+      "find": "\tif p.undeclaredType(req.CommercialType) {\n\t\trefuseUndeclaredType(w, req.CommercialType)",
+      "replace": "\tif p.undeclaredType(req.CommercialType) && false {\n\t\trefuseUndeclaredType(w, req.CommercialType)",
+      "test": "TestAStrictCatalogueRefusesAnUndeclaredImageAndType"
+    },
+    {
+      "label": "Exoscale creates an instance on an undeclared template",
+      "file": "internal/providers/exoscale/strict.go",
+      "package": "./internal/providers/exoscale/",
+      "find": "\tif p.undeclaredTemplate(templateID) {",
+      "replace": "\tif p.undeclaredTemplate(templateID) && false {",
+      "test": "TestAStrictCatalogueRefusesAnUndeclaredTemplateAndType"
+    }
+  ]
+}

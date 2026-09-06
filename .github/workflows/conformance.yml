@@ -449,6 +449,15 @@ jobs:
         if: matrix.client == 'fields'
         run: FEINT_BIN=/tmp/feint tools/conformance/faults.sh
 
+      # The declared catalogue (#126), on an emulator of its own for the reason
+      # the fault-injection suite has one: its subject is a mode of the
+      # emulator, and the shared run must never carry it. What it proves is
+      # the issue's own bar: scw, octl and exo each render their ordinary
+      # not-found path on a typo, and a declared identifier still creates.
+      - name: Run the declared-catalogue suite
+        if: matrix.client == 'fields'
+        run: FEINT_BIN=/tmp/feint tools/conformance/strict.sh
+
       # The refusals a real cloud answered (#390), reissued from the committed
       # corpora. It needs no client binary, and it runs here rather than on
       # every leg because this is the leg whose emulator the evidence record is

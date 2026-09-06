@@ -141,6 +141,9 @@ case "$leg" in
     # run this script started, and that separation is what the score's own
     # injected-answer refusal is there to hold.
     tools/conformance/faults.sh
+    # The declared catalogue (#126), on an emulator of its own like the suite
+    # above, and for the same reason.
+    tools/conformance/strict.sh
     # The recorded refusals (#390). Unlike the suite above it shares this leg's
     # emulator, which is safe by construction and checked rather than assumed:
     # `feint replay --refusals-only` reads each corpus whole and sends nothing
