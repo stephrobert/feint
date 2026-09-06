@@ -330,6 +330,22 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Corrigé
 
+- **`osc/Client.ReadImages` et `osc/Client.ReadSnapshots` servent
+  `Filters.AccountAliases`** (#700), le filtre que l'exemple `ReadImages` du
+  contrat utilise lui-même. Les deux lectures le refusaient avec le 4001 qui
+  nomme ce qu'elles servent, mesuré le 2026-09-05 avec osc-sdk-python 0.42.0
+  et reproduit le 2026-09-06 avant le correctif. Il sélectionne sur l'alias du propriétaire, et cet
+  alias est désormais sur chaque objet que le propriétaire détient : les
+  images du catalogue portaient `AccountAlias` depuis #95 et une image
+  enregistrée ou un snapshot du même `AccountId` n'en portaient pas, si bien
+  que le filtre aurait coupé un seul propriétaire en deux. Le schéma
+  `Snapshot` déclare le champ à côté d'`AccountId`, et le vrai cloud le met
+  sur une image dont le propriétaire a un alias (`shapes/outscale.json`). Ce
+  qui reste, et que `docs/limits.md` consigne : le catalogue appartient au
+  compte émulé, par décision, donc `AccountAliases: [Outscale]` répond une
+  liste vide ici plutôt qu'un catalogue réétiqueté avec un identifiant de
+  compte que le corpus masque, et `self` n'est pas un alias que cette API a
+  été mesurée accepter.
 - **Une elastic IP Exoscale relit ses labels** (#703).
   `exoscale/v2.create-elastic-ip` et `exoscale/v2.update-elastic-ip`
   déclaraient `labels` dans leur structure de requête et ne stockaient rien,

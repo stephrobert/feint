@@ -203,7 +203,7 @@ func imageStructure(name string, snapshot map[string]any) map[string]any {
 		// so a client filtering images by tag had nothing to filter on.
 		// BootModes and TpmMandatory decide whether a client offers UEFI or
 		// secure boot at all.
-		"AccountAlias":   "feint",
+		"AccountAlias":   accountAlias,
 		"BootModes":      []any{"legacy", "uefi"},
 		"CreationDate":   catalogueDate,
 		"Description":    name,
@@ -281,6 +281,7 @@ func snapshotStructure(entry map[string]any) map[string]any {
 		"State":        "completed",
 		"Progress":     100,
 		"AccountId":    accountID,
+		"AccountAlias": accountAlias,
 		"CreationDate": catalogueDate,
 		"PermissionsToCreateVolume": map[string]any{
 			"AccountIds":       []any{},
@@ -368,6 +369,20 @@ var runtimeImages = map[string]machine.Image{
 // twelve digits, like AWS's.
 const accountID = "000000000001"
 
+// accountAlias is that account's alias: the value the catalogue has published
+// on its images since #95, and that every image and snapshot the emulator
+// answers carries since #700. One owner, one alias, so a client selecting by
+// AccountAliases selects consistently — before, the catalogue's images carried
+// it and a registered image or a snapshot of the same AccountId carried none.
+// The real cloud puts an alias on an image whose owner has one
+// (shapes/outscale.json, Images[].AccountAlias) and none where the account
+// has none; this account has one, and it is this.
+//
+// The catalogue is this account's, by the decision PermissionsToLaunch records
+// above, so `AccountAliases: ["Outscale"]` — the contract's own ReadImages
+// example — selects nothing here. docs/limits.md says so.
+const accountAlias = "feint"
+
 // readVmTypes pages like every other Read*: the catalogue is fixed, but a
 // client asking for N rows must still not be handed more. This was the one
 // list of the pack that ignored its ResultsPerPage — found the day the probe
@@ -420,7 +435,9 @@ func (p *Pack) readVmTypes(w http.ResponseWriter, r *http.Request) {
 // actually sends on the path to a create — it resolves the image it was given
 // before posting anything.
 var imageFilters = joinFilters(
-	stringFilters("ImageIds", "ImageNames", "AccountIds", "States", "Architectures", "RootDeviceTypes"),
+	// AccountAliases is the filter the contract's own ReadImages example uses
+	// (#700); it selects on the owner's alias every image carries.
+	stringFilters("ImageIds", "ImageNames", "AccountIds", "AccountAliases", "States", "Architectures", "RootDeviceTypes"),
 	// The three tag filters, accepted by the real account on every one of
 	// these reads (#618).
 	taggableFilters,
@@ -473,6 +490,7 @@ func imageMatches(image map[string]any, f filterSet) bool {
 	return matchesStrings(f, "ImageIds", stringOf(image["ImageId"])) &&
 		matchesStrings(f, "ImageNames", stringOf(image["ImageName"])) &&
 		matchesStrings(f, "AccountIds", accountID) &&
+		matchesStrings(f, "AccountAliases", stringOf(image["AccountAlias"])) &&
 		matchesStrings(f, "States", stringOf(image["State"])) &&
 		matchesStrings(f, "Architectures", stringOf(image["Architecture"])) &&
 		matchesStrings(f, "RootDeviceTypes", stringOf(image["RootDeviceType"]))
