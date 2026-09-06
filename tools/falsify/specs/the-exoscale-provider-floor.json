@@ -39,6 +39,14 @@
       "find": "\t\t\t\t\t\t\"resources. Upstream fixed that in \"+terraformProviderFloor+\"; pin at least \"+",
       "replace": "\t\t\t\t\t\t\"resources. Upstream fixed that in a later release\"+terraformProviderFloor[:0]+\"; pin at least \"+",
       "test": "TestAProviderBelowTheFloorIsRefused"
+    },
+    {
+      "label": "the note stops naming the floor, so a Terraform user is told to pin a version that is not there, and the note and the refusal can drift apart again (#701)",
+      "file": "internal/providers/exoscale/pack.go",
+      "package": "./internal/providers/exoscale/",
+      "find": "\t\tNote: \"the exo CLI reads these, and so does the Terraform provider from \" +\n\t\t\tterraformProviderFloor + \" (exoscale/terraform-provider-exoscale#576): pin at \" +",
+      "replace": "\t\tNote: \"the exo CLI reads these, and so does the Terraform provider from a later release\" +\n\t\t\tterraformProviderFloor[:0] + \" (exoscale/terraform-provider-exoscale#576): pin at \" +",
+      "test": "TestTheEnvNoteNamesTheFloor"
     }
   ]
 }

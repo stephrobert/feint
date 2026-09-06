@@ -1576,17 +1576,17 @@ func writeError(w http.ResponseWriter, status int, message string) {
 // Env implements emulator.Pack.
 //
 // This is the provider where an environment is not enough, and the Note field
-// exists because of it. Both halves of what this comment used to say were
-// measured, and both had become false in opposite directions.
+// exists because of it. Three versions of what the note said have been
+// measured, and each of the first two had become false in its own direction.
 //
 // The exo CLI *does* read EXOSCALE_API_ENDPOINT. That was reported by a
 // contributor in #51, with the line of their source that reads it, and verified
 // here in both directions on exo 1.95.1: pointed at the emulator it drives it,
-// pointed at a dead port it fails naming that port. The older claim came from a
+// pointed at a dead port it fails naming that port. The oldest claim came from a
 // logging proxy, and describes a version that no longer matters.
 //
-// The Terraform provider reads it for half of itself, which is worse than
-// either answer. exoscale/exoscale 0.70.0 builds two clients in
+// The Terraform provider read it for half of itself up to 0.70.0, which is
+// worse than either answer. That version builds two clients in
 // pkg/provider/provider.go: an egoscale v3 one, where the variable is honoured
 //
 //	if ep := os.Getenv("EXOSCALE_API_ENDPOINT"); ep != "" {
@@ -1594,27 +1594,28 @@ func writeError(w http.ResponseWriter, status int, message string) {
 //	}
 //
 // and an egoscale v2 one, created with no endpoint option at all. Whatever a
-// resource reaches through v2 goes to the real cloud: an audit watched
+// resource reached through v2 went to the real cloud: an audit watched
 // `terraform apply` send GET api-ch-dk-2.exoscale.com/v2/template and POST
 // api-ch-gva-2.exoscale.com/v2/ssh-key with the variable set, and
-// `https://api-ch-gva-2.exoscale.com/v2` is compiled into the binary.
+// `https://api-ch-gva-2.exoscale.com/v2` is compiled into the binary. So a
+// plan did not fail cleanly, it split, and the second version of this note
+// told the user not to point terraform here. tools/conformance/guard.sh exists
+// because a version of that accident already happened to this repository.
 //
-// So a plan does not fail cleanly, it splits: some resources answer from the
-// emulator and some are created for real, in one apply. That is the dangerous
-// shape, and it is what the note says. A user who runs
-// `eval "$(feint env exoscale)"` with real credentials still in their
-// environment, and then `terraform apply`, creates billable resources while
-// believing they drive an emulator. Only the fake credentials' bad signature
-// stopped it when it was measured. tools/conformance/guard.sh exists because a
-// version of this accident already happened to this repository.
+// Upstream fixed the v2 client in exoscale/terraform-provider-exoscale#576,
+// published in v0.71.0, and #644 measured the published provider against this
+// pack before believing the release note (guardSplitClients, above). The note
+// outlived that measurement by a day (#701): `feint env exoscale` went on
+// telling a Terraform user not to do what the pack had just started
+// supporting, and it is the first thing that user reads.
 //
-// Both earlier versions of this comment were wrong, in opposite directions, and
-// each was written from one measurement: a logging proxy said the CLI reads
-// nothing, an audit said Terraform reaches the real cloud. Their provider's own
-// source settles it, which is what CLAUDE.md says to read when a client
-// surprises you.
-//
-// TestEnvSendsItsNoteToStderr in internal/cli fails without the warning.
+// So the third version says what the emulator does, and it reads the floor
+// from the constant the refusal reads, terraformProviderFloor: a note and a
+// guard that each carry their own copy of a version are two things that drift
+// apart, and a sentence written from one measurement is how the first two
+// versions went wrong. TestTheEnvNoteNamesTheFloor fails when the note stops
+// naming that constant; TestEnvSendsItsNoteToStderr in internal/cli fails when
+// it stops reaching stderr.
 func (p *Pack) Env(endpoint string) emulator.Environment {
 	return emulator.Environment{
 		Vars: map[string]string{
@@ -1623,10 +1624,10 @@ func (p *Pack) Env(endpoint string) emulator.Environment {
 			"EXOSCALE_API_ENDPOINT": endpoint + apiPrefix,
 			"EXOSCALE_ZONE":         p.zone,
 		},
-		Note: "the exo CLI reads these. The Terraform provider only half does: it honours " +
-			"EXOSCALE_API_ENDPOINT for its egoscale v3 client and not for its v2 one, so an " +
-			"apply splits between this emulator and the real cloud — with real credentials in " +
-			"your environment it will create billable resources. Do not point terraform at " +
-			"Exoscale here. See docs/limits.md.",
+		Note: "the exo CLI reads these, and so does the Terraform provider from " +
+			terraformProviderFloor + " (exoscale/terraform-provider-exoscale#576): pin at " +
+			"least that version. An older provider honours EXOSCALE_API_ENDPOINT for only " +
+			"half of its calls and the other half would reach the real cloud, so this " +
+			"emulator refuses it by user agent and names the floor. See docs/limits.md.",
 	}
 }

@@ -245,24 +245,6 @@ func TestAnEnvironmentVariableOutsideTheProjectsOwnIsRefused(t *testing.T) {
 	}
 }
 
-// A declaration cannot arm the Exoscale Terraform escape. #525 measured what
-// carrying it in a stack's feint.yaml did: the emulator's one refusal was
-// lifted for whatever provider the engine resolved — the published one, that
-// day — and five signed requests left for api-ch-*.exoscale.com. The variable
-// is a hand-export to the shell that runs `feint serve`, or nothing; the
-// refusal has to say so, and name the doorstep that refuses the engine anyway.
-func TestTheDeclarationCannotArmTheExoscaleTerraformEscape(t *testing.T) {
-	_, err := Parse("version: 1\nemulator:\n  env:\n    FEINT_EXOSCALE_ALLOW_TERRAFORM: \"1\"\n")
-	if err == nil {
-		t.Fatal("a declaration armed FEINT_EXOSCALE_ALLOW_TERRAFORM, which is what let #525 happen")
-	}
-	for _, want := range []string{"FEINT_EXOSCALE_ALLOW_TERRAFORM", "#525", "by hand", "#573"} {
-		if !strings.Contains(err.Error(), want) {
-			t.Errorf("the refusal never says %q: %v", want, err)
-		}
-	}
-}
-
 func TestAReadyConditionNobodyServesIsRefusedWithTheForms(t *testing.T) {
 	for _, raw := range []string{"ssh:web-01", "ping:10.0.0.1", "http:no-leading-slash", "tcp:host", "resource:instance:0"} {
 		t.Run(raw, func(t *testing.T) {

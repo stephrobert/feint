@@ -330,6 +330,26 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Corrigé
 
+- **`feint env exoscale` dit à un utilisateur de Terraform ce que l'émulateur
+  fait aujourd'hui** (#701). La note sur stderr disait encore, un jour après
+  que #644 a levé le refus, que le provider honore `EXOSCALE_API_ENDPOINT`
+  pour la moitié de lui-même et qu'il ne faut pas pointer Terraform ici : la
+  première chose qu'un utilisateur de Terraform lit, et elle lui disait le
+  contraire de ce que l'exécution faisait ensuite. Elle dit désormais que le
+  provider publié pilote ce pack à partir de v0.71.0
+  (exoscale/terraform-provider-exoscale#576), qu'il faut épingler au moins
+  cette version, et qu'un provider plus ancien est refusé par user agent, en
+  nommant le plancher ; elle lit le plancher dans la constante que le refus
+  lit lui-même, de sorte que les deux ne peuvent plus diverger. La même phrase
+  périmée a été mesurée dans quatre documents et une garde, et tous disent la
+  même chose maintenant : `docs/confidence.md` répondait **non** à une
+  exécution Terraform contre Exoscale, `docs/environment.md` et
+  `examples/stacks/` disaient que `feint up` refuse le moteur à un seuil que
+  #644 avait retiré, et `emulator.env` refusait toujours
+  `FEINT_EXOSCALE_ALLOW_TERRAFORM` par nom, une variable que rien ne lit
+  depuis #644 et dont #644 lui-même avait consigné le retrait. Elle est
+  retirée.
+
 - **`reverse: null` vide le reverse d'une IP flexible, et la relecture répond
   `null`** (#676). Le SDK envoie le reverse comme un `NullableStringValue`
   dont le JSON est un `null` littéral pour vider, et l'émulateur le lisait

@@ -272,12 +272,14 @@ func preflight(decl *environment.File, skipIaC bool, stdout io.Writer) error {
 	}
 
 	if decl.IaC.Engine != "" && !skipIaC {
-		// The pack's veto comes before the host questions, because it is not a
-		// host question: no install and no directory makes it right to run an
-		// engine whose resolved provider splits between this emulator and the
-		// real cloud. #525 measured that split reaching api-ch-*.exoscale.com
-		// from this very verb's sibling, so the refusal falls here, before any
-		// process starts — the emulator-side guard never sees those requests.
+		// Host questions only. A pack's veto used to come first here: #525
+		// measured an engine whose resolved provider split between this
+		// emulator and api-ch-*.exoscale.com, from this very verb's sibling,
+		// and the refusal fell at the doorstep before any process started.
+		// #644 replaced it with a version floor the emulator judges on the
+		// first request (guardSplitClients in the Exoscale pack), and the
+		// doorstep veto went with it — nothing is left here for a pack to
+		// refuse before a directory and a binary are asked for.
 		//
 		dir := decl.Resolve(decl.IaC.Directory)
 		info, err := os.Stat(dir)

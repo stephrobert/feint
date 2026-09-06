@@ -347,7 +347,7 @@ running a stack they believe is sandboxed.
 | Scaleway Object Storage through Terraform: `scaleway_object_*` hardcodes `https://s3.<region>.scw.cloud` (top of this file) | live on a surveyed stack (#262, flatcar-k3s): `CreateBucket` at the real endpoint, 403 on fake credentials. Reproduced for #280 with egress cut to a dead proxy: **the same apply created its instance IP on this emulator and died on `Put "https://<bucket>.s3.fr-par.scw.cloud/"` — one run, half local, half not** | `feint doctor` and `feint env scaleway`, from the stack directory: the configuration's own text names the resource family |
 | an S3 state backend or an aws provider pointed at real object storage | three surveyed stacks: kubic (state on Object Storage, endpoint in `backend.conf`), eu-data-platform (state on `sos-ch-gva-2.exo.io`, inline), platform (aws provider at `sos-<zone>.exo.io`, 403 at the real endpoint) | the same scan, when the host is written in the `.tf` text — the kubic shape keeps its endpoint in a `backend.conf` the scan does not read, and stays invisible to it |
 | Outscale, `OSC_PROFILE` set: provider 1.1.x reads `~/.osc/config.json` and ignores `OSC_ENDPOINT_API` | #286, on 1.1.3: the plan left for `api.<region>.outscale.com` while the emulator received nothing | `feint doctor` and `feint env outscale`, since #286 — this one lives in the shell, not in the stack |
-| the Exoscale Terraform provider's split client: egoscale v2 built with no endpoint option | #262/#284, section below: an apply splits between this emulator and the real cloud | **the emulator itself refuses that client by user agent** — the one escape that must pass through the front door to do damage, so the front door is where it is stopped |
+| the Exoscale Terraform provider's split client, up to v0.70.0: egoscale v2 built with no endpoint option | #262/#284, section below: an apply splits between this emulator and the real cloud; fixed upstream in v0.71.0 and measured here (#644) | **the emulator itself refuses a provider below v0.71.0 by user agent, naming the floor**, and `feint env exoscale` names it too (#701) — the one escape that must pass through the front door to do damage, so the front door is where it is stopped |
 
 The scan behind the first two rows reads the Terraform files around `feint
 doctor` and `feint env` (`*.tf`, `*.tf.json`, `*.tofu`, comment-stripped, dot
@@ -2349,13 +2349,15 @@ Three things went with the decision, rather than staying as names:
 The `exo` CLI is unaffected and is driven by the conformance suite: it reads
 `EXOSCALE_API_ENDPOINT` for everything.
 
-Closing this properly needs an endpoint option on the provider's v2 client,
-which is upstream work. It is filed as
+Closing this properly needed an endpoint option on the provider's v2 client,
+which was upstream work. It was filed as
 [exoscale/terraform-provider-exoscale#573][exo-573], with the mechanism, the
-three construction sites and a reproduction. Until it lands, `feint env
-exoscale` prints the warning on stderr, where `eval` cannot swallow it — and
-Terraform returns to this pack the day the published provider carries the
-fix, which is the condition written into every refusal above.
+three construction sites and a reproduction, and fixed in v0.71.0 on
+2026-08-31 — the condition written into every refusal above, and met. While
+it was open, `feint env exoscale` printed the warning on stderr, where `eval`
+cannot swallow it; the warning outlived the refusal by a day and told a
+Terraform user not to do what the pack had just started supporting (#701), so
+the note now names the floor, read from the constant the refusal reads.
 
 ### The patched provider, while upstream decides
 

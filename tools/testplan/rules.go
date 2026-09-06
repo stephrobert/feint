@@ -102,9 +102,18 @@ var rules = []rule{
 		Path: "internal/providers/exoscale/",
 		Why:  "the Exoscale pack — REST /v2/<resource>, asynchronous operations",
 		Runs: []string{"conformance:leg -- exo-cli", "conformance:leg -- fields"},
-		Unproven: "no Terraform drives this pack until upstream exoscale/terraform-provider-exoscale#573 " +
-			"is fixed (#525), and the second zone is `mise run conformance:zones`, which no leg carries",
+		Unproven: "Terraform drives this pack from provider v0.71.0 only, by " +
+			"tools/conformance/exoscale/terraform.sh on the terraform, opentofu and fields legs (#644); " +
+			"a provider below that floor is refused at the door, never measured; the second zone is " +
+			"`mise run conformance:zones`, which no leg carries",
 		Cites: []claim{{
+			About: "tools/conformance/exoscale/terraform.sh on the terraform, opentofu and fields legs",
+			In:    ".github/workflows/conformance.yml",
+			Shows: []string{
+				"if: matrix.client == 'terraform' || matrix.client == 'opentofu' || matrix.client == 'fields'",
+				"run: tools/conformance/exoscale/terraform.sh",
+			},
+		}, {
 			About:  "the second zone is `mise run conformance:zones`, which no leg carries",
 			In:     "tools/conformance/leg.sh",
 			Absent: []string{"zones.sh"},
@@ -398,8 +407,14 @@ var rules = []rule{
 		Path: "examples/stacks/",
 		Why:  "the example stacks, which are examples and tests at once",
 		Runs: []string{"conformance:stacks", "FEINT_VM=incus-ovn mise run conformance:functional"},
-		Unproven: "the Exoscale stack is applied by hand, never by CI: no gate here clones a third-party " +
-			"repository and a patched client is not the official one (#525)",
+		Unproven: "tools/conformance/stacks.sh applies all three on the published providers, Exoscale " +
+			"from v0.71.0 (#644), and judges the second plan on resource changes alone: an output that " +
+			"moves between two plans is printed, never failed",
+		Cites: []claim{{
+			About: "tools/conformance/stacks.sh applies all three on the published providers",
+			In:    "tools/conformance/stacks.sh",
+			Shows: []string{"run_stack scaleway", "run_stack outscale", "run_stack exoscale", "no resource changes"},
+		}},
 	},
 	{
 		Path: "examples/quickstart/",
