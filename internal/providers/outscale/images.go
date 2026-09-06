@@ -273,6 +273,9 @@ func imageView(res *resource.Resource) map[string]any {
 	out["ImageId"] = res.ID
 	out["State"] = res.State
 	out["AccountId"] = accountID
+	// The owner's alias beside its id, the pair the catalogue publishes (#700).
+	// TestEveryImageAndSnapshotCarriesItsOwnerAlias fails without it.
+	out["AccountAlias"] = accountAlias
 	out["CreationDate"] = res.Created.Format(time.RFC3339)
 	return out
 }

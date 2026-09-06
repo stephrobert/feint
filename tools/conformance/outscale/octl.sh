@@ -1098,13 +1098,18 @@ refuse_call 4001 ReadSecurityGroups    --Filters.InboundRuleAccountIds 000000000
 refuse_call 4001 ReadRouteTables       --Filters.LinkRouteTableLinkRouteTableIds rtbassoc-feintnone
 refuse_call 4001 ReadNics              --Filters.Descriptions none
 refuse_call 4001 ReadVolumes           --payload '{"Filters":{"CreationDates":["2026-01-01T00:00:00.000Z"]}}'
-refuse_call 4001 ReadSnapshots         --Filters.AccountAliases none
+# AccountAliases was the probe on ReadSnapshots and ReadImages until #700, when
+# the filter became served on both (the contract's own ReadImages example uses
+# it). ClientTokens and PermissionsToLaunchAccountIds are declared by
+# FiltersSnapshot and FiltersImage and still not applied, so the refusal stays
+# measured rather than assumed.
+refuse_call 4001 ReadSnapshots         --Filters.ClientTokens none
 refuse_call 4001 ReadPublicIps         --Filters.NicAccountIds 000000000001
 refuse_call 4001 ReadNatServices       --Filters.ClientTokens none
 refuse_call 4001 ReadInternetServices  --Filters.LinkStates available
 refuse_call 4001 ReadDhcpOptions       --Filters.DomainNameServers 192.0.2.53
 refuse_call 4001 ReadNetPeerings       --payload '{"Filters":{"ExpirationDates":["2026-01-01T00:00:00.000Z"]}}'
-refuse_call 4001 ReadImages            --Filters.AccountAliases none
+refuse_call 4001 ReadImages            --Filters.PermissionsToLaunchAccountIds 000000000001
 refuse_call 4001 ReadVmsState          --Filters.MaintenanceEventCodes none
 prove_end "$neg"
 ok "sixteen reads named the filter they do not apply, instead of answering the whole inventory"

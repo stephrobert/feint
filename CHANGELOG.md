@@ -307,6 +307,20 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Fixed
 
+- **`osc/Client.ReadImages` and `osc/Client.ReadSnapshots` serve
+  `Filters.AccountAliases`** (#700), the filter the contract's own `ReadImages`
+  example uses. Both reads refused it with the 4001 that names what they
+  serve, measured on 2026-09-05 through osc-sdk-python 0.42.0 and reproduced
+  on 2026-09-06 before the fix. It selects on the owner's alias, and the owner's alias is
+  now on every object the owner holds: the catalogue's images carried
+  `AccountAlias` since #95 and a registered image or a snapshot of the same
+  `AccountId` carried none, so the filter would have split one owner in two.
+  The `Snapshot` schema declares the field beside `AccountId`, and the real
+  cloud puts it on an image whose owner has an alias (`shapes/outscale.json`).
+  What stays, and `docs/limits.md` records: the catalogue is the emulated
+  account's, by decision, so `AccountAliases: [Outscale]` answers an empty
+  list here rather than a catalogue relabelled with an owner id the corpus
+  redacts, and `self` is not an alias this API was measured accepting.
 - **An Exoscale elastic IP reads its labels back** (#703).
   `exoscale/v2.create-elastic-ip` and `exoscale/v2.update-elastic-ip` declared
   `labels` in their request structs and stored nothing, and no view served the

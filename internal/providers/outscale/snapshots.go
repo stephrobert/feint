@@ -88,7 +88,7 @@ func (p *Pack) createSnapshot(w http.ResponseWriter, r *http.Request) {
 // snapshotFilters: the same lesson as volumes — a client filters on what it
 // knows, and a filter refused is an apply that stops.
 var snapshotFilters = joinFilters(
-	stringFilters("SnapshotIds", "VolumeIds", "States", "Descriptions", "AccountIds"),
+	stringFilters("SnapshotIds", "VolumeIds", "States", "Descriptions", "AccountIds", "AccountAliases"),
 	// FiltersSnapshot declares both of these as lists of integers, and both
 	// were declared here and compared nowhere: a client asking for
 	// Progresses [7] got four snapshots of Progress 100, with a 200 (#566).
@@ -167,6 +167,10 @@ func snapshotView(res *resource.Resource) map[string]any {
 	out["SnapshotId"] = res.ID
 	out["State"] = res.State
 	out["AccountId"] = accountID
+	// The Snapshot schema declares AccountAlias beside AccountId, and one owner
+	// has one alias (#700). TestEveryImageAndSnapshotCarriesItsOwnerAlias fails
+	// without it.
+	out["AccountAlias"] = accountAlias
 	out["CreationDate"] = res.Created.Format(time.RFC3339)
 	return out
 }
@@ -195,6 +199,7 @@ func snapshotMatches(view map[string]any, f filterSet) bool {
 		matchesStrings(f, "States", stringOf(view["State"])) &&
 		matchesStrings(f, "Descriptions", stringOf(view["Description"])) &&
 		matchesStrings(f, "AccountIds", stringOf(view["AccountId"])) &&
+		matchesStrings(f, "AccountAliases", stringOf(view["AccountAlias"])) &&
 		matchesInts(f, "Progresses", progress...) &&
 		matchesInts(f, "VolumeSizes", size...)
 }

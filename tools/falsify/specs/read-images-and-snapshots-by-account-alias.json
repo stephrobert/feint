@@ -1,0 +1,47 @@
+{
+  "package": "./internal/providers/outscale/",
+  "mutations": [
+    {
+      "label": "ReadImages stops declaring AccountAliases, and the contract's own example is refused again with the 4001 of #700",
+      "file": "internal/providers/outscale/catalog.go",
+      "find": "\tstringFilters(\"ImageIds\", \"ImageNames\", \"AccountIds\", \"AccountAliases\", \"States\", \"Architectures\", \"RootDeviceTypes\"),",
+      "replace": "\tstringFilters(\"ImageIds\", \"ImageNames\", \"AccountIds\", \"AccountAliasez\", \"States\", \"Architectures\", \"RootDeviceTypes\"),",
+      "test": "TestReadImagesAndReadSnapshotsFilterByAccountAlias"
+    },
+    {
+      "label": "ReadImages accepts AccountAliases and compares it nowhere, so an alias nobody carries answers the whole catalogue with a 200 — #566's shape on a new filter",
+      "file": "internal/providers/outscale/catalog.go",
+      "find": "\t\tmatchesStrings(f, \"AccountAliases\", stringOf(image[\"AccountAlias\"])) &&",
+      "replace": "\t\tmatchesStrings(f, \"AccountAliasez\", stringOf(image[\"AccountAlias\"])) &&",
+      "test": "TestReadImagesAndReadSnapshotsFilterByAccountAlias"
+    },
+    {
+      "label": "ReadSnapshots stops declaring AccountAliases, and the filter is refused again",
+      "file": "internal/providers/outscale/snapshots.go",
+      "find": "\tstringFilters(\"SnapshotIds\", \"VolumeIds\", \"States\", \"Descriptions\", \"AccountIds\", \"AccountAliases\"),",
+      "replace": "\tstringFilters(\"SnapshotIds\", \"VolumeIds\", \"States\", \"Descriptions\", \"AccountIds\", \"AccountAliasez\"),",
+      "test": "TestReadImagesAndReadSnapshotsFilterByAccountAlias"
+    },
+    {
+      "label": "ReadSnapshots accepts AccountAliases and compares it nowhere, so an alias nobody carries answers every snapshot",
+      "file": "internal/providers/outscale/snapshots.go",
+      "find": "\t\tmatchesStrings(f, \"AccountAliases\", stringOf(view[\"AccountAlias\"])) &&",
+      "replace": "\t\tmatchesStrings(f, \"AccountAliasez\", stringOf(view[\"AccountAlias\"])) &&",
+      "test": "TestReadImagesAndReadSnapshotsFilterByAccountAlias"
+    },
+    {
+      "label": "a registered image loses its owner's alias, so the catalogue and the client's images answer the same owner two ways again",
+      "file": "internal/providers/outscale/images.go",
+      "find": "\tout[\"AccountAlias\"] = accountAlias",
+      "replace": "\tout[\"AccountAliaz\"] = accountAlias",
+      "test": "TestEveryImageAndSnapshotCarriesItsOwnerAlias"
+    },
+    {
+      "label": "a snapshot loses its owner's alias, the field the Snapshot schema declares beside AccountId",
+      "file": "internal/providers/outscale/snapshots.go",
+      "find": "\tout[\"AccountAlias\"] = accountAlias",
+      "replace": "\tout[\"AccountAliaz\"] = accountAlias",
+      "test": "TestEveryImageAndSnapshotCarriesItsOwnerAlias"
+    }
+  ]
+}

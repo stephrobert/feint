@@ -571,6 +571,29 @@ the table is its fix); an emulator-side refusal would add a second wall for
 raw SDK users and catch nothing the first does not. The real cloud does
 refuse an unknown type, so this is a divergence, recorded here on purpose.
 
+### The Outscale catalogue belongs to the emulated account, so `AccountAliases: [Outscale]` selects nothing (#700)
+
+`ReadImages` and `ReadSnapshots` serve `Filters.AccountAliases` since #700, on
+the owner's alias every image and snapshot carries. There is one owner in
+this emulator, and the fixed catalogue is its by decision (`catalog.go`:
+`PermissionsToLaunch` names the emulated account as the owner of every
+catalogue image), so the alias the catalogue publishes is the account's own.
+Two consequences a client should expect:
+
+- the contract's own `ReadImages` example, `AccountAliases: [Outscale]` with
+  `ImageNames: [Ubuntu*, RockyLinux*]`, answers an empty list here: nothing
+  this emulator serves is Outscale's, and it says so rather than relabel a
+  catalogue whose `AccountId` is the account's;
+- selecting the account's own images apart from the catalogue by owner is
+  not possible here, since both halves have the same owner. A residue check
+  that wants the client's half alone lists without the filter and compares
+  against the catalogue, which is fixed.
+
+Giving the catalogue Outscale's identity would need Outscale's account id,
+which the recorded corpus redacts along with every other `AccountId`; it is
+not invented. That `self` is accepted as an alias by the real API was not
+measured either, and it is not accepted here.
+
 ## `lb/v1` refusals carry an envelope the real one does not
 
 Measured on `fr-par`, 2026-09-02 (#394). Three refusals of the load balancer
