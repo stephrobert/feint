@@ -289,7 +289,7 @@ func (d *Incus) setGuestResolver(ctx context.Context, machine, device string) {
 	// reconfiguration.
 	d.writeGuestResolverConfig(ctx, machine, iface)
 
-	deadline := time.Now().Add(guestResolverWait)
+	deadline := time.Now().Add(d.resolverBudget())
 	for {
 		_, err := d.run(ctx, "exec", machine, "--", "resolvectl", "dns", iface, d.resolver())
 		if err == nil {
@@ -322,7 +322,7 @@ func (d *Incus) setGuestResolver(ctx context.Context, machine, device string) {
 			select {
 			case <-ctx.Done():
 				return
-			case <-time.After(guestResolverPoll):
+			case <-time.After(d.resolverInterval()):
 			}
 			continue
 		}
@@ -342,13 +342,36 @@ func (d *Incus) setGuestResolver(ctx context.Context, machine, device string) {
 // seconds is not going to.
 const (
 	guestResolverPoll = 500 * time.Millisecond
-	guestResolverWait = 10 * time.Second
+	// Past the measured boot, with margin, and the measurement is the whole
+	// story. Polled every two seconds from the poweron of a cold-attached
+	// machine (2026-09-06), beside the driver's own log:
+	//
+	//	t+2 .. t+40   Error: Instance is not running
+	//	t+42          links=[lo eth0@if182]
+	//	t+44          eth0 -> /run/systemd/network/10-netplan-eth0.network
+	//	driver        gave up after 30s, twelve seconds early
+	//
+	// 10s was the first value here and 30s the second; both gave up before the
+	// container had started. It costs nothing when the guest is quick — the
+	// wait ends the moment it answers — and what it now covers is a boot the
+	// client is already waiting on.
+	guestResolverWait = 90 * time.Second
 )
 
 // guestBusNotReady is the transient half: systemd is there and not listening
 // yet.
 func guestBusNotReady(err error) bool {
-	return strings.Contains(strings.ToLower(err.Error()), "failed to connect to bus")
+	msg := strings.ToLower(err.Error())
+	// Both wordings, and both are quoted from a run rather than remembered:
+	//
+	//	incus exec: Failed to connect system bus: No such file or directory
+	//	Failed to connect to bus: No such file or directory
+	//
+	// Written with the second alone — which is what it was — the first fell
+	// through to the permanent matcher, which accepts "no such file or
+	// directory", and the unit lookup gave up on its first ask against a guest
+	// whose systemd was seconds from being up (#694).
+	return strings.Contains(msg, "failed to connect") && strings.Contains(msg, "bus")
 }
 
 // guestHasNoResolvectl is the permanent half: the binary is absent, which is
@@ -408,9 +431,66 @@ func (d *Incus) writeGuestResolverConfig(ctx context.Context, machine, iface str
 // and silently: a drop-in for a unit that does not exist is a file, not an
 // error.
 func (d *Incus) guestNetworkUnit(ctx context.Context, machine, iface string) string {
+	// Bounded retry, and the budget is measured rather than picked. Polled every
+	// second from the poweron of a machine whose NIC was attached cold
+	// (2026-09-06): the container existed at t+1s and the guest first named a
+	// unit at t+14s. Asked once — which is what this did — settleFirstBoot got
+	// nothing and wrote no drop-in at all, which is #694.
+	deadline := time.Now().Add(d.resolverBudget())
+	for {
+		unit, err := d.readGuestNetworkUnit(ctx, machine, iface)
+		if unit != "" {
+			return unit
+		}
+		// ONLY a failed ask is retried. A networkctl that ANSWERED and named no
+		// unit is an interface networkd manages with none — the `n/a` case —
+		// and waiting on it changes nothing: written the other way, every unit
+		// test whose fake answers nothing paid the whole budget, and this
+		// package went from seconds to ten minutes.
+		//
+		// The transient cases really are failures, measured: before systemd is
+		// up the guest answers `Failed to connect to bus`, and before the link
+		// exists it answers `Interface "eth0" not found.` — both non-zero.
+		if err == nil {
+			return ""
+		}
+		// An image with no networkctl is not waited for either: Alpine answers
+		// once and for good, and the whole budget would be charged to every boot
+		// of it.
+		//
+		// The two transient shapes are recognised FIRST, and that ordering is
+		// the fix rather than a nicety: `Interface "eth0" not found.` and
+		// `networkctl: not found` both carry "not found", so the permanent
+		// matcher accepts the link that has simply not appeared yet. Read that
+		// way, the lookup gives up on a guest that was about to be ready — the
+		// same confusion the bus refusal already cost this file once.
+		if !isNotRunning(err) && !guestBusNotReady(err) && !guestLinkNotThereYet(err, iface) &&
+			guestHasNoNetworkd(err) {
+			return ""
+		}
+		if time.Now().After(deadline) {
+			// Said, not swallowed. A drop-in that was never written is a machine
+			// with no resolver, and this path used to return quietly — which is
+			// how #694 stayed invisible in the log while being obvious in the
+			// guest.
+			d.logger().Warn("the guest never named a network unit, so it has no resolver of ours",
+				"machine", machine, "interface", iface, "waited", d.resolverBudget().String())
+			return ""
+		}
+		select {
+		case <-ctx.Done():
+			return ""
+		case <-time.After(d.resolverInterval()):
+		}
+	}
+}
+
+// readGuestNetworkUnit is one ask, and the answer's three shapes: a unit, an
+// interface networkd manages with none, and a guest not ready to be asked.
+func (d *Incus) readGuestNetworkUnit(ctx context.Context, machine, iface string) (string, error) {
 	out, err := d.run(ctx, "exec", machine, "--", "networkctl", "status", iface)
 	if err != nil {
-		return ""
+		return "", err
 	}
 	for _, line := range strings.Split(string(out), "\n") {
 		_, after, found := strings.Cut(line, "Network File:")
@@ -421,11 +501,11 @@ func (d *Incus) guestNetworkUnit(ctx context.Context, machine, iface string) str
 		// `n/a` is what an unmanaged link answers, and it is a name this would
 		// otherwise happily build a directory for.
 		if path == "" || path == "n/a" {
-			return ""
+			return "", nil
 		}
-		return path[strings.LastIndex(path, "/")+1:]
+		return path[strings.LastIndex(path, "/")+1:], nil
 	}
-	return ""
+	return "", nil
 }
 
 // shellQuote wraps a value for `sh -c`, which is the only place this driver
@@ -437,4 +517,38 @@ func (d *Incus) guestNetworkUnit(ctx context.Context, machine, iface string) str
 // first.
 func shellQuote(value string) string {
 	return "'" + strings.ReplaceAll(value, "'", `'\''`) + "'"
+}
+
+// resolverBudget and resolverInterval are the two constants above, behind the
+// seams a test sets. Same shape as routePoll and agentPoll, and for the same
+// reason: the budget is a measurement of a real guest, and a unit suite that
+// had to spend it would spend it once per case.
+func (d *Incus) resolverBudget() time.Duration {
+	if d.resolverWait > 0 {
+		return d.resolverWait
+	}
+	return guestResolverWait
+}
+
+func (d *Incus) resolverInterval() time.Duration {
+	if d.resolverPoll > 0 {
+		return d.resolverPoll
+	}
+	return guestResolverPoll
+}
+
+// guestLinkNotThereYet is the other transient shape: systemd is up and the
+// interface has not appeared.
+//
+// Measured wording, not guessed — `incus exec … -- networkctl status eth0` on a
+// container whose NIC is not attached answers `Interface "eth0" not found.`.
+// The interface name is part of the match so that a genuinely absent binary,
+// which says `networkctl: not found`, is not read as a link about to appear.
+//
+// TestALinkThatIsNotThereYetIsWaitedFor fails without this.
+func guestLinkNotThereYet(err error, iface string) bool {
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "interface") &&
+		strings.Contains(msg, strings.ToLower(iface)) &&
+		strings.Contains(msg, "not found")
 }

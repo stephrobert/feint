@@ -1,8 +1,10 @@
 package machine
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"strings"
 	"testing"
 	"time"
@@ -401,6 +403,219 @@ func TestAResolverThatIsNotAnAddressReachesNoCommand(t *testing.T) {
 	for _, call := range f.commands() {
 		if strings.Contains(call, "exit") || strings.Contains(call, "feint-dns.conf") {
 			t.Fatalf("a resolver that is not an address reached a command line:\n  %q", call)
+		}
+	}
+}
+
+// The unit lookup waits for the guest to be ready to be asked.
+//
+// Measured 2026-09-06 on a machine whose NIC was attached before the poweron,
+// polling every second from the poweron: the container existed at t+1s and the
+// guest first named a unit at t+14s. Asked once — which is what this did —
+// settleFirstBoot got nothing and wrote no drop-in at all, which is #694.
+func TestTheUnitLookupWaitsForTheGuest(t *testing.T) {
+	const answersAt = 3 // the guest is not ready for the first two asks
+	asks := 0
+	f := &fakeRuntime{answers: map[string]string{
+		"ip -o link show dev": "2: eth0: <BROADCAST,MULTICAST,UP>\n",
+		"resolvectl dns eth0": "Link 2 (eth0): " + DefaultResolver + "\n",
+	}}
+	f.hook = func(_ int, args []string) ([]byte, error, bool) {
+		if len(args) >= 5 && args[0] == "exec" && args[3] == "networkctl" && args[4] == "status" {
+			asks++
+			if asks < answersAt {
+				return nil, errors.New(`Failed to connect to bus: No such file or directory`), true
+			}
+			return []byte("    Network File: /run/systemd/network/10-netplan-eth0.network\n"), nil, true
+		}
+		return nil, nil, false
+	}
+	d := newFakeDriver(f)
+	d.OVN = true
+
+	d.setGuestResolver(context.Background(), "srv", "eth0")
+
+	if asks < answersAt {
+		t.Fatalf("the lookup gave up after %d ask(s), before the guest answered at %d", asks, answersAt)
+	}
+	if i := indexOfCall(f, "feint-dns.conf"); i < 0 {
+		t.Fatalf("the guest answered and no drop-in was written:\n%s", strings.Join(f.commands(), "\n"))
+	}
+}
+
+// A guest that never names a unit is SAID, not swallowed.
+//
+// A drop-in that was never written is a machine with no resolver, and this path
+// used to return quietly — which is how #694 stayed invisible in the log while
+// being obvious in the guest.
+func TestAUnitThatNeverAppearsIsSaid(t *testing.T) {
+	var said bytes.Buffer
+	f := &fakeRuntime{answers: map[string]string{
+		"ip -o link show dev": "2: eth0: <BROADCAST,MULTICAST,UP>\n",
+		"resolvectl dns eth0": "Link 2 (eth0): " + DefaultResolver + "\n",
+	}, fail: map[string]error{
+		"networkctl status": errors.New(`Failed to connect to bus: No such file or directory`),
+	}}
+	d := newFakeDriver(f)
+	d.OVN = true
+	d.Log = slog.New(slog.NewTextHandler(&said, nil))
+	d.resolverPoll = time.Millisecond
+	d.resolverWait = 20 * time.Millisecond
+
+	d.setGuestResolver(context.Background(), "srv", "eth0")
+
+	if !strings.Contains(said.String(), "never named a network unit") {
+		t.Fatalf("a guest that never named a unit was not reported:\n%s", said.String())
+	}
+	// And no drop-in was invented from the absence.
+	if i := indexOfCall(f, "feint-dns.conf"); i >= 0 {
+		t.Errorf("a drop-in was written for a unit nobody named:\n%s", strings.Join(f.commands(), "\n"))
+	}
+}
+
+// A link that is not there yet is waited for; a binary that never will be is
+// not.
+//
+// Both answer with "not found" — `Interface "eth0" not found.` and
+// `networkctl: not found` — and read as the same thing the lookup gives up on a
+// guest that was about to be ready. The same confusion the bus refusal already
+// cost this file once.
+func TestALinkThatIsNotThereYetIsWaitedFor(t *testing.T) {
+	t.Run("the link appears", func(t *testing.T) {
+		const appears = 3
+		asks := 0
+		f := &fakeRuntime{answers: map[string]string{
+			"ip -o link show dev": "2: eth0: <BROADCAST,MULTICAST,UP>\n",
+			"resolvectl dns eth0": "Link 2 (eth0): " + DefaultResolver + "\n",
+		}}
+		f.hook = func(_ int, args []string) ([]byte, error, bool) {
+			if len(args) >= 5 && args[0] == "exec" && args[3] == "networkctl" && args[4] == "status" {
+				asks++
+				if asks < appears {
+					return nil, errors.New(`Interface "eth0" not found.`), true
+				}
+				return []byte("    Network File: /run/systemd/network/10-netplan-eth0.network\n"), nil, true
+			}
+			return nil, nil, false
+		}
+		d := newFakeDriver(f)
+		d.OVN = true
+		d.resolverPoll = time.Millisecond
+
+		d.setGuestResolver(context.Background(), "srv", "eth0")
+
+		if asks < appears {
+			t.Fatalf("the lookup gave up after %d ask(s), before the link appeared at %d", asks, appears)
+		}
+		if i := indexOfCall(f, "feint-dns.conf"); i < 0 {
+			t.Fatalf("the link appeared and no drop-in was written:\n%s", strings.Join(f.commands(), "\n"))
+		}
+	})
+
+	t.Run("the binary is absent", func(t *testing.T) {
+		asks := 0
+		f := &fakeRuntime{answers: map[string]string{
+			"ip -o link show dev": "2: eth0: <BROADCAST,MULTICAST,UP>\n",
+		}}
+		f.hook = func(_ int, args []string) ([]byte, error, bool) {
+			if len(args) >= 5 && args[0] == "exec" && args[3] == "networkctl" && args[4] == "status" {
+				asks++
+				return nil, errors.New(`sh: networkctl: not found`), true
+			}
+			return nil, nil, false
+		}
+		d := newFakeDriver(f)
+		d.OVN = true
+		d.resolverPoll = time.Millisecond
+		d.resolverWait = 5 * time.Second
+
+		d.setGuestResolver(context.Background(), "srv", "eth0")
+
+		if asks != 1 {
+			t.Fatalf("an image with no networkctl was asked %d times for a binary it does not have, want 1", asks)
+		}
+	})
+}
+
+// A machine that is still starting is waited for.
+//
+// The timeline that settled #694 put the driver's log beside the guest's
+// answers, every two seconds from the poweron of a cold-attached machine
+// (2026-09-06):
+//
+//	t+2 .. t+40   Error: Instance is not running
+//	t+42          links=[lo eth0@if182]
+//	t+44          eth0 -> /run/systemd/network/10-netplan-eth0.network
+//	driver        gave up after 30s, twelve seconds before the guest was ready
+//
+// The guest was never slow to name its unit. The container was not running, and
+// that answer was in none of the transient cases.
+func TestAMachineStillStartingIsWaitedFor(t *testing.T) {
+	const running = 4 // not running for the first three asks
+	asks := 0
+	f := &fakeRuntime{answers: map[string]string{
+		"ip -o link show dev": "2: eth0: <BROADCAST,MULTICAST,UP>\n",
+		"resolvectl dns eth0": "Link 2 (eth0): " + DefaultResolver + "\n",
+	}}
+	f.hook = func(_ int, args []string) ([]byte, error, bool) {
+		if len(args) >= 5 && args[0] == "exec" && args[3] == "networkctl" && args[4] == "status" {
+			asks++
+			if asks < running {
+				return nil, errors.New("Error: Instance is not running"), true
+			}
+			return []byte("    Network File: /run/systemd/network/10-netplan-eth0.network\n"), nil, true
+		}
+		return nil, nil, false
+	}
+	d := newFakeDriver(f)
+	d.OVN = true
+	d.resolverPoll = time.Millisecond
+
+	d.setGuestResolver(context.Background(), "srv", "eth0")
+
+	if asks < running {
+		t.Fatalf("the lookup gave up after %d ask(s), before the machine was running at %d", asks, running)
+	}
+	if i := indexOfCall(f, "feint-dns.conf"); i < 0 {
+		t.Fatalf("the machine came up and no drop-in was written:\n%s", strings.Join(f.commands(), "\n"))
+	}
+}
+
+// A bus refusal is recognised in both wordings.
+//
+// Quoted from runs rather than remembered, which is the whole point: the matcher
+// looked for `failed to connect to bus` and the guest says `Failed to connect
+// system bus`. With a "to" the message does not carry, the refusal fell through
+// to the permanent matcher — which accepts "no such file or directory" — and the
+// unit lookup gave up on its first ask against a guest seconds from being up.
+func TestABusRefusalIsRecognisedInBothWordings(t *testing.T) {
+	for _, wording := range []string{
+		"incus exec: Failed to connect system bus: No such file or directory",
+		"Failed to connect to bus: No such file or directory",
+	} {
+		asks := 0
+		f := &fakeRuntime{answers: map[string]string{
+			"ip -o link show dev": "2: eth0: <BROADCAST,MULTICAST,UP>\n",
+			"resolvectl dns eth0": "Link 2 (eth0): " + DefaultResolver + "\n",
+		}}
+		f.hook = func(_ int, args []string) ([]byte, error, bool) {
+			if len(args) >= 5 && args[0] == "exec" && args[3] == "networkctl" && args[4] == "status" {
+				asks++
+				if asks < 3 {
+					return nil, errors.New(wording), true
+				}
+				return []byte("    Network File: /run/systemd/network/10-netplan-eth0.network\n"), nil, true
+			}
+			return nil, nil, false
+		}
+		d := newFakeDriver(f)
+		d.OVN = true
+		d.resolverPoll = time.Millisecond
+
+		d.setGuestResolver(context.Background(), "srv", "eth0")
+
+		if asks < 3 {
+			t.Errorf("%q was read as permanent: the lookup gave up after %d ask(s)", wording, asks)
 		}
 	}
 }
