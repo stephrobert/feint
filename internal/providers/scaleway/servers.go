@@ -1979,11 +1979,32 @@ func (p *Pack) nextVolumeKey(res *resource.Resource) string {
 // TestOnlyAChainThatSettlesWhereItStartedIsTheOnlySignal and
 // TestARebootIsObservableWithoutEventualConsistency fail without this.
 func transitionBackTo(res *resource.Resource, from, settled string, through ...string) {
-	transitionTo(res, from, settled, through...)
+	// Deliberately NOT through transitionTo: settling where it started is the
+	// whole point here, and transitionTo refuses exactly that (#738).
+	narrateChain(res, settled, through...)
 	res.PendingOnlySignal = len(res.Pending) > 0 && from == settled
 }
 
 func transitionTo(res *resource.Resource, from, settled string, through ...string) {
+	if settled == from {
+		// The action settled where it started, so nothing moved and there is no
+		// journey to narrate. This is what a FAILED action looks like here, and
+		// it is invisible to the check below: this pack's FailedState is
+		// `stopped` (machines.go, "Scaleway declares no error state for a
+		// server either"), an allowed value. Measured on 2026-09-07: a poweron
+		// whose Start fails answered [starting stopped stopped stopped] with a
+		// task saying `success` (#738).
+		//
+		// A reboot also settles where it started, and it says so through
+		// transitionBackTo rather than through this door.
+		return
+	}
+	narrateChain(res, settled, through...)
+}
+
+// narrateChain pushes the states a client watching an action would see, and is
+// the half both doors share.
+func narrateChain(res *resource.Resource, settled string, through ...string) {
 	if len(through) == 0 {
 		return
 	}

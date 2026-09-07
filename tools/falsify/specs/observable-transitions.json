@@ -21,6 +21,14 @@
       "find": "\tif settled != \"running\" && settled != \"stopped\" && settled != \"stopped in place\" {",
       "replace": "\tif settled != \"running\" && settled != \"stopped\" && settled != \"stopped in place\" && false {",
       "test": "TestAFailedActionWalksNoChain"
+    },
+    {
+      "label": "an action that settled where it started walks a chain anyway, so a poweron whose Start failed narrates `starting` for a boot that never happened (#738)",
+      "file": "internal/providers/scaleway/servers.go",
+      "package": "./internal/providers/scaleway/",
+      "find": "\tif settled == from {",
+      "replace": "\tif settled == from && false {",
+      "test": "TestAFailedPoweronWalksNoChain"
     }
   ]
 }
