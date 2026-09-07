@@ -2186,26 +2186,35 @@ network underneath — and therefore no NAT and no resolver, because the images
 `feint images` builds carry their ssh daemon already (#203) and nothing else
 about the machine needs the internet.
 
-**An OVN network announces a public resolver, never the uplink's address
-(#660).** The machines that boot on it are told `feint serve --resolver`
-(default `1.1.1.1`): the uplink's own address is also the one the station
-dials a public address from, and a guest's `RoutesToDNS=` laid an on-link
-`/32` towards it that killed every reply — measured 2026-09-04, `ip route get
-10.209.83.1` from the guest answered `dev eth1` with the uplink announced and
-`via <gateway> dev eth1` with a public one, and the platform's published
-address answered again. **What that does not establish is name resolution.**
-Measured the same day on the same stack: the announcement was on the wire
-(OVN's `DHCP_Options` row carried `dns_server={1.1.1.1}`), and the guest's
-`resolved` held no server on any link, on a machine with a way out as on one
-without; set by hand, the same machine resolved, so the path is open and the
-guest is not applying the lease's DNS (`networkctl renew eth1`: "not managed
-by systemd-networkd", on an interface carrying a dynamic address). That is a
-defect of its own, followed apart from #660; until it is read, do not write
-here that a machine with a way out resolves, nor that one without does not
-because of the resolver it was told. The default route inside the guest is
-`via 169.254.0.1`, the routed NIC's link-local next hop, and it wins even when
-a private NIC with a NAT-backed network is attached later, which is the
-ordinary Terraform order on Scaleway and Exoscale (server first, NIC after).
+**An OVN network names its own gateway as the lease's resolver — never the
+uplink's address, never a public one, never nothing (#660, #684, #697).**
+The machines that boot on it get the name server they use another way:
+`feint serve --resolver` (default `1.1.1.1`), written where systemd-networkd
+reads it and set with `resolvectl` (#694, #696). What the lease names decides
+one thing, the on-link `/32` a guest's `RoutesToDNS=` lays towards it, and
+that route is dead the moment the address is off the segment. Three values
+were measured, all under `incus-ovn`, and the invariant they share is what
+`TestAnOVNNetworkLaysNoRouteTowardsItsResolver` holds: the uplink's own
+address, which is also the one the station dials a public address from —
+2026-09-04, `ip route get 10.209.83.1` from the guest answered `dev eth1` and
+the platform's published address answered nothing; a public resolver,
+2026-09-04 — `1.1.1.1 dev eth0 proto dhcp scope link`, `ping 1.1.1.1`
+unreachable, and the machine could not resolve; and none at all, 2026-09-07 —
+Incus names the uplink's address when nobody else does, and the first shape
+came back for four scheduled nights on `platform-web-0`, a public address and
+a private network, while the same stack at v0.12.1 passed each of them
+(#697). With the gateway named, the guest holds no route towards the uplink,
+no dead `/32` anywhere, the reply leaves `via <gateway>`, and the station
+reaches the published address. Name resolution rides the drop-in, not the
+lease: a machine with a way out resolves through it (measured on the shapes
+of #694 and #696, `dns: ok` after a cold attach and after a reboot), and one
+holding a public address has no way out under OVN to resolve through, which
+is #695's outbound half. The default route inside the guest is
+`via 169.254.0.1`, the routed NIC's link-local next hop, in **bridge mode**,
+where it wins even when a private NIC with a NAT-backed network is attached
+later, the ordinary Terraform order on Scaleway and Exoscale (server first,
+NIC after); under OVN the routed device carries no address and the guest has
+no default route at all ("Which door a reply leaves by", below).
 Outscale's Subnets are NAT-less **on purpose and faithfully**: upstream, a
 Subnet reaches out only through an internet or NAT service, and this emulator
 records those without routing them (see "Outscale's gateways and NAT move
@@ -2301,10 +2310,13 @@ inbound. It is the reply that never reaches the wire.
 
 The on-link route itself is DHCP's: `10.209.83.1 dev eth1 proto dhcp scope
 link`. `systemd-networkd` lays an on-link `/32` toward every DNS server a lease
-announces (`RoutesToDNS=`), and the OVN network announces the uplink as its
-resolver. A `/32` beats any default route by longest prefix, which is why #672's
-two variants of this shape read *"same gateway, same device, opposite results"*:
-the gateway and device were never the deciding part.
+announces (`RoutesToDNS=`), and the OVN network named none — #693 had taken
+the public resolver out of the lease for the same reason (#684) — so Incus
+named the uplink for it. A `/32` beats any default route by longest prefix,
+which is why #672's two variants of this shape read *"same gateway, same
+device, opposite results"*: the gateway and device were never the deciding
+part. Since #697 the lease names the network's own gateway, the one address
+on the segment, and the `/32` is live.
 
 ### What the routed NIC does, per mode
 

@@ -55,12 +55,14 @@ type Incus struct {
 	// UplinkCIDR is the block the uplink carries. Empty means
 	// DefaultUplinkCIDR.
 	UplinkCIDR string
-	// Resolver is the name server an OVN network announces to the machines
-	// that boot on it (#660). Empty means DefaultResolver. A field rather
-	// than a constant: an emulator on a station without Internet says which
-	// resolver it has, and a station whose resolver differs sets it. What it
-	// may never be is the uplink's own address, and EnsureNetwork refuses
-	// that value (see the note there).
+	// Resolver is the name server the machines of an OVN network are given
+	// (#660). Empty means DefaultResolver. A field rather than a constant: an
+	// emulator on a station without Internet says which resolver it has, and
+	// a station whose resolver differs sets it. It reaches a guest through a
+	// networkd drop-in and resolvectl, never through the lease (#684, #694,
+	// #696): the lease names the network's own gateway, and EnsureNetwork
+	// says why. What this field may never be is the uplink's own address,
+	// and EnsureNetwork refuses that value (see the note there).
 	Resolver string
 	// Log is where this driver says what it could not do. Nil means the
 	// default logger, which is what the CLI configures.
@@ -1413,82 +1415,95 @@ func (d *Incus) EnsureNetwork(ctx context.Context, spec NetworkSpec) error {
 		// TestAnOVNNetworkAnnouncesNoGateway and
 		// TestAnOVNNetworkAnnouncesItsPrivateRoutes fail without this.
 		//
-		// And the network never announces, as its resolver, the address by
-		// which the station reaches its machines (#660). Left alone, Incus
-		// announces the uplink's own address (10.209.83.1) as the DNS server,
-		// and that address is also the source the station dials from, since
-		// the host route to a public address routed onto an OVN NIC goes
-		// `dev feint-uplink src 10.209.83.1`. Inside the guest, systemd-networkd's
+		// And what the network names as its resolver is the one address a
+		// lease may safely name: its own gateway. Three measurements decide
+		// it, and the invariant they share is what the test holds — no guest
+		// lays an on-link route towards a host outside its own segment.
+		//
+		// The mechanism first. Inside the guest, systemd-networkd's
 		// RoutesToDNS= — on by default — lays an on-link /32 towards every
 		// DNS server the lease names, more specific than the aggregates the
-		// network announces towards its router; the reply to the station then
-		// ARPs for 10.209.83.1 on the logical switch, nobody answers, and the
-		// machine is unreachable at its published address. Measured on
-		// 2026-09-04 under `--vm incus-ovn`: `ip route get 10.209.83.1` from
-		// the guest answered `dev eth1` (on-link, dead); with the resolver a
-		// public address it answers `via <gateway> dev eth1`, through the
-		// router; and `ip route del 10.209.83.1 dev eth1` turned a dial of
-		// 203.0.113.3:443 from 000 into 200, `ip route add` turned it back.
+		// network announces towards its router. A /32 towards an address that
+		// is NOT on the segment is dead: the guest ARPs for it on the logical
+		// switch and nobody answers.
 		//
-		// RoutesToDNS= is the guest's own, ordinary mechanism, and this is not
-		// a workaround of a systemd defect: the collision is what made an
-		// ordinary behaviour harmful, and the announcement below removes the
-		// collision. The network's gateway was measured and rejected as the
-		// alternative — nothing answers DNS there, so a machine with a way out
-		// would stop resolving, which is worse than the defect.
+		// #660 measured it with the uplink's own address (10.209.83.1), which
+		// Incus names when nobody else does. That address is also the source
+		// the station dials from, since the host route to a public address
+		// routed onto an OVN NIC goes `dev feint-uplink src 10.209.83.1`, so
+		// the reply to the station died on the switch: 2026-09-04, `ip route
+		// del 10.209.83.1 dev eth1` turned a dial of 203.0.113.3:443 from 000
+		// into 200, `ip route add` turned it back. #660 answered by naming a
+		// public resolver.
 		//
-		// What this does NOT establish, measured the same day: that a machine
-		// with a way out resolves through the announced resolver. On the
-		// station measured, the announcement was on the wire (the OVN
-		// DHCP_Options row carried dns_server={1.1.1.1}) and the guest's
-		// resolved held no server on any link; set by hand (`resolvectl dns
-		// eth1 1.1.1.1`) the same machine resolved, so the path is open and
-		// the guest is not applying the lease's DNS — `networkctl renew eth1`
-		// answered that the interface is not managed by systemd-networkd
-		// while it carried a dynamic address. That is a defect of its own,
-		// followed apart from #660. The resolver is a field (Resolver,
-		// `feint serve --resolver`) so a station without Internet, or with a
-		// resolver of its own, can say so; the uplink's address is refused
-		// whatever the field says.
+		// #684 measured that the same mechanism breaks a public resolver, for
+		// the same reason, the moment the interface is managed at all:
 		//
-		// TestAnOVNNetworkLaysNoRouteTowardsItsResolver and
-		// TestAResolverThatIsTheUplinkIsRefused fail without this.
+		//	1.1.1.1 dev eth0 proto dhcp scope link src 10.188.0.5 metric 100
+		//	ip route get 1.1.1.1 -> 1.1.1.1 dev eth0 src 10.188.0.5
+		//	ping 1.1.1.1 -> unreachable, resolvectl -> No route to host
+		//
+		// so #693 named nothing in the lease, and gave the guest its resolver
+		// through resolvectl and a networkd drop-in instead (#694, #696),
+		// which set a name server and lay no route.
+		//
+		// #697 measured that naming nothing is not "no route". Incus falls
+		// back to the host's resolvers when a network names none, and under
+		// OVN that is the uplink: the guest laid #660's dead /32 towards
+		// 10.209.83.1 all the same, and platform-web-0 — a public address AND
+		// a private network, examples/stacks/scaleway — answered nothing at
+		// its published address four scheduled nights running (09-04 to
+		// 09-07) while the same stack at v0.12.1 passed each of them.
+		// Measured 2026-09-07 under `--vm incus-ovn`, the service proved
+		// listening inside before any verdict: the request lands (one
+		// connection in SYN_RECV while the station dials), the reply's route
+		// to the peer is `dev eth0` on-link with no `via`, the neighbour
+		// INCOMPLETE; the /32 deleted by hand, `via 10.213.0.1 dev eth0` and
+		// the station reaches it; the /32 put back, unreachable again.
+		//
+		// Two fixes measured and rejected the same day. `RoutesToDNS=no` in
+		// the guest's drop-in: no effect, twice — the lease lays the route
+		// before the drop-in lands, and the reload does not withdraw it. A
+		// public resolver in the lease: repairs the reply and MOVES the dead
+		// /32 to 1.1.1.1, which is #684 back. The gateway is what held:
+		// routes naming the uplink 0, no dead /32 anywhere else, the reply
+		// `via <gateway> dev eth0`, and the station reaches the published
+		// address.
+		//
+		// The gateway was rejected in #660 because nothing answers DNS there,
+		// and nothing does. That stopped being an objection with #694 and
+		// #696: the name server the guest USES comes from the drop-in and
+		// resolvectl, ahead of the lease's in resolved's list, so the value
+		// in the lease decides one thing only — which /32 the guest lays —
+		// and the gateway is the one address that is on the segment by
+		// construction. The resolver is a field (Resolver, `feint serve
+		// --resolver`) so a station without Internet, or with a resolver of
+		// its own, can say so; the uplink's address is refused whatever the
+		// field says, since a guest that lays a route towards it answers the
+		// station through a dead /32.
+		//
+		// What this does not do: lay a default route for a machine holding a
+		// public address. That is the outbound half of #695, and it is
+		// unblocked by this rather than blocked: with the reply travelling
+		// via the router, a default route through the same gateway changes
+		// nothing about it.
+		//
+		// TestAnOVNNetworkLaysNoRouteTowardsItsResolver holds the invariant on
+		// both modes, and TestAResolverThatIsTheUplinkIsRefused the refusal;
+		// both fail without this.
 		gateway, err := d.uplinkGateway()
 		if err != nil {
 			return err
 		}
 		resolver := d.resolver()
 		if resolver == gateway.String() {
-			return fmt.Errorf("refusing to create network %s: the resolver %s is the uplink's own address, which is also the address the station reaches this network's machines from; announcing it lays a dead on-link route inside every guest (#660)",
+			return fmt.Errorf("refusing to create network %s: the resolver %s is the uplink's own address, which is also the address the station reaches this network's machines from; a guest that lays a route towards it answers the station through a dead on-link /32 (#660)",
 				spec.Name, resolver)
 		}
-		// The resolver is NOT announced over DHCP, and that is measured
-		// rather than a simplification (#684). A guest whose stack manages the
-		// interface answers a DHCP-announced name server by laying an on-link
-		// /32 towards it — systemd's RoutesToDNS=, on by default — and a public
-		// resolver is not on the subnet, so the guest ARPs for it on its own
-		// segment and reaches nothing. Read from a machine entitled to egress,
-		// 2026-09-04 under `--vm incus-ovn`:
-		//
-		//	1.1.1.1 dev eth0 proto dhcp scope link src 10.188.0.5 metric 100
-		//	ip route get 1.1.1.1 -> 1.1.1.1 dev eth0 src 10.188.0.5
-		//	ping 1.1.1.1 -> unreachable, resolvectl -> No route to host
-		//
-		// Delete that one route and the same machine reaches 1.1.1.1; put the
-		// resolver back on the link by hand and `getent hosts deb.debian.org`
-		// answers. So the announcement is what breaks the way out, and the
-		// resolver reaches the guest through resolvectl instead
-		// (settleGuestInterface), which configures a name server without laying
-		// a route to it.
-		//
-		// This was invisible until #684: with the interface managed by nobody,
-		// no lease was applied and no route was laid, so the machine had no
-		// resolver AND its way out. Fixing one exposed the other.
-		//
-		// TestAnOVNNetworkLaysNoRouteTowardsItsResolver fails without this.
 		args = append(args,
 			"ipv4.dhcp.gateway=none",
 			"ipv4.dhcp.routes="+announcedPrivateRoutes(address),
+			"dns.nameservers="+gatewayHost(address),
 		)
 	}
 	for k, v := range spec.Labels {

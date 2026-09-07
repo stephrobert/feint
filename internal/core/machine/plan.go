@@ -80,11 +80,16 @@ type Plan struct {
 	//
 	// The third is the one that was missing. A machine holding a routed public
 	// address already has a default route, laid by RouteAddress towards the
-	// uplink, and it is the route its INBOUND traffic must answer through.
-	// Naming a network for it made the reconciler replace that route with the
-	// private network's gateway, and a machine whose reply left by another door
-	// answered nothing at all: measured on the example stacks, platform-web-0
-	// served 443 inside and was unreachable at its published address.
+	// uplink, and naming a network for it made the reconciler replace that
+	// route with the private network's gateway: measured on the example
+	// stacks, platform-web-0 served 443 inside and was unreachable at its
+	// published address. The door was read as the cause at the time; #672
+	// measured that it is not what decides — the same gateway and device gave
+	// opposite results — and #697 found what does: the on-link /32 the guest
+	// lays towards the name server its lease names (RoutesToDNS=), which beats
+	// any default route by prefix length. A plan claiming the default route
+	// twice is still a contradiction, and Reconciler.Expect refuses it before
+	// the runtime is asked (#667); the diagnosis moved, not the rule.
 	//
 	// Empty-and-not-refused is also the safe default for a pack that says
 	// nothing, which the previous shape was not: silence meant "take it away".

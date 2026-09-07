@@ -2,11 +2,19 @@
   "package": "./internal/core/machine/",
   "mutations": [
     {
-      "label": "the network puts a name server back in the lease, which is the on-link /32 that costs a machine its way out (#684)",
+      "label": "the lease names the public resolver instead of the gateway, which moves the dead /32 to 1.1.1.1 rather than removing it (#684, #697)",
       "file": "internal/core/machine/incus.go",
       "package": "./internal/core/machine/",
-      "find": "\t\targs = append(args,\n\t\t\t\"ipv4.dhcp.gateway=none\",\n\t\t\t\"ipv4.dhcp.routes=\"+announcedPrivateRoutes(address),\n\t\t)",
-      "replace": "\t\targs = append(args,\n\t\t\t\"ipv4.dhcp.gateway=none\",\n\t\t\t\"ipv4.dhcp.routes=\"+announcedPrivateRoutes(address),\n\t\t\t\"dns.nameservers=\"+resolver,\n\t\t)",
+      "find": "\t\t\t\"dns.nameservers=\"+gatewayHost(address),",
+      "replace": "\t\t\t\"dns.nameservers=\"+resolver+gatewayHost(address)[:0],",
+      "test": "TestAnOVNNetworkLaysNoRouteTowardsItsResolver"
+    },
+    {
+      "label": "the lease names no resolver, so Incus names the uplink's address for it and #660's dead /32 comes back through the fallback (#697)",
+      "file": "internal/core/machine/incus.go",
+      "package": "./internal/core/machine/",
+      "find": "\t\t\t\"dns.nameservers=\"+gatewayHost(address),",
+      "replace": "\t\t\t\"dns.nameservers=\"+gatewayHost(address)[:0],",
       "test": "TestAnOVNNetworkLaysNoRouteTowardsItsResolver"
     },
     {

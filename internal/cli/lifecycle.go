@@ -73,7 +73,7 @@ func bindServeFlags(fs *flag.FlagSet) *serveFlags {
 	fs.StringVar(&f.state, "state", "", "load and persist the store to this JSON file")
 	fs.StringVar(&f.vm, "vm", "off", "back powered-on servers with real machines: off, incus, incus-vm, incus-ovn, auto")
 	fs.BoolVar(&f.cleanup, "cleanup", false, "remove the machines and networks this run created before exiting")
-	fs.StringVar(&f.resolver, "resolver", "", "the name server an OVN network announces to its machines; never the uplink's own address (#660)")
+	fs.StringVar(&f.resolver, "resolver", "", "the name server the machines of an OVN network are given; never the uplink's own address (#660)")
 	fs.StringVar(&f.logLevel, "log-level", "info", "log verbosity: error, warn, info, debug")
 	fs.StringVar(&f.contracts, "contracts", "", "directory of API contracts; every response is checked against them")
 	// Bound here as well as on `serve`, because `up` renders it into the `start`

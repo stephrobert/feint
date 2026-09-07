@@ -391,6 +391,31 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Fixed
 
+- **A machine holding a public address and a private network answers at its
+  published address again under `incus-ovn`: the network names its own
+  gateway as the lease's resolver** (#697). `runtime-proof` was red four
+  scheduled nights (09-04 to 09-07) on `platform-web-0` of
+  `examples/stacks/scaleway`, `waiting: platform-web-0 answers on port 443`,
+  while the control leg at v0.12.1 passed each of them. The request landed
+  (one connection in `SYN_RECV` inside the guest); the reply died on an
+  on-link `/32` towards `10.209.83.1`, the uplink's address, which is what
+  the station dials from and is not on the guest's segment. That route is
+  the guest's own, `RoutesToDNS=` towards the DNS server its lease names,
+  and since #693 the lease named none, so Incus named the uplink's address
+  for it: naming nothing was not "no route". Three values measured, two
+  rejected: `RoutesToDNS=no` in the guest's drop-in changes nothing, the
+  lease lays the route before the drop-in lands; a public resolver repairs
+  the reply and moves the dead `/32` to `1.1.1.1`, which is #684 back. The
+  gateway is on the segment by construction: routes naming the uplink `0`,
+  no dead `/32` elsewhere, the reply `via <gateway>`, and the station reaches
+  the published address. Nothing answers DNS at the gateway, and nothing has
+  to: the name server a machine uses comes from the drop-in and `resolvectl`
+  (#694, #696), and the lease's value decides only which route is laid.
+  `TestAnOVNNetworkLaysNoRouteTowardsItsResolver` holds the invariant rather
+  than a value — every name server the lease names is on the segment, and it
+  names one. The outbound half of #695 is not this: a machine holding a
+  public address still has no default route under OVN.
+
 - **`osc/Client.ReadVms` refuses a `VmIds` value that is not an identifier**
   (#396), as the real account does and as no other read does. The recording
   of 2026-08-21 (`corpus/outscale/oapi-cli-refusals.jsonl`) sent

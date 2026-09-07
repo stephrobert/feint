@@ -418,6 +418,34 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Corrigé
 
+- **Une machine qui porte une adresse publique et un réseau privé répond de
+  nouveau sur son adresse publiée sous `incus-ovn` : le réseau nomme sa propre
+  passerelle comme résolveur du bail** (#697). `runtime-proof` était rouge
+  quatre nuits planifiées (du 04 au 07 septembre) sur `platform-web-0` de
+  `examples/stacks/scaleway`, `waiting: platform-web-0 answers on port 443`,
+  pendant que la jambe témoin en v0.12.1 passait chacune d'elles. La requête
+  arrivait (une connexion en `SYN_RECV` dans l'invité) ; la réponse mourait
+  sur une `/32` on-link vers `10.209.83.1`, l'adresse de l'uplink, celle
+  depuis laquelle la station appelle et qui n'est pas sur le segment de
+  l'invité. Cette route est celle de l'invité lui-même, `RoutesToDNS=` vers
+  le serveur DNS que son bail nomme, et depuis #693 le bail n'en nommait
+  aucun, si bien qu'Incus nommait l'adresse de l'uplink à sa place : ne rien
+  nommer n'était pas « pas de route ». Trois valeurs mesurées, deux
+  rejetées : `RoutesToDNS=no` dans le drop-in de l'invité ne change rien, le
+  bail pose la route avant que le drop-in n'arrive ; un résolveur public
+  répare la réponse et déplace la `/32` morte vers `1.1.1.1`, ce qui est #684
+  qui revient. La passerelle est sur le segment par construction : routes
+  nommant l'uplink `0`, aucune `/32` morte ailleurs, la réponse
+  `via <passerelle>`, et la station joint l'adresse publiée. Rien ne répond
+  au DNS sur la passerelle, et rien n'a à le faire : le serveur de noms
+  qu'une machine utilise vient du drop-in et de `resolvectl` (#694, #696), et
+  la valeur du bail ne décide que de la route posée.
+  `TestAnOVNNetworkLaysNoRouteTowardsItsResolver` tient l'invariant plutôt
+  qu'une valeur : tout serveur de noms que le bail nomme est sur le segment,
+  et il en nomme un. La moitié sortante de #695 n'est pas ceci : une machine
+  qui porte une adresse publique n'a toujours pas de route par défaut sous
+  OVN.
+
 - **`osc/Client.ReadVms` refuse une valeur de `VmIds` qui n'est pas un
   identifiant** (#396), comme le vrai compte, et comme aucune autre lecture.
   L'enregistrement du 2026-08-21 (`corpus/outscale/oapi-cli-refusals.jsonl`)
