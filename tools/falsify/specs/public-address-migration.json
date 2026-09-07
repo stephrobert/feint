@@ -11,6 +11,54 @@
   "package": "./internal/core/machine/",
   "mutations": [
     {
+      "label": "networkd is not told to let go of eth0 before the re-plug, so the new link is matched and written in the window where the driver reads n/a and writes first (#742)",
+      "file": "internal/core/machine/incus_address.go",
+      "package": "./internal/core/machine/",
+      "find": "\tif running && routedDeviceCarriesNothing(after) {\n\t\tif _, err := d.unmanageGuestInterface(ctx, machine, device); err != nil {",
+      "replace": "\tif running && routedDeviceCarriesNothing(after) && false {\n\t\tif _, err := d.unmanageGuestInterface(ctx, machine, device); err != nil {",
+      "test": "TestAHotMigrationTellsNetworkdToLetGoBeforeTheRePlug"
+    },
+    {
+      "label": "the drop-in is written and networkd never told to read it, so the file is one nobody has looked at and networkd goes on writing eth0 (#742)",
+      "file": "internal/core/machine/incus_unmanaged.go",
+      "package": "./internal/core/machine/",
+      "find": "\tif err := d.reloadGuestNetwork(ctx, machine); err != nil {\n\t\treturn false, fmt.Errorf(\"the guest was not told to read that %s/%s is nobody's: %w\", machine, iface, err)\n\t}",
+      "replace": "\tif false {\n\t\tif err := d.reloadGuestNetwork(ctx, machine); err != nil {\n\t\t\treturn false, fmt.Errorf(\"the guest was not told to read that %s/%s is nobody's: %w\", machine, iface, err)\n\t\t}\n\t}",
+      "test": "TestAHotMigrationTellsNetworkdToLetGoBeforeTheRePlug"
+    },
+    {
+      "label": "the driver goes on before networkd reports the link unmanaged: an effect is waited for instead of the state the driver provoked (#742)",
+      "file": "internal/core/machine/incus_unmanaged.go",
+      "package": "./internal/core/machine/",
+      "find": "\t\tif err == nil && strings.Contains(state, \"(unmanaged)\") {\n\t\t\treturn nil\n\t\t}",
+      "replace": "\t\tif err == nil && (strings.Contains(state, \"(unmanaged)\") || true) {\n\t\t\treturn nil\n\t\t}",
+      "test": "TestAHotMigrationTellsNetworkdToLetGoBeforeTheRePlug"
+    },
+    {
+      "label": "the boot after a cold migration does not tell networkd to let go, and the stale launch config keeps laying the migrated address at every boot (#742)",
+      "file": "internal/core/machine/incus_ovn.go",
+      "package": "./internal/core/machine/",
+      "find": "\tif routedDeviceCarriesNothing(cfg) {\n\t\tif _, err := d.unmanageGuestInterface(ctx, machine, device); err != nil {",
+      "replace": "\tif routedDeviceCarriesNothing(cfg) && false {\n\t\tif _, err := d.unmanageGuestInterface(ctx, machine, device); err != nil {",
+      "test": "TestARestartTellsNetworkdToLetGoOfAMigratedRoutedNIC"
+    },
+    {
+      "label": "a cold migration is reconciled like a hot one, reading and writing the routed interface of a stopped machine (#742)",
+      "file": "internal/core/machine/incus_address.go",
+      "package": "./internal/core/machine/",
+      "find": "\tif !running {\n\t\treturn nil\n\t}\n\treturn d.reconcileRoutedInterface(ctx, machine, device, after)",
+      "replace": "\tif !running && false {\n\t\treturn nil\n\t}\n\treturn d.reconcileRoutedInterface(ctx, machine, device, after)",
+      "test": "TestAColdMigrationDoesNotWaitForTheGuest"
+    },
+    {
+      "label": "a guest with no networkd is written a drop-in beside a unit it does not have, and the shell inside it builds a directory from an empty name (#742)",
+      "file": "internal/core/machine/incus_unmanaged.go",
+      "package": "./internal/core/machine/",
+      "find": "\tunit := d.guestNetworkUnit(ctx, machine, iface)\n\tif unit == \"\" {\n\t\treturn false, nil\n\t}",
+      "replace": "\tunit := d.guestNetworkUnit(ctx, machine, iface)\n\tif unit == \"\\x00never\" {\n\t\treturn false, nil\n\t}",
+      "test": "TestAGuestWithoutNetworkdIsLeftAloneByTheMigration"
+    },
+    {
       "label": "the migration reconfigures an instance without asking whether the emulator created it",
       "file": "internal/core/machine/incus_address.go",
       "find": "func (d *Incus) releaseFromRoutedNIC(ctx context.Context, machine, device, address string) error {\n\tif err := d.mustOwnInstance(ctx, machine); err != nil {\n\t\treturn err\n\t}",

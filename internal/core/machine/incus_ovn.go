@@ -1401,18 +1401,92 @@ func (d *Incus) reconcileRoutedNICs(ctx context.Context, machine string, devices
 		if cfg["type"] != "nic" || cfg["nictype"] != "routed" || device != routedDeviceName {
 			continue
 		}
-		waited := d.waitForGuestInterface(ctx, machine, device)
-		if err := d.releaseStaleRoutedAddresses(ctx, machine, device, cfg); err != nil {
+		if err := d.reconcileRoutedInterface(ctx, machine, device, cfg); err != nil {
 			return err
-		}
-		if err := d.repairRoutedInterface(ctx, machine, device); err != nil {
-			return err
-		}
-		if waited != nil {
-			return waited
 		}
 	}
 	return nil
+}
+
+// reconcileRoutedInterface makes the guest's routed interface carry what its
+// device carries, after a boot and after a re-plug alike (#674, #742), and it
+// is one sequence for both doors so they cannot diverge again.
+//
+// Two writers of one interface. The guest's own config (routedNetworkConfig,
+// rendered once by cloud-init at the first boot) lays eth0 with the launch
+// address and the default route through the link-local next hop; the driver
+// lays what the device pins and routes. Which of the two goes last decides
+// what the machine carries, and until #742 the answer differed by door and by
+// station: the restart path waited for the guest to lay the interface before
+// writing (#674), the hot migration of #548 wrote the moment its device edit
+// returned, and the reboot comparison of #671 reported the difference on
+// every run, on the runner as on the author's station, in one direction or
+// the other. Measured 2026-09-07 at 100 ms across a hot attach: the re-plugged
+// link answers `Network File: n/a` for 150 ms before networkd matches it and
+// lays the launch config, so an order that waits for the guest's write can
+// still ask in that window, read "nobody manages this", and write first.
+// While networkd owns the interface's configuration, every order is a race.
+//
+// So the two cases are told apart by what the device carries, and neither
+// races:
+//
+//   - a device that still pins or routes an address is one whose guest config
+//     is right, and the driver waits for the guest to have laid the interface
+//     before it puts back what the device declares — when the guest has a
+//     writer for it at all, which an interface this driver took away from
+//     networkd no longer has;
+//   - a device that carries nothing is one whose address moved (#548), and
+//     whose guest config is stale: the driver tells networkd to let go of the
+//     interface in networkd's own configuration (unmanageGuestInterface), waits
+//     for networkd to report the STATE, not the effect, and only then takes
+//     the stale address off and lays the next hop and the default route. From
+//     then on nobody else writes it, at this re-plug or at any later boot.
+//
+// What is produced is deliberately unchanged: a routed interface carrying
+// exactly what its device pins and routes, plus the next hop and the default
+// route through it, which for a migrated machine is an interface with no
+// address and a default route. That shape is discussable — a default route
+// through an addressless interface is what #647 met on the bastion — and
+// deciding it is #695's outbound half and the ADR of #726. #742 changes who
+// writes it, not what is written, so the comparison can judge a reboot rather
+// than a race.
+//
+// The wait for the guest is bounded and its expiry reported after the
+// reconciliation rather than instead of it (waitForGuestInterface), as the
+// restart path always did. A stopped machine is the caller's question, asked
+// before this runs: there is no guest to write, and no guest to wait for.
+//
+// TestARestartTellsNetworkdToLetGoOfAMigratedRoutedNIC and
+// TestARebootOfAMigratedMachineDoesNotWaitForAnAddressNobodyLays fail without
+// the second case; TestAHotMigrationTellsNetworkdToLetGoBeforeTheRePlug holds
+// the hot door in releaseFromRoutedNIC.
+func (d *Incus) reconcileRoutedInterface(ctx context.Context, machine, device string, cfg map[string]string) error {
+	var waited error
+	if routedDeviceCarriesNothing(cfg) {
+		if _, err := d.unmanageGuestInterface(ctx, machine, device); err != nil {
+			return err
+		}
+	} else if iface, err := d.guestInterface(ctx, machine, device); err != nil {
+		return err
+	} else if d.guestNetworkUnit(ctx, machine, iface) != "" {
+		// Waited for only when the guest has a writer for it. An interface
+		// this driver took away from networkd stays nobody's for the rest of
+		// the machine's life, and no path hands it back: an address routed
+		// onto it again later (routeOntoRoutedNIC, after the private NIC that
+		// carried the migrated address is detached) is laid by the driver
+		// itself, here and at every re-plug, which is one writer where there
+		// used to be two. A wait for the guest to lay such an interface would
+		// expire on every boot, #694's shape once more.
+		// TestARestartOfARoutedNICNobodyManagesDoesNotWait fails without this.
+		waited = d.waitForGuestInterface(ctx, machine, device)
+	}
+	if err := d.releaseStaleRoutedAddresses(ctx, machine, device, cfg); err != nil {
+		return err
+	}
+	if err := d.repairRoutedInterface(ctx, machine, device); err != nil {
+		return err
+	}
+	return waited
 }
 
 // releaseStaleRoutedAddresses takes off the guest's routed interface every

@@ -418,6 +418,45 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Corrigé
 
+- **Une machine dont l'adresse publique a migré sur sa NIC privée porte la
+  même forme avant et après le verbe de reboot : la migration à chaud attend
+  que l'invité ait posé l'interface routée avant d'écrire, comme le chemin de
+  redémarrage le faisait déjà** (#742). La comparaison de reboot du gate des
+  stacks (#671) rougissait sur `platform-web-0`, sur le runner comme sur la
+  station de l'auteur, et sous deux formes miroir : une fois `before: addr
+  eth0 203.0.113.4/32`, une fois `after: route 0.0.0.0/0 via 169.254.0.1 dev
+  eth0`. Sondé toutes les demi-secondes à travers le reboot le 2026-09-07, le
+  reboot lui-même était déterministe : netplan pose `eth0` 0,5 s après le
+  retour du conteneur, le pilote retire l'adresse périmée 2,2 s après, le
+  pilote pose la route par défaut 2,8 s après. Ce qui variait, c'était l'état
+  d'avant. La migration de #548 édite le device routé, ce qui le rebranche,
+  puis réparait l'interface aussitôt et supprimait l'adresse déplacée juste
+  après, en course avec la réapplication par systemd-networkd du netplan de
+  l'invité sur le nouveau lien : networkd en dernier, la machine gardait
+  l'adresse sur deux interfaces ; le pilote en dernier, elle n'en gardait
+  aucune sur `eth0` et pas de route par défaut. Un ordre a d'abord été
+  essayé et n'a pas tenu sur le runner : sondé à 100 ms à travers
+  l'attachement à chaud, le lien rebranché répond `Network File: n/a` pendant
+  150 ms avant que networkd ne l'apparie, ce qui se lit exactement comme
+  « personne ne gère ce lien », et tant que networkd possède la configuration
+  de l'interface, tout ordre du pilote est une course. Le pilote dit donc à
+  networkd, dans la configuration de networkd, de lâcher une interface routée
+  dont l'adresse a migré : un drop-in à côté de l'unité rendue par netplan
+  (`[Link] Unmanaged=yes`, le mécanisme que #702 emploie déjà pour le
+  résolveur), un rechargement, et l'attente de l'état que networkd rapporte,
+  `(unmanaged)`, avant de retirer l'adresse périmée et de poser les routes :
+  avant le re-plug sur le chemin à chaud, au premier boot après une migration
+  à froid sur le chemin de redémarrage, et à chaque boot suivant plus personne
+  que le pilote n'écrit l'interface. Un invité sans networkd est laissé
+  tranquille. Ce qui est produit est délibérément inchangé, une interface
+  routée sans adresse portant la route par défaut par `169.254.0.1` ; #742
+  change qui l'écrit, pas ce qui est écrit, et savoir si c'est la bonne forme
+  relève de la moitié sortante de #695 et de l'ADR #726, non tranché ici. Le
+  défaut est antérieur à v0.12.1 : le gate d'aujourd'hui
+  pilotant un binaire construit depuis ce tag atteint l'étape et y échoue
+  aussi, plus largement. La comparaison qui le trouve est postérieure à ce
+  tag, donc aucune release antérieure n'a été mesurée sur cette étape.
+
 - **Une machine qui porte une adresse publique et un réseau privé répond de
   nouveau sur son adresse publiée sous `incus-ovn` : le réseau nomme sa propre
   passerelle comme résolveur du bail** (#697). `runtime-proof` était rouge

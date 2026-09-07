@@ -30,11 +30,11 @@
       "test": "TestARestartReconcilesTheRoutedNICToItsDevice"
     },
     {
-      "label": "the reconciliation does not wait for the guest to lay the interface, reads it bare, and takes nothing off (#674)",
+      "label": "the reconciliation does not wait for the guest to lay an interface the device still pins, reads it bare, and the expired wait is never reported (#674)",
       "file": "internal/core/machine/incus_ovn.go",
-      "find": "\t\twaited := d.waitForGuestInterface(ctx, machine, device)",
-      "replace": "\t\twaited := func() error { _ = d.waitForGuestInterface; _, _, _ = ctx, machine, device; return nil }()",
-      "test": "TestARestartWaitsForTheGuestToLayItsRoutedNICBeforeReconciling"
+      "find": "\t\twaited = d.waitForGuestInterface(ctx, machine, device)",
+      "replace": "\t\twaited = func() error { _ = d.waitForGuestInterface; _, _, _ = ctx, machine, device; return nil }()",
+      "test": "TestARestartStillReconcilesWhenTheGuestNeverLaysItsRoutedNIC"
     },
     {
       "label": "the restart reconciles every routed NIC, an operator's included (#674)",
@@ -42,6 +42,14 @@
       "find": "\t\tif cfg[\"type\"] != \"nic\" || cfg[\"nictype\"] != \"routed\" || device != routedDeviceName {\n\t\t\tcontinue\n\t\t}",
       "replace": "\t\tif cfg[\"type\"] != \"nic\" || cfg[\"nictype\"] != \"routed\" || (device != routedDeviceName && false) {\n\t\t\tcontinue\n\t\t}",
       "test": "TestARestartLeavesAForeignRoutedNICAlone"
+    },
+    {
+      "label": "a routed NIC nobody manages is waited for at boot, so every boot of a machine whose address was routed back onto the interface the driver owns burns the whole budget (#742)",
+      "file": "internal/core/machine/incus_ovn.go",
+      "package": "./internal/core/machine/",
+      "find": "\t} else if d.guestNetworkUnit(ctx, machine, iface) != \"\" {",
+      "replace": "\t} else if d.guestNetworkUnit(ctx, machine, iface) != \"\\x00never\" {",
+      "test": "TestARestartOfARoutedNICNobodyManagesDoesNotWait"
     }
   ]
 }

@@ -391,6 +391,42 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Fixed
 
+- **A machine whose public address moved onto its private NIC carries the
+  same shape before and after the reboot verb: the hot migration waits for
+  the guest to lay the routed interface before it writes, as the restart path
+  already did** (#742). The stack gate's reboot comparison (#671) reddened on
+  `platform-web-0` on the runner as on the author's station, and in two
+  mirror shapes: once `before: addr eth0 203.0.113.4/32`, once `after: route
+  0.0.0.0/0 via 169.254.0.1 dev eth0`. Polled at half-second intervals across
+  the reboot on 2026-09-07, the reboot itself was deterministic: netplan lays
+  `eth0` 0.5 s after the container is back, the driver takes the stale
+  address off 2.2 s after, the driver lays the default route 2.8 s after.
+  What varied was the state before it. The migration of #548 edits the routed
+  device, which re-plugs it, then repaired the interface at once and deleted
+  the moved address right after, racing systemd-networkd's re-application of
+  the guest's own netplan to the new link: networkd last, the machine kept
+  the address on two interfaces; the driver last, it kept none on `eth0` and
+  no default route. An order was tried first and did not hold on the runner:
+  polled at 100 ms across the hot attach, the re-plugged link answers
+  `Network File: n/a` for 150 ms before networkd matches it, which reads
+  exactly like "nobody manages this", and while networkd owns the interface's
+  configuration every order the driver takes is a race. So the driver now
+  tells networkd, in networkd's own configuration, to let go of a routed
+  interface whose address moved: a drop-in beside the unit netplan rendered
+  (`[Link] Unmanaged=yes`, the mechanism #702 already uses for the resolver),
+  a reload, and a wait for the state networkd reports, `(unmanaged)`, before
+  the stale address is taken off and the routes laid — before the re-plug on
+  the hot path, at the first boot after a cold migration on the restart path,
+  and at every boot after that nobody but the driver writes the interface. A
+  guest with no networkd is left alone. What is produced is deliberately
+  unchanged, an addressless routed interface carrying the default route
+  through `169.254.0.1`; #742 changes who writes it, not what is written, and
+  whether that is the right shape is #695's outbound half and the ADR of
+  #726, not decided here. The defect is older than v0.12.1: today's gate driving a
+  binary built from that tag reaches the step and fails it too, by more. The
+  comparison that finds it is later than that tag, so no earlier release was
+  measured on this step.
+
 - **A machine holding a public address and a private network answers at its
   published address again under `incus-ovn`: the network names its own
   gateway as the lease's resolver** (#697). `runtime-proof` was red four
