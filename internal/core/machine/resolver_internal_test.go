@@ -141,9 +141,15 @@ func TestAnOVNNetworkLaysNoRouteTowardsItsResolver(t *testing.T) {
 	}
 }
 
-// TestAResolverThatIsTheUplinkIsRefused: the field cannot put the collision
-// back. The value the uplink was given is the value refused, derived once
-// (uplinkGateway), and no network is created.
+// TestAResolverThatIsTheUplinkIsRefused: the field cannot name the uplink.
+// Since #697 the field no longer reaches the lease — the lease names the
+// gateway, the field goes through the drop-in and resolvectl, which lay no
+// route — so what this protects has moved: it is the guard against the
+// announcement coming back through the field, the way #660's first fix put
+// `dns.nameservers=<resolver>` in the lease, and against a guest being
+// pointed, by any door, at the one address that is the station's own source
+// towards it. The value the uplink was given is the value refused, derived
+// once (uplinkGateway), and no network is created.
 func TestAResolverThatIsTheUplinkIsRefused(t *testing.T) {
 	f := resolverProbe()
 	d := newFakeDriver(f)
