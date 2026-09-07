@@ -1098,6 +1098,12 @@ refuse_call 4001 ReadKeypairs          --Filters.KeypairIds key-feintnone
 refuse_call 4001 ReadSecurityGroups    --Filters.InboundRuleAccountIds 000000000001
 refuse_call 4001 ReadRouteTables       --Filters.LinkRouteTableLinkRouteTableIds rtbassoc-feintnone
 refuse_call 4001 ReadNics              --Filters.Descriptions none
+# FiltersLoadBalancer declares LoadBalancerNames and States; this pack serves
+# the first alone (loadbalancers.go). A name that matches nothing is NOT a
+# refusal — the real cloud answers 200 with an empty list, recorded in
+# corpus/outscale/oapi-cli-lb-shapes.jsonl:145 — so States is the filter that
+# makes this call refusable without diverging from upstream (#615).
+refuse_call 4001 ReadLoadBalancers      --Filters.States available
 refuse_call 4001 ReadVolumes           --payload '{"Filters":{"CreationDates":["2026-01-01T00:00:00.000Z"]}}'
 # AccountAliases was the probe on ReadSnapshots and ReadImages until #700, when
 # the filter became served on both (the contract's own ReadImages example uses
@@ -1154,7 +1160,9 @@ osc ReadFlexibleGpus --Filters.VmIds "$vm_id" \
   | jq -e --arg id "$gpu_id" '.FlexibleGpus | length == 1 and .[0].FlexibleGpuId == $id and .[0].State == "attached"' >/dev/null \
   || fail "the attached fGPU is not listed against its machine"
 
-# The two refusals this family owns, on the shape #621 settled for volumes.
+# Two of this family's refusals, on the shape #621 settled for volumes. They
+# run inside the BEHAVIOUR bracket, so they prove the lifecycle and credit
+# nothing on `negative`; the span below is what credits the axis (#615).
 refuse_call 9029 LinkFlexibleGpu --FlexibleGpuId "$gpu_id" --VmId "$vm_id"
 osc UnlinkFlexibleGpu --FlexibleGpuId "$gpu_id" >/dev/null || fail "UnlinkFlexibleGpu rejected"
 refuse_call 9029 UnlinkFlexibleGpu --FlexibleGpuId "$gpu_id"
@@ -1172,6 +1180,61 @@ osc ReadFlexibleGpus --Filters.FlexibleGpuIds "$gpu_id" \
   | jq -e '.FlexibleGpus | length == 0' >/dev/null || fail "the deleted fGPU is still listed"
 prove_end "$gpuspan"
 ok "an fGPU from the catalogue: allocated, attached, detached, updated, deleted"
+
+# The refusals this family owns, in a span of their own.
+#
+# Nothing here is new in the pack: all six already exist in flexiblegpu.go, and
+# two of them already ran above. What was missing is the bracket. A refusal
+# inside `prove_begin behaviour` proves a lifecycle; only `prove_begin negative`
+# attributes it to the `negative` axis, and coverage/evidence.json carried
+# `negative: false` for all seven fGPU operations while octl.sh was already
+# driving two of their refusals (#615).
+echo "- every refusal the flexible GPU family owns, credited to the axis"
+gpuneg="$(prove_begin negative)"
+# A model the catalogue does not offer. The join the block above makes — the
+# create names a model the catalogue offered — is what gives this one meaning:
+# the catalogue decides which models exist, so a name outside it is refused for
+# a measured reason rather than because a constant says so.
+refuse_call 4001 CreateFlexibleGpu --ModelName nvidia-not-in-this-catalogue --SubregionName eu-west-2a
+# FiltersFlexibleGpu declares eight filters and this pack serves all eight, so
+# the declared-but-unserved refusal above does not exist for this call. What is
+# left is a filter name the API declares nowhere, which the real cloud refuses
+# too — its filter schemas are closed — so this is a firmer refusal than the
+# sixteen above rather than a weaker one.
+#
+# Two other shapes were tried here first and both were ACCEPTED, which the suite
+# caught as "accepted what it must refuse": a scalar where FlexibleGpuIds
+# declares an array, and a string where DeleteOnVmDeletion declares a boolean.
+# The emulator refuses both — 400/4001, verified with curl straight at the route
+# — so what those two measured is that octl types each filter itself and never
+# puts such a value on the wire (#615).
+# The third shape, and the third acceptance: octl strips a filter name it does
+# not know, exactly as it dropped the two mistyped values. So ReadFlexibleGpus
+# keeps no `negative` and is NOT declared unearnable either — the repository's
+# own control refuses that declaration, and it is right to: the request schema
+# does carry Filters, so a refusable request is composable in principle, just
+# not by this client. Naming that would need a fourth Cause with a control of
+# its own, which is not this issue's subject (#615).
+neg_gpu="$(osc CreateFlexibleGpu --ModelName "$gpu_model" --Generation "$gpu_gen" \
+  --SubregionName eu-west-2a | jq -r '.FlexibleGpu.FlexibleGpuId')"
+[ -n "$neg_gpu" ] || fail "no FlexibleGpuId for the refusal span"
+# Detached: unlinking one attached to nothing.
+refuse_call 9029 UnlinkFlexibleGpu --FlexibleGpuId "$neg_gpu"
+osc LinkFlexibleGpu --FlexibleGpuId "$neg_gpu" --VmId "$vm_id" >/dev/null \
+  || fail "LinkFlexibleGpu rejected inside the refusal span"
+# Attached: attaching again, and deleting, are both refused — the delete for the
+# reason the volume delete is, a client that removed what a machine still claims
+# would find the object gone and the machine still holding it.
+refuse_call 9029 LinkFlexibleGpu --FlexibleGpuId "$neg_gpu" --VmId "$vm_id"
+refuse_call 9029 DeleteFlexibleGpu --FlexibleGpuId "$neg_gpu"
+# An identifier that names nothing, which is the only refusal the update owns.
+refuse_call 5063 UpdateFlexibleGpu --payload '{"FlexibleGpuId":"fgpu-00000000","DeleteOnVmDeletion":true}'
+prove_end "$gpuneg"
+osc UnlinkFlexibleGpu --FlexibleGpuId "$neg_gpu" >/dev/null \
+  || fail "UnlinkFlexibleGpu rejected while clearing the refusal span"
+osc DeleteFlexibleGpu --FlexibleGpuId "$neg_gpu" >/dev/null \
+  || fail "DeleteFlexibleGpu rejected while clearing the refusal span"
+ok "an absent model, a double attach, a detach of nothing, a delete of an attached one, an absent id"
 
 echo "- the tag filters select, exclude, and answer the object with its tags"
 tagspan="$(prove_begin behaviour)"
