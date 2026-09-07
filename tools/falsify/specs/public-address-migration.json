@@ -27,6 +27,22 @@
       "test": "TestAHotMigrationWaitsForTheGuestBeforeTakingTheStaleAddressOff"
     },
     {
+      "label": "a link nobody manages is waited for anyway, so a hot address attach on an image without networkd costs the whole budget for an address no guest will lay (#742)",
+      "file": "internal/core/machine/incus_address.go",
+      "package": "./internal/core/machine/",
+      "find": "\tguestWrites := d.guestNetworkUnit(ctx, machine, iface) != \"\"",
+      "replace": "\tguestWrites := d.guestNetworkUnit(ctx, machine, iface) != \"\\x00never\"",
+      "test": "TestAHotMigrationOnALinkNobodyManagesDoesNotWait"
+    },
+    {
+      "label": "the hot migration stops waiting whatever the guest says about the link's writer, so the driver's writes race networkd's again (#742)",
+      "file": "internal/core/machine/incus_address.go",
+      "package": "./internal/core/machine/",
+      "find": "\tguestWrites := d.guestNetworkUnit(ctx, machine, iface) != \"\"",
+      "replace": "\tguestWrites := d.guestNetworkUnit(ctx, machine, iface) == \"\\x00never\"",
+      "test": "TestAHotMigrationWaitsForTheGuestBeforeTakingTheStaleAddressOff"
+    },
+    {
       "label": "a cold migration is reconciled like a hot one, polling a stopped machine for an interface no guest will lay (#742)",
       "file": "internal/core/machine/incus_address.go",
       "package": "./internal/core/machine/",

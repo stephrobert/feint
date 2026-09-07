@@ -32,8 +32,8 @@
     {
       "label": "the reconciliation does not wait for the guest to lay the interface, reads it bare, and takes nothing off (#674)",
       "file": "internal/core/machine/incus_ovn.go",
-      "find": "\twaited := d.waitForGuestInterface(ctx, machine, device)",
-      "replace": "\twaited := func() error { _ = d.waitForGuestInterface; _, _, _ = ctx, machine, device; return nil }()",
+      "find": "\t\twaited = d.waitForGuestInterface(ctx, machine, device)",
+      "replace": "\t\twaited = func() error { _ = d.waitForGuestInterface; _, _, _ = ctx, machine, device; return nil }()",
       "test": "TestARestartWaitsForTheGuestToLayItsRoutedNICBeforeReconciling"
     },
     {

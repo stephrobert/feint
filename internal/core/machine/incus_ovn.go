@@ -1401,7 +1401,11 @@ func (d *Incus) reconcileRoutedNICs(ctx context.Context, machine string, devices
 		if cfg["type"] != "nic" || cfg["nictype"] != "routed" || device != routedDeviceName {
 			continue
 		}
-		if err := d.reconcileRoutedInterface(ctx, machine, device, cfg); err != nil {
+		// A boot lays the interface on every image this emulator builds —
+		// netplan and networkd on Ubuntu, ifupdown on Debian and Alpine,
+		// NetworkManager on the RHEL family — so after a boot the guest is
+		// always waited for.
+		if err := d.reconcileRoutedInterface(ctx, machine, device, cfg, true); err != nil {
 			return err
 		}
 	}
@@ -1446,12 +1450,23 @@ func (d *Incus) reconcileRoutedNICs(ctx context.Context, machine string, devices
 // The wait is bounded and its expiry is reported after the reconciliation
 // rather than instead of it (waitForGuestInterface), as the restart path
 // always did. A stopped machine is the caller's question, asked before this
-// runs: there is no guest to wait for.
+// runs: there is no guest to wait for. And so is whether the guest has a
+// writer for the link at all (guestWrites): after a boot every image lays
+// its interfaces, but after a re-plug only a stack that reacts to a link
+// appearing does — systemd-networkd with a unit for it, measured — and an
+// ifupdown guest, an Alpine one, or an unmanaged link would be polled for
+// the whole budget for an address nobody is going to lay. That is #694's
+// shape, a transient case not told from a permanent one, and it would make
+// a hot address attach cost ninety seconds on half the images.
 //
 // TestAHotMigrationWaitsForTheGuestBeforeTakingTheStaleAddressOff fails
-// without the wait, and without this order.
-func (d *Incus) reconcileRoutedInterface(ctx context.Context, machine, device string, cfg map[string]string) error {
-	waited := d.waitForGuestInterface(ctx, machine, device)
+// without the wait, and without this order;
+// TestAHotMigrationOnALinkNobodyManagesDoesNotWait without the other half.
+func (d *Incus) reconcileRoutedInterface(ctx context.Context, machine, device string, cfg map[string]string, guestWrites bool) error {
+	var waited error
+	if guestWrites {
+		waited = d.waitForGuestInterface(ctx, machine, device)
+	}
 	if err := d.releaseStaleRoutedAddresses(ctx, machine, device, cfg); err != nil {
 		return err
 	}

@@ -248,7 +248,17 @@ func (d *Incus) releaseFromRoutedNIC(ctx context.Context, machine, device, addre
 		"ipv4.address": strings.Join(kept, ","),
 		"ipv4.routes":  devices.own[device]["ipv4.routes"],
 	}
-	return d.reconcileRoutedInterface(ctx, machine, device, after)
+	// Whether anyone in the guest will lay the re-plugged link: systemd-networkd
+	// does when a unit matches it (netplan's, on the images measured), and the
+	// wait is for that write. A guest that names no unit — no networkd, an
+	// unmanaged link — has no writer to wait for, and the re-plug left the
+	// interface bare for good.
+	iface, err := d.guestInterface(ctx, machine, device)
+	if err != nil {
+		return err
+	}
+	guestWrites := d.guestNetworkUnit(ctx, machine, iface) != ""
+	return d.reconcileRoutedInterface(ctx, machine, device, after, guestWrites)
 }
 
 // mustOwn refuses to touch a network the emulator did not create. The label is

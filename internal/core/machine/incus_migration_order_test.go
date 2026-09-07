@@ -2,6 +2,7 @@ package machine
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -48,12 +49,18 @@ const migratedRoutedAndPrivate = `{
   }
 }`
 
+// managedByNetworkd is what `networkctl status eth0` answers on the images
+// measured: netplan rendered a unit for the launch interface, and networkd
+// re-applies it to the link every time the link appears.
+const managedByNetworkd = "● 2: eth0\n             Network File: /run/systemd/network/10-netplan-eth0.network\n"
+
 // migrationRuntime is a running machine whose guest lays eth0 from its own
 // config only on the third read: the two reads before that are the window
 // in which networkd has not written yet, which is exactly where the old order
 // deleted an address that was not there and repaired a link networkd was
-// about to overwrite.
-func migrationRuntime(status string, laysAfter int) *fakeRuntime {
+// about to overwrite. unit is what the guest answers about the link's writer;
+// empty means an image with no networkctl at all.
+func migrationRuntime(status, unit string, laysAfter int) *fakeRuntime {
 	f := &fakeRuntime{answers: map[string]string{
 		"network get fnt-368798629f8 user." + LabelKey:      "feint\n",
 		"network get fnt-368798629f8 ipv4.address":          "10.30.1.1/24\n",
@@ -66,6 +73,11 @@ func migrationRuntime(status string, laysAfter int) *fakeRuntime {
 		switch {
 		case args[0] == "list":
 			return []byte(`[{"name":"srv","status":"` + status + `","state":{"network":{}}}]`), nil, true
+		case strings.Contains(key, "networkctl status eth0"):
+			if unit == "" {
+				return nil, errors.New("incus exec: Error: networkctl: not found"), true
+			}
+			return []byte(unit), nil, true
 		case args[0] == "query" && strings.HasSuffix(key, "/1.0/instances/srv"):
 			if released {
 				return []byte(migratedRoutedAndPrivate), nil, true
@@ -94,7 +106,7 @@ func migrationRuntime(status string, laysAfter int) *fakeRuntime {
 // nothing; with the repair before the release, the default route the driver
 // lays is the one the deletion takes away.
 func TestAHotMigrationWaitsForTheGuestBeforeTakingTheStaleAddressOff(t *testing.T) {
-	f := migrationRuntime("Running", 3)
+	f := migrationRuntime("Running", managedByNetworkd, 3)
 	d := newFakeDriver(f)
 	d.OVN = true
 	d.routePoll = time.Millisecond
@@ -138,7 +150,7 @@ func TestAHotMigrationWaitsForTheGuestBeforeTakingTheStaleAddressOff(t *testing.
 // every cold attach for a minute and a half. The device is set, and the next
 // boot's netplan plus the restart path (reconcileRoutedNICs) do the rest.
 func TestAColdMigrationDoesNotWaitForTheGuest(t *testing.T) {
-	f := migrationRuntime("Stopped", 3)
+	f := migrationRuntime("Stopped", managedByNetworkd, 3)
 	d := newFakeDriver(f)
 	d.OVN = true
 	d.routePoll = time.Millisecond
@@ -175,5 +187,36 @@ func TestAColdMigrationDoesNotWaitForTheGuest(t *testing.T) {
 	if len(touched) != 0 {
 		t.Errorf("a stopped machine was told to reconfigure a routed interface it does not have up:\n%s",
 			strings.Join(touched, "\n"))
+	}
+}
+
+// TestAHotMigrationOnALinkNobodyManagesDoesNotWait: an image with no
+// systemd-networkd (Alpine, an ifupdown Debian) lays its interfaces at boot and
+// never again, so after the re-plug nobody is going to write eth0, and a wait
+// for that write would cost a hot address attach the whole budget — #694's
+// shape, a permanent case read as a transient one. The guest is asked once
+// whether the link has a writer, and with none the driver reads the interface
+// once, for the release, and moves on.
+func TestAHotMigrationOnALinkNobodyManagesDoesNotWait(t *testing.T) {
+	f := migrationRuntime("Running", "", 1000)
+	d := newFakeDriver(f)
+	d.OVN = true
+	d.routePoll = time.Millisecond
+	d.routeBudget = 200 * time.Millisecond
+	d.resolverPoll = time.Millisecond
+	d.resolverWait = 20 * time.Millisecond
+
+	if err := d.RouteAddress(context.Background(), AddressSpec{
+		Machine: "srv", Address: "203.0.113.4", Network: "fnt-368798629f8",
+	}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	if reads := f.matching("addr show dev eth0"); len(reads) > 1 {
+		t.Errorf("a link nobody manages was polled %d time(s) for an address no guest will lay (#742):\n%s",
+			len(reads), strings.Join(f.commands(), "\n"))
+	}
+	if step(f, "ip route add default via 169.254.0.1 dev eth0") < 0 {
+		t.Errorf("the routed interface was left without its default route through %s:\n%s",
+			routedNextHop, strings.Join(f.commands(), "\n"))
 	}
 }
