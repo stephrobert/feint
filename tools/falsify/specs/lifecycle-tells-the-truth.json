@@ -57,7 +57,7 @@
       "label": "#549, the diagnosis: a guest that never finishes configuring its interface is no longer reported by the wait, so the failure an operator reads names the network rather than the machine and the device that could not be repaired",
       "file": "internal/core/machine/incus_ovn.go",
       "find": "\t\tif err := d.waitForGuestInterface(ctx, machine, device); err != nil {\n\t\t\treturn errors.Join(routed, err)\n\t\t}",
-      "replace": "\t\tif err := d.waitForGuestInterface(ctx, machine, device); err != nil && false {\n\t\t\treturn errors.Join(routed, err)ors.Join(routed, err)\n\t\t}",
+      "replace": "\t\tif err := d.waitForGuestInterface(ctx, machine, device); err != nil && false {\n\t\t\treturn errors.Join(routed, err)\n\t\t}",
       "test": "TestAGuestThatNeverConfiguresItsInterfaceIsReported"
     },
     {
