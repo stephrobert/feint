@@ -70,9 +70,9 @@ func TestSanitiseSpellsEveryControlCharacter(t *testing.T) {
 func TestSanitiseLeavesAPrintableValueAlone(t *testing.T) {
 	for _, name := range []string{
 		"",
-		"feint-scw-8f3a2b1c-77d2-4a6e-9b0e-1c2d3e4f5a6b",
+		"feint-acme-8f3a2b1c-77d2-4a6e-9b0e-1c2d3e4f5a6b",
 		"fnt-ovn-9b0e1c2d",
-		"api-ch-gva-2.exoscale.com:443",
+		"api-eu-west-1.example.net:443",
 		"ami-47899c77",
 		"ubuntu_24.04",
 		"Ubuntu 24.04 LTS (noble)",
