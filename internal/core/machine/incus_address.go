@@ -190,12 +190,25 @@ func (d *Incus) routedNICCarrying(ctx context.Context, machine, address string) 
 //
 // What it costs and what it restores. Setting ipv4.address on a live routed
 // NIC re-plugs the device, exactly as an ipv4.routes edit does, so the guest
-// interface comes back down and bare; repairRoutedInterface puts back what the
-// device still declares, which is every address but the one being moved. The
-// explicit delete afterwards covers the case where the edit did *not* re-plug
-// — a stopped machine, a runtime that updates in place — because an address
-// left inside the guest on an interface the host no longer routes is a machine
-// answering ARP for something nothing delivers.
+// interface comes back down and bare — and then the guest's own netplan lays
+// it again, with the launch address the device just let go of. The driver
+// goes second, on the same terms as after a boot (reconcileRoutedInterface,
+// #674, #742): it waits for the guest's config to have laid the interface,
+// takes off every address the device no longer pins or routes, and puts back
+// what it does. Until #742 the repair ran the moment the edit returned and the
+// delete right after, racing networkd on the re-plugged link; which of the two
+// wrote last decided whether the machine carried the moved address on two
+// interfaces or on one, and the reboot comparison of #671 found the difference
+// on every run. An address left inside the guest on an interface the host no
+// longer routes is a machine answering ARP for something nothing delivers,
+// which is why the release is not left to the re-plug alone.
+//
+// A stopped machine takes no exec: the device key is set cold, and the next
+// boot's netplan plus the restart path reconcile the guest. Asked once, before
+// the guest work, because the wait would otherwise poll a machine that will
+// never lay an interface for the whole of its budget.
+// TestAHotMigrationWaitsForTheGuestBeforeTakingTheStaleAddressOff and
+// TestAColdMigrationDoesNotWaitForTheGuest fail without the two halves.
 //
 // Ownership before shape, and this call is why: safeName has said the name
 // could be a command argument, never that the instance is ours, and this
@@ -222,13 +235,20 @@ func (d *Incus) releaseFromRoutedNIC(ctx context.Context, machine, device, addre
 		"ipv4.address="+strings.Join(kept, ",")); err != nil {
 		return fmt.Errorf("release %s from %s/%s: %w", address, machine, device, err)
 	}
-	if err := d.repairRoutedInterface(ctx, machine, device); err != nil {
-		return err
+	m, found, err := d.Inspect(ctx, machine)
+	if err != nil {
+		return fmt.Errorf("read the state of %s after releasing %s: %w", machine, address, err)
 	}
-	// Tolerant on purpose: the re-plug usually took it, a stopped machine
-	// holds no live address, and "cannot find" is the outcome asked for.
-	_, _ = d.run(ctx, "exec", machine, "--", "ip", "address", "del", address+"/32", "dev", device)
-	return nil
+	if !found || !m.Running {
+		return nil
+	}
+	// What the device holds now, without a second read: the edit above is the
+	// only writer of ipv4.address on this NIC, and ipv4.routes it left alone.
+	after := map[string]string{
+		"ipv4.address": strings.Join(kept, ","),
+		"ipv4.routes":  devices.own[device]["ipv4.routes"],
+	}
+	return d.reconcileRoutedInterface(ctx, machine, device, after)
 }
 
 // mustOwn refuses to touch a network the emulator did not create. The label is

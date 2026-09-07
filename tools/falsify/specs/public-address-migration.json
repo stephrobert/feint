@@ -11,6 +11,30 @@
   "package": "./internal/core/machine/",
   "mutations": [
     {
+      "label": "the hot migration stops waiting for the guest's own config to lay the re-plugged interface, so the driver's writes race networkd's and what the machine carries before a reboot depends on who wrote last (#742)",
+      "file": "internal/core/machine/incus_ovn.go",
+      "package": "./internal/core/machine/",
+      "find": "\t\t\tif err == nil && len(carried) > 0 {\n\t\t\t\treturn nil\n\t\t\t}",
+      "replace": "\t\t\tif err == nil && len(carried) >= 0 {\n\t\t\t\treturn nil\n\t\t\t}",
+      "test": "TestAHotMigrationWaitsForTheGuestBeforeTakingTheStaleAddressOff"
+    },
+    {
+      "label": "the repair goes back before the release, so the default route the driver lays is the one the address deletion takes away (#742)",
+      "file": "internal/core/machine/incus_ovn.go",
+      "package": "./internal/core/machine/",
+      "find": "\tif err := d.releaseStaleRoutedAddresses(ctx, machine, device, cfg); err != nil {\n\t\treturn err\n\t}\n\tif err := d.repairRoutedInterface(ctx, machine, device); err != nil {\n\t\treturn err\n\t}\n\treturn waited",
+      "replace": "\tif err := d.repairRoutedInterface(ctx, machine, device); err != nil {\n\t\treturn err\n\t}\n\tif err := d.releaseStaleRoutedAddresses(ctx, machine, device, cfg); err != nil {\n\t\treturn err\n\t}\n\treturn waited",
+      "test": "TestAHotMigrationWaitsForTheGuestBeforeTakingTheStaleAddressOff"
+    },
+    {
+      "label": "a cold migration is reconciled like a hot one, polling a stopped machine for an interface no guest will lay (#742)",
+      "file": "internal/core/machine/incus_address.go",
+      "package": "./internal/core/machine/",
+      "find": "\tif !found || !m.Running {\n\t\treturn nil\n\t}",
+      "replace": "\tif !found || (!m.Running && false) {\n\t\treturn nil\n\t}",
+      "test": "TestAColdMigrationDoesNotWaitForTheGuest"
+    },
+    {
       "label": "the migration reconfigures an instance without asking whether the emulator created it",
       "file": "internal/core/machine/incus_address.go",
       "find": "func (d *Incus) releaseFromRoutedNIC(ctx context.Context, machine, device, address string) error {\n\tif err := d.mustOwnInstance(ctx, machine); err != nil {\n\t\treturn err\n\t}",

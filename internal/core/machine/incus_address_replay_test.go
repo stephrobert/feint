@@ -54,6 +54,10 @@ func TestAPublicAddressMovesOntoTheFilteredNIC(t *testing.T) {
 		"network get fnt-368798629f8 user." + LabelKey:      "feint\n",
 		"network get fnt-368798629f8 ipv4.address":          "10.30.1.1/24\n",
 		"network get " + DefaultUplinkName + " ipv4.routes": "",
+		// A running machine whose guest has laid eth0, so the release waits
+		// for nothing (#742); the order under test is the device's.
+		"list srv --format json": `[{"name":"srv","status":"Running","state":{"network":{}}}]`,
+		"addr show dev eth0":     "2: eth0    inet 203.0.113.4/32 scope global eth0\n",
 	}}
 	d := newFakeDriver(f)
 	d.OVN = true
@@ -98,6 +102,8 @@ func TestAPublicAddressMovesOntoTheFilteredNICInBridgeMode(t *testing.T) {
 		"/1.0/instances/srv":                           routedAndPrivate,
 		"network get fnt-368798629f8 user." + LabelKey: "feint\n",
 		"config device get srv eth1 ipv4.routes":       "",
+		"list srv --format json":                       `[{"name":"srv","status":"Running","state":{"network":{}}}]`,
+		"addr show dev eth0":                           "2: eth0    inet 203.0.113.4/32 scope global eth0\n",
 	}}
 	d := newFakeDriver(f)
 

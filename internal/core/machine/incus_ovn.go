@@ -1401,18 +1401,64 @@ func (d *Incus) reconcileRoutedNICs(ctx context.Context, machine string, devices
 		if cfg["type"] != "nic" || cfg["nictype"] != "routed" || device != routedDeviceName {
 			continue
 		}
-		waited := d.waitForGuestInterface(ctx, machine, device)
-		if err := d.releaseStaleRoutedAddresses(ctx, machine, device, cfg); err != nil {
+		if err := d.reconcileRoutedInterface(ctx, machine, device, cfg); err != nil {
 			return err
-		}
-		if err := d.repairRoutedInterface(ctx, machine, device); err != nil {
-			return err
-		}
-		if waited != nil {
-			return waited
 		}
 	}
 	return nil
+}
+
+// reconcileRoutedInterface is the one order the two writers of a routed
+// interface are held to, after a boot and after a re-plug alike (#674, #742):
+// the guest's own config goes first, and the driver waits its turn.
+//
+// A re-plug is a boot as far as the guest's network stack is concerned. The
+// interface disappears and comes back, and systemd-networkd applies the
+// netplan cloud-init rendered at the first boot to the new link — the launch
+// address, the default route through the link-local next hop — exactly as it
+// does after `incus start`. Until #742 only the restart path waited for that
+// to have happened before writing; the migration of #548 repaired the
+// interface the moment the device edit returned and deleted the moved address
+// right after, so it raced networkd on the link it had just re-plugged, and
+// which of the two wrote last decided what the machine carried. Measured
+// 2026-09-07 on platform-web-0 of the Scaleway example stack, `--vm
+// incus-ovn`, the same reboot verb on two runs:
+//
+//	networkd first, then the driver's del:  eth0 bare, no default route
+//	the driver's del first, then networkd:  eth0 203.0.113.4/32 + default via 169.254.0.1
+//
+// while the boot, polled at half-second intervals, always came out the same:
+// netplan wrote eth0 0.5 s after the container was back, the driver took the
+// stale address off 2.2 s after, the driver laid the default route 2.8 s
+// after, and the machine held that for the 150 s it was watched. So the
+// reboot comparison of #671 reported a difference on every run, in one
+// direction or the other, and the reboot was never what differed.
+//
+// What this produces is deliberately unchanged: a routed interface carrying
+// exactly what its device pins and routes, plus the link-local next hop and
+// the default route through it, which for a migrated machine is an interface
+// with no address and a default route. That shape is discussable — a default
+// route through an addressless interface is what #647 met on the bastion —
+// and deciding it is #695's outbound half and the ADR of #726, not this
+// order. Here the shape is made the same by both doors, so the comparison
+// can judge a reboot rather than a race.
+//
+// The wait is bounded and its expiry is reported after the reconciliation
+// rather than instead of it (waitForGuestInterface), as the restart path
+// always did. A stopped machine is the caller's question, asked before this
+// runs: there is no guest to wait for.
+//
+// TestAHotMigrationWaitsForTheGuestBeforeTakingTheStaleAddressOff fails
+// without the wait, and without this order.
+func (d *Incus) reconcileRoutedInterface(ctx context.Context, machine, device string, cfg map[string]string) error {
+	waited := d.waitForGuestInterface(ctx, machine, device)
+	if err := d.releaseStaleRoutedAddresses(ctx, machine, device, cfg); err != nil {
+		return err
+	}
+	if err := d.repairRoutedInterface(ctx, machine, device); err != nil {
+		return err
+	}
+	return waited
 }
 
 // releaseStaleRoutedAddresses takes off the guest's routed interface every
