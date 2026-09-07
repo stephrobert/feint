@@ -47,14 +47,16 @@ const (
 	// collision with a block already routed on the operator's host makes the
 	// create fail, and failing is better than capturing someone's traffic.
 	DefaultUplinkCIDR = "10.209.83.0/24"
-	// DefaultResolver is the name server an OVN network announces when the
-	// operator names none (#660): a public one, as a public cloud announces
-	// (a Scaleway instance receives 51.159.47.28), and the address this
-	// repository already uses as its witness of public reachability
-	// (tools/images/verify.sh). Any public address does the job the decision
-	// asks — the /32 RoutesToDNS= lays towards it goes through the network's
-	// router, measured — and this one answers queries from anywhere, so a
-	// machine WITH a way out still resolves.
+	// DefaultResolver is the name server the machines of an OVN network are
+	// given when the operator names none (#660): a public one, as a public
+	// cloud gives (a Scaleway instance receives 51.159.47.28), and the
+	// address this repository already uses as its witness of public
+	// reachability (tools/images/verify.sh), so a machine WITH a way out
+	// resolves. It reaches the guest through a networkd drop-in and
+	// resolvectl (#694, #696), never through the lease: a name server in the
+	// lease gets an on-link /32 from RoutesToDNS=, and a public address is
+	// not on the segment (#684). What the lease names is the network's own
+	// gateway, and EnsureNetwork says why (#697).
 	DefaultResolver = "1.1.1.1"
 )
 
@@ -1093,15 +1095,24 @@ var privateAggregates = []string{"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"
 // machines of one VPC that had always reached each other, because the default
 // route the network used to announce had been carrying the peered subnets too.
 func announcedPrivateRoutes(address string) string {
-	gateway := address
-	if host, _, ok := strings.Cut(address, "/"); ok {
-		gateway = host
-	}
+	gateway := gatewayHost(address)
 	pairs := make([]string, 0, len(privateAggregates))
 	for _, block := range privateAggregates {
 		pairs = append(pairs, block+","+gateway)
 	}
 	return strings.Join(pairs, ",")
+}
+
+// gatewayHost is the host part of the gateway CIDR a network carries
+// (10.0.0.1/24 -> 10.0.0.1): what a DHCP option takes, where the network
+// itself takes the CIDR. Shared by the routes and the name server the lease
+// names, so the two cannot disagree about which address the segment's router
+// answers on.
+func gatewayHost(address string) string {
+	if host, _, ok := strings.Cut(address, "/"); ok {
+		return host
+	}
+	return address
 }
 
 // guestRoutePoll and guestRouteWait bound the wait for a restarted guest to

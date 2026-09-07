@@ -3,36 +3,39 @@ package machine
 import (
 	"context"
 	"errors"
+	"net/netip"
 	"os"
 	"strconv"
 	"strings"
 	"testing"
 )
 
-// An OVN network hands its machines a resolver without ever announcing one in
-// the lease (#660, and the half of it that #684 closed).
+// An OVN network names, in its lease, the one address a guest may safely lay
+// an on-link route towards: its own gateway (#660, #684, #697).
 //
-// #660 measured the first half: the uplink's address, announced as the DNS
-// server, is also the source the station dials from, so the guest's
-// RoutesToDNS= laid an on-link /32 towards it, more specific than the
-// aggregates, and the reply to the station died on the switch. Its answer was
-// to announce a public resolver instead. The network's gateway was rejected as
-// the alternative, and re-measured on 2026-09-04 with the check made
-// independent of the others: nothing answers DNS there, `getent` returns
-// nothing on all three shapes.
+// The invariant is the guest's. systemd-networkd's RoutesToDNS= lays an
+// on-link /32 towards every DNS server a lease names, and a /32 towards an
+// address that is not on the segment is dead — the guest ARPs for it on the
+// switch and nobody answers. Three values were measured against it:
 //
-// #684 measured the second half, once the interfaces were managed at all. THE
-// SAME MECHANISM BREAKS A PUBLIC RESOLVER, for the same reason: a name server
-// in the lease gets an on-link /32, and 1.1.1.1 is not on the subnet either.
+//   - the uplink's address, which Incus names when nobody else does (#660,
+//     and #697 again through that fallback): it is also the source the
+//     station dials from, so the reply to a published address died on the
+//     switch;
+//   - a public resolver (#684): 1.1.1.1 is not on the segment either,
 //
 //	1.1.1.1 dev eth0 proto dhcp scope link src 10.188.0.5 metric 100
 //	ping 1.1.1.1 -> unreachable; resolvectl query -> No route to host
-//	ip route del 1.1.1.1 dev eth0 -> reachable
-//	resolvectl dns eth0 1.1.1.1 -> getent hosts deb.debian.org answers
 //
-// So no resolver is announced in the lease at all. The one the network stands
-// for reaches the guest through resolvectl (setGuestResolver), which sets a
-// name server and lays no route.
+//   - nothing (#693): not "no route" — Incus falls back to the host's
+//     resolvers, under OVN the uplink, and #660's dead /32 came back through
+//     somebody else's default. Four red scheduled nights on platform-web-0
+//     (#697).
+//
+// The gateway is on the segment by construction, so the /32 towards it is
+// live and harmless. Nothing answers DNS there, and that stopped mattering
+// with #694 and #696: the name server the guest uses reaches it through a
+// networkd drop-in and resolvectl, ahead of the lease's, and lays no route.
 
 // resolverProbe is the uplink harness of the egress tests: an uplink this run
 // holds on 10.99.0.0/24 (gateway 10.99.0.1), and the network absent so
@@ -46,21 +49,49 @@ func resolverProbe() *fakeRuntime {
 	}}
 }
 
-func networkCreateLine(f *fakeRuntime) string {
+// networkCreateCall is the create as argv, for the assertions that read one
+// option's value rather than grep the line.
+func networkCreateCall(f *fakeRuntime) []string {
 	for _, call := range f.calls {
-		line := strings.Join(call, " ")
-		if strings.Contains(line, "network create fnt-probe") {
-			return line
+		if strings.Contains(strings.Join(call, " "), "network create fnt-probe") {
+			return call
 		}
 	}
-	return ""
+	return nil
 }
 
-// TestAnOVNNetworkLaysNoRouteTowardsItsResolver holds the whole property: no
-// name server is put in the lease, by either mode, so no guest lays an on-link
-// route towards one. A bridge never did — its dnsmasq is the resolver there,
+func networkCreateLine(f *fakeRuntime) string {
+	return strings.Join(networkCreateCall(f), " ")
+}
+
+// announcedNameServers reads the name servers a create puts in the lease:
+// none when the option is absent or empty, and the two are deliberately not
+// told apart — both make Incus fall back to the host's resolvers, the empty
+// key measured on #694.
+func announcedNameServers(call []string) []string {
+	var servers []string
+	for _, arg := range call {
+		value, ok := strings.CutPrefix(arg, "dns.nameservers=")
+		if !ok {
+			continue
+		}
+		for _, server := range strings.Split(value, ",") {
+			if server = strings.TrimSpace(server); server != "" {
+				servers = append(servers, server)
+			}
+		}
+	}
+	return servers
+}
+
+// TestAnOVNNetworkLaysNoRouteTowardsItsResolver holds the invariant rather
+// than one value of it: every name server the lease names is on the network's
+// own segment, and the lease names one — an absent option is the uplink by
+// Incus's fallback, which is the four red nights of #697 and not a safer
+// state. A bridge names none itself: its dnsmasq is the resolver there,
 // on-link by construction, and the collision does not exist.
 func TestAnOVNNetworkLaysNoRouteTowardsItsResolver(t *testing.T) {
+	const block = "10.99.1.0/24"
 	for _, mode := range []struct {
 		name string
 		ovn  bool
@@ -71,30 +102,54 @@ func TestAnOVNNetworkLaysNoRouteTowardsItsResolver(t *testing.T) {
 			d.OVN = mode.ovn
 			d.UplinkCIDR = "10.99.0.0/24"
 			if err := d.EnsureNetwork(context.Background(), NetworkSpec{
-				Name: "fnt-probe", CIDR: "10.99.1.0/24", NAT: true,
+				Name: "fnt-probe", CIDR: block, NAT: true,
 			}); err != nil {
 				t.Fatalf("ensure: %v", err)
 			}
-			line := networkCreateLine(f)
-			if line == "" {
+			call := networkCreateCall(f)
+			if call == nil {
 				t.Fatalf("no network create; calls: %v", f.calls)
 			}
-			if strings.Contains(line, "dns.nameservers") {
-				t.Errorf("a name server is in the lease, which is the on-link /32 that costs the machine its way out (#684): %s", line)
+			servers := announcedNameServers(call)
+			if !mode.ovn {
+				if len(servers) > 0 {
+					t.Errorf("a bridge network names %v in its lease, over the dnsmasq that answers on-link there: %v", servers, call)
+				}
+				return
+			}
+			if len(servers) == 0 {
+				t.Fatalf("the OVN network names no resolver in its lease, so Incus names the uplink's address for it and every guest lays a dead on-link /32 towards the station's own source (#697): %v", call)
+			}
+			segment := netip.MustParsePrefix(block)
+			for _, server := range servers {
+				addr, err := netip.ParseAddr(server)
+				if err != nil {
+					t.Errorf("the lease names %q, which is not an address: %v", server, err)
+					continue
+				}
+				if !segment.Contains(addr) {
+					t.Errorf("the lease names %s, outside %s: the on-link /32 RoutesToDNS= lays towards it is dead, whether the address is the uplink's (#660) or a public resolver's (#684)", server, segment)
+				}
 			}
 			// And the accepting half, or a create that stopped configuring
 			// anything at all would pass: the routes ARE announced, and they
 			// are what a guest needs from the lease.
-			if mode.ovn && !strings.Contains(line, "ipv4.dhcp.routes=") {
-				t.Errorf("the OVN network announces no routes either, so this test is measuring an empty create: %s", line)
+			if !strings.Contains(strings.Join(call, " "), "ipv4.dhcp.routes=") {
+				t.Errorf("the OVN network announces no routes either, so this test is measuring an empty create: %v", call)
 			}
 		})
 	}
 }
 
-// TestAResolverThatIsTheUplinkIsRefused: the field cannot put the collision
-// back. The value the uplink was given is the value refused, derived once
-// (uplinkGateway), and no network is created.
+// TestAResolverThatIsTheUplinkIsRefused: the field cannot name the uplink.
+// Since #697 the field no longer reaches the lease — the lease names the
+// gateway, the field goes through the drop-in and resolvectl, which lay no
+// route — so what this protects has moved: it is the guard against the
+// announcement coming back through the field, the way #660's first fix put
+// `dns.nameservers=<resolver>` in the lease, and against a guest being
+// pointed, by any door, at the one address that is the station's own source
+// towards it. The value the uplink was given is the value refused, derived
+// once (uplinkGateway), and no network is created.
 func TestAResolverThatIsTheUplinkIsRefused(t *testing.T) {
 	f := resolverProbe()
 	d := newFakeDriver(f)

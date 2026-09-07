@@ -961,7 +961,7 @@ func serve(args []string, stdout io.Writer) error {
 	addr := fs.String("addr", DefaultAddr, "listen address")
 	state := fs.String("state", "", "load and persist the store to this JSON file")
 	vm := fs.String("vm", "off", "back powered-on servers with real machines: off, incus, incus-vm, incus-ovn, auto")
-	resolver := fs.String("resolver", machine.DefaultResolver, "the name server an OVN network announces to its machines; never the uplink's own address (#660)")
+	resolver := fs.String("resolver", machine.DefaultResolver, "the name server the machines of an OVN network are given; never the uplink's own address (#660)")
 	cleanup := fs.Bool("cleanup", false, "remove the machines and networks this run created before exiting")
 	logLevel := fs.String("log-level", "info", "log verbosity: error, warn, info, debug")
 	contracts := fs.String("contracts", "", "directory of API contracts; every response is checked against them and /_feint/conformance reports what failed")
