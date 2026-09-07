@@ -53,6 +53,7 @@ import (
 	"time"
 
 	"github.com/stephrobert/feint/internal/core/emulator"
+	"github.com/stephrobert/feint/internal/core/logline"
 )
 
 // tunnelHandshakeTimeout bounds the TLS handshake of one accepted tunnel.
@@ -457,9 +458,16 @@ func (f *Forward) patterns() []string {
 // TestARefusalNamesTheEntryThatIsMissing fails without it.
 func (f *Forward) refuse(w http.ResponseWriter, host string) {
 	f.refused.note(host)
+	// The host is the client's, off its CONNECT line, and it is written into
+	// a log record: spelled as one line so it cannot end the record and start
+	// one that reads as the proxy's own (CodeQL go/log-injection, alerts 35
+	// and 36). net/http refuses a malformed Host before it reaches here, which
+	// makes this the second wall rather than the first — and the one the
+	// analysis can see. TestARefusedHostCannotForgeALogLine fails without it.
+	shown := logline.Sanitise(host)
 	f.log.Warn("refused to intercept a host --forward does not name",
-		"host", host, "forwarding", strings.Join(f.patterns(), ", "),
-		"add", host+" (to the real host), or "+host+"=<target> to send it somewhere you choose")
+		"host", shown, "forwarding", strings.Join(f.patterns(), ", "),
+		"add", shown+" (to the real host), or "+shown+"=<target> to send it somewhere you choose")
 	http.Error(w, missingEntry(host), http.StatusForbidden)
 }
 

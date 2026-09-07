@@ -322,6 +322,12 @@ var rules = []rule{
 		}},
 	},
 	{
+		Path:     "internal/core/logline/",
+		Why:      "how a value a client controls is spelled into the emulator's log",
+		Runs:     nil,
+		Unproven: prepushIsTheWholeGate,
+	},
+	{
 		Path:     "internal/proxy/",
 		Why:      "the recording proxy that captured the real clouds",
 		Runs:     []string{"corpus:check"},

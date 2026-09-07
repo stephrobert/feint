@@ -19,6 +19,7 @@ internal/core/network/      address plans, subnets, firewall bindings
 internal/core/cloudinit/    the boot payload a provider hands its machines
 internal/core/serialise/    keyed mutual exclusion: one lock per named target
 internal/core/sshkey/       the OpenSSH one-line public key format, read and refused
+internal/core/logline/      a value a client controls, spelled as one line for the log
 internal/contract/          API descriptions, and the check that answers match them
 internal/corpus/            turns a recording of a real cloud into an artefact this repository
                             may commit: values synthetic, statuses and order kept
