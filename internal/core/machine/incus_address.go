@@ -207,7 +207,7 @@ func (d *Incus) routedNICCarrying(ctx context.Context, machine, address string) 
 // boot's netplan plus the restart path reconcile the guest. Asked once, before
 // the guest work, because the wait would otherwise poll a machine that will
 // never lay an interface for the whole of its budget.
-// TestAHotMigrationWaitsForTheGuestBeforeTakingTheStaleAddressOff and
+// TestAHotMigrationTellsNetworkdToLetGoBeforeTheRePlug and
 // TestAColdMigrationDoesNotWaitForTheGuest fail without the two halves.
 //
 // Ownership before shape, and this call is why: safeName has said the name
@@ -231,34 +231,39 @@ func (d *Incus) releaseFromRoutedNIC(ctx context.Context, machine, device, addre
 			kept = append(kept, entry)
 		}
 	}
-	if _, err := d.setDevice(ctx, machine, device,
-		"ipv4.address="+strings.Join(kept, ",")); err != nil {
-		return fmt.Errorf("release %s from %s/%s: %w", address, machine, device, err)
-	}
-	m, found, err := d.Inspect(ctx, machine)
-	if err != nil {
-		return fmt.Errorf("read the state of %s after releasing %s: %w", machine, address, err)
-	}
-	if !found || !m.Running {
-		return nil
-	}
-	// What the device holds now, without a second read: the edit above is the
-	// only writer of ipv4.address on this NIC, and ipv4.routes it left alone.
+	// What the device will hold once released: the edit below is the only
+	// writer of ipv4.address on this NIC, and ipv4.routes it leaves alone.
 	after := map[string]string{
 		"ipv4.address": strings.Join(kept, ","),
 		"ipv4.routes":  devices.own[device]["ipv4.routes"],
 	}
-	// Whether anyone in the guest will lay the re-plugged link: systemd-networkd
-	// does when a unit matches it (netplan's, on the images measured), and the
-	// wait is for that write. A guest that names no unit — no networkd, an
-	// unmanaged link — has no writer to wait for, and the re-plug left the
-	// interface bare for good.
-	iface, err := d.guestInterface(ctx, machine, device)
+	m, found, err := d.Inspect(ctx, machine)
 	if err != nil {
-		return err
+		return fmt.Errorf("read the state of %s before releasing %s: %w", machine, address, err)
 	}
-	guestWrites := d.guestNetworkUnit(ctx, machine, iface) != ""
-	return d.reconcileRoutedInterface(ctx, machine, device, after, guestWrites)
+	running := found && m.Running
+	// BEFORE the edit, on a running machine, because the edit re-plugs the
+	// interface and the new link is what networkd would lay the stale config
+	// on (#742). Asked now, the guest names the unit it has managed the
+	// interface with since the boot; asked after the re-plug, the same guest
+	// answers `n/a` for the 150 ms before networkd matches the new link, which
+	// reads exactly like "nobody manages this" and was measured to be the
+	// window the driver wrote first in. With the interface unmanaged before it
+	// is re-plugged, the new link is nobody's from its first moment, and the
+	// reconciliation after the edit finds nothing to race.
+	if running && routedDeviceCarriesNothing(after) {
+		if _, err := d.unmanageGuestInterface(ctx, machine, device); err != nil {
+			return err
+		}
+	}
+	if _, err := d.setDevice(ctx, machine, device,
+		"ipv4.address="+strings.Join(kept, ",")); err != nil {
+		return fmt.Errorf("release %s from %s/%s: %w", address, machine, device, err)
+	}
+	if !running {
+		return nil
+	}
+	return d.reconcileRoutedInterface(ctx, machine, device, after)
 }
 
 // mustOwn refuses to touch a network the emulator did not create. The label is

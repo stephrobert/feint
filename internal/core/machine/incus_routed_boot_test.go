@@ -136,35 +136,108 @@ func TestARestartKeepsTheAddressTheRoutedNICStillPins(t *testing.T) {
 	}
 }
 
-// TestARestartWaitsForTheGuestToLayItsRoutedNICBeforeReconciling: the order is
-// the mechanism. The guest's config lays eth0 a moment after `incus start`
-// returns; a reconciliation that read the interface before that would find it
-// bare, take nothing off, and the stale address would land afterwards. The
-// guest here answers bare twice and then carries the migrated address; the
-// removal must come after that.
-func TestARestartWaitsForTheGuestToLayItsRoutedNICBeforeReconciling(t *testing.T) {
+// TestARestartTellsNetworkdToLetGoOfAMigratedRoutedNIC: the boot door of
+// #742. A machine migrated while stopped boots with its netplan still
+// declaring the launch address on eth0, so networkd lays it; the restart path
+// finds a device that carries nothing, tells networkd in its own configuration
+// to let go (a drop-in beside the unit the guest names, a reload), reads
+// networkd's state until it reports the link unmanaged, and only then takes
+// the stale address off and lays the default route. The guest here answers
+// (configuring) twice after the reload before (unmanaged); the removal must
+// come after that, and it must come: written as a wait for the guest to LAY
+// the interface, the same boot read a bare link, took nothing off, and the
+// address landed afterwards.
+func TestARestartTellsNetworkdToLetGoOfAMigratedRoutedNIC(t *testing.T) {
 	f := &fakeRuntime{}
 	restartedInstanceCarrying(f, migratedRouted, "203.0.113.7")
 	inner := f.hook
-	reads := 0
+	reloaded := false
+	statusReads := 0
 	f.hook = func(n int, args []string) ([]byte, error, bool) {
-		if args[0] == "exec" && strings.Contains(strings.Join(args, " "), "-o addr show dev eth0") {
-			reads++
-			if reads <= 2 {
-				return []byte(""), nil, true
+		key := strings.Join(args, " ")
+		switch {
+		case strings.Contains(key, "networkctl reload"):
+			reloaded = true
+			return nil, nil, true
+		case strings.Contains(key, "networkctl status eth0"):
+			if !reloaded {
+				return []byte(managedByNetworkd), nil, true
 			}
+			statusReads++
+			if statusReads < statusReadsToSettle {
+				return []byte(stillConfiguring), nil, true
+			}
+			return []byte(letGoByNetworkd), nil, true
+		}
+		return inner(n, args)
+	}
+	d := ovnDriver(f)
+	d.resolverPoll = time.Millisecond
+	d.resolverWait = time.Second
+
+	if _, err := d.Start(context.Background(), Spec{Name: "srv", Image: "ubuntu:22.04"}); err != nil {
+		t.Fatalf("start an existing machine: %v", err)
+	}
+	dropIn := step(f, unmanagedDropIn)
+	del := step(f, "ip address del 203.0.113.7/32 dev eth0")
+	reload := -1
+	for i, cmd := range f.commands() {
+		if i > dropIn && strings.Contains(cmd, "networkctl reload") {
+			reload = i
+			break
+		}
+	}
+	switch {
+	case dropIn < 0:
+		t.Fatalf("the boot left eth0 to networkd, whose config still lays the migrated address (#742):\n%s",
+			strings.Join(f.commands(), "\n"))
+	case reload < 0:
+		t.Fatalf("the drop-in was written and networkd never told to read it:\n%s", strings.Join(f.commands(), "\n"))
+	case del < 0:
+		t.Fatalf("the migrated address was left on the routed NIC:\n%s", strings.Join(f.commands(), "\n"))
+	case statusReadsBetween(f, reload, del) < statusReadsToSettle:
+		t.Errorf("the address was taken off before networkd reported the link unmanaged (%d state read(s) "+
+			"after the reload), which is the order the address lands afterwards in:\n%s",
+			statusReadsBetween(f, reload, del), strings.Join(f.commands(), "\n"))
+	case step(f, "ip route add default via 169.254.0.1 dev eth0") < 0:
+		t.Errorf("the restart took the door away with the address:\n%s", strings.Join(f.commands(), "\n"))
+	}
+}
+
+// TestARebootOfAMigratedMachineDoesNotWaitForAnAddressNobodyLays: once the
+// drop-in is there, eth0 is nobody's from the first moment of every boot, the
+// guest names no unit for it, and a wait for an address that no one will lay
+// would cost every reboot of a migrated machine the whole budget — #694's
+// shape, reintroduced by #742's own fix. The interface is read once, for the
+// release, and the routes are laid.
+func TestARebootOfAMigratedMachineDoesNotWaitForAnAddressNobodyLays(t *testing.T) {
+	f := &fakeRuntime{}
+	restartedInstanceCarrying(f, migratedRouted, "")
+	inner := f.hook
+	f.hook = func(n int, args []string) ([]byte, error, bool) {
+		if strings.Contains(strings.Join(args, " "), "networkctl status eth0") {
+			return []byte(letGoByNetworkd), nil, true
 		}
 		return inner(n, args)
 	}
 	d := ovnDriver(f)
 	d.routePoll = time.Millisecond
+	d.routeBudget = 200 * time.Millisecond
+	d.resolverPoll = time.Millisecond
+	d.resolverWait = 20 * time.Millisecond
 
-	if _, err := d.Start(context.Background(), Spec{Name: "srv", Image: "ubuntu:22.04"}); err != nil {
-		t.Fatalf("start an existing machine: %v", err)
+	if err := d.restoreGuestNetwork(context.Background(), "srv"); err != nil {
+		t.Fatalf("a migrated machine whose routed NIC nobody lays was reported: %v", err)
 	}
-	if len(f.matching("exec srv -- ip address del 203.0.113.7/32 dev eth0")) == 0 {
-		t.Errorf("the reconciliation read the routed NIC before the guest had laid it, and took nothing off (%d reads):\n%s",
-			reads, strings.Join(f.commands(), "\n"))
+	if got := f.matching(unmanagedDropIn); len(got) != 0 {
+		t.Errorf("a drop-in was written for a link networkd already let go of:\n%s", strings.Join(got, "\n"))
+	}
+	if reads := f.matching("-o addr show dev eth0"); len(reads) > 1 {
+		t.Errorf("the routed NIC nobody lays was polled %d time(s) for an address (#742):\n%s",
+			len(reads), strings.Join(f.commands(), "\n"))
+	}
+	if len(f.matching("exec srv -- ip route add default via 169.254.0.1 dev eth0")) == 0 {
+		t.Errorf("the restart took the door away:\n%s", strings.Join(f.commands(), "\n"))
 	}
 }
 
@@ -175,6 +248,16 @@ func TestARestartWaitsForTheGuestToLayItsRoutedNICBeforeReconciling(t *testing.T
 func TestARestartStillReconcilesWhenTheGuestNeverLaysItsRoutedNIC(t *testing.T) {
 	f := &fakeRuntime{}
 	restartedInstanceCarrying(f, launchRouted, "")
+	// The guest manages the interface and never lays it, which is the case
+	// the wait is for; an interface nobody manages is not waited for at all
+	// (the test below).
+	inner := f.hook
+	f.hook = func(n int, args []string) ([]byte, error, bool) {
+		if strings.Contains(strings.Join(args, " "), "networkctl status eth0") {
+			return []byte(managedByNetworkd), nil, true
+		}
+		return inner(n, args)
+	}
 	d := ovnDriver(f)
 	d.routePoll = time.Millisecond
 	d.routeBudget = 5 * time.Millisecond
@@ -194,6 +277,39 @@ func TestARestartStillReconcilesWhenTheGuestNeverLaysItsRoutedNIC(t *testing.T) 
 	}
 	if got := f.matching("ip address del"); len(got) != 0 {
 		t.Errorf("nothing was carried and something was taken off:\n%s", strings.Join(got, "\n"))
+	}
+}
+
+// TestARestartOfARoutedNICNobodyManagesDoesNotWait: an interface this driver
+// took away from networkd (#742) that an address was later routed back onto
+// has no writer in the guest, and the boot must not wait for one: the driver
+// lays what the device declares, at once, and the boot goes on.
+func TestARestartOfARoutedNICNobodyManagesDoesNotWait(t *testing.T) {
+	f := &fakeRuntime{}
+	restartedInstanceCarrying(f, launchRouted, "")
+	inner := f.hook
+	f.hook = func(n int, args []string) ([]byte, error, bool) {
+		if strings.Contains(strings.Join(args, " "), "networkctl status eth0") {
+			return []byte(letGoByNetworkd), nil, true
+		}
+		return inner(n, args)
+	}
+	d := ovnDriver(f)
+	d.routePoll = time.Millisecond
+	d.routeBudget = 200 * time.Millisecond
+	d.resolverPoll = time.Millisecond
+	d.resolverWait = 20 * time.Millisecond
+
+	if err := d.restoreGuestNetwork(context.Background(), "srv"); err != nil {
+		t.Fatalf("a routed NIC nobody manages was waited for and reported: %v", err)
+	}
+	if reads := f.matching("-o addr show dev eth0"); len(reads) > 1 {
+		t.Errorf("the routed NIC nobody manages was polled %d time(s) for an address no guest will lay (#742):\n%s",
+			len(reads), strings.Join(f.commands(), "\n"))
+	}
+	if len(f.matching("exec srv -- ip address add 203.0.113.7/32 dev eth0")) == 0 {
+		t.Errorf("the boot left the routed NIC bare instead of laying the device on it:\n%s",
+			strings.Join(f.commands(), "\n"))
 	}
 }
 

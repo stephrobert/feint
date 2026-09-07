@@ -406,12 +406,23 @@ what this project is judged on: **a response shape a client can observe**, and
   the moved address right after, racing systemd-networkd's re-application of
   the guest's own netplan to the new link: networkd last, the machine kept
   the address on two interfaces; the driver last, it kept none on `eth0` and
-  no default route. Both paths now go through one order, the one #674 stated
-  for a restart: the guest's config first, the driver second, waiting its
-  turn. What they produce is deliberately unchanged, an addressless routed
-  interface carrying the default route through `169.254.0.1`; whether that is
-  the right shape is #695's outbound half and the ADR of #726, and is not
-  decided here. The defect is older than v0.12.1: today's gate driving a
+  no default route. An order was tried first and did not hold on the runner:
+  polled at 100 ms across the hot attach, the re-plugged link answers
+  `Network File: n/a` for 150 ms before networkd matches it, which reads
+  exactly like "nobody manages this", and while networkd owns the interface's
+  configuration every order the driver takes is a race. So the driver now
+  tells networkd, in networkd's own configuration, to let go of a routed
+  interface whose address moved: a drop-in beside the unit netplan rendered
+  (`[Link] Unmanaged=yes`, the mechanism #702 already uses for the resolver),
+  a reload, and a wait for the state networkd reports, `(unmanaged)`, before
+  the stale address is taken off and the routes laid — before the re-plug on
+  the hot path, at the first boot after a cold migration on the restart path,
+  and at every boot after that nobody but the driver writes the interface. A
+  guest with no networkd is left alone. What is produced is deliberately
+  unchanged, an addressless routed interface carrying the default route
+  through `169.254.0.1`; #742 changes who writes it, not what is written, and
+  whether that is the right shape is #695's outbound half and the ADR of
+  #726, not decided here. The defect is older than v0.12.1: today's gate driving a
   binary built from that tag reaches the step and fails it too, by more. The
   comparison that finds it is later than that tag, so no earlier release was
   measured on this step.

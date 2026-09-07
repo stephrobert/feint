@@ -189,6 +189,11 @@ func TestMigrationRefusesAnInstanceTheEmulatorDidNotCreate(t *testing.T) {
 				// The instance carries no label of ours, which is what the
 				// fake's default answer would otherwise supply.
 				"config get production-database user." + LabelKey: "\n",
+				// And it is running, so that without the guard the migration
+				// goes all the way to the device edit this test forbids,
+				// rather than dying on an unreadable state and passing over a
+				// neutralised guard (#742's replay found exactly that).
+				"list production-database --format json": `[{"name":"production-database","status":"Running","state":{"network":{}}}]`,
 			}}
 			d := newFakeDriver(f)
 			d.OVN = ovn
@@ -222,6 +227,9 @@ func TestAMigrationIsNotStartedForANetworkTheEmulatorDoesNotOwn(t *testing.T) {
 				"/1.0/instances/srv": routedAndPrivate,
 				// The network carries no label of ours.
 				"network get fnt-368798629f8 user." + LabelKey: "\n",
+				// The machine is running, so that without the guard the release
+				// reaches the device edit this test forbids (see the test above).
+				"list srv --format json": `[{"name":"srv","status":"Running","state":{"network":{}}}]`,
 			}}
 			d := newFakeDriver(f)
 			d.OVN = ovn

@@ -434,13 +434,25 @@ change ni l'un ni l'autre a sa place dans `git log`.
   après, en course avec la réapplication par systemd-networkd du netplan de
   l'invité sur le nouveau lien : networkd en dernier, la machine gardait
   l'adresse sur deux interfaces ; le pilote en dernier, elle n'en gardait
-  aucune sur `eth0` et pas de route par défaut. Les deux chemins passent
-  désormais par un seul ordre, celui que #674 énonçait pour un redémarrage :
-  la config de l'invité d'abord, le pilote ensuite, qui attend son tour. Ce
-  qu'ils produisent est délibérément inchangé, une interface routée sans
-  adresse portant la route par défaut par `169.254.0.1` ; savoir si c'est la
-  bonne forme relève de la moitié sortante de #695 et de l'ADR #726, et n'est
-  pas tranché ici. Le défaut est antérieur à v0.12.1 : le gate d'aujourd'hui
+  aucune sur `eth0` et pas de route par défaut. Un ordre a d'abord été
+  essayé et n'a pas tenu sur le runner : sondé à 100 ms à travers
+  l'attachement à chaud, le lien rebranché répond `Network File: n/a` pendant
+  150 ms avant que networkd ne l'apparie, ce qui se lit exactement comme
+  « personne ne gère ce lien », et tant que networkd possède la configuration
+  de l'interface, tout ordre du pilote est une course. Le pilote dit donc à
+  networkd, dans la configuration de networkd, de lâcher une interface routée
+  dont l'adresse a migré : un drop-in à côté de l'unité rendue par netplan
+  (`[Link] Unmanaged=yes`, le mécanisme que #702 emploie déjà pour le
+  résolveur), un rechargement, et l'attente de l'état que networkd rapporte,
+  `(unmanaged)`, avant de retirer l'adresse périmée et de poser les routes :
+  avant le re-plug sur le chemin à chaud, au premier boot après une migration
+  à froid sur le chemin de redémarrage, et à chaque boot suivant plus personne
+  que le pilote n'écrit l'interface. Un invité sans networkd est laissé
+  tranquille. Ce qui est produit est délibérément inchangé, une interface
+  routée sans adresse portant la route par défaut par `169.254.0.1` ; #742
+  change qui l'écrit, pas ce qui est écrit, et savoir si c'est la bonne forme
+  relève de la moitié sortante de #695 et de l'ADR #726, non tranché ici. Le
+  défaut est antérieur à v0.12.1 : le gate d'aujourd'hui
   pilotant un binaire construit depuis ce tag atteint l'étape et y échoue
   aussi, plus largement. La comparaison qui le trouve est postérieure à ce
   tag, donc aucune release antérieure n'a été mesurée sur cette étape.

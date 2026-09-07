@@ -1401,70 +1401,83 @@ func (d *Incus) reconcileRoutedNICs(ctx context.Context, machine string, devices
 		if cfg["type"] != "nic" || cfg["nictype"] != "routed" || device != routedDeviceName {
 			continue
 		}
-		// A boot lays the interface on every image this emulator builds —
-		// netplan and networkd on Ubuntu, ifupdown on Debian and Alpine,
-		// NetworkManager on the RHEL family — so after a boot the guest is
-		// always waited for.
-		if err := d.reconcileRoutedInterface(ctx, machine, device, cfg, true); err != nil {
+		if err := d.reconcileRoutedInterface(ctx, machine, device, cfg); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// reconcileRoutedInterface is the one order the two writers of a routed
-// interface are held to, after a boot and after a re-plug alike (#674, #742):
-// the guest's own config goes first, and the driver waits its turn.
+// reconcileRoutedInterface makes the guest's routed interface carry what its
+// device carries, after a boot and after a re-plug alike (#674, #742), and it
+// is one sequence for both doors so they cannot diverge again.
 //
-// A re-plug is a boot as far as the guest's network stack is concerned. The
-// interface disappears and comes back, and systemd-networkd applies the
-// netplan cloud-init rendered at the first boot to the new link — the launch
-// address, the default route through the link-local next hop — exactly as it
-// does after `incus start`. Until #742 only the restart path waited for that
-// to have happened before writing; the migration of #548 repaired the
-// interface the moment the device edit returned and deleted the moved address
-// right after, so it raced networkd on the link it had just re-plugged, and
-// which of the two wrote last decided what the machine carried. Measured
-// 2026-09-07 on platform-web-0 of the Scaleway example stack, `--vm
-// incus-ovn`, the same reboot verb on two runs:
+// Two writers of one interface. The guest's own config (routedNetworkConfig,
+// rendered once by cloud-init at the first boot) lays eth0 with the launch
+// address and the default route through the link-local next hop; the driver
+// lays what the device pins and routes. Which of the two goes last decides
+// what the machine carries, and until #742 the answer differed by door and by
+// station: the restart path waited for the guest to lay the interface before
+// writing (#674), the hot migration of #548 wrote the moment its device edit
+// returned, and the reboot comparison of #671 reported the difference on
+// every run, on the runner as on the author's station, in one direction or
+// the other. Measured 2026-09-07 at 100 ms across a hot attach: the re-plugged
+// link answers `Network File: n/a` for 150 ms before networkd matches it and
+// lays the launch config, so an order that waits for the guest's write can
+// still ask in that window, read "nobody manages this", and write first.
+// While networkd owns the interface's configuration, every order is a race.
 //
-//	networkd first, then the driver's del:  eth0 bare, no default route
-//	the driver's del first, then networkd:  eth0 203.0.113.4/32 + default via 169.254.0.1
+// So the two cases are told apart by what the device carries, and neither
+// races:
 //
-// while the boot, polled at half-second intervals, always came out the same:
-// netplan wrote eth0 0.5 s after the container was back, the driver took the
-// stale address off 2.2 s after, the driver laid the default route 2.8 s
-// after, and the machine held that for the 150 s it was watched. So the
-// reboot comparison of #671 reported a difference on every run, in one
-// direction or the other, and the reboot was never what differed.
+//   - a device that still pins or routes an address is one whose guest config
+//     is right, and the driver waits for the guest to have laid the interface
+//     before it puts back what the device declares — when the guest has a
+//     writer for it at all, which an interface this driver took away from
+//     networkd no longer has;
+//   - a device that carries nothing is one whose address moved (#548), and
+//     whose guest config is stale: the driver tells networkd to let go of the
+//     interface in networkd's own configuration (unmanageGuestInterface), waits
+//     for networkd to report the STATE, not the effect, and only then takes
+//     the stale address off and lays the next hop and the default route. From
+//     then on nobody else writes it, at this re-plug or at any later boot.
 //
-// What this produces is deliberately unchanged: a routed interface carrying
-// exactly what its device pins and routes, plus the link-local next hop and
-// the default route through it, which for a migrated machine is an interface
-// with no address and a default route. That shape is discussable — a default
-// route through an addressless interface is what #647 met on the bastion —
-// and deciding it is #695's outbound half and the ADR of #726, not this
-// order. Here the shape is made the same by both doors, so the comparison
-// can judge a reboot rather than a race.
+// What is produced is deliberately unchanged: a routed interface carrying
+// exactly what its device pins and routes, plus the next hop and the default
+// route through it, which for a migrated machine is an interface with no
+// address and a default route. That shape is discussable — a default route
+// through an addressless interface is what #647 met on the bastion — and
+// deciding it is #695's outbound half and the ADR of #726. #742 changes who
+// writes it, not what is written, so the comparison can judge a reboot rather
+// than a race.
 //
-// The wait is bounded and its expiry is reported after the reconciliation
-// rather than instead of it (waitForGuestInterface), as the restart path
-// always did. A stopped machine is the caller's question, asked before this
-// runs: there is no guest to wait for. And so is whether the guest has a
-// writer for the link at all (guestWrites): after a boot every image lays
-// its interfaces, but after a re-plug only a stack that reacts to a link
-// appearing does — systemd-networkd with a unit for it, measured — and an
-// ifupdown guest, an Alpine one, or an unmanaged link would be polled for
-// the whole budget for an address nobody is going to lay. That is #694's
-// shape, a transient case not told from a permanent one, and it would make
-// a hot address attach cost ninety seconds on half the images.
+// The wait for the guest is bounded and its expiry reported after the
+// reconciliation rather than instead of it (waitForGuestInterface), as the
+// restart path always did. A stopped machine is the caller's question, asked
+// before this runs: there is no guest to write, and no guest to wait for.
 //
-// TestAHotMigrationWaitsForTheGuestBeforeTakingTheStaleAddressOff fails
-// without the wait, and without this order;
-// TestAHotMigrationOnALinkNobodyManagesDoesNotWait without the other half.
-func (d *Incus) reconcileRoutedInterface(ctx context.Context, machine, device string, cfg map[string]string, guestWrites bool) error {
+// TestARestartTellsNetworkdToLetGoOfAMigratedRoutedNIC and
+// TestARebootOfAMigratedMachineDoesNotWaitForAnAddressNobodyLays fail without
+// the second case; TestAHotMigrationTellsNetworkdToLetGoBeforeTheRePlug holds
+// the hot door in releaseFromRoutedNIC.
+func (d *Incus) reconcileRoutedInterface(ctx context.Context, machine, device string, cfg map[string]string) error {
 	var waited error
-	if guestWrites {
+	if routedDeviceCarriesNothing(cfg) {
+		if _, err := d.unmanageGuestInterface(ctx, machine, device); err != nil {
+			return err
+		}
+	} else if iface, err := d.guestInterface(ctx, machine, device); err != nil {
+		return err
+	} else if d.guestNetworkUnit(ctx, machine, iface) != "" {
+		// Waited for only when the guest has a writer for it. An interface
+		// this driver took away from networkd stays nobody's for the rest of
+		// the machine's life, and no path hands it back: an address routed
+		// onto it again later (routeOntoRoutedNIC, after the private NIC that
+		// carried the migrated address is detached) is laid by the driver
+		// itself, here and at every re-plug, which is one writer where there
+		// used to be two. A wait for the guest to lay such an interface would
+		// expire on every boot, #694's shape once more.
+		// TestARestartOfARoutedNICNobodyManagesDoesNotWait fails without this.
 		waited = d.waitForGuestInterface(ctx, machine, device)
 	}
 	if err := d.releaseStaleRoutedAddresses(ctx, machine, device, cfg); err != nil {
