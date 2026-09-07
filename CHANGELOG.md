@@ -391,6 +391,28 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Fixed
 
+- **A poweron that failed no longer narrates `starting`** (#738). Under
+  `--consistency eventual`, a start whose runtime call failed answered
+  `[starting stopped stopped stopped]` across four reads, with a task saying
+  `success`: a client watching the action saw a boot that never happened.
+  `transitionTo` refused any settled value outside `running`, `stopped` and
+  `stopped in place`, and this pack's failed state **is** `stopped` — Scaleway
+  declares no error state for a server — so the guard passed it. An action that
+  settles where it started made no journey and now narrates none; a reboot,
+  which legitimately returns to where it began, says so through
+  `transitionBackTo` and keeps its chain. This makes true the sentence #637's
+  entry above already claims.
+
+  The test is the part worth reading. `TestAFailedActionWalksNoChain` listed
+  the failed states `failed`, `starting`, `unknown` and `""`, none of which
+  this layer produces, while its accepting half required a chain for
+  `from == settled == "stopped"` — the failed poweron itself. It asserted the
+  defect in one half and missed it in the other, over a population that
+  excluded the only value that occurs. The accepting half now names journeys
+  (`stopped→running`, `running→stopped`) rather than destinations against one
+  origin, and `TestAFailedPoweronWalksNoChain` drives the whole path through
+  HTTP, because the unit-level guard was already believed to hold.
+
 - **A machine whose public address moved onto its private NIC carries the
   same shape before and after the reboot verb: the hot migration waits for
   the guest to lay the routed interface before it writes, as the restart path

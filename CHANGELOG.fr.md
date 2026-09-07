@@ -418,6 +418,30 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Corrigé
 
+- **Un poweron qui a échoué ne raconte plus `starting`** (#738). Sous
+  `--consistency eventual`, un démarrage dont l'appel au runtime avait échoué
+  répondait `[starting stopped stopped stopped]` sur quatre lectures, avec une
+  tâche annonçant `success` : un client qui suivait l'action voyait un
+  démarrage qui n'avait jamais eu lieu. `transitionTo` refusait toute valeur
+  d'arrivée hors de `running`, `stopped` et `stopped in place`, et l'état
+  d'échec de ce pack **est** `stopped`, Scaleway ne déclarant aucun état
+  d'erreur pour un serveur : la garde la laissait donc passer. Une action qui
+  arrive là où elle est partie n'a fait aucun trajet et n'en raconte plus ; un
+  redémarrage, qui revient légitimement à son point de départ, le dit par
+  `transitionBackTo` et garde sa chaîne. Cela rend vraie la phrase que
+  l'entrée de #637 ci-dessus affirmait déjà.
+
+  Le test est la partie qui mérite d'être lue. `TestAFailedActionWalksNoChain`
+  listait les états d'échec `failed`, `starting`, `unknown` et `""`, dont
+  aucun n'est produit par cette couche, tandis que sa moitié acceptante
+  exigeait une chaîne pour `from == settled == "stopped"`, c'est-à-dire le
+  poweron échoué lui-même. Il affirmait le défaut d'un côté et le manquait de
+  l'autre, sur une population qui excluait la seule valeur qui se produit. La
+  moitié acceptante nomme désormais des trajets (`stopped→running`,
+  `running→stopped`) plutôt que des destinations depuis une origine unique, et
+  `TestAFailedPoweronWalksNoChain` parcourt tout le chemin par HTTP, parce que
+  la garde unitaire était déjà réputée tenir.
+
 - **Une machine dont l'adresse publique a migré sur sa NIC privée porte la
   même forme avant et après le verbe de reboot : la migration à chaud attend
   que l'invité ait posé l'interface routée avant d'écrire, comme le chemin de

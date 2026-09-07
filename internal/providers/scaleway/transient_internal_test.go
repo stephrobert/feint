@@ -22,20 +22,35 @@ func TestAFailedActionWalksNoChain(t *testing.T) {
 		return resource.New("id", kindServer, resource.Tenant{Provider: Name}, state, now)
 	}
 
-	for _, settled := range []string{"running", "stopped", "stopped in place"} {
-		r := res(settled)
-		transitionTo(r, "stopped", settled, "stopping", "starting")
+	// An action that MOVED, which is what a chain describes: `from` and
+	// `settled` differ. Written as pairs rather than as a list of destinations
+	// against one origin, because the origin is half the question — the same
+	// destination is a journey from one state and a no-op from another.
+	for _, moved := range []struct{ from, settled string }{
+		{"stopped", "running"},          // a poweron that booted
+		{"running", "stopped"},          // a poweroff that stopped it
+		{"running", "stopped in place"}, // a poweroff that kept the machine
+	} {
+		r := res(moved.settled)
+		transitionTo(r, moved.from, moved.settled, "stopping", "starting")
 		if len(r.Pending) == 0 {
-			t.Errorf("a %s action pushed no chain, so a client waiting on it observes nothing", settled)
+			t.Errorf("a %s→%s action pushed no chain, so a client waiting on it observes nothing",
+				moved.from, moved.settled)
 		}
-		if r.State != settled {
-			t.Errorf("a %s action left the resource at %q", settled, r.State)
+		if r.State != moved.settled {
+			t.Errorf("a %s→%s action left the resource at %q", moved.from, moved.settled, r.State)
 		}
 	}
 
 	// The failed states the machine layer produces. Whatever they are called,
 	// they are not states this chain knows how to arrive at.
-	for _, failed := range []string{"failed", "starting", "unknown", ""} {
+	//
+	// `stopped` is in this list and was not, which is the whole of #738: this
+	// pack's FailedState IS `stopped` (machines.go), so a start that failed
+	// settles where it started, and the check on the settled value alone cannot
+	// see it. Measured 2026-09-07 before the fix: a poweron whose Start fails
+	// answered [starting stopped stopped stopped].
+	for _, failed := range []string{"failed", "starting", "unknown", "", "stopped"} {
 		r := res(failed)
 		transitionTo(r, "stopped", failed, "stopping", "starting")
 		if len(r.Pending) != 0 {
