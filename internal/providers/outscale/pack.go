@@ -260,7 +260,8 @@ func (p *Pack) Routes() []emulator.Route {
 		// page on it, and on the control plane an fGPU is the shape of a
 		// volume rather than of a machine. The catalogue is a reading of the
 		// real one, so the create can refuse a model the cloud does not offer.
-		p.route("ReadFlexibleGpuCatalog", p.readFlexibleGpuCatalog),
+		unearnable(p.route("ReadFlexibleGpuCatalog", p.readFlexibleGpuCatalog),
+			nothingToRefuse("ReadFlexibleGpuCatalogRequest declares DryRun and nothing else")),
 		p.route("CreateFlexibleGpu", p.createFlexibleGpu),
 		p.route("ReadFlexibleGpus", p.readFlexibleGpus),
 		p.route("UpdateFlexibleGpu", p.updateFlexibleGpu),
