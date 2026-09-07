@@ -2241,6 +2241,99 @@ Consequences, stated rather than implied:
   papered over; widening the machine layer's contract is the boundary work of
   the architecture audit (#514), not a patch.
 
+## Which door a reply leaves by, and why it does not decide (#672)
+
+A machine holding a public address has to answer at that address. #660 named the
+failure in one sentence — *"its reply was leaving by a door the request had not
+come in through"* — and #672 asked for the door to be measured per machine
+shape rather than deduced, because a verifier that invented its expected values
+would be a second reconciler, wrong with the same confidence as the first.
+
+It is measured now, and the answer is that **the door is not what decides**.
+
+### The four readings, 2026-09-07
+
+One emulator per mode, a Scaleway server holding a flexible IP on a private
+network, both orders of construction. The service is proved listening from
+inside the guest by reading `/proc/net/tcp` for state `0A` before any
+reachability verdict, and the reader itself is checked against a planted witness
+first (`fnl_listen_reader_control`), because an instrument that cannot prove
+itself turns every "nothing is listening" into a measurement of the harness.
+
+| mode | order | the door: `ip route get <peer> from <public>` | neighbour | station reaches it |
+|---|---|---|---|---|
+| `incus-ovn` | address first, NIC hot | `dev eth1`, on-link, no `via` | `INCOMPLETE` | **no** |
+| `incus-ovn` | NIC cold, then address | `dev eth0`, on-link, no `via` | `INCOMPLETE` | **no** |
+| `incus` (bridge) | address first, NIC hot | `dev eth1`, on-link, no `via` | resolved (`DELAY`) | yes |
+| `incus` (bridge) | NIC cold, then address | `dev eth0`, on-link, no `via` | `REACHABLE` | yes |
+
+**The door reads the same in all four.** A `door` claim comparing `via` and
+`dev` — which is what `machine.door.Check` compares — would report `held` on the
+two machines that answer nobody. That is why no door claim is derived from this
+table: the silence in `claims.go` stays, and it is now silence for a measured
+reason rather than for an unmeasured one.
+
+### What actually differs: the peer, not the door
+
+A published address is reached **through the uplink**, so the address the
+station answers from is not its LAN address. Read on the station while the
+machine is alive:
+
+```
+--vm incus-ovn   203.0.113.2 dev feint-uplink src 10.209.83.1
+--vm incus       203.0.113.2 via 10.211.0.2 dev fnt-943cfdf1d2c src 10.211.0.1
+```
+
+So the guest must reply to `10.209.83.1` under OVN, and to `10.211.0.1` under
+the bridge. The first is the uplink's own address and is **not on the guest's
+subnet**; the second is the bridge's gateway and **is**. The guest's route to
+either is on-link, so it resolves the peer itself, and only one of the two can
+be resolved:
+
+```
+--vm incus-ovn   10.209.83.1 dev eth1  INCOMPLETE      <- nobody answers the ARP
+--vm incus       10.211.0.1  dev eth0  REACHABLE
+```
+
+The request lands either way — one connection in `SYN_RECV` inside the guest
+while the station dials, under OVN — so the emulator is not dropping anything
+inbound. It is the reply that never reaches the wire.
+
+The on-link route itself is DHCP's: `10.209.83.1 dev eth1 proto dhcp scope
+link`. `systemd-networkd` lays an on-link `/32` toward every DNS server a lease
+announces (`RoutesToDNS=`), and the OVN network announces the uplink as its
+resolver. A `/32` beats any default route by longest prefix, which is why #672's
+two variants of this shape read *"same gateway, same device, opposite results"*:
+the gateway and device were never the deciding part.
+
+### What the routed NIC does, per mode
+
+`docs/limits.md` has described the routed shape as keeping `default via
+169.254.0.1` even when a private NIC arrives later. That holds **in bridge
+mode**, where the same reading shows both routes side by side and the routed
+interface carrying the way out:
+
+```
+--vm incus     default via 169.254.0.1 dev eth0
+               default via 10.211.0.1 dev eth1 proto dhcp src 10.211.0.2
+               1.1.1.1 from 203.0.113.2 via 169.254.0.1 dev eth0
+```
+
+Under OVN it does not. The routed device exists — `nictype: routed`,
+`ipv4.host_address: 169.254.0.1` — and carries **no address at all** in the
+guest, so it lays no default route, and the address rides the managed NIC
+instead as `ipv4.routes.external`. The guest then has no default route of any
+kind, only the RFC1918 aggregates, and `ip route get 1.1.1.1` answers `Network
+is unreachable`. That is the outbound half #695 is about, and this section is
+where its cause is recorded.
+
+### What is not measured here
+
+Whether the real cloud's reply leaves by the interface carrying the public
+address, and with which next hop. No recording carries it. What is measured is
+this emulator's behaviour and the difference between its two modes, which is
+what a fix has to preserve on one side and change on the other.
+
 ## Subnet isolation depends on the runtime mode
 
 Upstream, two private networks of two different VPCs do not reach each other.
