@@ -1,0 +1,84 @@
+{
+  "package": "./internal/core/machine/",
+  "mutations": [
+    {
+      "label": "an unprintable character is written as itself, so an escape sequence drives the terminal again; the two strings.ReplaceAll calls above the loop are not mutated, since the loop repairs whatever they miss and only the CodeQL run on a pull request measures them",
+      "file": "internal/core/logline/logline.go",
+      "find": "\t\tcase unprintable(r):",
+      "replace": "\t\tcase unprintable(r) && false:",
+      "test": "TestSanitiseSpellsEveryControlCharacter",
+      "package": "./internal/core/logline/"
+    },
+    {
+      "label": "the identifier a declaration resolved reaches the boot log raw",
+      "file": "internal/core/machine/binding.go",
+      "find": "\"resource\", boot.ID, \"image\", logline.Sanitise(boot.Requested),",
+      "replace": "\"resource\", boot.ID, \"image\", logline.Sanitise(\"\")+boot.Requested,",
+      "test": "TestNoClientValueForgesALineInTheBootLog"
+    },
+    {
+      "label": "the identifier a failed build names reaches the boot log raw",
+      "file": "internal/core/machine/binding.go",
+      "find": "\"requested\", logline.Sanitise(boot.Requested), \"source\", spec.Source,",
+      "replace": "\"requested\", logline.Sanitise(\"\")+boot.Requested, \"source\", spec.Source,",
+      "test": "TestNoClientValueForgesALineInTheBootLog"
+    },
+    {
+      "label": "the error a failed start carries reaches the boot log raw",
+      "file": "internal/core/machine/binding.go",
+      "find": "\"machine\", name, \"image\", boot.Image, \"error\", logline.Sanitise(err.Error()))",
+      "replace": "\"machine\", name, \"image\", boot.Image, \"error\", logline.Sanitise(\"\")+err.Error())",
+      "test": "TestNoClientValueForgesALineInTheBootLog"
+    },
+    {
+      "label": "the identifier a refusal names reaches its three attributes raw",
+      "file": "internal/core/machine/binding.go",
+      "find": "\tid := logline.Sanitise(boot.Requested)",
+      "replace": "\tid := logline.Sanitise(\"\") + boot.Requested",
+      "test": "TestNoClientValueForgesALineInTheBootLog"
+    },
+    {
+      "label": "the address a route refuses reaches the log raw",
+      "file": "internal/core/machine/plan.go",
+      "find": "\"address\", logline.Sanitise(address), \"resource\", res.ID)",
+      "replace": "\"address\", logline.Sanitise(\"\")+address, \"resource\", res.ID)",
+      "test": "TestNoClientValueForgesALineInTheAddressLog"
+    },
+    {
+      "label": "the error a route failure carries reaches the log raw; the address beside it has passed netip.ParseAddr and Prefix.Contains, so no mutation of its call can bite and none is declared",
+      "file": "internal/core/machine/plan.go",
+      "find": "\"address\", logline.Sanitise(address), \"resource\", res.ID, \"error\", logline.Sanitise(err.Error()))",
+      "replace": "\"address\", logline.Sanitise(address), \"resource\", res.ID, \"error\", logline.Sanitise(\"\")+err.Error())",
+      "test": "TestNoClientValueForgesALineInTheAddressLog"
+    },
+    {
+      "label": "the error an unroute failure carries reaches the log raw; same remark on the address beside it",
+      "file": "internal/core/machine/plan.go",
+      "find": "\"address\", logline.Sanitise(address), \"error\", logline.Sanitise(err.Error()))",
+      "replace": "\"address\", logline.Sanitise(address), \"error\", logline.Sanitise(\"\")+err.Error())",
+      "test": "TestNoClientValueForgesALineInTheAddressLog"
+    },
+    {
+      "label": "the address an attach failure carries reaches the log raw",
+      "file": "internal/core/machine/plan.go",
+      "find": "\"address\", logline.Sanitise(att.Address), \"error\", logline.Sanitise(err.Error()))",
+      "replace": "\"address\", logline.Sanitise(\"\")+att.Address, \"error\", logline.Sanitise(err.Error()))",
+      "test": "TestNoClientValueForgesALineInTheAddressLog"
+    },
+    {
+      "label": "the error an attach failure carries reaches the log raw",
+      "file": "internal/core/machine/plan.go",
+      "find": "\"address\", logline.Sanitise(att.Address), \"error\", logline.Sanitise(err.Error()))",
+      "replace": "\"address\", logline.Sanitise(att.Address), \"error\", logline.Sanitise(\"\")+err.Error())",
+      "test": "TestNoClientValueForgesALineInTheAddressLog"
+    },
+    {
+      "label": "the host a refusal names reaches the proxy's log raw, in both attributes",
+      "file": "internal/proxy/forward.go",
+      "find": "\tshown := logline.Sanitise(host)",
+      "replace": "\tshown := logline.Sanitise(\"\") + host",
+      "test": "TestARefusedHostCannotForgeALogLine",
+      "package": "./internal/proxy/"
+    }
+  ]
+}

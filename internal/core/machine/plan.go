@@ -5,6 +5,7 @@ import (
 	"net/netip"
 	"strings"
 
+	"github.com/stephrobert/feint/internal/core/logline"
 	"github.com/stephrobert/feint/internal/core/resource"
 )
 
@@ -425,9 +426,19 @@ func (r Reconciler) route(ctx context.Context, res *resource.Resource, plan Plan
 	if name == "" || address == "" {
 		return
 	}
+	// The address is the pack's caller's, and the error is what the driver
+	// built out of it and of the machine's stored name: every one of them is
+	// spelled through logline.Sanitise on its way into a log record, here, in
+	// Unroute and in attach, so a newline in it cannot end the record and
+	// start one that reads as the emulator's own (CodeQL go/log-injection,
+	// alerts 51-53 and 56-59). TestNoClientValueForgesALineInTheAddressLog
+	// fails without the calls a test can reach; the address below the
+	// refusal has passed netip.ParseAddr and Prefix.Contains, so no test can
+	// put a control character in it, and its two calls exist for the reader
+	// and the analysis, not as guards — tools/falsify/specs says so too.
 	if !r.emulated(address) {
 		r.binding().logger().Warn("refusing to route an address outside the emulated public block",
-			"provider", r.binding().Provider, "address", address, "resource", res.ID)
+			"provider", r.binding().Provider, "address", logline.Sanitise(address), "resource", res.ID)
 		return
 	}
 	if err := r.binding().RouteAddress(ctx, router, AddressSpec{
@@ -436,7 +447,7 @@ func (r Reconciler) route(ctx context.Context, res *resource.Resource, plan Plan
 		Network: plan.RouteVia,
 	}); err != nil {
 		r.binding().logger().Error("could not route the public address to the machine",
-			"provider", r.binding().Provider, "address", address, "resource", res.ID, "error", err)
+			"provider", r.binding().Provider, "address", logline.Sanitise(address), "resource", res.ID, "error", logline.Sanitise(err.Error()))
 	}
 }
 
@@ -451,7 +462,7 @@ func (r Reconciler) Unroute(ctx context.Context, machine, address string) {
 	}
 	if err := r.binding().UnrouteAddress(ctx, router, machine, address); err != nil {
 		r.binding().logger().Error("could not stop routing the public address",
-			"provider", r.binding().Provider, "address", address, "error", err)
+			"provider", r.binding().Provider, "address", logline.Sanitise(address), "error", logline.Sanitise(err.Error()))
 	}
 }
 
@@ -588,7 +599,7 @@ func (r Reconciler) attach(ctx context.Context, res *resource.Resource, att Atta
 	if err := driver.Attach(ctx, name, att); err != nil {
 		r.binding().logger().Error("could not attach the machine to the network",
 			"provider", r.binding().Provider, "resource", res.ID, "network", att.Network,
-			"address", att.Address, "error", err)
+			"address", logline.Sanitise(att.Address), "error", logline.Sanitise(err.Error()))
 		return err
 	}
 	return nil

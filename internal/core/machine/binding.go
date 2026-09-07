@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/stephrobert/feint/internal/core/cloudinit"
+	"github.com/stephrobert/feint/internal/core/logline"
 	"github.com/stephrobert/feint/internal/core/resource"
 )
 
@@ -262,8 +263,17 @@ func (b Binding) Start(ctx context.Context, boot Boot) Started {
 			b.refuseUnknownImage(boot)
 			return Started{}
 		}
+		// Every value a client controls that this file writes into a log
+		// record goes through logline.Sanitise — the identifier a request
+		// named, here and in the two refusals below, and the error the driver
+		// built out of what it was handed — so a newline in it cannot end the
+		// record and start one that reads as the emulator's own (CodeQL
+		// go/log-injection, alerts 40-44 and 60). The name is not ours either
+		// when it looks like it: "well formed is not authorised" in CLAUDE.md
+		// says why a restored value is an input. TestNoClientValueForgesALineInTheBootLog
+		// fails without any one of these calls.
 		b.logger().Info("booting the image the operator declared for this identifier",
-			"provider", b.Provider, "resource", boot.ID, "image", boot.Requested,
+			"provider", b.Provider, "resource", boot.ID, "image", logline.Sanitise(boot.Requested),
 			"declared", declared.Ref, "via", "FEINT_BOOT_IMAGES")
 		boot.Image = declared.Ref
 		// The login rides the image here as everywhere else: on the cloud where
@@ -289,7 +299,7 @@ func (b Binding) Start(ctx context.Context, boot Boot) Started {
 			spec, _ := SpecFor(boot.Image)
 			b.logger().Error("refusing to boot: the image this reference derives could not be built",
 				"provider", b.Provider, "resource", boot.ID, "image", boot.Image,
-				"requested", boot.Requested, "source", spec.Source, "error", err,
+				"requested", logline.Sanitise(boot.Requested), "source", spec.Source, "error", err,
 				"fix", "`feint images --only "+spec.Name+"` reproduces the build by hand; "+
 					"a version the upstream image server no longer publishes cannot be built — name one it does")
 			return Started{}
@@ -364,7 +374,7 @@ func (b Binding) Start(ctx context.Context, boot Boot) Started {
 		// to learn why nothing started.
 		b.logger().Error("could not start the backing machine",
 			"provider", b.Provider, "resource", boot.ID,
-			"machine", name, "image", boot.Image, "error", err)
+			"machine", name, "image", boot.Image, "error", logline.Sanitise(err.Error()))
 		return Started{}
 	}
 	return Started{Machine: name, Addresses: m.Addresses}
@@ -414,7 +424,11 @@ func (b Binding) refuseUnknownImage(boot Boot) {
 	if reason == "" {
 		reason = "the identifier is in no catalogue"
 	}
-	id := boot.Requested
+	// Spelled once, and every attribute below reads the spelling: the
+	// identifier is the client's, verbatim. See Start's note on
+	// logline.Sanitise; TestNoClientValueForgesALineInTheBootLog fails
+	// without this.
+	id := logline.Sanitise(boot.Requested)
 	if id == "" {
 		id = "<empty>"
 	}
