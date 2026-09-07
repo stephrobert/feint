@@ -194,9 +194,11 @@ func TestObserveNamesAVirtualMachinesInterfacesByMAC(t *testing.T) {
 // doors named.
 //
 // The wanted door is the TEST's, written down as what docs/limits.md records
-// for the routed shape, and deliberately not derived: which door is right on
-// the shape this fixture models is the measurement #672 asks for, and this
-// test holds the comparator, not the table.
+// for the routed shape, and deliberately not derived. #672 has since measured
+// the shape this fixture models, and the measurement is the reason to keep it
+// that way: the door reads the same on a reachable machine and an unreachable
+// one, so a derived value would certify the wrong thing. This test holds the
+// comparator, and there is no table to hold.
 func TestTheReplyDoorOfTheRegressionIsBroken(t *testing.T) {
 	f := &fakeRuntime{}
 	regressionMachine(f)

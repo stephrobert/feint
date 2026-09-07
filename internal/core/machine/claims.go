@@ -161,13 +161,30 @@ const propertyDefaultRoute = "the default route"
 // Who may claim the default route, and why a public address claims it with no
 // value beside it. A machine holding a public address has a way out already:
 // on the routed shape RouteAddress lays it, and on the shape where the address
-// rides a managed NIC the network's own router carries it. Which door a reply
-// leaves by on each shape is a MEASUREMENT, not a deduction, and one of the two
-// shapes has never been measured (#672). So the public address is registered
-// as the route's owner — which is what refuses a second owner — and no claim
-// states its value. Silence, not a guess: a verifier that invented its expected
-// values would be a second reconciler, wrong with the same confidence as the
-// first.
+// rides a managed NIC the network's own router carries it.
+//
+// Which door a reply leaves by is a MEASUREMENT, not a deduction, and it has
+// been made: four readings, both modes, both orders of construction, in
+// docs/limits.md under "Which door a reply leaves by, and why it does not
+// decide" (#672). The result is why the silence below is now a finding rather
+// than a gap.
+//
+//	mode        door: ip route get <peer> from <public>   station reaches it
+//	incus-ovn   dev ethN, on-link, no via                 no
+//	incus       dev ethN, on-link, no via                 yes
+//
+// The door reads the SAME on a machine the station reaches and on one it does
+// not, so a claim comparing Via and Dev — which is what door.Check compares —
+// would report `held` about a machine that answers nobody. What differs is the
+// peer, not the door: a published address is reached through the uplink, and
+// the address the station answers from is on the guest's subnet under a bridge
+// and off it under OVN, where the ARP for it goes unanswered.
+//
+// So the public address is registered as the route's owner — which is what
+// refuses a second owner — and no claim states its value. Silence, not a
+// guess: a verifier that invented its expected values would be a second
+// reconciler, wrong with the same confidence as the first, and one that
+// derived them from the table above would certify an unreachable machine.
 //
 // TestAPlanWithTwoClaimantsToTheDefaultRouteIsRefusedBeforeTheRuntimeIsAsked
 // fails without the refusal, and TestAPublicAddressAloneClaimsNoValueForTheDefaultRoute
@@ -483,8 +500,12 @@ func prefixes(blocks []netip.Prefix) string {
 // door claims which door a reply sent from an address leaves by, towards a
 // destination: the answer to `ip route get <To> from <From>`, compared on
 // `via` and `dev` alone. The comparator exists for the reading half (#668);
-// nothing derives a door claim yet, because the value is a measurement per
-// machine shape and one of the two shapes has none (#672).
+// nothing derives a door claim, and #672 measured why rather than leaving it
+// open: on the shape where the address rides a managed NIC, the door reads
+// `dev ethN` on-link with no `via` BOTH when the station reaches the machine
+// (bridge) and when it does not (OVN). Comparing `via` and `dev` therefore
+// cannot tell those two apart, and a derived claim would report `held` about a
+// machine that answers nobody. docs/limits.md carries the four readings.
 type door struct {
 	From, To netip.Addr
 	Via      netip.Addr
