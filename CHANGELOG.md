@@ -13,7 +13,7 @@ Two kinds of change deserve their own line whatever their size, because they are
 what this project is judged on: **a response shape a client can observe**, and
 **a limit that moved**. A refactor that changes neither belongs in `git log`.
 
-## [Unreleased]
+## [0.13.0] - 2026-09-07
 
 ### Added
 
@@ -47,7 +47,7 @@ what this project is judged on: **a response shape a client can observe**, and
   and `feint start` carries it. The file names, per provider, the images,
   templates and machine types the project allows; a create outside it is
   refused in each cloud's own error shape, and so is the lookup the client
-  makes first, so `scw`, `oapi-cli`, Terraform and `exo` render their ordinary
+  makes first, so `scw`, `octl` and `exo` render their ordinary
   not-found path. What each pack refuses and in which shape, and which of
   those shapes were recorded on a real account, is a table in
   `docs/limits.md`: `osc/Client.CreateVms` answers the recorded
@@ -277,8 +277,8 @@ what this project is judged on: **a response shape a client can observe**, and
   an fGPU is the shape of a volume rather than of a machine: what a client
   observes is its model, its subregion and whether it is attached, and all three
   are records rather than hardware. That is the line the Load Balancer already
-  sits on, where the product is served and `GetLBStats` is declined because
-  nothing here measures a backend.
+  sits on, where the product is served and `GetLBStats` answers what the emulator
+  holds and no health, because nothing here measures a backend.
 
   The catalogue is a reading of a real account, eleven models field for field, so
   the create can refuse a model the cloud does not offer and a generation the
@@ -305,8 +305,10 @@ what this project is judged on: **a response shape a client can observe**, and
   refusal of a value: a pack may only refuse on what the anonymiser preserves.
 
 - **`serve --consistency eventual`: a client's waiter finally has something to
-  observe** (#637, and the mechanism #124 asked for). Off by default, so nothing
-  changes unless it is asked for.
+  observe** (#637, and the mechanism #124 asked for). Off by default. That governs the ordinary
+  chains alone: since #654 a chain that is an action's only signal — a
+  reboot's `stopping, starting, running` — is walked in both modes, or a
+  reboot would be invisible to every client that did not ask for the flag.
 
   A reboot's target state is the state it started from, so `state == "running"`
   proves nothing to a client waiting on one. Without task support the only signal
@@ -391,6 +393,23 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Fixed
 
+- **A private machine behind a Public Gateway reaches the Internet under
+  `--vm incus-ovn`** (#647, #655). A machine with no public address had no
+  outbound connectivity at all, and `push_default_route = true` on the gateway
+  attachment installed no route: measured on a stack of 37 resources that
+  Terraform applied, re-planned empty and destroyed cleanly, where `apt` then
+  failed on every private machine with "Failed to update apt cache after 5
+  retries". The shape only shows when a client *provisions* a machine rather
+  than starting one, which is why a green apply said nothing about it.
+
+  What the network announces is now the split the cloud makes: the OVN network
+  announces where the private fleet is and stops announcing where the Internet
+  is (`ipv4.dhcp.gateway=none`), and the way out is laid per machine by
+  `Plan.Egress` for the machines the pack says are entitled to it. A server with
+  no public address and no gateway reaches its VPC and nothing beyond it, which
+  is what the real cloud does and what a DHCP-announced default route made
+  impossible to express.
+
 - **A poweron that failed no longer narrates `starting`** (#738). Under
   `--consistency eventual`, a start whose runtime call failed answered
   `[starting stopped stopped stopped]` across four reads, with a task saying
@@ -414,9 +433,8 @@ what this project is judged on: **a response shape a client can observe**, and
   HTTP, because the unit-level guard was already believed to hold.
 
 - **A machine whose public address moved onto its private NIC carries the
-  same shape before and after the reboot verb: the hot migration waits for
-  the guest to lay the routed interface before it writes, as the restart path
-  already did** (#742). The stack gate's reboot comparison (#671) reddened on
+  same shape before and after the reboot verb: the driver stops competing
+  with systemd-networkd for the routed interface and takes it over** (#742). The stack gate's reboot comparison (#671) reddened on
   `platform-web-0` on the runner as on the author's station, and in two
   mirror shapes: once `before: addr eth0 203.0.113.4/32`, once `after: route
   0.0.0.0/0 via 169.254.0.1 dev eth0`. Polled at half-second intervals across
@@ -603,10 +621,16 @@ what this project is judged on: **a response shape a client can observe**, and
   to the station ARPs on the switch for an address nothing there carries.
   Measured 2026-09-04 under `incus-ovn`: `platform-web-0` served 443 inside
   and answered nothing at `203.0.113.3:443`; `ip route del 10.209.83.1 dev
-  eth1` turned the dial from 000 into 200, `ip route add` turned it back. The
-  network now announces `dns.nameservers` (`feint serve --resolver`, default
-  `1.1.1.1`, a field so a station without Internet or with a resolver of its
-  own can say so), and the uplink's address is refused whatever the field
+  eth1` turned the dial from 000 into 200, `ip route add` turned it back. This entry was written when the network announced a public
+  resolver; it moved twice afterwards inside this same release. #684 and
+  #693 took the announcement out, because a public resolver is off the
+  subnet and the on-link /32 towards it took the machine's way out with it.
+  Announcing nothing then let Incus fall back to the host's resolvers — the
+  uplink's own address — which is the dead route this entry set out to
+  remove, and #697 settled it by announcing the segment's own gateway: on
+  the subnet, so the route it lays is alive. The resolver itself reaches the
+  guest through `resolvectl` and a drop-in (`feint serve --resolver`,
+  default `1.1.1.1`), and the uplink's address is refused whatever the field
   says. `RoutesToDNS=` is the guest's ordinary mechanism, not a defect worked
   around: the announcement removes the collision that made it harmful. Not
   established, measured the same day: that a machine with a way out resolves
@@ -1038,8 +1062,11 @@ what this project is judged on: **a response shape a client can observe**, and
   What separates them is measured. The served catalogue names types this emulator
   creates, and its values come from a recording of a real account. A live read of
   `/products/volumes` on fr-par-1 answers exactly two types, `l_ssd` and
-  `scratch`, and this emulator makes neither. Serving it faithfully would hand a
-  client a menu on which every item is one the create then refuses.
+  `scratch`, and this emulator makes exactly those two since #393 — the
+  sentence this decline first rested on has expired, and the entry for #393
+  above says so. What holds it now is its other condition alone: no
+  recording of `/products/volumes` exists in `corpus/`, and the route
+  answers a table of per-type constraints that rule 4 forbids inventing.
 
 - **`instance/v1/API.ExportSnapshot` stays declined** (#627). Answering a
   202-shaped acknowledgement without writing an object anywhere would be the

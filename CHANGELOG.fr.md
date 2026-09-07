@@ -15,7 +15,7 @@ parce que c'est là-dessus que ce projet est jugé : **une forme de réponse qu'
 client peut observer**, et **une limite qui a bougé**. Une refactorisation qui ne
 change ni l'un ni l'autre a sa place dans `git log`.
 
-## [Unreleased]
+## [0.13.0] - 2026-09-07
 
 ### Ajouté
 
@@ -50,7 +50,7 @@ change ni l'un ni l'autre a sa place dans `git log`.
   Le fichier nomme, par provider, les images, templates et types de machine
   que le projet autorise ; une création hors de ce catalogue est refusée dans
   la forme d'erreur propre à chaque cloud, ainsi que la lecture que le client
-  fait d'abord, de sorte que `scw`, `oapi-cli`, Terraform et `exo` rendent
+  fait d'abord, de sorte que `scw`, `octl` et `exo` rendent
   leur chemin « introuvable » ordinaire. Ce que chaque pack refuse, sous
   quelle forme, et lesquelles de ces formes ont été enregistrées sur un vrai
   compte, tient dans une table de `docs/limits.md` : `osc/Client.CreateVms`
@@ -297,7 +297,8 @@ change ni l'un ni l'autre a sa place dans `git log`.
   contrôle, un fGPU a la forme d'un volume et non d'une machine : ce qu'un client
   en observe, c'est son modèle, sa sous-région et son attachement, trois faits
   d'enregistrement et non de matériel. C'est la ligne où se tient déjà le Load
-  Balancer, dont le produit est servi et dont `GetLBStats` est décliné parce que
+  Balancer, dont le produit est servi et dont `GetLBStats` rend ce que l'émulateur
+  détient et aucune santé, parce que
   rien ici ne mesure un backend.
 
   Le catalogue est une lecture d'un vrai compte, onze modèles champ par champ :
@@ -328,8 +329,11 @@ change ni l'un ni l'autre a sa place dans `git log`.
   peut refuser que sur ce que l'anonymiseur préserve.
 
 - **`serve --consistency eventual` : l'attente d'un client a enfin quelque chose
-  à observer** (#637, et le mécanisme que demandait #124). Éteint par défaut,
-  donc rien ne change tant qu'on ne le demande pas.
+  à observer** (#637, et le mécanisme que demandait #124). Éteint par défaut, ce qui ne
+  gouverne que les chaînes ordinaires : depuis #654, une chaîne qui est le
+  seul signal d'une action, celle d'un redémarrage `stopping, starting,
+  running`, est parcourue dans les deux modes, sans quoi un redémarrage
+  serait invisible à tout client n'ayant pas demandé le drapeau.
 
   L'état visé par un redémarrage est celui d'où il part, donc `state == "running"`
   ne prouve rien à un client qui l'attend. Sans support des tâches, le seul signal
@@ -418,6 +422,23 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Corrigé
 
+- **Une machine privée derrière une Public Gateway atteint Internet sous
+  `--vm incus-ovn`** (#647, #655). Une machine sans adresse publique n'avait
+  aucune sortie, et `push_default_route = true` sur l'attachement de la gateway
+  n'installait aucune route : mesuré sur une pile de 37 ressources que Terraform
+  a appliquée, replanifiée à vide et détruite proprement, où `apt` échouait
+  ensuite sur chaque machine privée avec « Failed to update apt cache after 5
+  retries ». La forme n'apparaît que lorsqu'un client *provisionne* une machine
+  au lieu de la démarrer, ce qui explique qu'un apply vert n'en disait rien.
+
+  Ce que le réseau annonce est désormais la coupure que fait le cloud : le
+  réseau OVN annonce où se trouve la flotte privée et cesse d'annoncer où se
+  trouve Internet (`ipv4.dhcp.gateway=none`), et la sortie est posée machine par
+  machine par `Plan.Egress`, pour celles que le pack déclare y avoir droit. Un
+  serveur sans adresse publique et sans gateway atteint son VPC et rien au-delà,
+  ce que fait le vrai cloud et qu'une route par défaut annoncée par DHCP rendait
+  impossible à exprimer.
+
 - **Un poweron qui a échoué ne raconte plus `starting`** (#738). Sous
   `--consistency eventual`, un démarrage dont l'appel au runtime avait échoué
   répondait `[starting stopped stopped stopped]` sur quatre lectures, avec une
@@ -443,9 +464,8 @@ change ni l'un ni l'autre a sa place dans `git log`.
   la garde unitaire était déjà réputée tenir.
 
 - **Une machine dont l'adresse publique a migré sur sa NIC privée porte la
-  même forme avant et après le verbe de reboot : la migration à chaud attend
-  que l'invité ait posé l'interface routée avant d'écrire, comme le chemin de
-  redémarrage le faisait déjà** (#742). La comparaison de reboot du gate des
+  même forme avant et après le verbe de reboot : le pilote cesse de disputer
+  l'interface routée à systemd-networkd et la lui reprend** (#742). La comparaison de reboot du gate des
   stacks (#671) rougissait sur `platform-web-0`, sur le runner comme sur la
   station de l'auteur, et sous deux formes miroir : une fois `before: addr
   eth0 203.0.113.4/32`, une fois `after: route 0.0.0.0/0 via 169.254.0.1 dev
@@ -649,11 +669,18 @@ change ni l'un ni l'autre a sa place dans `git log`.
   adresse que rien n'y porte. Mesuré le 2026-09-04 sous `incus-ovn` :
   `platform-web-0` servait 443 à l'intérieur et ne répondait rien sur
   `203.0.113.3:443` ; `ip route del 10.209.83.1 dev eth1` faisait passer
-  l'appel de 000 à 200, `ip route add` le remettait à 000. Le réseau annonce
-  désormais `dns.nameservers` (`feint serve --resolver`, `1.1.1.1` par défaut,
-  un champ pour qu'une station sans Internet ou avec son propre résolveur
-  puisse le dire), et l'adresse de l'uplink est refusée quoi que dise le
-  champ. `RoutesToDNS=` est le mécanisme ordinaire de l'invité, pas un défaut
+  l'appel de 000 à 200, `ip route add` le remettait à 000. Cette entrée a été écrite quand le réseau
+  annonçait un résolveur public ; la décision a bougé deux fois ensuite,
+  dans cette même version. #684 et #693 ont retiré l'annonce, parce qu'un
+  résolveur public n'est pas sur le sous-réseau et que la `/32` on-link
+  posée vers lui emportait la sortie de la machine. N'annoncer rien laissait
+  alors Incus retomber sur les résolveurs de l'hôte, c'est-à-dire l'adresse
+  de l'uplink, qui est la route morte que cette entrée visait à supprimer ;
+  #697 a tranché en annonçant la passerelle du segment lui-même, qui est sur
+  le sous-réseau, donc la route posée est vivante. Le résolveur atteint
+  l'invité par `resolvectl` et un drop-in (`feint serve --resolver`,
+  `1.1.1.1` par défaut), et l'adresse de l'uplink est refusée quoi que dise
+  le champ. `RoutesToDNS=` est le mécanisme ordinaire de l'invité, pas un défaut
   contourné : l'annonce supprime la collision qui le rendait nuisible. Non
   établi, mesuré le même jour : qu'une machine avec sortie résolve par le
   résolveur annoncé ; l'annonce était sur le fil et le `resolved` de l'invité
@@ -1107,9 +1134,12 @@ change ni l'un ni l'autre a sa place dans `git log`.
   Ce qui les sépare est mesuré. Le catalogue servi nomme des types que cet
   émulateur crée, et ses valeurs viennent d'un enregistrement d'un vrai compte.
   Une lecture réelle de `/products/volumes` sur fr-par-1 rend exactement deux
-  types, `l_ssd` et `scratch`, et cet émulateur n'en fabrique aucun. La servir
-  fidèlement offrirait au client un menu dont chaque entrée est refusée à la
-  création.
+  types, `l_ssd` et `scratch`, et cet émulateur fabrique exactement ces
+  deux-là depuis #393 : la phrase sur laquelle ce refus reposait d'abord a
+  expiré, et l'entrée de #393 plus haut le dit. Ce qui le tient désormais est
+  sa seule autre condition : aucun enregistrement de `/products/volumes`
+  n'existe dans `corpus/`, et la route rend une table de contraintes par type
+  que la règle 4 interdit d'inventer.
 
 - **`instance/v1/API.ExportSnapshot` reste refusée** (#627). Répondre un accusé en
   202 sans écrire d'objet nulle part reviendrait à dire que quelque chose a
