@@ -145,6 +145,15 @@ Stars measure attention. These measure use, and each one is checkable by anybody
 most valuable line on this page, and hiding it would turn the whole exercise into
 a marketing claim — which is the one thing this repository is built not to be.
 
+Release download counts are measured too, and they are deliberately **not** in
+the table above. Every signal there records a decision somebody made; a download
+records that a file moved, and on this repository the evidence says most of them
+move for a CI runner rather than a person — `checksums.txt` is fetched slightly
+more often than every binary combined. That is a real use and worth tracking, so
+it is tracked, one page over and under its own name:
+[docs/adoption-metrics.md](adoption-metrics.md), which says what the figure
+does and does not license anybody to claim.
+
 ## The list
 
 Empty, as of 2026-08-17. The first entry will be somebody else's.

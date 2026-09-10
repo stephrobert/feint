@@ -1,0 +1,100 @@
+name: adoption-metrics
+
+# One snapshot a day of what GitHub says was downloaded, appended to a history
+# that lives on its own branch.
+#
+# WHY NOT main. The `main` ruleset carries `pull_request` and
+# `required_status_checks`, and its only bypass is scoped to a pull request, so
+# a daily `git push origin main` is refused outright. The alternative inside
+# main would be a pull request a day, each one having to pass the full required
+# suite to land a row of numbers, which is neither cheap nor reviewable. So the
+# data lives on the orphan `metrics` branch: no noise in main's history, the
+# full history kept, and metrics/feint-latest.json reachable as a raw URL for
+# whatever renders it later. This is the gh-pages arrangement, for the same
+# reason gh-pages exists.
+#
+# WHAT IT NEVER DOES. It reads a public counter and writes a CSV. feint itself
+# phones nobody, and nothing here identifies a person: see
+# docs/adoption-metrics.md, which also says why download_count is not a user
+# count.
+
+on:
+  schedule:
+    # 04:17 UTC. Not on the hour, because everybody schedules on the hour and
+    # GitHub delays a busy minute.
+    - cron: '17 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: adoption-metrics
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    permissions:
+      # The only job that writes, and it writes to one branch that carries no
+      # code. main is unreachable from here: its ruleset refuses a direct push.
+      contents: write
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout the collector
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.26.6'
+          cache: false
+
+      # The data branch, in a directory of its own. It carries no code, only
+      # metrics/, and it is expected to exist: it was seeded with the first
+      # snapshot when this workflow was added. A missing branch fails the run
+      # here rather than silently starting a second, parallel history.
+      #
+      # persist-credentials: false on both checkouts, like drift.yml, which
+      # pushes a branch the same way: the push authenticates through GH_TOKEN
+      # and the runner's gh credential helper rather than through a token left
+      # behind in .git/config, which zizmor's artipacked audit flags.
+      - name: Checkout the data branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: metrics
+          path: data
+          persist-credentials: false
+
+      - name: Collect today's snapshot
+        env:
+          # Unauthenticated calls are capped at 60/hour per IP, which a shared
+          # runner exhausts. This raises it to 1000 for this repository, and the
+          # endpoint it reads is public either way.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: go run ./tools/metrics collect --dir data/metrics
+
+      - name: Commit, only if something moved
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          cd data
+          git config user.name  'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add metrics
+          if git diff --cached --quiet; then
+            echo "no change; nothing to commit"
+            exit 0
+          fi
+          git commit -m "chore(metrics): update adoption metrics $(date -u +%F)"
+          git push origin metrics
+
+      - name: Say what it found
+        run: go run ./tools/metrics report --dir data/metrics

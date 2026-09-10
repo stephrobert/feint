@@ -1,0 +1,15 @@
+{
+  "project": "feint",
+  "repository": "stephrobert/feint",
+
+  "binary_patterns": [
+    "^feint-(?P<os>linux|darwin)-(?P<arch>amd64|arm64)$"
+  ],
+
+  "ignore_patterns": [
+    "^checksums\\.txt$",
+    "^checksums\\.txt\\.cosign\\.bundle$",
+    "^sbom\\.cdx\\.json$",
+    "^provenance\\.intoto\\.jsonl$"
+  ]
+}
