@@ -12,5 +12,7 @@
     "vpc",
     "vpcgw"
   ],
-  "unknown": []
+  "unknown": [
+    "instance/v2alpha1/API.DetachAndDeletePrivateNetworkInterface"
+  ]
 }
