@@ -1,8 +1,8 @@
 {
   "provider": "scaleway",
-  "total": 535,
+  "total": 536,
   "implemented": 191,
-  "declined": 344,
+  "declined": 345,
   "unknown": 0,
   "orphans": null,
   "products": [
@@ -86,9 +86,9 @@
     },
     {
       "product": "instance",
-      "total": 150,
+      "total": 151,
       "implemented": 71,
-      "declined": 79,
+      "declined": 80,
       "unknown": 0,
       "versions": [
         {
@@ -100,9 +100,9 @@
         },
         {
           "version": "v2alpha1",
-          "total": 72,
+          "total": 73,
           "implemented": 10,
-          "declined": 62,
+          "declined": 63,
           "unknown": 0
         }
       ]
@@ -233,9 +233,9 @@
     },
     {
       "group": "instance",
-      "total": 150,
+      "total": 151,
       "implemented": 71,
-      "declined": 79,
+      "declined": 80,
       "unknown": 0
     },
     {
@@ -1972,6 +1972,13 @@
       "operation": "instance/v2alpha1/API.DeleteUserData",
       "product": "instance",
       "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces and placement groups onto it, which is why those two families are served and these are not",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.DetachAndDeletePrivateNetworkInterface",
+      "product": "instance",
+      "reason": "instance/v2alpha1.DetachAndDeletePrivateNetworkInterface folds a detach and a delete into one call, and no client this project drives sends it: the recorded transcript of a full Terraform apply on provider 2.81.0 shows only ListPrivateNetworkInterfaces on this API. The two halves it folds are reachable through the routes already mounted, and the alpha version is named so a promotion to a stable instance/v2 has this decided again",
       "version": "v2alpha1",
       "status": "declined"
     },
