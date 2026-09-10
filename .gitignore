@@ -277,3 +277,8 @@ crash.*.log
 
 # Site mockups, the maintainer's own work in progress
 maquettes-site/
+
+# Adoption snapshots live on the `metrics` branch, never in main.
+# docs/adoption-metrics.md says why.
+/metrics/
+/.metrics/

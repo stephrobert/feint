@@ -158,6 +158,26 @@ depends = ["build"]
 # sending any of it.
 run = "tools/corpus/cloud.sh ./feint"
 
+# ---- Adoption ---------------------------------------------------------------------------------
+[tasks."metrics:report"]
+description = "What GitHub says was downloaded, from the snapshots already taken"
+# Offline: it reads metrics/ and computes, it does not call GitHub. The daily
+# snapshot is .github/workflows/adoption-metrics.yml's job, and the data lives
+# on the `metrics` branch because main's ruleset refuses a direct push.
+#
+#   git fetch origin metrics && git worktree add .metrics metrics
+#   mise run metrics:report -- --dir .metrics/metrics
+#
+# download_count counts downloads, never people. docs/adoption-metrics.md says
+# what that does and does not license anybody to claim.
+run = "go run ./tools/metrics report"
+
+[tasks."metrics:collect"]
+description = "Take one snapshot of the release download counters (calls the GitHub API)"
+# The one task here that reaches the network. It is the same code the scheduled
+# workflow runs, so a figure can always be reproduced by hand.
+run = "go run ./tools/metrics collect"
+
 # ---- Upstream tracking (the anti-drift loop) --------------------------------------------------
 [tasks."upstream:sync"]
 description = "Fetch the upstream SDKs and API descriptions the scan and the contracts read"
