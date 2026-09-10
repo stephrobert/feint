@@ -407,7 +407,7 @@ reason that outlived its cause.
 - `ipam` — 1 operation — no official client calls it: the CLI has no detach subcommand, and the provider detaches by deleting the NIC that carries the address
 - `vpc` — 1 operation — no official client asks for the flat list: `scw vpc` has no subnet subcommand, and the Terraform provider reads the subnets a private network publishes inline through GetPrivateNetwork
 
-### Declined on purpose (344)
+### Declined on purpose (345)
 
 Operations this pack knowingly does not serve, and why. Declining is a
 decision the drift gate records, which is what separates it from having
@@ -435,6 +435,7 @@ are in `coverage/`, one artefact per provider.
 - `instance` — 2 operations — it mounts Scaleway's File Storage product, and there is no filesystem service behind this emulator for a machine to mount
 - `instance` — 2 operations — the SDK's hand-written helpers, deprecated upstream in favour of AttachServerVolume and DetachServerVolume, which this pack serves and which the CLI calls
 - `instance` — 2 operations — there is no legacy storage behind this emulator to migrate from, so a plan would describe a move between two things that are the same store
+- `instance` — 1 operation — instance/v2alpha1.DetachAndDeletePrivateNetworkInterface folds a detach and a delete into one call, and no client this project drives sends it: the recorded transcript of a full Terraform apply on provider 2.81.0 shows only ListPrivateNetworkInterfaces on this API. The two halves it folds are reachable through the routes already mounted, and the alpha version is named so a promotion to a stable instance/v2 has this decided again
 - `instance` — 1 operation — it hands an instance flexible IP over to IPAM's pool, and the public addresses of this emulator live and die with the instance product: IPAM here holds private-network addresses only
 - `instance` — 1 operation — it writes into Object Storage, which is not emulated because the Terraform provider builds the S3 endpoint in code: supporting it needs DNS interception and a certificate, measured in docs/limits.md
 - `instance` — 1 operation — no recording of /products/volumes exists in corpus/, and the route answers a table of per-type constraints that would have to be invented rather than measured

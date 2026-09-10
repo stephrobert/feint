@@ -1180,6 +1180,27 @@ func (p *Pack) Declined() []emulator.Decline {
 		// upstream adds here, and the point of this file is that additions are
 		// seen. When the surface stabilises into an instance/v2, the scan
 		// reports it as new and this decision gets taken again.
+		// Appeared upstream in the nightly scan of 2026-09-10, in a family this
+		// pack DOES serve, which is why it gets its own reason rather than
+		// joining the blanket one below: that reason says private network
+		// interfaces are served, and it would read as a contradiction here.
+		//
+		// It is a convenience that folds two calls into one, and this pack already
+		// answers the second half: DeletePrivateNetworkInterface is mounted, and
+		// the store is shared with instance/v1, so a client that detaches then
+		// deletes gets the right outcome through the doors that exist. What no
+		// measurement shows is anybody calling the folded form: the `feint proxy`
+		// transcript of a full Terraform apply on provider 2.81.0 recorded exactly
+		// one v2alpha1 interface operation, ListPrivateNetworkInterfaces, and
+		// privatenics_v2alpha1.go carries that recording.
+		//
+		// Serving it anyway would be surface nothing drives, which is the trade
+		// this repository refuses on purpose. The alpha version is named so a
+		// promotion to a stable instance/v2 reports it as new and this decision is
+		// taken again.
+		emulator.Because("instance/v2alpha1.DetachAndDeletePrivateNetworkInterface folds a detach and a delete into one call, and no client this project drives sends it: the recorded transcript of a full Terraform apply on provider 2.81.0 shows only ListPrivateNetworkInterfaces on this API. The two halves it folds are reachable through the routes already mounted, and the alpha version is named so a promotion to a stable instance/v2 has this decided again",
+			"instance/v2alpha1/API.DetachAndDeletePrivateNetworkInterface"),
+
 		emulator.Because("instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces and placement groups onto it, which is why those two families are served and these are not",
 			"instance/v2alpha1/VolumeAPI.CreateSnapshot",
 			"instance/v2alpha1/VolumeAPI.CreateVolume",
