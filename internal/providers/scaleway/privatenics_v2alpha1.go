@@ -286,6 +286,16 @@ func (p *Pack) privateNetworkInterfaceView(res *resource.Resource) map[string]an
 		"tags":               orEmpty(tagsOf(res)),
 		"created_at":         res.Created.Format(time.RFC3339),
 		"updated_at":         res.Updated.Format(time.RFC3339),
+		// The API description gained this field on 2026-09-10, and the SDK types
+		// it `Zone scw.Zone` with NO omitempty: the real cloud answers it on
+		// every read, so an emulator that omits it hands a client the empty zone
+		// where the cloud hands a zone. The value is not derived from the request
+		// path but from the resource, the way placementgroups.go and ipam.go
+		// already answer it — a read through one zone's path must not be able to
+		// relabel an interface that lives in another.
+		//
+		// TestAnInterfaceAnswersTheZoneItLivesIn fails without this.
+		"zone": res.Tenant.Zone,
 	}
 	return out
 }

@@ -211,3 +211,36 @@ func TestAPrivateNICAnswersTheDateItLastChanged(t *testing.T) {
 		t.Errorf("a listed NIC answers no modification_date: %v", nics[0])
 	}
 }
+
+// TestAnInterfaceAnswersTheZoneItLivesIn holds the field the API description
+// gained on 2026-09-10.
+//
+// The SDK types it `Zone scw.Zone` with no omitempty, so the real cloud answers
+// it on every read and a client that reads `.Zone` gets a zone. An emulator that
+// omitted it would hand back the empty zone and look correct to every assertion
+// nobody wrote.
+//
+// The value comes from the resource rather than from the request path, and the
+// second half of this test is why: a read addressed to one zone must not be able
+// to relabel an interface that lives in another.
+func TestAnInterfaceAnswersTheZoneItLivesIn(t *testing.T) {
+	ts := newTestServer(t)
+	_, _, nic := attachedNIC(t, ts, "v2alphazone", "10.171.0.0/24")
+
+	body := v2alphaList(t, ts, "")
+	list, _ := body["private_network_interfaces"].([]any)
+	if len(list) != 1 {
+		t.Fatalf("v2alpha1 lists %d interface(s), want 1: %v", len(list), body)
+	}
+	got, _ := list[0].(map[string]any)
+	if got["zone"] != "fr-par-1" {
+		t.Errorf("zone = %v, want fr-par-1: the description declares this field "+
+			"and the SDK reads it without omitempty", got["zone"])
+	}
+
+	// The single read answers it too, not only the list.
+	_, one := do(t, ts, "GET", v2alphaNICs+"/"+nic["id"].(string), "")
+	if one["zone"] != "fr-par-1" {
+		t.Errorf("the single read answers zone = %v, want fr-par-1", one["zone"])
+	}
+}

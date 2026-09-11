@@ -12300,6 +12300,9 @@
     },
     "updated_at": {
      "type": "string"
+    },
+    "zone": {
+     "type": "string"
     }
    }
   },
@@ -12354,6 +12357,9 @@
      }
     },
     "updated_at": {
+     "type": "string"
+    },
+    "zone": {
      "type": "string"
     }
    }
@@ -12618,6 +12624,9 @@
      }
     },
     "updated_at": {
+     "type": "string"
+    },
+    "zone": {
      "type": "string"
     }
    }
@@ -12910,6 +12919,9 @@
      }
     },
     "updated_at": {
+     "type": "string"
+    },
+    "zone": {
      "type": "string"
     }
    }
