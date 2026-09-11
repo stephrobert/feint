@@ -1,0 +1,13 @@
+{
+  "package": "./internal/providers/scaleway/",
+  "mutations": [
+    {
+      "label": "the v2alpha1 interface view stops answering the zone, so a client reading .Zone gets the empty zone where the real cloud answers one (API description of 2026-09-10)",
+      "file": "internal/providers/scaleway/privatenics_v2alpha1.go",
+      "package": "./internal/providers/scaleway/",
+      "find": "\t\t\"zone\": res.Tenant.Zone,",
+      "replace": "\t\t\"zone\": res.Tenant.Zone[:0],",
+      "test": "TestAnInterfaceAnswersTheZoneItLivesIn"
+    }
+  ]
+}
