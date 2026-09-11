@@ -266,10 +266,50 @@ jobs:
           # which is the normal case for triage.
           git fetch origin "+refs/heads/$branch:refs/remotes/origin/$branch" || true
           git push --force-with-lease origin "$branch"
-          if [ -z "$(gh pr list --head "$branch" --json number --jq '.[0].number')" ]; then
-            gh pr create --head "$branch" --title "chore(drift): upstream API surface moved" \
-              --body "The nightly scan found a change in the upstream SDK surface. Review the baseline diff: each added entry is an operation that appeared upstream and has not been triaged yet. Implement it, or add it to the pack's Declined list."
+          if [ -n "$(gh pr list --head "$branch" --json number --jq '.[0].number')" ]; then
+            echo "a pull request is already open on $branch; the push above updated it"
+            exit 0
           fi
+
+          # This repository deliberately withholds pull-request creation from
+          # Actions: `can_approve_pull_request_reviews` is false and the default
+          # workflow permission is `read`, which is a hardening choice the
+          # Scorecard reads. GitHub then answers createPullRequest with
+          # "GitHub Actions is not permitted to create or approve pull requests".
+          #
+          # That is a POLICY answer, not a failure of the scan, and failing the
+          # job on it turned an ordinary event — Scaleway ships around 34 commits
+          # a month on its surface — into a red night, twice in September 2026.
+          # A gate that is red on the normal case is a gate people stop reading,
+          # which is the failure mode CLAUDE.md names.
+          #
+          # So this one answer is reported and tolerated. The branch is pushed
+          # either way, the issue job carries the triage, and the summary says
+          # where the diff is. EVERY OTHER error still fails the job: a token
+          # without scope, a rate limit, a branch that does not exist are real
+          # problems and must not hide behind this.
+          if out=$(gh pr create --head "$branch" \
+              --title "chore(drift): upstream API surface moved" \
+              --body "The nightly scan found a change in the upstream SDK surface. Review the baseline diff: each added entry is an operation that appeared upstream and has not been triaged yet. Implement it, or add it to the pack's Declined list." 2>&1); then
+            echo "$out"
+            exit 0
+          fi
+          echo "$out" >&2
+          case "$out" in
+            *"not permitted to create or approve pull requests"*)
+              {
+                printf '### The drift branch is pushed, the pull request is not\n\n'
+                printf 'This repository does not let Actions open pull requests, which is a\n'
+                printf 'deliberate hardening choice. The refreshed baseline is on branch %s\n\n' "$branch"
+                printf 'Open it by hand: https://github.com/%s/compare/main...%s?expand=1\n\n' \
+                  "$GITHUB_REPOSITORY" "$branch"
+                printf 'The drift issue carries the triage itself.\n'
+              } >> "$GITHUB_STEP_SUMMARY"
+              echo "the pull request was refused by repository policy; the branch and the issue carry the signal"
+              exit 0
+              ;;
+          esac
+          exit 1
 
   # An issue rather than only a pull request, because the two say different
   # things. The pull request carries the mechanical part — a refreshed baseline,
