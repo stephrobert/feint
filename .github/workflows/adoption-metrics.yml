@@ -86,6 +86,14 @@ jobs:
         run: |
           set -euo pipefail
           cd data
+          # persist-credentials: false above means this clone carries no
+          # credential, which is the point: a token left in .git/config is what
+          # zizmor's artipacked audit flags. It also means `git push` has nothing
+          # to authenticate with, and the first run failed exactly there, after
+          # writing the commit — `could not read Username for https://github.com`.
+          # This installs gh as git's credential helper for the length of the
+          # job, so the token lives in the environment and never on disk.
+          gh auth setup-git
           git config user.name  'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add metrics
