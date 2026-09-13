@@ -1,21 +1,21 @@
 {
-  "generated_at": "2026-09-12T04:27:32Z",
+  "generated_at": "2026-09-13T04:28:32Z",
   "project": "feint",
-  "total_binary_downloads": 1359,
+  "total_binary_downloads": 1493,
   "latest_release": "v0.13.0",
   "platforms": {
     "darwin-amd64": 19,
-    "darwin-arm64": 22,
-    "linux-amd64": 1304,
+    "darwin-arm64": 24,
+    "linux-amd64": 1436,
     "linux-arm64": 14
   },
   "versions": {
     "v0.1.0": 3,
     "v0.10.0": 261,
-    "v0.11.0": 13,
-    "v0.12.0": 314,
-    "v0.12.1": 442,
-    "v0.13.0": 21,
+    "v0.11.0": 14,
+    "v0.12.0": 321,
+    "v0.12.1": 531,
+    "v0.13.0": 58,
     "v0.2.0": 7,
     "v0.3.0": 1,
     "v0.3.1": 10,
@@ -33,7 +33,7 @@
     "v0.9.0": 72
   },
   "recent": {
-    "downloads_1d": 65
+    "downloads_1d": 134
   },
   "adoption": {
     "v0.7.1": {
@@ -44,6 +44,9 @@
     },
     "v0.7.3": {
       "J+30": 38
+    },
+    "v0.8.0": {
+      "J+30": 77
     }
   }
 }
