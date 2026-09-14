@@ -81,12 +81,12 @@
       "package": "./internal/core/emulator/"
     },
     {
-      "label": "THE OTHER DIRECTION: what a pack vouches for stops being kept, so the zone in every recorded path becomes a synthetic string, the emulator answers 400 unknown zone, and the corpus is unreplayable",
-      "file": "internal/corpus/corpus.go",
-      "find": "\tfor _, v := range opt.Vocabulary {\n\t\tout[v] = true\n\t}",
-      "replace": "\tfor _, v := range opt.Vocabulary {\n\t\tout[v] = true && false\n\t}",
-      "test": "TestASanitisedTranscriptStillReplays",
-      "package": "./internal/cli/"
+      "label": "what a pack vouches for stops being kept, so a sanitiser replaces a value the pack answers 400 for and the replayed corpus reads as an emulator defect (#768: retargeted from internal/corpus, where the contract's own enumerations cover the zones and made the mutation unobservable)",
+      "file": "internal/providers/scaleway/vocabulary.go",
+      "find": "\tfor zone := range knownZones {\n\t\tout = append(out, zone)\n\t}",
+      "replace": "\tfor zone := range knownZones {\n\t\tout = append(out, zone+\"\\x00never\")\n\t}",
+      "test": "TestTheVocabularyVouchesForEveryListThePackValidatesAgainst",
+      "package": "./internal/providers/scaleway/"
     },
     {
       "label": "the IPv6 block counter lands in the bits the prefix mask erases, so every /64 of a recording becomes one block and the corpus states #270's own finding — two networks sharing a prefix — as an artefact of the instrument",

@@ -145,8 +145,21 @@ func TestAStackCIDoesNotApplyIsDeclaredWithAReason(t *testing.T) {
 	t.Cleanup(func() { stacksRunByHand = restore })
 	stacksRunByHand = []stackException{{Root: stacks.Family, Stack: "exoscale", Reason: "   "}}
 	problems = undeclaredStacks(sources, workflow)
-	if len(problems) == 0 {
-		t.Fatal("a declaration with an empty reason excused a stack anyway")
+	// The assertion is on WHICH problem, not on how many. Planting a declaration
+	// for a stack CI does apply raises a second, unrelated complaint — the stale
+	// declaration — so a count is satisfied whether or not the empty reason was
+	// noticed at all. Measured on 2026-09-14 (#768): with the empty-reason guard
+	// neutralised, this test stayed green because the other complaint filled the
+	// slice.
+	var named bool
+	for _, p := range problems {
+		if strings.Contains(p, "with no reason") {
+			named = true
+		}
+	}
+	if !named {
+		t.Fatalf("a declaration with an empty reason excused a stack anyway; the complaints were:\n  %s",
+			strings.Join(problems, "\n  "))
 	}
 }
 
