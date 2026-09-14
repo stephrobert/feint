@@ -316,6 +316,10 @@ type observingRecorder struct {
 	shape      Shape
 	err        error
 	noFirewall bool
+	// noIsolation drops the Isolation capability, which is how a test writes
+	// a bridge host: the driver lays no permissive set there, so an
+	// unfiltered interface really is bare (#741).
+	noIsolation bool
 	// queue, when set, is read one Shape per Observe ahead of shape: how a
 	// test writes a machine that changes between two readings.
 	queue []Shape
@@ -351,6 +355,9 @@ func (o *observingRecorder) Capabilities() Capabilities {
 	caps := o.Recorder.Capabilities()
 	if o.noFirewall {
 		caps.Firewall = false
+	}
+	if o.noIsolation {
+		caps.Isolation = false
 	}
 	return caps
 }
@@ -470,7 +477,10 @@ func TestTheRuleSetsAMachineWearsAreClaimedOnItsFilteredInterfaces(t *testing.T)
 	for _, v := range verdicts {
 		names[v.Claim] = v
 	}
-	for _, claim := range []string{"wears(fnt-x)", "wears(fnt-y)"} {
+	// wears(fnt-y) is NOT expected here any more: the bench declares Isolation,
+	// and an unfiltered interface on such a host may carry the permissive set
+	// the driver lays (#741). What is claimed is the filtered interface alone.
+	for _, claim := range []string{"wears(fnt-x)"} {
 		v, claimed := names[claim]
 		if !claimed {
 			t.Fatalf("%s was not claimed:\n%s", claim, outcomes(verdicts))
@@ -480,15 +490,17 @@ func TestTheRuleSetsAMachineWearsAreClaimedOnItsFilteredInterfaces(t *testing.T)
 		}
 	}
 
-	// The unfiltered interface planted wearing the set: the pack said its
-	// groups do not reach it, and the runtime bound one anyway.
+	// And nothing is claimed about the unfiltered one, whatever it wears: this
+	// host declares Isolation, so the driver may have laid the permissive set
+	// on it and this derivation cannot tell an isolated network from an
+	// ordinary one.
 	eth1 := shape.Interfaces["eth1"]
 	eth1.RuleSets = []string{set}
 	shape.Interfaces["eth1"] = eth1
 	verdicts, _ = r.verify(context.Background(), vm, nil)
 	for _, v := range verdicts {
-		if v.Claim == "wears(fnt-y)" && (v.Outcome != Broken || v.Want != "no rule set on eth1") {
-			t.Errorf("an unfiltered interface wearing a set answered %s", v)
+		if v.Claim == "wears(fnt-y)" {
+			t.Errorf("an unfiltered interface was claimed on a host that declares Isolation: %s", v)
 		}
 	}
 }
@@ -531,5 +543,107 @@ func TestWearsComparesTheRuleSetsPerInterface(t *testing.T) {
 	requireOutcome(t, v, Broken)
 	if !strings.Contains(v.Got, "no interface on fnt-z") {
 		t.Errorf("a missing interface is not named: %s", v)
+	}
+}
+
+// An unfiltered interface is not claimed on a host that declares Isolation,
+// because the driver may have laid the permissive set on it (#741).
+//
+// Measured on 2026-09-07 under `--vm incus-ovn`: every Exoscale machine with no
+// security group broke `wears(...)` with `want "no rule set on eth0" got
+// "opn-fnt on eth0"`. The driver was right and the claim was wrong:
+// incus_isolate.go lays that set under `if d.OVN` because attaching any ACL to
+// an OVN network makes the runtime add a default-deny to every NIC of it.
+//
+// Nothing is claimed rather than the set itself, and that is the honest answer:
+// `spreadPermissive` runs on the isolation path alone, so the interface wears
+// the set on an isolated network and nothing on an ordinary one, and this
+// derivation cannot tell the two apart.
+func TestAnUnfilteredInterfaceIsNotClaimedWhereTheDriverMayOpenIt(t *testing.T) {
+	plan := Plan{
+		Boot:        []Attachment{{Network: "fnt-x", Address: "10.30.1.10", PrefixLen: 24}},
+		Memberships: []Attachment{{Network: "fnt-y", Unfiltered: true}},
+	}
+	b := newGroupSyncBench()
+	b.group("g", "")
+	shape := pinnedOn("fnt-x", "10.30.1.10/24", FirewallName("bench", "g"))
+	// The interface wearing exactly what the driver lays under OVN.
+	shape.Interfaces["eth1"] = Interface{
+		Network:   "fnt-y",
+		Addresses: []netip.Prefix{netip.MustParsePrefix("10.40.0.5/24")},
+		RuleSets:  []string{permissiveACL()},
+	}
+	shape.Gateways["fnt-y"] = netip.MustParsePrefix("10.40.0.1/24")
+	o := &observingRecorder{Recorder: b.rec, shape: shape}
+	vm := b.machine("m", "10.30.1.10", "g")
+
+	verdicts, _ := observingReconciler(b, o, plan).verify(context.Background(), vm, nil)
+	for _, v := range verdicts {
+		if v.Claim == "wears(fnt-y)" {
+			t.Errorf("an unfiltered interface was claimed on a host that declares Isolation, "+
+				"and the driver's own permissive set answered it broken: %s", v)
+		}
+	}
+	// The accepting half: the filtered interface is still judged, or this would
+	// pass by claiming nothing at all.
+	claimed := false
+	for _, v := range verdicts {
+		if v.Claim == "wears(fnt-x)" {
+			claimed = true
+			if v.Outcome != Held {
+				t.Errorf("the filtered interface answered %s on a machine wearing its group", v)
+			}
+		}
+	}
+	if !claimed {
+		t.Fatalf("no interface was claimed at all:\n%s", outcomes(verdicts))
+	}
+}
+
+// And a host without Isolation still claims it bare, which is the half that
+// keeps the guard useful: on a bridge the driver lays nothing there, so an
+// interface wearing a set is a real disagreement.
+func TestAnUnfilteredInterfaceIsStillClaimedBareWithoutIsolation(t *testing.T) {
+	plan := Plan{
+		Boot:        []Attachment{{Network: "fnt-x", Address: "10.30.1.10", PrefixLen: 24}},
+		Memberships: []Attachment{{Network: "fnt-y", Unfiltered: true}},
+	}
+	b := newGroupSyncBench()
+	b.group("g", "")
+	set := FirewallName("bench", "g")
+	shape := pinnedOn("fnt-x", "10.30.1.10/24", set)
+	shape.Interfaces["eth1"] = Interface{
+		Network:   "fnt-y",
+		Addresses: []netip.Prefix{netip.MustParsePrefix("10.40.0.5/24")},
+	}
+	shape.Gateways["fnt-y"] = netip.MustParsePrefix("10.40.0.1/24")
+	o := &observingRecorder{Recorder: b.rec, shape: shape, noIsolation: true}
+	vm := b.machine("m", "10.30.1.10", "g")
+	r := observingReconciler(b, o, plan)
+
+	verdicts, _ := r.verify(context.Background(), vm, nil)
+	held := false
+	for _, v := range verdicts {
+		if v.Claim == "wears(fnt-y)" {
+			held = true
+			if v.Outcome != Held {
+				t.Errorf("a bare interface on a bridge answered %s", v)
+			}
+		}
+	}
+	if !held {
+		t.Fatalf("an unfiltered interface was not claimed on a bridge:\n%s", outcomes(verdicts))
+	}
+
+	// And a set appearing there is still a broken claim: this is what the guard
+	// exists to catch, and it must survive the fix.
+	eth1 := shape.Interfaces["eth1"]
+	eth1.RuleSets = []string{set}
+	shape.Interfaces["eth1"] = eth1
+	verdicts, _ = r.verify(context.Background(), vm, nil)
+	for _, v := range verdicts {
+		if v.Claim == "wears(fnt-y)" && (v.Outcome != Broken || v.Want != "no rule set on eth1") {
+			t.Errorf("an unfiltered interface wearing a set on a bridge answered %s", v)
+		}
 	}
 }

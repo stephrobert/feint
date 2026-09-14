@@ -1,0 +1,21 @@
+{
+  "package": "./internal/core/machine/",
+  "mutations": [
+    {
+      "label": "an unfiltered interface is claimed bare even where the driver lays the permissive set, which is the broken claim every Exoscale machine with no security group carried (#741)",
+      "file": "internal/core/machine/readback.go",
+      "package": "./internal/core/machine/",
+      "find": "\t\t\tif CapabilitiesOf(r.binding().driver).Isolation {\n\t\t\t\tcontinue\n\t\t\t}",
+      "replace": "\t\t\tif CapabilitiesOf(r.binding().driver).Isolation && false {\n\t\t\t\tcontinue\n\t\t\t}",
+      "test": "TestAnUnfilteredInterfaceIsNotClaimedWhereTheDriverMayOpenIt"
+    },
+    {
+      "label": "nothing is ever claimed on an unfiltered interface, so a bridge host stops catching a rule set the pack said could not be there",
+      "file": "internal/core/machine/readback.go",
+      "package": "./internal/core/machine/",
+      "find": "\t\t\tif CapabilitiesOf(r.binding().driver).Isolation {\n\t\t\t\tcontinue\n\t\t\t}\n\t\t\tclaims = append(claims, wears{Network: att.Network})",
+      "replace": "\t\t\tif CapabilitiesOf(r.binding().driver).Isolation || true {\n\t\t\t\tcontinue\n\t\t\t}\n\t\t\tclaims = append(claims, wears{Network: att.Network})",
+      "test": "TestAnUnfilteredInterfaceIsStillClaimedBareWithoutIsolation"
+    }
+  ]
+}
