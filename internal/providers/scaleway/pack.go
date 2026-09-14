@@ -351,6 +351,28 @@ func (p *Pack) Routes() []emulator.Route {
 		// the client's images beside it, which is why it sits with the reads
 		// rather than with the block above.
 		{Method: "GET", Path: zones + "/products/servers", Operation: "instance/v1/API.ListServersTypes", Handler: p.listServerTypes},
+		// The volume half of the same menu, served since #758 landed the
+		// recording its decline was waiting for.
+		{Method: "GET", Path: zones + "/products/volumes", Operation: "instance/v1/API.ListVolumesTypes", Handler: p.listVolumeTypes,
+			// Undriven, and the reason is a measurement rather than an
+			// omission: `scw instance volume-type list` carries the table IN
+			// THE BINARY and issues no request at all. Pointed at a dead port
+			// on 2026-09-14 it still answered the two types, while
+			// `scw instance server-type list` pointed at the same dead port
+			// failed with `connection refused` — the witness that makes the
+			// first result mean something.
+			//
+			// So no client this project drives can reach this route, and a line
+			// in scw-cli.sh calling that command would assert the CLI's own
+			// table rather than this emulator's answer. One was written and
+			// removed for exactly that reason.
+			//
+			// What reaches it is the Ansible collection of #758, which builds
+			// its request from the API description instead. The values are held
+			// against the recorded body by TestVolumeTypesAnswerTheRecordedCatalogue,
+			// and the CLI's hardcoded table agrees with them field for field,
+			// which is a second reading of the same fact.
+			Undriven: "the official CLI answers this from a table compiled into the binary and sends no request, measured against a dead port on 2026-09-14; the client that reaches it is the Ansible collection of #758, which this suite does not run"},
 		// Two declines #626 asked to be arbitrated, and the measurement withdrew
 		// them: compatible-types answers a list of names and no headroom, and the
 		// dashboard's counters name families this pack serves, with the two
@@ -376,6 +398,10 @@ func (p *Pack) Routes() []emulator.Route {
 		{Method: "GET", Path: lbZones + "/lbs/{lbID}", Operation: "lb/v1/ZonedAPI.GetLB", Handler: p.getLB},
 		{Method: "PUT", Path: lbZones + "/lbs/{lbID}", Operation: "lb/v1/ZonedAPI.UpdateLB", Handler: p.updateLB},
 		{Method: "DELETE", Path: lbZones + "/lbs/{lbID}", Operation: "lb/v1/ZonedAPI.DeleteLB", Handler: p.deleteLB},
+		// The one Day-2 action this API has, served since #762 measured what a
+		// client needs from it. loadbalancer.go says why the decline did not
+		// survive its own neighbours.
+		{Method: "POST", Path: lbZones + "/lbs/{lbID}/migrate", Operation: "lb/v1/ZonedAPI.MigrateLB", Handler: p.migrateLB},
 
 		// The balancer's flexible IPs. This is the exact route the #74
 		// OpenTofu recording died on with a plain-text 404, and the whole of
@@ -797,37 +823,17 @@ func (p *Pack) Declined() []emulator.Decline {
 		// short by the unemulated remainder". A live read of fr-par-1 on
 		// 2026-09-01 settled it (#626): every key it answers names a family this
 		// pack serves, and the remainder is empty. It is served.
-		// ListVolumesTypes is not in the block above, and an audit was right to
-		// say so: it returns a catalogue of volume types with their constraints,
-		// which is the same nature as ListServersTypes — served. It is declined
-		// for the reason that actually applies to it.
-		// #625 asked whether this decline survives its own sibling, and the
-		// question was fair: ListServersTypes is served and answers capabilities,
-		// constraints AND prices, so "would describe capabilities and constraints"
-		// could not be what separates them. It is not.
+		// ListVolumesTypes used to be declined here, and the decline named its own
+		// expiry: "no recording of /products/volumes exists in corpus/ [...] the day
+		// that recording lands, this becomes a serve, and the pack that makes those
+		// types is already waiting for it".
 		//
-		// What separates them is measured. The served catalogue names types this
-		// emulator creates — a client picking DEV1-S gets a DEV1-S, and its
-		// values come from a recording (corpus/scaleway/scw-instance.jsonl seq
-		// 2-4). A live read of /products/volumes on fr-par-1, 2026-09-01, answers
-		// exactly two types: l_ssd (Local SSD) and scratch.
-		//
-		// Half of that reasoning has since expired, and this comment says which
-		// half rather than leaving the sentence standing. #393 made CreateVolume
-		// answer exactly what fr-par answers, so l_ssd and scratch are now the
-		// two types this pack mints and nothing else is: the menu would no
-		// longer list items the create refuses. It names them.
-		//
-		// What is left is the other condition the decline already carried, and
-		// it is unchanged: no recording of /products/volumes exists in corpus/,
-		// and this route answers a table of per-type constraints — sizes, snapshot
-		// rules — that rule 4 forbids inventing. A menu made up here would be
-		// exactly the plausible-wrong answer this repository exists to avoid.
-		//
-		// The day that recording lands, this becomes a serve, and the pack that
-		// makes those types is already waiting for it.
-		emulator.Because("no recording of /products/volumes exists in corpus/, and the route answers a table of per-type constraints that would have to be invented rather than measured",
-			"instance/v1/API.ListVolumesTypes"),
+		// #758 landed it: a `feint proxy` transcript of a real fr-par-1 read on
+		// 2026-09-10, two entries and no more. The route is served, its values are
+		// in volumetypes.go beside the types POST /volumes mints, and the reason is
+		// removed rather than reworded — TestEveryUndrivenOperationSaysWhy refuses a
+		// reason that outlived its cause, on the precedent of
+		// instance/v2alpha1/API.UpdatePrivateNetworkInterface.
 
 		// Migrating a legacy local volume, or a snapshot of one, to Scaleway
 		// Block Storage. Every volume served here is already of the current
@@ -976,8 +982,13 @@ func (p *Pack) Declined() []emulator.Decline {
 		emulator.Because("the Terraform provider reconciles a frontend's ACLs one by one — CreateACL, ListACLs, UpdateACL, DeleteACL, measured in its services/lb/frontend.go — and never calls the bulk set",
 			"lb/v1/ZonedAPI.SetACLs"),
 
-		emulator.Because("migrating changes the commercial offer of the balancer, and an emulated balancer has no capacity to move: answering would confirm a resize nothing performed",
-			"lb/v1/ZonedAPI.MigrateLB"),
+		// MigrateLB used to be declined here, on the ground that "an emulated
+		// balancer has no capacity to move: answering would confirm a resize
+		// nothing performed". #762 showed that argument does not survive its own
+		// neighbours: UpdateServer accepts a new commercial_type and stores it,
+		// and CreateLB accepts any type string and stores that. The reason is
+		// removed rather than reworded, as TestEveryUndrivenOperationSaysWhy
+		// requires of a reason that outlived its cause.
 
 		emulator.Because("nothing here terminates TLS: a certificate served by this emulator would be an ID over key material that signs nothing, and the Let's Encrypt half issues against domains this emulator does not hold; the list is served since #666, and it is empty, because that is what a balancer here holds",
 			"lb/v1/ZonedAPI.CreateCertificate",
@@ -1056,7 +1067,14 @@ func (p *Pack) Declined() []emulator.Decline {
 
 		// ---- vpcgw, the halves the measured clients do not call (#282) --------
 
-		emulator.Because("upgrading changes the gateway's commercial offer in place, and an emulated gateway has no capacity to move: answering would confirm a resize nothing performed (the MigrateLB argument)",
+		// The reason used to end "(the MigrateLB argument)", and that argument was
+		// withdrawn in #762: an emulated balancer records a new offer the way an
+		// emulated server records a new commercial_type, so "it would confirm a
+		// resize nothing performed" held this pack to a standard it applies
+		// nowhere else. What is left here is the reason this whole block carries,
+		// and it is the honest one: no client this project drives calls it. The
+		// day one does, the LB decision is the precedent.
+		emulator.Because("no client this project drives upgrades a gateway in place, which is what this whole block records; the capacity argument that used to sit here was withdrawn with MigrateLB's in #762",
 			"vpcgw/v2/API.UpgradeGateway"),
 
 		emulator.Because("the gateway's SSH bastion accepts no connection here — nothing forwards a packet — so refreshing the keys it would present is a rotation over a door that does not open",

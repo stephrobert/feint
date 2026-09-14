@@ -222,6 +222,41 @@ func (p *Pack) listServerTypes(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// listVolumeTypes answers the volume half of the catalogue, beside
+// listServerTypes above and for the same reason: a client reads the menu before
+// it creates, and a 501 here stops a module that would otherwise have worked.
+//
+// It pages like its neighbour because the contract declares `page` and
+// `per_page` on this operation too, and a parameter the contract declares and a
+// handler drops is the class #271 names. The whole catalogue is two entries, so
+// no real client will ever see a second page — which is exactly why the
+// parameter would have been dropped without a test.
+//
+// `total_count` is deliberately absent: the SDK's response struct carries one,
+// the API description does NOT declare it, and the recorded body in #758 does
+// not carry it either. Two of the three sources agree, and the two that agree
+// are the ones a client compares against.
+//
+// TestVolumeTypesAnswerTheRecordedCatalogue and TestVolumeTypesArePaged fail
+// without this.
+func (p *Pack) listVolumeTypes(w http.ResponseWriter, r *http.Request) {
+	if _, ok := zoneOf(w, r); !ok {
+		return
+	}
+	names := make([]string, 0, len(volumeCatalogue))
+	for name := range volumeCatalogue {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	start, end := parsePage(r).slice(len(names))
+	page := make(map[string]volumeType, end-start)
+	for _, name := range names[start:end] {
+		page[name] = volumeCatalogue[name]
+	}
+	emulator.WriteJSON(w, http.StatusOK, map[string]any{"volumes": page})
+}
+
 // listLocalImages answers the marketplace lookup the CLI performs to resolve an
 // image label into an ID. Any label is accepted and answers 200, because
 // refusing an unknown one would block a workflow the emulator has no opinion

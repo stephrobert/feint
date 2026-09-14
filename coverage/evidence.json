@@ -6,9 +6,9 @@
     "none"
   ],
   "generated_from": {
-    "contracts": "baa67f26c312f9fc",
+    "contracts": "e969cbd8c5841bb9",
     "shapes": "cac046c206cc9fc8",
-    "suites": "3501d9ae3f71fc1a"
+    "suites": "2ff2d523b829feed"
   },
   "operations": {
     "account/v3/ProjectAPI.CreateProject": {
@@ -1667,6 +1667,15 @@
       "behaviour": true,
       "negative": true
     },
+    "instance/v1/API.ListVolumesTypes": {
+      "driven": false,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": false,
+      "shape": "unobserved",
+      "behaviour": false,
+      "negative": false
+    },
     "instance/v1/API.ServerAction": {
       "driven": true,
       "probed": "response",
@@ -2261,6 +2270,15 @@
       "behaviour": false,
       "negative": false
     },
+    "lb/v1/ZonedAPI.MigrateLB": {
+      "driven": true,
+      "probed": "refusal",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
     "lb/v1/ZonedAPI.ReleaseIP": {
       "driven": true,
       "probed": "response",
@@ -2385,7 +2403,7 @@
       "dataplane": true,
       "shape": "unobserved",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "osc/Client.CreateImage": {
       "driven": true,
@@ -2574,7 +2592,7 @@
       "dataplane": true,
       "shape": "unobserved",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "osc/Client.DeleteImage": {
       "driven": true,
@@ -2754,7 +2772,7 @@
       "dataplane": true,
       "shape": "unobserved",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "osc/Client.LinkInternetService": {
       "driven": true,
@@ -2889,7 +2907,7 @@
       "dataplane": true,
       "shape": "observed",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "osc/Client.ReadNatServices": {
       "driven": true,
@@ -3105,7 +3123,7 @@
       "dataplane": true,
       "shape": "unobserved",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "osc/Client.UnlinkInternetService": {
       "driven": true,
@@ -3177,7 +3195,7 @@
       "dataplane": true,
       "shape": "unobserved",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "osc/Client.UpdateImage": {
       "driven": true,

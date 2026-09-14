@@ -15,6 +15,47 @@ parce que c'est là-dessus que ce projet est jugé : **une forme de réponse qu'
 client peut observer**, et **une limite qui a bougé**. Une refactorisation qui ne
 change ni l'un ni l'autre a sa place dans `git log`.
 
+## [Unreleased]
+
+### Ajouté
+
+- **Un équilibreur de charge peut être migré : `lb/v1/ZonedAPI.MigrateLB`**
+  (#762). `POST /lb/v1/zones/{zone}/lbs/{id}/migrate` accepte une nouvelle offre
+  et la relecture qui suit la montre. C'est la seule action de jour 2 que porte
+  cette API, et aucun client ne pouvait l'exercer : le compte réel facture la
+  seule migration qu'il accepte, donc un exemple ne pouvait pas prendre cette
+  décision à la place de qui l'exécute.
+
+  La route était déclinée au motif que répondre « confirmerait un
+  redimensionnement que rien n'a effectué ». Cet argument ne survit pas à ses
+  propres voisins : `UpdateServer` accepte déjà un nouveau `commercial_type` et
+  le stocke, et `CreateLB` accepte déjà n'importe quelle chaîne de type. La
+  raison est retirée plutôt que reformulée, et le même retrait s'applique à
+  `vpcgw/v2`, dont la mise à niveau de passerelle la citait.
+
+  Une divergence, inscrite dans `docs/limits.md` : l'API réelle refuse une
+  migration vers le type que l'équilibreur porte déjà, avec un 400
+  `invalid_arguments`. Ce n'est pas le cas ici, pour la raison que `CreateLB`
+  porte déjà : `corpus:check` rejoue des enregistrements dont les valeurs sont
+  synthétiques, donc un refus fondé sur une valeur transforme un 200 enregistré
+  en 400 au rejeu.
+
+- **Le catalogue des volumes est servi : `instance/v1/API.ListVolumesTypes`**
+  (#758). `GET /instance/v1/zones/{zone}/products/volumes` rend les deux types
+  que cet émulateur crée, `l_ssd` et `scratch`, avec les noms d'affichage, la
+  capacité d'instantané et les contraintes de taille qu'un vrai `fr-par-1` a
+  renvoyés. Un client qui lit le menu avant de créer n'y rencontre plus de 501.
+
+  La route était déclinée, et le refus nommait lui-même son échéance : « aucun
+  enregistrement de /products/volumes n'existe dans corpus/ [...] le jour où cet
+  enregistrement arrive, cela devient un service ». #758 l'a apporté, sous la
+  forme d'une transcription `feint proxy` d'un compte réel prise le 10 septembre
+  2026. Chaque chiffre de la réponse est une ligne de cette transcription, tenue
+  par un test.
+
+  Le catalogue et ce qu'accepte `POST /volumes` sont désormais dérivés d'une
+  seule table : le menu ne peut plus proposer un type que la création refuse.
+
 ## [0.13.0] - 2026-09-07
 
 ### Ajouté

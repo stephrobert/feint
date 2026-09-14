@@ -557,6 +557,7 @@ prove_end "$span"
 # The catalogue this product needs, for the reason the instance one exists.
 scw block volume-type list zone="$ZONE" -o json | jq -e 'length > 0' >/dev/null \
   || fail "the block volume-type catalogue answered nothing"
+
 ok "created, snapshotted, restored, refused, deleted in order"
 
 # The IPAM lifecycle, served since SW-4. The CLI's own help states the real
@@ -1117,6 +1118,17 @@ lb_id="$(printf '%s' "$lb" | jq -r '.id // empty')"
 printf '%s' "$lb" | jq -e '.status == "ready"' >/dev/null || fail "the balancer is not ready: $lb"
 scw lb lb list zone="$ZONE" -o json | jq -e --arg id "$lb_id" 'any(.[]; .id == $id)' >/dev/null \
   || fail "the balancer is missing from the list"
+
+# The one Day-2 action this API has, served since #762. The read after it is
+# what asserts: a migration accepted and applied to nothing is the shape the
+# decline was withdrawn over.
+migrated="$(scw lb lb migrate "$lb_id" type=LB-GP-M zone="$ZONE" -o json 2>&1)" \
+  || fail "lb migrate rejected: $migrated"
+scw lb lb get "$lb_id" zone="$ZONE" -o json | jq -e '.type == "lb-gp-m"' >/dev/null \
+  || fail "the read after the migration does not show the new offer"
+# And back, so the rest of this suite meets the balancer it was written against.
+scw lb lb migrate "$lb_id" type=LB-S zone="$ZONE" -o json >/dev/null \
+  || fail "migrating the balancer back rejected"
 
 backend="$(scw lb backend create lb-id="$lb_id" name=conformance-be forward-protocol=tcp \
   forward-port=8080 server-ip.0=172.16.8.10 health-check.port=8080 zone="$ZONE" -o json 2>&1)" \

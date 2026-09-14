@@ -13,6 +13,44 @@ Two kinds of change deserve their own line whatever their size, because they are
 what this project is judged on: **a response shape a client can observe**, and
 **a limit that moved**. A refactor that changes neither belongs in `git log`.
 
+## [Unreleased]
+
+### Added
+
+- **A load balancer can be migrated: `lb/v1/ZonedAPI.MigrateLB`** (#762).
+  `POST /lb/v1/zones/{zone}/lbs/{id}/migrate` accepts a new offer and the read
+  that follows shows it. It is the one Day-2 action this API has, and no client
+  could exercise it: the real account bills the only migration it accepts, so an
+  example could not take that decision on somebody's behalf.
+
+  The route was declined on the ground that answering *"would confirm a resize
+  nothing performed"*. That argument did not survive its own neighbours:
+  `UpdateServer` already accepts a new `commercial_type` and stores it, and
+  `CreateLB` already accepts any type string. The reason is withdrawn rather
+  than reworded, and the same withdrawal was applied to `vpcgw/v2` where the
+  gateway upgrade cited it.
+
+  One divergence, in `docs/limits.md`: the real API refuses a migration to the
+  type the balancer already carries, with 400 `invalid_arguments`. This does
+  not, for the reason `CreateLB` already carries — `corpus:check` replays
+  recordings whose values are synthetic, so a refusal keyed on a value turns a
+  recorded 200 into a 400 on replay.
+
+- **The volume catalogue is served: `instance/v1/API.ListVolumesTypes`** (#758).
+  `GET /instance/v1/zones/{zone}/products/volumes` answers the two types this
+  emulator mints, `l_ssd` and `scratch`, with the display names, snapshot
+  capability and size constraints a real `fr-par-1` returned. A client that
+  reads the menu before it creates no longer meets a 501 there.
+
+  The route was declined until now, and the decline named its own expiry: *"no
+  recording of /products/volumes exists in corpus/ [...] the day that recording
+  lands, this becomes a serve"*. #758 landed it, as a `feint proxy` transcript
+  of a real account taken on 2026-09-10. Every figure in the answer is a line of
+  that transcript, held by a test.
+
+  The catalogue and what `POST /volumes` accepts are now derived from one table,
+  so the menu cannot offer a type the create refuses.
+
 ## [0.13.0] - 2026-09-07
 
 ### Added
