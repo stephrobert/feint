@@ -16,7 +16,7 @@ feint_clients_scw_version: "2.56.3"
 # octl, not oapi-cli: `outscale/oapi-cli` is archived, read-only, and describes
 # itself as deprecated (#460). octl publishes a checksums file, so no digest is
 # pinned here.
-feint_clients_octl_version: "v0.0.31"
+feint_clients_octl_version: "v0.0.32"
 # 1.95.6, not 1.86: v1.86 ignores the `endpoint` key in its own configuration
 # file and goes to the real Exoscale, which the suite met as "Invalid key or
 # request signature" — a client talking to a paying account because a version

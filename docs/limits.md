@@ -3088,20 +3088,25 @@ account for all 1700 upstream operations would fail forever and train everyone t
 ignore it. Widening the scope is a decision to make when a product is started,
 not before.
 
-## Two Outscale filters reach the API only as a payload, and that is `octl`'s gap
+## Four Outscale parameters reach the API only as a payload, and that is `octl`'s gap
 
-The Outscale suite drives `octl` since 2026-08-25 (#460), and three of its calls
-cannot be expressed as `octl` flags. None of the three is a limit of the
-emulator; all three are limits of the client, and they are written here because
+The Outscale suite drives `octl` since 2026-08-25 (#460), and four of the things
+it sends cannot be expressed as `octl` flags. None of the four is a limit of the
+emulator; all four are limits of the client, and they are written here because
 somebody reading `tools/conformance/outscale/octl.sh` will otherwise read
 `--payload` as sloppiness.
+
+Three are a flag that is missing or miswired, and they are unchanged since the
+pin moved to v0.0.32 — re-measured 2026-09-14, each case gives the same answer
+on both binaries. The fourth arrived with v0.0.32 and is a deliberate removal
+rather than a defect: see below.
 
 `octl` generates one flag per field of the SDK's own request struct. Its flag
 builder (`pkg/builder/build.go`) has a case for `bool`, `int`, `int32`, `int64`,
 `string` and `map`, and **none for float**, so a field typed as an array of
 numbers gets no flag at all:
 
-| call | field | what `octl` v0.0.31 does |
+| call | field | what `octl` v0.0.31 and v0.0.32 both do |
 |---|---|---|
 | `ReadVmTypes` | `Filters.MemorySizes` (`[]float32`) | no flag is generated |
 | `ReadVolumes` | `Filters.CreationDates` (a slice of `iso8601.Time`) | the flag exists and is unusable |
@@ -3119,7 +3124,17 @@ an error occurred: invalid Filters.CreationDates value: trying to get
 stringSlice value of flag of type osctime
 ```
 
-All three go through `--payload` instead, which is still `octl` composing and
+The fourth is not a defect at all. **v0.0.32 withdrew `--ResultsPerPage` from
+the 43 reads that carried it and `--NextPageToken` from 36**, and paginates
+itself behind one `--max-pages` (measured 2026-09-14 by reading `--help` across
+the 234 `iaas` actions it serves, and the only flag it added in return is
+`--style`). The client stopped letting its caller choose a page size; the API
+did not stop declaring one, and this pack refuses a size outside the published
+bound. So the suite sends the parameter as a payload rather than dropping the
+assertion, because letting a client's convenience decide what the emulator is
+held to is how coverage disappears without anybody choosing it.
+
+All four go through `--payload` instead, which is still `octl` composing and
 signing `iaas api <Call>` — not a hand-rolled `curl`, which would stop measuring
 what a real client does. And the substitution cannot pass silently: `octl`
 decodes a payload with `DisallowUnknownFields` and **drops it without failing**
@@ -3128,17 +3143,32 @@ filter, the emulator would answer 200 with the whole inventory, and the suite's
 `refuse_call` fails on "accepted what it must refuse". The assertion is what
 proves the field arrived.
 
-One more cost of the same client, measured 2026-08-25 with the return code and a
-slice of output beside every timing: **`octl` spends about 700 ms starting up on
-every invocation, with no network at all** — `--version` 678 ms, `--help` 689 ms
-— against roughly 30 ms for the HTTP request. The binary is 84 MB and embeds
-416 KB of IaaS specification. That is why the Outscale suite fills its public-IP
-block through one `--waitfor` process rather than spawning one per address: 255
-calls in 51 s that way, against 186 s as separate processes. The whole suite runs
-in 369 s against `oapi-cli`'s 177 s, and the trade is deliberate — the old
-client's 409 back-off cost 12 s a refusal on eleven refusals, but its startup was
-cheap, so the bottleneck moved from a back-off on eleven calls to a fixed cost on
-all of them.
+The same version changed three flags from `string` to a new `base64File` kind —
+`CreateKeypair --PublicKey`, `CreateVms --UserData`, `UpdateVm --UserData`, and
+those three only. They take a file path now and the client encodes its bytes,
+which is what Outscale documents those three fields to be. The suite passes
+paths; both suites carry a version floor so an older binary fails on a sentence
+rather than on an opaque 400.
+
+One more cost of the same client, and **v0.0.32 is where most of it went away**.
+Measured 2026-08-25 on v0.0.31 with the return code and a slice of output beside
+every timing: `octl` spent about 700 ms starting up on every invocation with no
+network at all — `--version` 678 ms, `--help` 689 ms — against roughly 30 ms for
+the HTTP request. Re-measured 2026-09-14 on v0.0.32: `--version` 102 ms, and the
+`octl` conformance leg end to end **38 s against 184 s**, both green, same
+machine, one run each.
+
+That is why the Outscale suite fills its public-IP block through one `--waitfor`
+process rather than spawning one per address: 255 calls in 51 s that way,
+against 186 s as separate processes, measured on v0.0.31. Those two numbers have
+not been re-measured, and the block is written that way regardless — a fixed
+cost of 100 ms times 255 calls is still the dominant term.
+
+The comparison with `oapi-cli` that justified the swap stays as recorded: the
+whole suite ran in 369 s against `oapi-cli`'s 177 s on v0.0.31, and the trade was
+deliberate, the old client's 409 back-off costing 12 s a refusal on eleven
+refusals against a startup that was cheap. v0.0.32 removes most of what was
+being traded away.
 
 ## Exoscale has one zone per process, and the reason is the client
 

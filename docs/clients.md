@@ -63,7 +63,7 @@ README that rots (#593).
 | `scw` | 2.56.3 | `.github/workflows/conformance.yml` (`SCW_VERSION`) | Scaleway |
 | Terraform | 1.13.3 | `.github/workflows/conformance.yml` (`TERRAFORM_VERSION`) | Exoscale, Outscale, Scaleway |
 | OpenTofu | 1.12.5 | `.github/workflows/conformance.yml` (`TOFU_VERSION`) | Exoscale, Outscale, Scaleway |
-| `octl` | 0.0.31 | `.github/workflows/conformance.yml` (`OCTL_VERSION`) | Outscale |
+| `octl` | 0.0.32 | `.github/workflows/conformance.yml` (`OCTL_VERSION`) | Outscale |
 | `exo` | 1.95.6 | `.github/workflows/conformance.yml` (`EXO_VERSION`) | Exoscale |
 
 ### The Terraform providers
