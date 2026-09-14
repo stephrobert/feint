@@ -1,0 +1,29 @@
+{
+  "package": "./internal/cli/",
+  "mutations": [
+    {
+      "label": "shape is declared client-borne, and the built population must catch it even though the record no longer witnesses that axis (#766)",
+      "file": "internal/cli/evidence_axes.go",
+      "package": "./internal/cli/",
+      "find": "\t\t\tName:    \"shape\",\n\t\t\tearner:  earnedByARecording,",
+      "replace": "\t\t\tName:    \"shape\",\n\t\t\tearner:  earnedByAClient + earnedByARecording - earnedByARecording,",
+      "test": "TestAClientBorneAxisIsCaughtOnAPopulationThatCannotDrift"
+    },
+    {
+      "label": "the decision stops looking at undriven operations, so no violation is ever reported and every client-borne axis passes unchecked",
+      "file": "internal/cli/evidence_axis_population_test.go",
+      "package": "./internal/cli/",
+      "find": "\t\tfor op, ev := range ops {\n\t\t\tif !ev.Driven && a.earned(ev) {",
+      "replace": "\t\tfor op, ev := range ops {\n\t\t\tif !ev.Driven && a.earned(ev) && ev.Driven {",
+      "test": "TestAClientBorneAxisIsCaughtOnAPopulationThatCannotDrift"
+    },
+    {
+      "label": "shape leaves the unwitnessed list while the record still fails to witness it, so the gap stops being recorded anywhere",
+      "file": "internal/cli/evidence_axis_population_test.go",
+      "package": "./internal/cli/",
+      "find": "\t\t\"shape\": \"exoscale/v2.get-operation was its only undriven witness and is now driven \" +",
+      "replace": "\t\t\"shape\\x00gone\": \"exoscale/v2.get-operation was its only undriven witness and is now driven \" +",
+      "test": "TestEachAxisIsWitnessedByTheRecordOrSaysItIsNot"
+    }
+  ]
+}
