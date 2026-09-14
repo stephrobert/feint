@@ -133,8 +133,12 @@ func rowContaining(t *testing.T, rendered, key string) string {
 func TestTheProvedPageSeparatesAnExactPinFromAConstraintAndFromNothing(t *testing.T) {
 	rendered := provedPage(t)
 
+	// The number is written here rather than read from the fixture, on purpose:
+	// read from it, this would compare the page against its own source and pass
+	// whatever the pin became. Written here, moving the pin costs one line and
+	// somebody has to look at this test while doing it.
 	exact := rowContaining(t, rendered, "tools/conformance/scaleway/terraform`")
-	if !strings.Contains(exact, "2.81.0") || !strings.Contains(exact, "exact") {
+	if !strings.Contains(exact, "2.82.0") || !strings.Contains(exact, "exact") {
 		t.Errorf("the Scaleway fixture pins one version and the page does not say so:\n  %s", exact)
 	}
 

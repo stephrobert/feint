@@ -32,7 +32,7 @@
 >
 > **Proven**: 376 of the 397 mounted operations are driven by a real client, on every pull request: each pack's own official CLI, and an infrastructure engine wherever a pack admits one, all of them running against the emulator in CI, and machines really boot: an ssh login on each provider's own default account, isolated subnets, a firewall that filters. The whole chain is described in [docs/conformance.md](docs/conformance.md).
 >
-> **Not proven**: quotas, prices, real capacity, identifier validation, authentication, eventual consistency. The 56 sections of [docs/limits.md](docs/limits.md) each say what one costs. An emulator with a single implicit account and no price list would have to invent those figures, and somebody would act on them.
+> **Not proven**: quotas, prices, real capacity, identifier validation, authentication, eventual consistency. The 57 sections of [docs/limits.md](docs/limits.md) each say what one costs. An emulator with a single implicit account and no price list would have to invent those figures, and somebody would act on them.
 >
 > **Unknown**: 21 operations are mounted and have never been driven by a client. Every one of them states why no official client reaches it, at the route and in [docs/routes.md](docs/routes.md). They are counted rather than glossed, one by one, in [coverage/evidence.json](coverage/evidence.json).
 >
@@ -831,8 +831,8 @@ argument is that the upstream moves:
 | Client | Version proven in CI | Emulated provider |
 |---|---|---|
 | `scw` | 2.56.3 | Scaleway |
-| Terraform | 1.13.3 with providers `outscale/outscale ~> 1.7`, `scaleway/scaleway 2.81.0` | Exoscale, Outscale, Scaleway |
-| OpenTofu | 1.12.5 with providers `outscale/outscale ~> 1.7`, `scaleway/scaleway 2.81.0` | Exoscale, Outscale, Scaleway |
+| Terraform | 1.13.3 with providers `outscale/outscale ~> 1.7`, `scaleway/scaleway 2.82.0` | Exoscale, Outscale, Scaleway |
+| OpenTofu | 1.12.5 with providers `outscale/outscale ~> 1.7`, `scaleway/scaleway 2.82.0` | Exoscale, Outscale, Scaleway |
 | `octl` | 0.0.32 | Outscale |
 | `exo` | 1.95.6 | Exoscale |
 
