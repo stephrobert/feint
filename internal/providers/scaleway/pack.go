@@ -351,6 +351,9 @@ func (p *Pack) Routes() []emulator.Route {
 		// the client's images beside it, which is why it sits with the reads
 		// rather than with the block above.
 		{Method: "GET", Path: zones + "/products/servers", Operation: "instance/v1/API.ListServersTypes", Handler: p.listServerTypes},
+		// The volume half of the same menu, served since #758 landed the
+		// recording its decline was waiting for.
+		{Method: "GET", Path: zones + "/products/volumes", Operation: "instance/v1/API.ListVolumesTypes", Handler: p.listVolumeTypes},
 		// Two declines #626 asked to be arbitrated, and the measurement withdrew
 		// them: compatible-types answers a list of names and no headroom, and the
 		// dashboard's counters name families this pack serves, with the two
@@ -801,37 +804,17 @@ func (p *Pack) Declined() []emulator.Decline {
 		// short by the unemulated remainder". A live read of fr-par-1 on
 		// 2026-09-01 settled it (#626): every key it answers names a family this
 		// pack serves, and the remainder is empty. It is served.
-		// ListVolumesTypes is not in the block above, and an audit was right to
-		// say so: it returns a catalogue of volume types with their constraints,
-		// which is the same nature as ListServersTypes — served. It is declined
-		// for the reason that actually applies to it.
-		// #625 asked whether this decline survives its own sibling, and the
-		// question was fair: ListServersTypes is served and answers capabilities,
-		// constraints AND prices, so "would describe capabilities and constraints"
-		// could not be what separates them. It is not.
+		// ListVolumesTypes used to be declined here, and the decline named its own
+		// expiry: "no recording of /products/volumes exists in corpus/ [...] the day
+		// that recording lands, this becomes a serve, and the pack that makes those
+		// types is already waiting for it".
 		//
-		// What separates them is measured. The served catalogue names types this
-		// emulator creates — a client picking DEV1-S gets a DEV1-S, and its
-		// values come from a recording (corpus/scaleway/scw-instance.jsonl seq
-		// 2-4). A live read of /products/volumes on fr-par-1, 2026-09-01, answers
-		// exactly two types: l_ssd (Local SSD) and scratch.
-		//
-		// Half of that reasoning has since expired, and this comment says which
-		// half rather than leaving the sentence standing. #393 made CreateVolume
-		// answer exactly what fr-par answers, so l_ssd and scratch are now the
-		// two types this pack mints and nothing else is: the menu would no
-		// longer list items the create refuses. It names them.
-		//
-		// What is left is the other condition the decline already carried, and
-		// it is unchanged: no recording of /products/volumes exists in corpus/,
-		// and this route answers a table of per-type constraints — sizes, snapshot
-		// rules — that rule 4 forbids inventing. A menu made up here would be
-		// exactly the plausible-wrong answer this repository exists to avoid.
-		//
-		// The day that recording lands, this becomes a serve, and the pack that
-		// makes those types is already waiting for it.
-		emulator.Because("no recording of /products/volumes exists in corpus/, and the route answers a table of per-type constraints that would have to be invented rather than measured",
-			"instance/v1/API.ListVolumesTypes"),
+		// #758 landed it: a `feint proxy` transcript of a real fr-par-1 read on
+		// 2026-09-10, two entries and no more. The route is served, its values are
+		// in volumetypes.go beside the types POST /volumes mints, and the reason is
+		// removed rather than reworded — TestEveryUndrivenOperationSaysWhy refuses a
+		// reason that outlived its cause, on the precedent of
+		// instance/v2alpha1/API.UpdatePrivateNetworkInterface.
 
 		// Migrating a legacy local volume, or a snapshot of one, to Scaleway
 		// Block Storage. Every volume served here is already of the current

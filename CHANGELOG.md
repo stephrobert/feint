@@ -36,6 +36,21 @@ what this project is judged on: **a response shape a client can observe**, and
   recordings whose values are synthetic, so a refusal keyed on a value turns a
   recorded 200 into a 400 on replay.
 
+- **The volume catalogue is served: `instance/v1/API.ListVolumesTypes`** (#758).
+  `GET /instance/v1/zones/{zone}/products/volumes` answers the two types this
+  emulator mints, `l_ssd` and `scratch`, with the display names, snapshot
+  capability and size constraints a real `fr-par-1` returned. A client that
+  reads the menu before it creates no longer meets a 501 there.
+
+  The route was declined until now, and the decline named its own expiry: *"no
+  recording of /products/volumes exists in corpus/ [...] the day that recording
+  lands, this becomes a serve"*. #758 landed it, as a `feint proxy` transcript
+  of a real account taken on 2026-09-10. Every figure in the answer is a line of
+  that transcript, held by a test.
+
+  The catalogue and what `POST /volumes` accepts are now derived from one table,
+  so the menu cannot offer a type the create refuses.
+
 ## [0.13.0] - 2026-09-07
 
 ### Added

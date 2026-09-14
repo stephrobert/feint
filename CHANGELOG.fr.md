@@ -40,6 +40,22 @@ change ni l'un ni l'autre a sa place dans `git log`.
   synthétiques, donc un refus fondé sur une valeur transforme un 200 enregistré
   en 400 au rejeu.
 
+- **Le catalogue des volumes est servi : `instance/v1/API.ListVolumesTypes`**
+  (#758). `GET /instance/v1/zones/{zone}/products/volumes` rend les deux types
+  que cet émulateur crée, `l_ssd` et `scratch`, avec les noms d'affichage, la
+  capacité d'instantané et les contraintes de taille qu'un vrai `fr-par-1` a
+  renvoyés. Un client qui lit le menu avant de créer n'y rencontre plus de 501.
+
+  La route était déclinée, et le refus nommait lui-même son échéance : « aucun
+  enregistrement de /products/volumes n'existe dans corpus/ [...] le jour où cet
+  enregistrement arrive, cela devient un service ». #758 l'a apporté, sous la
+  forme d'une transcription `feint proxy` d'un compte réel prise le 10 septembre
+  2026. Chaque chiffre de la réponse est une ligne de cette transcription, tenue
+  par un test.
+
+  Le catalogue et ce qu'accepte `POST /volumes` sont désormais dérivés d'une
+  seule table : le menu ne peut plus proposer un type que la création refuse.
+
 ## [0.13.0] - 2026-09-07
 
 ### Ajouté

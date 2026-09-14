@@ -140,7 +140,7 @@ valider](docs/confidence.md) dit où cette affirmation s'arrête.
 ```bash
 feint serve
 #  feint dev listening on 127.0.0.1:4599
-#    scaleway  192 routes
+#    scaleway  193 routes
 #    outscale  100 routes
 #    exoscale  104 routes
 #    machines  none

@@ -1,0 +1,29 @@
+{
+  "package": "./internal/providers/scaleway/",
+  "mutations": [
+    {
+      "label": "a constraint is invented rather than read from the recording, which is exactly what the decline of this route existed to prevent (#758)",
+      "file": "internal/providers/scaleway/volumetypes.go",
+      "package": "./internal/providers/scaleway/",
+      "find": "\t\"l_ssd\":   newVolumeType(\"Local SSD\", true, 1_000_000_000, 800_000_000_000),",
+      "replace": "\t\"l_ssd\":   newVolumeType(\"Local SSD\", true, 1_000_000_000, 900_000_000_000),",
+      "test": "TestVolumeTypesAnswerTheRecordedCatalogue"
+    },
+    {
+      "label": "the menu stops being derived from what the create mints, so the two tables can drift and a client can pick a type the create refuses",
+      "file": "internal/providers/scaleway/volumetypes.go",
+      "package": "./internal/providers/scaleway/",
+      "find": "\t\tfor name := range volumeCatalogue {\n\t\t\tout[name] = true\n\t\t}",
+      "replace": "\t\tfor name := range volumeCatalogue {\n\t\t\tout[name] = name != \"scratch\"\n\t\t}",
+      "test": "TestTheMenuAndTheMintAreOneFact"
+    },
+    {
+      "label": "the page window is ignored, so a parameter the contract declares is dropped (#271)",
+      "file": "internal/providers/scaleway/catalog.go",
+      "package": "./internal/providers/scaleway/",
+      "find": "\tstart, end := parsePage(r).slice(len(names))\n\tpage := make(map[string]volumeType, end-start)",
+      "replace": "\tstart, end := parsePage(r).slice(len(names))\n\tstart, end = 0, len(names)\n\tpage := make(map[string]volumeType, end-start)",
+      "test": "TestVolumeTypesArePaged"
+    }
+  ]
+}

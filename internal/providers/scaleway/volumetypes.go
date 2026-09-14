@@ -38,11 +38,66 @@ import (
 // template asks for a disk, and an update that adds one. Written three times, a
 // correction on one survives on the other two, and this file exists so that
 // cannot happen.
+// volumeType is one entry of the /products/volumes catalogue, shaped on the
+// SDK's VolumeType: display name, what it can do, and what sizes it accepts.
+type volumeType struct {
+	DisplayName  string `json:"display_name"`
+	Capabilities struct {
+		Snapshot bool `json:"snapshot"`
+	} `json:"capabilities"`
+	Constraints struct {
+		Min uint64 `json:"min"`
+		Max uint64 `json:"max"`
+	} `json:"constraints"`
+}
+
+// volumeCatalogue is what GET /products/volumes answers, and every figure in it
+// is a reading rather than a choice.
+//
+// The route was declined until 2026-09-14, and the decline named exactly what
+// was missing: "no recording of /products/volumes exists in corpus/, and the
+// route answers a table of per-type constraints that would have to be invented
+// rather than measured". It also said what would end it — "the day that
+// recording lands, this becomes a serve, and the pack that makes those types is
+// already waiting for it".
+//
+// The recording landed. #758 carries a `feint proxy` transcript of
+// GET /instance/v1/zones/fr-par-1/products/volumes taken on 2026-09-10 against
+// a real account: 200, 290 bytes, two entries and no more. b_ssd is gone, and
+// data volumes live in Block (SBS), which is why they are not here.
+//
+// The sizes are bytes, as the SDK's scw.Size is. TestTheVolumeCatalogueIsWhatTheCloudAnswered
+// holds each value against that transcript.
+var volumeCatalogue = map[string]volumeType{
+	"l_ssd":   newVolumeType("Local SSD", true, 1_000_000_000, 800_000_000_000),
+	"scratch": newVolumeType("Scratch Storage", false, 1_000_000_000, 60_000_000_000_000),
+}
+
+func newVolumeType(display string, snapshot bool, minSize, maxSize uint64) volumeType {
+	var v volumeType
+	v.DisplayName = display
+	v.Capabilities.Snapshot = snapshot
+	v.Constraints.Min = minSize
+	v.Constraints.Max = maxSize
+	return v
+}
+
 var (
 	// creatableVolumeTypes is what POST /volumes still mints, and it is exactly
 	// what GET /products/volumes lists — measured on fr-par the same day, which
 	// is what makes the two answers one fact rather than two tables.
-	creatableVolumeTypes = map[string]bool{"l_ssd": true, "scratch": true}
+	//
+	// Derived from volumeCatalogue rather than written beside it, since #758
+	// gave the catalogue its values: two tables holding the same names is the
+	// drift this whole file exists to prevent, and it would have been one
+	// literal away.
+	creatableVolumeTypes = func() map[string]bool {
+		out := make(map[string]bool, len(volumeCatalogue))
+		for name := range volumeCatalogue {
+			out[name] = true
+		}
+		return out
+	}()
 
 	// serverVolumeTypes adds sbs_volume, which a server template may name and
 	// POST /volumes may not: block/v1 is where the cloud moved that product, and
