@@ -15,6 +15,31 @@ parce que c'est là-dessus que ce projet est jugé : **une forme de réponse qu'
 client peut observer**, et **une limite qui a bougé**. Une refactorisation qui ne
 change ni l'un ni l'autre a sa place dans `git log`.
 
+## [Unreleased]
+
+### Ajouté
+
+- **Un équilibreur de charge peut être migré : `lb/v1/ZonedAPI.MigrateLB`**
+  (#762). `POST /lb/v1/zones/{zone}/lbs/{id}/migrate` accepte une nouvelle offre
+  et la relecture qui suit la montre. C'est la seule action de jour 2 que porte
+  cette API, et aucun client ne pouvait l'exercer : le compte réel facture la
+  seule migration qu'il accepte, donc un exemple ne pouvait pas prendre cette
+  décision à la place de qui l'exécute.
+
+  La route était déclinée au motif que répondre « confirmerait un
+  redimensionnement que rien n'a effectué ». Cet argument ne survit pas à ses
+  propres voisins : `UpdateServer` accepte déjà un nouveau `commercial_type` et
+  le stocke, et `CreateLB` accepte déjà n'importe quelle chaîne de type. La
+  raison est retirée plutôt que reformulée, et le même retrait s'applique à
+  `vpcgw/v2`, dont la mise à niveau de passerelle la citait.
+
+  Une divergence, inscrite dans `docs/limits.md` : l'API réelle refuse une
+  migration vers le type que l'équilibreur porte déjà, avec un 400
+  `invalid_arguments`. Ce n'est pas le cas ici, pour la raison que `CreateLB`
+  porte déjà : `corpus:check` rejoue des enregistrements dont les valeurs sont
+  synthétiques, donc un refus fondé sur une valeur transforme un 200 enregistré
+  en 400 au rejeu.
+
 ## [0.13.0] - 2026-09-07
 
 ### Ajouté

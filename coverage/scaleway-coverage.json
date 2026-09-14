@@ -1,8 +1,8 @@
 {
   "provider": "scaleway",
   "total": 536,
-  "implemented": 191,
-  "declined": 345,
+  "implemented": 192,
+  "declined": 344,
   "unknown": 0,
   "orphans": null,
   "products": [
@@ -133,15 +133,15 @@
     {
       "product": "lb",
       "total": 107,
-      "implemented": 42,
-      "declined": 65,
+      "implemented": 43,
+      "declined": 64,
       "unknown": 0,
       "versions": [
         {
           "version": "v1",
           "total": 107,
-          "implemented": 42,
-          "declined": 65,
+          "implemented": 43,
+          "declined": 64,
           "unknown": 0
         }
       ]
@@ -248,8 +248,8 @@
     {
       "group": "lb",
       "total": 107,
-      "implemented": 42,
-      "declined": 65,
+      "implemented": 43,
+      "declined": 64,
       "unknown": 0
     },
     {
@@ -3009,9 +3009,8 @@
     {
       "operation": "lb/v1/ZonedAPI.MigrateLB",
       "product": "lb",
-      "reason": "migrating changes the commercial offer of the balancer, and an emulated balancer has no capacity to move: answering would confirm a resize nothing performed",
       "version": "v1",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "lb/v1/ZonedAPI.ReleaseIP",
@@ -3832,7 +3831,7 @@
     {
       "operation": "vpcgw/v2/API.UpgradeGateway",
       "product": "vpcgw",
-      "reason": "upgrading changes the gateway's commercial offer in place, and an emulated gateway has no capacity to move: answering would confirm a resize nothing performed (the MigrateLB argument)",
+      "reason": "no client this project drives upgrades a gateway in place, which is what this whole block records; the capacity argument that used to sit here was withdrawn with MigrateLB's in #762",
       "version": "v2",
       "status": "declined"
     }

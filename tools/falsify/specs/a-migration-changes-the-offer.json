@@ -1,0 +1,29 @@
+{
+  "package": "./internal/providers/scaleway/",
+  "mutations": [
+    {
+      "label": "the migration answers the new offer without storing it, so the call is accepted and the read still shows the old type (#762)",
+      "file": "internal/providers/scaleway/loadbalancer.go",
+      "package": "./internal/providers/scaleway/",
+      "find": "\t\tstored.Attrs[\"type\"] = strings.ToLower(strings.TrimSpace(req.Type))",
+      "replace": "\t\tstored.Attrs[\"type\"] = textOf(stored.Attrs[\"type\"]) + strings.ToLower(strings.TrimSpace(req.Type))[:0]",
+      "test": "TestAMigrationChangesTheOfferAndTheReadShowsIt"
+    },
+    {
+      "label": "a migration naming no offer is accepted, though the SDK's field is not optional and the call would ask for nothing",
+      "file": "internal/providers/scaleway/loadbalancer.go",
+      "package": "./internal/providers/scaleway/",
+      "find": "\tif strings.TrimSpace(req.Type) == \"\" {",
+      "replace": "\tif strings.TrimSpace(req.Type) == \"\\x00never\" {",
+      "test": "TestAMigrationWithoutATypeIsRefused"
+    },
+    {
+      "label": "the offer is stored as sent, so LB-S and lb-s name two offers and a read after a migration stops matching a read after a create",
+      "file": "internal/providers/scaleway/loadbalancer.go",
+      "package": "./internal/providers/scaleway/",
+      "find": "\t\tstored.Attrs[\"type\"] = strings.ToLower(strings.TrimSpace(req.Type))\n\t\tstored.Updated = p.env.Now()",
+      "replace": "\t\tstored.Attrs[\"type\"] = strings.TrimSpace(req.Type)\n\t\tstored.Updated = p.env.Now()",
+      "test": "TestAMigrationLowercasesLikeTheCreate"
+    }
+  ]
+}

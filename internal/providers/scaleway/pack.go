@@ -376,6 +376,10 @@ func (p *Pack) Routes() []emulator.Route {
 		{Method: "GET", Path: lbZones + "/lbs/{lbID}", Operation: "lb/v1/ZonedAPI.GetLB", Handler: p.getLB},
 		{Method: "PUT", Path: lbZones + "/lbs/{lbID}", Operation: "lb/v1/ZonedAPI.UpdateLB", Handler: p.updateLB},
 		{Method: "DELETE", Path: lbZones + "/lbs/{lbID}", Operation: "lb/v1/ZonedAPI.DeleteLB", Handler: p.deleteLB},
+		// The one Day-2 action this API has, served since #762 measured what a
+		// client needs from it. loadbalancer.go says why the decline did not
+		// survive its own neighbours.
+		{Method: "POST", Path: lbZones + "/lbs/{lbID}/migrate", Operation: "lb/v1/ZonedAPI.MigrateLB", Handler: p.migrateLB},
 
 		// The balancer's flexible IPs. This is the exact route the #74
 		// OpenTofu recording died on with a plain-text 404, and the whole of
@@ -976,8 +980,13 @@ func (p *Pack) Declined() []emulator.Decline {
 		emulator.Because("the Terraform provider reconciles a frontend's ACLs one by one — CreateACL, ListACLs, UpdateACL, DeleteACL, measured in its services/lb/frontend.go — and never calls the bulk set",
 			"lb/v1/ZonedAPI.SetACLs"),
 
-		emulator.Because("migrating changes the commercial offer of the balancer, and an emulated balancer has no capacity to move: answering would confirm a resize nothing performed",
-			"lb/v1/ZonedAPI.MigrateLB"),
+		// MigrateLB used to be declined here, on the ground that "an emulated
+		// balancer has no capacity to move: answering would confirm a resize
+		// nothing performed". #762 showed that argument does not survive its own
+		// neighbours: UpdateServer accepts a new commercial_type and stores it,
+		// and CreateLB accepts any type string and stores that. The reason is
+		// removed rather than reworded, as TestEveryUndrivenOperationSaysWhy
+		// requires of a reason that outlived its cause.
 
 		emulator.Because("nothing here terminates TLS: a certificate served by this emulator would be an ID over key material that signs nothing, and the Let's Encrypt half issues against domains this emulator does not hold; the list is served since #666, and it is empty, because that is what a balancer here holds",
 			"lb/v1/ZonedAPI.CreateCertificate",
@@ -1056,7 +1065,14 @@ func (p *Pack) Declined() []emulator.Decline {
 
 		// ---- vpcgw, the halves the measured clients do not call (#282) --------
 
-		emulator.Because("upgrading changes the gateway's commercial offer in place, and an emulated gateway has no capacity to move: answering would confirm a resize nothing performed (the MigrateLB argument)",
+		// The reason used to end "(the MigrateLB argument)", and that argument was
+		// withdrawn in #762: an emulated balancer records a new offer the way an
+		// emulated server records a new commercial_type, so "it would confirm a
+		// resize nothing performed" held this pack to a standard it applies
+		// nowhere else. What is left here is the reason this whole block carries,
+		// and it is the honest one: no client this project drives calls it. The
+		// day one does, the LB decision is the precedent.
+		emulator.Because("no client this project drives upgrades a gateway in place, which is what this whole block records; the capacity argument that used to sit here was withdrawn with MigrateLB's in #762",
 			"vpcgw/v2/API.UpgradeGateway"),
 
 		emulator.Because("the gateway's SSH bastion accepts no connection here — nothing forwards a packet — so refreshing the keys it would present is a rotation over a door that does not open",

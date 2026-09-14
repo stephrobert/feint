@@ -1168,6 +1168,15 @@ written here rather than patched one at a time.
 - **A load balancer is gone the instant it is deleted.** Upstream the read that
   follows a `DeleteLB` still answers `200`, with `status: to_delete`, and only
   the read after that answers `404`. Here the first read already answers `404`.
+- **A migration to the offer a balancer already carries is accepted.** Upstream
+  it is refused with `400 invalid_arguments`: the API accepts only migrations
+  that change something (measured on a real account, 4 September 2026, #762).
+  Here it is accepted and the read shows the same type it showed before. The
+  reason is the one `CreateLB` already carries a few lines up: a refusal keyed on
+  a VALUE turns a recorded `200` into a `400` when `corpus:check` replays a
+  recording whose values were replaced by synthetic ones of the same shape. The
+  migration that *changes* the offer, which is the one a client actually makes,
+  behaves as upstream does.
 - **A public gateway is `running` the instant it is created.** Upstream it is
   `allocating` for a few seconds, and both a `UpdateGateway` and a
   `CreateGatewayNetwork` issued in that window are refused with `409` and a body

@@ -476,6 +476,76 @@ func (p *Pack) updateLB(w http.ResponseWriter, r *http.Request) {
 	emulator.WriteJSON(w, http.StatusOK, p.lbView(current))
 }
 
+// migrateLB changes the balancer's offer, which is the one Day-2 action this
+// API has.
+//
+// # Why this is served, when it was declined
+//
+// The decline read: "migrating changes the commercial offer of the balancer, and
+// an emulated balancer has no capacity to move: answering would confirm a resize
+// nothing performed". That argument does not survive its own neighbours.
+// `UpdateServer` already accepts a new `commercial_type` and stores it
+// (servers.go), and `CreateLB` already accepts any type string and stores that.
+// Refusing the same gesture here, alone, on the ground that it would be a lie,
+// held this emulator to a standard it does not apply anywhere else.
+//
+// What an emulated balancer records is an intention, exactly as it does for a
+// server's type, and #762 measured what a client actually needs from the call:
+// the acceptance and the resulting `type` on the read that follows, not a
+// duration and not a bandwidth.
+//
+// # What is deliberately NOT reproduced
+//
+// The real API refuses a migration to the type the balancer already carries,
+// with 400 `invalid_arguments` (measured on a real account, 4 September 2026,
+// recorded in #762). This does not, and the reason is the one #658 wrote for
+// CreateLB one function over: `corpus:check` replays a recording whose values
+// are synthetic, so a refusal keyed on a VALUE turns a recorded 200 into a 400
+// on replay. Refusing here would fail the corpus gate for a client behaviour
+// nobody drives — the collection's own module skips that call precisely because
+// the real API bills the only migration it accepts. docs/limits.md carries the
+// divergence rather than leaving it implicit.
+//
+// TestAMigrationChangesTheOfferAndTheReadShowsIt fails without this.
+func (p *Pack) migrateLB(w http.ResponseWriter, r *http.Request) {
+	res, ok := p.zonalResourceOf(w, r, kindLB, "lbID", "lb")
+	if !ok {
+		return
+	}
+	var req struct {
+		Type string `json:"type"`
+	}
+	if err := emulator.DecodeJSON(r, &req); err != nil {
+		writeInvalidArguments(w, ArgumentError{ArgumentName: "body", Reason: "format", HelpMessage: err.Error()})
+		return
+	}
+	// The one refusal that is about the request rather than about a value: a
+	// migration naming no type asks for nothing, and the SDK's field is not
+	// optional. TestAMigrationWithoutATypeIsRefused fails without it.
+	if strings.TrimSpace(req.Type) == "" {
+		writeInvalidArguments(w, ArgumentError{
+			ArgumentName: "type",
+			Reason:       "constraint",
+			HelpMessage:  "a migration names the offer to move to",
+		})
+		return
+	}
+
+	err := p.env.Store.Update(Name, kindLB, res.ID, func(stored *resource.Resource) error {
+		// Lowercased like CreateLB does, so `LB-S` and `lb-s` name one offer and
+		// the read after a migration matches the read after a create.
+		stored.Attrs["type"] = strings.ToLower(strings.TrimSpace(req.Type))
+		stored.Updated = p.env.Now()
+		return nil
+	})
+	if err != nil {
+		writeNotFound(w, "lb", res.ID)
+		return
+	}
+	current, _ := p.env.Store.Get(Name, kindLB, res.ID)
+	emulator.WriteJSON(w, http.StatusOK, p.lbView(current))
+}
+
 func (p *Pack) deleteLB(w http.ResponseWriter, r *http.Request) {
 	// Before the lookup, which is the order fr-par answers in: a bogus id with a
 	// bad boolean answered 400 there, not 404. The difference is where a client
