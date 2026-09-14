@@ -4,8 +4,8 @@
     {
       "label": "a pack edits a decline reason and the committed artefact keeps printing the old sentence (#298, replayed with #260's own edit)",
       "file": "internal/providers/scaleway/pack.go",
-      "find": "\t\temulator.Because(\"instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces and placement groups onto it, which is why those two families are served and these are not\",",
-      "replace": "\t\temulator.Because(\"instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1\",",
+      "find": "\t\temulator.Because(\"instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations \u2014 a claim that held for the whole API until provider 2.81.0 moved private network interfaces and placement groups onto it, and for the server family until 2.83.0 reached the private-interface detach, which is why those are served and these are not",
+      "replace": "\t\temulator.Because(\"instance/v2alpha1 is an alpha rewrite that Scaleway is still entirely free to change, and no client this project drives reaches for these operations \u2014 a claim that held for the whole API until provider 2.81.0 moved private network interfaces and placement groups onto it, and for the server family until 2.83.0 reached the private-interface detach, which is why those are served and these are not",
       "test": "TestTheCommittedArtefactCarriesWhatThePacksDeclare"
     },
     {
@@ -24,5 +24,5 @@
       "test": "TestCoverageExitsTwoWhenTheArtefactLagsThePack"
     }
   ],
-  "note": "The first mutation is not invented: it puts back the exact pre-#260 sentence that coverage/scaleway-coverage.json carried 67 times for four days while drift:check compared names and statuses and docs:check regenerated the README from the same stale artefact — two gates passing by comparing a stale artefact with itself. The three mutations fail differently on purpose: without the first, an edited reason outlives itself in the versioned copy; without the second, the comparison exists but is blind to the one field #298 is about; without the third, the comparison sees the skew and the gate exits 0 anyway, which is the deleted-call-site failure coverage() has already lived through once."
+  "note": "The first mutation is not invented: it puts back the exact pre-#260 sentence that coverage/scaleway-coverage.json carried 67 times for four days while drift:check compared names and statuses and docs:check regenerated the README from the same stale artefact \u2014 two gates passing by comparing a stale artefact with itself. The three mutations fail differently on purpose: without the first, an edited reason outlives itself in the versioned copy; without the second, the comparison exists but is blind to the one field #298 is about; without the third, the comparison sees the skew and the gate exits 0 anyway, which is the deleted-call-site failure coverage() has already lived through once."
 }

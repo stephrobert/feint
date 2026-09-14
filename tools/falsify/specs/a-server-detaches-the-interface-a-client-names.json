@@ -1,0 +1,61 @@
+{
+  "package": "./internal/providers/scaleway/",
+  "mutations": [
+    {
+      "label": "the detach answers 200 without dissociating anything, which is the success that reads like one and leaves the interface on its server",
+      "file": "internal/providers/scaleway/servers_v2alpha1.go",
+      "find": "\t\tdelete(stored.Runtime, runtimeServerKey)",
+      "replace": "\t\tif len(stored.ID) < 0 {\n\t\t\tdelete(stored.Runtime, runtimeServerKey)\n\t\t}",
+      "test": "TestADetachLeavesTheInterfaceOffItsServer"
+    },
+    {
+      "label": "an interface of another server is detached on request, so a client takes one off a machine it never named",
+      "file": "internal/providers/scaleway/servers_v2alpha1.go",
+      "find": "\tif nic.Runtime[runtimeServerKey] != serverID {",
+      "replace": "\tif nic.Runtime[runtimeServerKey] != serverID && len(serverID) < 0 {",
+      "test": "TestADetachRefusesAnInterfaceOfAnotherServer"
+    },
+    {
+      "label": "the stored v1 state is echoed, so a v2alpha1 client is handed `running`, which its own enum does not contain",
+      "file": "internal/providers/scaleway/servers_v2alpha1.go",
+      "find": "\tcase \"running\":\n\t\treturn \"started\"",
+      "replace": "\tcase \"running\":\n\t\treturn \"running\"",
+      "test": "TestAServerRendersTheStatusVocabularyOfItsOwnApi"
+    },
+    {
+      "label": "a declared field is dropped from the answer, which is what the omission gate reports one leg and several minutes later",
+      "file": "internal/providers/scaleway/servers_v2alpha1.go",
+      "find": "\t\t\"boot_volume_id\":             serverBootVolumeID(res),",
+      "replace": "\t\t\"boot_volume_id_dropped\":     serverBootVolumeID(res),",
+      "test": "TestADetachedServerCarriesEveryDeclaredField"
+    },
+    {
+      "label": "an empty identifier is accepted, so a body that names nothing detaches whatever resolves to the empty string",
+      "file": "internal/providers/scaleway/servers_v2alpha1.go",
+      "find": "\tif req.PrivateNetworkInterfaceID == \"\" {",
+      "replace": "\tif req.PrivateNetworkInterfaceID == \"\\x00never\" {",
+      "test": "TestADetachRefusesWhatItCannotResolve"
+    },
+    {
+      "label": "v1's own volume spelling is echoed into a v2alpha1 answer, which its enum does not hold",
+      "file": "internal/providers/scaleway/servers_v2alpha1.go",
+      "find": "\tcase \"sbs_volume\":\n\t\treturn \"sbs\"",
+      "replace": "\tcase \"sbs_volume\":\n\t\treturn \"sbs_volume\"",
+      "test": "TestAServerRendersTheVolumeVocabularyOfItsOwnApi"
+    },
+    {
+      "label": "the public interface answers the server's status vocabulary, where its own enum holds available and syncing alone",
+      "file": "internal/providers/scaleway/servers_v2alpha1.go",
+      "find": "\t\t\"status\": interfaceStatusV2(\"available\"),",
+      "replace": "\t\t\"status\": func() string { _ = interfaceStatusV2(\"available\"); return serverStatusV2(res.State) }(),",
+      "test": "TestAServerRendersTheVolumeVocabularyOfItsOwnApi"
+    },
+    {
+      "label": "the detach deletes instead of dissociating, so the client's read answers 404 and it never sends the DELETE the upstream fix is named after",
+      "file": "internal/providers/scaleway/servers_v2alpha1.go",
+      "find": "\tp.detachMachineFromNetwork(r.Context(), nic)",
+      "replace": "\tp.detachMachineFromNetwork(r.Context(), nic)\n\tp.env.Store.Delete(Name, kindPrivateNIC, nic.ID)",
+      "test": "TestADetachedInterfaceSurvivesItsDetach"
+    }
+  ]
+}

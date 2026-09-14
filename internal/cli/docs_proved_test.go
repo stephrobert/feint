@@ -138,7 +138,7 @@ func TestTheProvedPageSeparatesAnExactPinFromAConstraintAndFromNothing(t *testin
 	// whatever the pin became. Written here, moving the pin costs one line and
 	// somebody has to look at this test while doing it.
 	exact := rowContaining(t, rendered, "tools/conformance/scaleway/terraform`")
-	if !strings.Contains(exact, "2.82.0") || !strings.Contains(exact, "exact") {
+	if !strings.Contains(exact, "2.83.0") || !strings.Contains(exact, "exact") {
 		t.Errorf("the Scaleway fixture pins one version and the page does not say so:\n  %s", exact)
 	}
 

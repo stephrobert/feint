@@ -35,7 +35,20 @@ terraform {
       # `fix(instance): infer project_id from server if not explicit`. Every one
       # of those is a reason a newer provider could stop driving this fixture,
       # which is exactly why the pin is exact and why it moves deliberately.
-      version = "2.82.0"
+      #
+      # Moved again to 2.83.0 the same day, and that day is the argument for an
+      # exact pin rather than against it: 2.83.0 was tagged on GitHub at 15:06,
+      # absent from both registries at 17:2x, served by registry.terraform.io
+      # alone at 17:35, and by both at 18:1x. A floating constraint would have
+      # resolved to three different things in three hours, and to two different
+      # ones on the two engines this repository drives (#778).
+      #
+      # What it carries for this emulator: `fix(instance): detach private
+      # network interface before deleting it` (upstream #4354) changes the CALL
+      # SEQUENCE on private NICs, which is the family that turned every
+      # Terraform leg red the hour 2.81.0 shipped (#257). Plus
+      # `feat(lb): add support for backend host` on another served product.
+      version = "2.83.0"
     }
   }
 }

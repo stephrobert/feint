@@ -8,7 +8,7 @@
   "generated_from": {
     "contracts": "e969cbd8c5841bb9",
     "shapes": "cac046c206cc9fc8",
-    "suites": "2ff2d523b829feed"
+    "suites": "88882d1375a101e2"
   },
   "operations": {
     "account/v3/ProjectAPI.CreateProject": {
@@ -1839,6 +1839,15 @@
       "negative": false
     },
     "instance/v2alpha1/API.DeletePrivateNetworkInterface": {
+      "driven": true,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
+    "instance/v2alpha1/API.DetachServerPrivateNetworkInterface": {
       "driven": true,
       "probed": "response",
       "contract": "clean",
