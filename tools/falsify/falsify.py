@@ -44,6 +44,7 @@ The spec is JSON:
 Per-mutation `package` is optional and falls back to the top-level one.
 """
 
+import inspect
 import json
 import os
 import re
@@ -196,6 +197,29 @@ def dropped_identifiers(find, replace):
     return sorted(lost | set(orphaned_by_declaration(find, replace)))
 
 
+def replay_outcome(code):
+    """What one spec's exit code means for the replay's tally.
+
+    Three answers, and the middle one is the whole point. Exit 1 is a VERDICT:
+    a mutation applied, compiled, and the test stayed green, so that guard is
+    not guarded. Any other non-zero is the ABSENCE of a verdict: the copy was
+    red before any mutation, or the spec was refused, so nothing was measured.
+
+    They were added together until 2026-09-14, and a mise shim that would not
+    start in the copy turned that arithmetic into "199 of 199 falsifications no
+    longer hold" — every guard in the repository reported broken, by a harness
+    that had just said 199 times that it was measuring nothing.
+
+    The selftest drives THIS function rather than a copy of its logic, or the
+    check would pass while the replay went on adding the two together.
+    """
+    if code == 0:
+        return "bit"
+    if code == 1:
+        return "stopped biting"
+    return "not measured"
+
+
 def copy_tree(src, dst):
     def ignore(directory, names):
         out = [n for n in names if n in EXCLUDE]
@@ -220,9 +244,15 @@ def run(dst, cmd, extra_env=None):
     a pass, so without this the harness would report the mutation undetected and
     blame the guard rather than its own environment.
     """
-    env = None
+    # The copy carries the repository's mise.toml, and on a station where `go`
+    # is a mise shim, mise refuses to start in a directory whose config it has
+    # not been told to trust. It fails before the compiler, with an EMPTY
+    # stdout, so the harness read it as "the copy is red" and reported 199
+    # guards as no longer holding while nothing was wrong with any of them.
+    # Measured on 2026-09-14. TestACopyIsTrustedSoTheToolchainStarts holds it.
+    env = {**os.environ, "MISE_TRUSTED_CONFIG_PATHS": dst}
     if extra_env:
-        env = {**os.environ, **extra_env}
+        env.update(extra_env)
     return subprocess.run(
         ["systemd-run", "--user", "--scope", "-q", "-p", "MemoryMax=8G", "-p", "MemorySwapMax=0"]
         + cmd,
@@ -415,6 +445,51 @@ def lint_selftest():
                 failures += 1
             else:
                 print(f"ok  the lint answers {got} on {why}")
+
+    print()
+    failures += _replay_reporting_cases()
+    return failures
+
+
+def _replay_reporting_cases():
+    """The two mistakes of 2026-09-14, held here so they cannot come back.
+
+    The replay used to add two different outcomes together. A spec whose copy was
+    red before any mutation measured NOTHING, and was counted beside a spec whose
+    guard genuinely stopped biting. On a station where `go` is a mise shim that
+    refuses to start in an untrusted copy, that arithmetic printed
+    "199 of 199 falsifications no longer hold": every guard in the repository,
+    reported broken, by a harness that had just said, 199 times, that it was
+    measuring nothing.
+    """
+    failures = 0
+
+    # An absence of measurement must not be spelled as a verdict. The two lists
+    # are built from the same exit codes the replay reads, so folding the
+    # branches back together fails this.
+    for code, want, why in (
+        (1, "stopped biting", "a mutation that applied and left its test green is a verdict"),
+        (2, "not measured", "a copy red before any mutation measured no guard"),
+        (3, "not measured", "a refused spec measured no guard either"),
+        (0, "bit", "a mutation that bit is neither failed nor unmeasured"),
+    ):
+        got = replay_outcome(code)
+        if got != want:
+            print(f"!! exit {code} reads as {got!r}, want {want!r}: {why}")
+            failures += 1
+        else:
+            print(f"ok  {why}")
+
+    # The copy has to be trusted or the toolchain never starts in it. Read off
+    # run() itself, so the selftest stays offline and instant; `--all` is what
+    # exercises it against a real copy.
+    source = inspect.getsource(run)
+    if '"MISE_TRUSTED_CONFIG_PATHS": dst' not in source:
+        print("!! run() does not declare the copy trusted; a mise shim refuses to start in it")
+        failures += 1
+    else:
+        print("ok  run() declares the copy trusted, so the toolchain starts in it")
+
     return failures
 
 
@@ -541,22 +616,46 @@ def replay_all(directory):
         return refuse(f"{directory} holds no spec, so a replay would measure nothing")
 
     print(f"replaying {len(specs)} falsification(s)\n")
-    failed = []
+    # Two outcomes that must never be added together. Exit 1 is a verdict: a
+    # mutation applied, compiled, and the test stayed green, so that guard is
+    # not guarded. Exit 2 is the ABSENCE of a verdict: the copy was red before
+    # any mutation, or the spec was refused, so nothing was measured at all.
+    #
+    # They were counted as one, and on 2026-09-14 a mise shim that would not
+    # start in the copy turned into "199 of 199 falsifications no longer hold" —
+    # a sentence that reads like every guard in the repository broke at once,
+    # printed by a harness that had just said, 199 times, that it was measuring
+    # nothing. An absence of measurement is not a result, which is the whole
+    # argument this repository makes everywhere else.
+    #
+    # TestAnUnmeasuredSpecIsNotReportedAsBroken holds this.
+    failed, unmeasured = [], []
     for spec in specs:
         print("=" * 72)
         print(f"== {os.path.basename(spec)}")
         print("=" * 72)
-        if main([argv0, spec]) != 0:
+        outcome = replay_outcome(main([argv0, spec]))
+        if outcome == "stopped biting":
             failed.append(os.path.basename(spec))
+        elif outcome == "not measured":
+            unmeasured.append(os.path.basename(spec))
         print()
 
     print("#" * 72)
+    if unmeasured:
+        print(f"{len(unmeasured)} of {len(specs)} were NOT MEASURED: {', '.join(unmeasured)}")
+        print(
+            "A copy that is red before any mutation measures no guard, so these say "
+            "nothing about the guards they name. Read the first failure above: it is "
+            "the harness or the environment, not the subject."
+        )
     if failed:
         print(f"{len(failed)} of {len(specs)} falsifications no longer hold: {', '.join(failed)}")
         print(
             "A guard whose test stopped biting is a guard that stopped working, "
             "and the test is what has to be fixed rather than the spec."
         )
+    if failed or unmeasured:
         return 1
     print(f"all {len(specs)} falsifications still hold")
     return 0

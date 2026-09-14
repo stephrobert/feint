@@ -106,3 +106,18 @@ jobs:
 
       - name: Say what it found
         run: go run ./tools/metrics report --dir data/metrics
+
+  # Six lines, for the reason #737 measured on falsify.yml: a scheduled workflow
+  # that reports nowhere can fail every night and tell nobody. This one writes to
+  # a branch nobody watches, so a night it stops collecting would show up only as
+  # a gap in the CSV, weeks later, in a chart. tools/ci/nightly_reporting_test.go
+  # holds the rule for every scheduled workflow at once.
+  night:
+    name: A red night opens the issue, a green one closes it
+    needs: [snapshot]
+    if: always() && github.event_name == 'schedule'
+    permissions:
+      contents: read
+      actions: read
+      issues: write
+    uses: ./.github/workflows/night-report.yml

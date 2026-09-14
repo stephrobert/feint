@@ -1,0 +1,21 @@
+{
+  "package": "./tools/ci/",
+  "mutations": [
+    {
+      "label": "no workflow can be found in the excuse list, so seven scheduled workflows become uncovered and the gate must notice: without it, a list that stopped matching the tree would pass silently (#737)",
+      "file": "tools/ci/nightly_reporting_test.go",
+      "package": "./tools/ci/",
+      "find": "\t\texcuse, excused := silentByDecision[name]",
+      "replace": "\t\texcuse, excused := silentByDecision[name+\"\\x00never\"]",
+      "test": "TestEveryScheduledWorkflowReportsOrSaysWhyNot"
+    },
+    {
+      "label": "the replay is given back the thirty minutes that killed it every night",
+      "file": ".github/workflows/falsify.yml",
+      "package": "./tools/ci/",
+      "find": "    timeout-minutes: 150",
+      "replace": "    timeout-minutes: 30",
+      "test": "TestTheFalsifySuiteIsGivenTimeToFinish"
+    }
+  ]
+}
