@@ -30,6 +30,7 @@
     "The cost of DNS/TLS interception, measured (#76)": "2026-08-27",
     "The firewall enforces, within stated bounds": "2026-08-28",
     "The guest's DHCP client is not how a published address reaches a machine (#587)": "2026-08-29",
+    "The Scaleway gateway serves `GET /metadata` and this emulator does not (#776)": "2026-09-14",
     "The per-parameter half: 18 Scaleway list operations, 72 parameters, each served or refused (#277)": "2026-08-29",
     "The station reaches an OVN private address only via the network's router, and the posted uplink routes do not go there (#496)": "2026-08-27",
     "The three packs hand their security groups to the runtime, within two measured bounds": "2026-08-28",

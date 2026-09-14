@@ -3252,6 +3252,43 @@ choice rather than an accident:
   publishes none, and listing the private groups under a public label would be
   the same lie #271 names, pointed the other way.
 
+## The Scaleway gateway serves `GET /metadata` and this emulator does not (#776)
+
+The Scaleway SDK that provider **2.82.0** embeds asks the gateway for its
+metadata, and uses the domain it answers to compute a `srn://…` client-side for
+every product that gained one. This emulator mounts no such route.
+
+Measured 2026-09-14, one `apply` plus `destroy` of the conformance fixture
+through `feint proxy --record`: **539 exchanges over 100 paths, of which 148 are
+`GET /metadata` and every one is answered 404** — 148 of the run's 169 refusals.
+
+Nothing fails, and that is luck rather than a decision. `scw/client.go` reads the
+metadata and its callers discard the error:
+
+```go
+apiMetadata, err := s.client.GetAPIMetadata()
+if err == nil {
+    resp.setSRN(apiMetadata.Domain)
+}
+```
+
+So the SRN stays empty and the apply completes. A caller that stops ignoring it
+turns this into a failure with no change on this side, which is the shape of
+#257 exactly.
+
+What the real cloud answers is known rather than guessed — a read-only shot
+against a real `fr-par` account the same day, no resource created:
+
+```
+GET https://api.scaleway.com/metadata  ->  200
+{"platform": "external", "partition": "scw", "domain": "scw.eu"}
+```
+
+It is not mounted yet because `Route.Operation` must name an operation the drift
+scan finds, and that scan walks `api/<product>/<version>` only, where
+`GetAPIMetadata` is not. A route declaring it becomes an orphan, and all three
+baselines carry zero. The instrument gets decided before the handler: #776.
+
 ## The per-parameter half: 18 Scaleway list operations, 72 parameters, each served or refused (#277)
 
 #271's gate catches a handler that never reads its query at all. Its comment

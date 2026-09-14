@@ -28,7 +28,14 @@ terraform {
       # the machine that regenerated the artefact and false on the runner. An
       # artefact claiming "a real client proved this" has to mean the client CI
       # actually runs.
-      version = "2.81.0"
+      #
+      # Moved to 2.82.0 on 2026-09-14, and the move is the proof rather than the
+      # claim: the release adds an `srn` attribute to six products, three of
+      # which this emulator serves (iam, vpcgw, ipam/flexibleip), plus
+      # `fix(instance): infer project_id from server if not explicit`. Every one
+      # of those is a reason a newer provider could stop driving this fixture,
+      # which is exactly why the pin is exact and why it moves deliberately.
+      version = "2.82.0"
     }
   }
 }

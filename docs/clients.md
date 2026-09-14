@@ -76,13 +76,13 @@ Each row is one `required_providers` entry, read where it is written.
 | `tools/conformance/faults` | `outscale/outscale` | `~> 1.7` | constraint: resolved fresh on each run, so the version that answered is not knowable here | yes |
 | `tools/conformance/outscale/terraform` | `outscale/outscale` | `~> 1.7` | constraint: resolved fresh on each run, so the version that answered is not knowable here | yes |
 | `tools/conformance/outscale/terraform-doorway` | `outscale/outscale` | `~> 1.7` | constraint: resolved fresh on each run, so the version that answered is not knowable here | yes |
-| `tools/conformance/scaleway/terraform` | `scaleway/scaleway` | `2.81.0` | exact: the version that answered | yes |
+| `tools/conformance/scaleway/terraform` | `scaleway/scaleway` | `2.82.0` | exact: the version that answered | yes |
 | `examples/stacks/exoscale` | `exoscale/exoscale` | `>= 0.71.0` | constraint: resolved fresh on each run, so the version that answered is not knowable here | yes |
 | `examples/stacks/outscale` | `outscale/outscale` | `~> 1.7` | constraint: resolved fresh on each run, so the version that answered is not knowable here | yes |
 | `examples/stacks/outscale/modules/net` | `outscale/outscale` | `~> 1.7` | constraint: resolved fresh on each run, so the version that answered is not knowable here | yes |
-| `examples/stacks/scaleway` | `scaleway/scaleway` | `2.81.0` | exact: the version that answered | yes |
+| `examples/stacks/scaleway` | `scaleway/scaleway` | `2.82.0` | exact: the version that answered | yes |
 | `examples/quickstart/outscale` | `outscale/outscale` | `~> 1.7` | constraint: resolved fresh on each run, so the version that answered is not knowable here | yes |
-| `examples/quickstart/scaleway` | `scaleway/scaleway` | `2.81.0` | exact: the version that answered | yes |
+| `examples/quickstart/scaleway` | `scaleway/scaleway` | `2.82.0` | exact: the version that answered | yes |
 
 Read the third column narrowly, because it is the one a consumer pins against.
 An **exact** constraint names the version that answered. A **constraint** is
