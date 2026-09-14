@@ -33,9 +33,23 @@ terraform {
   required_providers {
     exoscale = {
       source = "exoscale/exoscale"
-      # Not decoration: below this the provider splits its calls between this
+      # Not decoration: below 0.71.0 the provider splits its calls between this
       # emulator and a paying account (#644, upstream #573).
-      version = ">= 0.71.0"
+      #
+      # Exact rather than `>= 0.71.0`, since 2026-09-14. The floor was right and
+      # the FLOATING part was an accident of writing it as a lower bound: the two
+      # registries do not index together, so on that day `>= 0.71.0` resolved to
+      # 0.72.0 under terraform and to 0.71.0 under opentofu — the two engines
+      # driving this one stack with two different providers, both reporting that
+      # it passed. Worse, the opentofu side then sat EXACTLY on the floor, with
+      # the 57-request excursion of #525 one publication away, and the margin
+      # held by a registry's indexing schedule rather than by anything here.
+      # Measured, and recorded in #778.
+      #
+      # 0.72.0 is above the floor and is what both registries serve. Moving it
+      # is now an act somebody performs and measures, which is the whole reason
+      # the Scaleway fixture is pinned exactly too (#257).
+      version = "0.72.0"
     }
   }
 }
