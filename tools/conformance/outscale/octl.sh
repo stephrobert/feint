@@ -55,11 +55,19 @@
 #    issue clocked each of those refusals at 12 s (#459, #460). octl answers a
 #    409 in the same ~750 ms as a 200, once.
 #
-# 8. What it costs instead: ~700 ms of process startup on EVERY invocation,
-#    against ~30 ms for the request. Measured 2026-08-25: `--version` 678 ms
-#    with no network at all, ReadNets 737 ms, a 409 731 ms. That is why the
-#    address-exhaustion block below fills through one process rather than
-#    spawning one per address.
+# 8. What it costs instead: process startup, and v0.0.32 cut most of it.
+#    Measured 2026-08-25 on v0.0.31: ~700 ms on EVERY invocation against ~30 ms
+#    for the request — `--version` 678 ms with no network at all, ReadNets
+#    737 ms, a 409 731 ms. Re-measured 2026-09-14 on v0.0.32: `--version`
+#    102 ms, and this whole leg 38 s where the same leg on v0.0.31 took 184 s,
+#    both green. The timings in point 7 are v0.0.31's and stay as recorded:
+#    what that point claims is that octl does not retry a 409, which no change
+#    in speed affects.
+#
+#    The address-exhaustion block below still fills through one process rather
+#    than spawning one per address. 100 ms times a whole block is still the
+#    dominant cost of it, and the reason to write it that way was never only
+#    the number.
 #
 # THE PROFILE, AND THE KEY THAT COST AN HOUR ONCE
 #
@@ -137,6 +145,53 @@ skip() { echo "  SKIP: $*" >&2; }
 # anywhere else, -o raw so the body is the API's own, and </dev/null so the
 # request body cannot come from whatever this script's stdin happens to be.
 osc() { octl --config "$WORK/config.json" --no-upgrade -o raw iaas api "$@" </dev/null; }
+
+# THE FLAGS THAT CHANGED KIND
+#
+# v0.0.32 introduced a flag type, `base64File`, and moved three flags to it.
+# They stopped being values and became file paths: the CLI now reads the file
+# and encodes it, which is what Outscale documents these three fields to be —
+# "This value must be Base64-encoded" (osc-sdk-go/pkg/osc/client.gen.go:2256 for
+# PublicKey, :3082 for UserData). v0.0.32 is the first of their own clients to
+# obey it.
+#
+# The list is closed, and read rather than guessed: of the 234 iaas actions
+# v0.0.32 serves, exactly three flags are base64File, and all three were
+# `string` in v0.0.31 (measured 2026-09-14 from `--help` alone):
+#
+#   CreateKeypair --PublicKey      CreateVms --UserData      UpdateVm --UserData
+#
+# What that does to an invocation, measured against a local listener with no
+# account involved:
+#
+#   v0.0.31 --PublicKey "<the key line>"   -> that line, verbatim, on the wire
+#   v0.0.32 --PublicKey "<the key line>"   -> refused at the flag, before any
+#                                             request: `open ssh-ed25519 AAAA…`
+#   v0.0.32 --PublicKey ./id.pub           -> base64 of the file's bytes,
+#                                             StdEncoding with padding, byte for
+#                                             byte what coreutils `base64` gives
+#
+# The two command-line forms are mutually exclusive: no invocation satisfies
+# both binaries, so this suite passes paths and says plainly which client it
+# needs rather than failing on an opaque 400 or, worse, on a flag error that
+# never reaches the emulator at all.
+#
+# One extra process, ~100 ms on v0.0.32. Point 1 of the header measures a
+# v0.0.31 invocation at ~680 ms, and that gap is the other half of why the pin
+# moved.
+# Read whole, then cut. `octl --version | head -1` is a trap: --version prints
+# its dependency list under the version line, head closes the pipe on the first,
+# octl dies of SIGPIPE, and `set -o pipefail` then exits this script with 141 and
+# no message at all — non-deterministically, since it only happens when octl is
+# still writing. Met on the `fields` leg, which died silently after the scw
+# suite. A substitution reads to the end, so nothing is ever signalled.
+octl_min="v0.0.32"
+octl_version_out="$(octl --version 2>/dev/null || true)"
+octl_have="$(printf '%s\n' "$octl_version_out" | awk 'NR == 1 { print $3 }')"
+[ -n "$octl_have" ] || fail "octl --version printed no version: cannot tell which --PublicKey form it takes"
+octl_oldest="$(printf '%s\n%s\n' "$octl_min" "$octl_have" | sort -V | awk 'NR == 1')"
+[ "$octl_oldest" = "$octl_min" ] \
+  || fail "octl $octl_have is older than $octl_min, where --PublicKey became a file path; this suite passes one"
 
 # api_error prints the API's own error document out of a failed octl run.
 #
@@ -634,8 +689,15 @@ span="$(prove_begin behaviour)"
 keys="$(osc ReadKeypairs)" || fail "ReadKeypairs rejected: $keys"
 printf '%s' "$keys" | jq -e '.Keypairs | length == 0' >/dev/null \
   || fail "a fresh account already holds keypairs: $keys"
+# A path, not the key: see THE FLAG THAT CHANGED KIND above. The file carries
+# the trailing newline ssh-keygen writes, deliberately — that is the byte the
+# client encodes and the emulator has to survive, and dropping it here would
+# test a form no real client produces.
+printf '%s\n' \
+  "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIr6pEFlAFO3YU0DNW/r8SkpjdbptN9ockkO2BtIolSD conformance@feint" \
+  > "$WORK/conformance.pub"
 created_key="$(osc CreateKeypair --KeypairName conformance \
-  --PublicKey "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIr6pEFlAFO3YU0DNW/r8SkpjdbptN9ockkO2BtIolSD conformance@feint")" \
+  --PublicKey "$WORK/conformance.pub")" \
   || fail "CreateKeypair rejected: $created_key"
 printf '%s' "$created_key" | jq -e '.Keypair.KeypairFingerprint | length > 0' >/dev/null \
   || fail "the keypair came back without a fingerprint: $created_key"
@@ -685,9 +747,16 @@ echo "- create, from the catalogue the emulator just published"
 # means something: without a Vm that carries one, the field gate (#88) has no
 # populated answer to hold ReadVms.Vms[].UserData to, and deleting the field
 # from the view would stay green.
-user_data="$(printf '#!/bin/sh\necho conformance' | base64 | tr -d '\n')"
+#
+# The script goes to a file and the flag gets its path — see THE FLAGS THAT
+# CHANGED KIND. The expectation is still computed here with coreutils rather
+# than taken from the answer: comparing the response against itself would assert
+# nothing. octl's encoding was measured to be the same StdEncoding with padding,
+# so the two agree on the wire or this line is the one that says they stopped.
+printf '#!/bin/sh\necho conformance' > "$WORK/user-data.sh"
+user_data="$(base64 < "$WORK/user-data.sh" | tr -d '\n')"
 created="$(osc CreateVms --ImageId "$image_id" --VmType "$default_type" --KeypairName conformance \
-  --UserData "$user_data")" \
+  --UserData "$WORK/user-data.sh")" \
   || fail "CreateVms rejected: $created"
 vm_id="$(printf '%s' "$created" | jq -r '.Vms[0].VmId // empty')"
 [ -n "$vm_id" ] || fail "no VmId in the create response: $created"
@@ -1284,9 +1353,20 @@ ok "both spellings answered 5063, which osc.IsNotFound reports true on"
 # refusing "absent" and nobody would know. The unit tests hold both ends
 # (TestAnAbsentPageSizeIsNotAZeroPageSize).
 echo "- a page size outside the published bound is refused"
+# Through `--payload`, because v0.0.32 withdrew the flag. Measured 2026-09-14
+# from `--help` across the 234 iaas actions it serves: `--ResultsPerPage` is gone
+# from the 43 reads that carried it and `--NextPageToken` from 36, replaced by
+# one `--max-pages` the CLI honours itself. The client stopped letting its caller
+# choose a page size; the API did not stop declaring one, and this pack's bound
+# is still a refusal a client can meet.
+#
+# So the parameter travels the way MemorySizes already does below, for the same
+# reason and with the same caveat: `--payload` is still octl composing and
+# signing the request, not a hand-rolled curl. Losing the line instead would be
+# letting a client's convenience decide what this emulator is held to.
 neg="$(prove_begin negative)"
 for paged in ReadTags ReadSubregions ReadNetAccessPointServices ReadVmTypes ReadPublicIpRanges; do
-  refuse_call 4001 "$paged" --ResultsPerPage 1001
+  refuse_call 4001 "$paged" --payload '{"ResultsPerPage":1001}'
 done
 prove_end "$neg"
 ok "five reads bounded their page size instead of ignoring it"

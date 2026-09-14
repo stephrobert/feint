@@ -1,0 +1,33 @@
+{
+  "package": "./internal/providers/outscale/",
+  "mutations": [
+    {
+      "label": "the base64 envelope is never opened, which is the state that answered 400 to every octl v0.0.32 create",
+      "file": "internal/providers/outscale/keypairs.go",
+      "find": "\tdecoded, err := base64.StdEncoding.DecodeString(strings.TrimSpace(value))\n\tif err != nil {",
+      "replace": "\tdecoded, err := base64.StdEncoding.DecodeString(strings.TrimSpace(value))\n\tif err != nil || len(decoded) >= 0 {",
+      "test": "TestAKeypairReadsTheEncodedFormTheApiDocuments"
+    },
+    {
+      "label": "what comes out of the decoder is taken on trust, so base64 hides the newline that opens a top-level key in a cloud-config",
+      "file": "internal/providers/outscale/keypairs.go",
+      "find": "\treturn sshkey.Parse(string(decoded))\n}",
+      "replace": "\tkey, _ := sshkey.Parse(string(decoded))\n\treturn key, nil\n}",
+      "test": "TestAnEncodedKeypairIsHeldToTheSameRefusals"
+    },
+    {
+      "label": "the bare line is no longer read as a line, so the form octl v0.0.31 and the real cloud both accept is refused",
+      "file": "internal/providers/outscale/keypairs.go",
+      "find": "\tif parsed, err := sshkey.Parse(value); err == nil {",
+      "replace": "\tif parsed, err := sshkey.Parse(value); err == nil && len(value) < 0 {",
+      "test": "TestAKeypairRefusesWhatIsNotAKey"
+    },
+    {
+      "label": "the bytes the client sent are stored rather than the key, so a machine boots with a base64 envelope in ssh_authorized_keys",
+      "file": "internal/providers/outscale/keypairs.go",
+      "find": "\tres.Runtime = map[string]string{runtimePublicKey: parsed.String()}",
+      "replace": "\tstored := parsed.String()\n\tif len(stored) >= 0 {\n\t\tstored = strings.TrimSpace(req.PublicKey)\n\t}\n\tres.Runtime = map[string]string{runtimePublicKey: stored}",
+      "test": "TestAKeypairReadsTheEncodedFormTheApiDocuments"
+    }
+  ]
+}

@@ -280,7 +280,7 @@ jobs:
       - name: Install the Outscale CLI
         if: matrix.client == 'octl' || matrix.client == 'fields'
         env:
-          OCTL_VERSION: 'v0.0.31'
+          OCTL_VERSION: 'v0.0.32'
         run: |
           set -euo pipefail
           workdir="$(mktemp -d)"

@@ -41,6 +41,20 @@ fail() { echo "FAIL: $*" >&2; exit 1; }
 ok()   { echo "  ok: $*"; }
 skip() { echo "  SKIP: $*" >&2; }
 
+# --PublicKey takes a file path since v0.0.32 and a value before it, and no
+# invocation satisfies both. octl.sh carries the measurement and the reason;
+# this is the same floor, stated where the other octl suite lives.
+# Read whole, then cut — never `--version | head -1`, which kills octl with
+# SIGPIPE mid-write and, under pipefail, exits this script with 141 and no
+# message. octl.sh carries the full account of that.
+octl_min="v0.0.32"
+octl_version_out="$(octl --version 2>/dev/null || true)"
+octl_have="$(printf '%s\n' "$octl_version_out" | awk 'NR == 1 { print $3 }')"
+[ -n "$octl_have" ] || fail "octl --version printed no version: cannot tell which --PublicKey form it takes"
+octl_oldest="$(printf '%s\n%s\n' "$octl_min" "$octl_have" | sort -V | awk 'NR == 1')"
+[ "$octl_oldest" = "$octl_min" ] \
+  || fail "octl $octl_have is older than $octl_min, where --PublicKey became a file path; this suite passes one"
+
 echo "conformance: outscale ssh round-trip against $ENDPOINT"
 
 MACHINES="$(curl -sf "$ENDPOINT/_feint/health" | jq -r '.machines')"
@@ -101,7 +115,13 @@ ssh-keygen -q -t ed25519 -N '' -C feint-sshconf -f "$WORK/id" </dev/null
 ok "$(cut -d' ' -f1,3 <"$WORK/id.pub")"
 
 echo "- register it through CreateKeypair"
-created="$(osc CreateKeypair --KeypairName "$KEY_NAME" --PublicKey "$(cat "$WORK/id.pub")")" \
+# The path, not the contents: octl takes --PublicKey as a file since v0.0.32 and
+# sends base64 of its bytes, which is the encoding Outscale documents. octl.sh
+# carries the measurement under THE FLAG THAT CHANGED KIND, and the version
+# guard with it. This suite is the one that proves the round trip end to end: it
+# logs in with the private half afterwards, so an emulator that stored the
+# envelope rather than the key would fail here rather than in an assertion.
+created="$(osc CreateKeypair --KeypairName "$KEY_NAME" --PublicKey "$WORK/id.pub")" \
   || fail "CreateKeypair rejected: $created"
 fingerprint="$(printf '%s' "$created" | jq -r '.Keypair.KeypairFingerprint // empty')"
 [ -n "$fingerprint" ] || fail "the keypair came back without a fingerprint: $created"

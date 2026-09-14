@@ -120,8 +120,14 @@ IMG="$(osc ReadImages 2>/dev/null | field ImageId)"
 # writes it, and a usable keypair is then made the way the emulator requires, so
 # that this one refusal does not cascade into every call below it.
 record "CreateKeypair, as the course writes it" CreateKeypair --KeypairName=survey-nokey
-osc CreateKeypair --KeypairName=survey-key \
-  --PublicKey="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJk8f5rP0ZzQ2cVn0m5N4tYb7xQeR1sJ2wKpL9dHcMvA survey" \
+# A path, because octl reads --PublicKey as a file since v0.0.32 — octl.sh
+# carries the measurement. The `|| true` below would have swallowed the refusal
+# and left every call under it measuring a missing keypair rather than the
+# emulator, which is the harness failure this repository keeps meeting.
+printf '%s\n' \
+  "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJk8f5rP0ZzQ2cVn0m5N4tYb7xQeR1sJ2wKpL9dHcMvA survey" \
+  > "$WORK/survey.pub"
+osc CreateKeypair --KeypairName=survey-key --PublicKey="$WORK/survey.pub" \
   >/dev/null 2>&1 || true
 
 VM="$(osc CreateVms --ImageId="$IMG" --VmType=tinav5.c1r1p2 --SubnetId="$SUBNET" \

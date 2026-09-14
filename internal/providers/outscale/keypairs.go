@@ -1,6 +1,7 @@
 package outscale
 
 import (
+	"encoding/base64"
 	"net/http"
 	"strings"
 
@@ -70,7 +71,7 @@ func (p *Pack) createKeypair(w http.ResponseWriter, r *http.Request) {
 	// nobody guarded.
 	//
 	// TestAKeypairRefusesWhatIsNotAKey fails without this.
-	parsed, err := sshkey.Parse(req.PublicKey)
+	parsed, err := publicKeyOf(req.PublicKey)
 	if err != nil {
 		p.badRequest(w, "PublicKey is not an OpenSSH public key")
 		return
@@ -89,13 +90,48 @@ func (p *Pack) createKeypair(w http.ResponseWriter, r *http.Request) {
 		// response carries a PublicKey field, so it lives out of Attrs, in
 		// Runtime, where a view cannot pick it up by accident.
 	}
-	res.Runtime = map[string]string{runtimePublicKey: strings.TrimSpace(req.PublicKey)}
+	// The canonical form, not the bytes the client sent: what travels here is
+	// either a line or a base64 envelope around one, and a file read into either
+	// carries its trailing newline, which cloud-init refuses as a control
+	// character. The Exoscale pack stores the same way, for the same measurement.
+	res.Runtime = map[string]string{runtimePublicKey: parsed.String()}
 	p.env.Store.Put(res)
 
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
 		"Keypair":         keypairView(res),
 		"ResponseContext": p.context(),
 	})
+}
+
+// publicKeyOf reads the two forms this API receives, and nothing else.
+//
+// Outscale documents the field as "This value must be Base64-encoded"
+// (osc-sdk-go/pkg/osc/client.gen.go:2256), and its own CLI took until v0.0.32 to
+// obey: measured on 2026-09-14 against a local listener, `octl v0.0.31
+// --PublicKey <the key>` puts the line on the wire verbatim, where v0.0.32 takes
+// the flag as a file path and puts base64 of its bytes there. The real cloud
+// answers 200 to the bare line — corpus/outscale, which is how the suite passed
+// for a year — so both forms reach the real API, and an emulator that reads only
+// one diverges from it. Reading only the bare one made every v0.0.32
+// CreateKeypair answer 400 here.
+//
+// The envelope is not a way past the refusal createKeypair states. What comes
+// out of the decoder goes through the same Parse, so the multi-line payload that
+// opens a top-level key in a cloud-config is refused encoded exactly as it is
+// bare — and the bare form is tried first, so a line is judged as a line rather
+// than as accidental base64.
+//
+// TestAKeypairReadsTheEncodedFormTheApiDocuments and
+// TestAnEncodedKeypairIsHeldToTheSameRefusals fail without this.
+func publicKeyOf(value string) (sshkey.Key, error) {
+	if parsed, err := sshkey.Parse(value); err == nil {
+		return parsed, nil
+	}
+	decoded, err := base64.StdEncoding.DecodeString(strings.TrimSpace(value))
+	if err != nil {
+		return sshkey.Key{}, sshkey.ErrNotAKey
+	}
+	return sshkey.Parse(string(decoded))
 }
 
 func (p *Pack) readKeypairs(w http.ResponseWriter, r *http.Request) {

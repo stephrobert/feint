@@ -320,7 +320,7 @@ jobs:
       # of a digest pinned here. Same pin and same recipe as conformance.yml.
       - name: Install the Outscale CLI
         env:
-          OCTL_VERSION: 'v0.0.31'
+          OCTL_VERSION: 'v0.0.32'
         run: |
           set -euo pipefail
           workdir="$(mktemp -d)"
