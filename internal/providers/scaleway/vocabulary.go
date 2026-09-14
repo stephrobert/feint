@@ -30,11 +30,24 @@ import "sort"
 // emulator does not validate a request against, so replacing them costs the
 // replay nothing and keeps the default where it belongs: deny.
 //
-// TestASanitisedTranscriptStillReplays (internal/cli) fails without the zones:
-// the zone in every recorded path becomes a synthetic string and the emulator
-// answers 400 "unknown zone" to the whole corpus.
-// TestTheVocabularyVouchesForEveryListThePackValidatesAgainst fails without the
-// gateway types.
+// TestTheVocabularyVouchesForEveryListThePackValidatesAgainst is what holds all
+// three lists, and it is the only test that can.
+//
+// This comment used to add "TestASanitisedTranscriptStillReplays (internal/cli)
+// fails without
+// the zones: the zone in every recorded path becomes a synthetic string and the
+// emulator answers 400 unknown zone to the whole corpus". Measured on
+// 2026-09-14 (#768): it does not. contracts/scaleway.json enumerates fr-par,
+// fr-par-1 and the rest, and internal/corpus keeps every value the description
+// enumerates as well as every value a pack vouches for. Remove the zones here
+// and the contract still keeps them, so that test stays green.
+//
+// The claim was true when it was written and stopped being true when the
+// contract grew, which is the exact shape this file warns about four paragraphs
+// up: a claim in a comment that nothing was checking. The gateway types are
+// different and are why this list still earns its place — VPC-GW-S and its
+// siblings appear in NO contract, so they are kept by this vocabulary or by
+// nothing.
 func (p *Pack) PublicVocabulary() []string {
 	out := make([]string, 0, len(knownZones)+len(knownRegions)+len(gatewayTypes))
 	for zone := range knownZones {

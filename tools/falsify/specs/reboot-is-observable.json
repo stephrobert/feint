@@ -33,12 +33,12 @@
       "test": "TestCommitCarriesTheOnlySignalMarkWithTheChain"
     },
     {
-      "label": "an ordinary chain is marked when the action happens to end where it began, so a poweron that could not boot narrates a `starting` that never happened",
+      "label": "a chain that arrives somewhere new is marked as the action's only signal too, so a poweron narrates `starting` to clients that never asked for it and the mode stops governing anything",
       "file": "internal/providers/scaleway/servers.go",
       "package": "./internal/providers/scaleway/",
-      "find": "\tres.PendingOnlySignal = false",
-      "replace": "\tres.PendingOnlySignal = from == settled",
-      "test": "TestAnUnknownImageDoesNotBootASubstitute"
+      "find": "\tres.PendingOnlySignal = len(res.Pending) > 0 && from == settled",
+      "replace": "\tres.PendingOnlySignal = len(res.Pending) > 0 && (from == settled || true)",
+      "test": "TestOnlyAChainThatSettlesWhereItStartedIsTheOnlySignal"
     },
     {
       "label": "the store stops counting the chains it must walk, so the lock it takes never lets one advance",
