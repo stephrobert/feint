@@ -38,7 +38,20 @@ jobs:
     runs-on: ubuntu-24.04
     # Each mutation is a fresh copy plus a package build and one test run. The
     # first copy pays for the whole module's compilation; the rest hit the cache.
-    timeout-minutes: 30
+    #
+    # 150, not 30, and the figure is measured rather than chosen. The suite was
+    # killed by this very line for twenty-four consecutive nights (#737): 30
+    # minutes was set when the suite was smaller, and it now carries 1271
+    # mutations across 199 specs. A local replay on a warm cache was clocked at
+    # 29 seconds per spec over its first 15, which projects to about 97 minutes;
+    # a runner starts cold, so this leaves room and still bounds a runaway.
+    #
+    # `cancelled` is not `failure`, which is why nobody was told: the night job
+    # below is what fixes that half, and tools/ci/night-report.sh already reads a
+    # cancellation as an infrastructure finding rather than as a guard breaking.
+    #
+    # When this line needs raising again, split the specs across a matrix instead.
+    timeout-minutes: 150
     permissions:
       contents: read
     steps:
@@ -108,3 +121,19 @@ jobs:
             echo "on this tree, tonight. A guard that is not listed has never been"
             echo "falsified, or was falsified once in a branch that no longer exists."
           } >> "$GITHUB_STEP_SUMMARY"
+
+  # Six lines, and night-report.yml's own comment names falsify.yml as a caller
+  # that "can adopt it when its turn comes". Its turn came: the suite was
+  # cancelled by its own timeout for twenty-four nights and reported to nobody,
+  # because a reusable workflow nobody calls is a mechanism that exists only on
+  # paper. A cancellation is exactly what tools/ci/night-report.sh calls an
+  # infrastructure finding, and testdata/cancelled-night is a real run of it.
+  night:
+    name: A red night opens the issue, a green one closes it
+    needs: [replay]
+    if: always() && github.event_name == 'schedule'
+    permissions:
+      contents: read
+      actions: read
+      issues: write
+    uses: ./.github/workflows/night-report.yml
