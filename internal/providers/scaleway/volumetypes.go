@@ -66,7 +66,7 @@ type volumeType struct {
 // a real account: 200, 290 bytes, two entries and no more. b_ssd is gone, and
 // data volumes live in Block (SBS), which is why they are not here.
 //
-// The sizes are bytes, as the SDK's scw.Size is. TestTheVolumeCatalogueIsWhatTheCloudAnswered
+// The sizes are bytes, as the SDK's scw.Size is. TestVolumeTypesAnswerTheRecordedCatalogue
 // holds each value against that transcript.
 var volumeCatalogue = map[string]volumeType{
 	"l_ssd":   newVolumeType("Local SSD", true, 1_000_000_000, 800_000_000_000),

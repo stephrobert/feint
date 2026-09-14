@@ -353,7 +353,26 @@ func (p *Pack) Routes() []emulator.Route {
 		{Method: "GET", Path: zones + "/products/servers", Operation: "instance/v1/API.ListServersTypes", Handler: p.listServerTypes},
 		// The volume half of the same menu, served since #758 landed the
 		// recording its decline was waiting for.
-		{Method: "GET", Path: zones + "/products/volumes", Operation: "instance/v1/API.ListVolumesTypes", Handler: p.listVolumeTypes},
+		{Method: "GET", Path: zones + "/products/volumes", Operation: "instance/v1/API.ListVolumesTypes", Handler: p.listVolumeTypes,
+			// Undriven, and the reason is a measurement rather than an
+			// omission: `scw instance volume-type list` carries the table IN
+			// THE BINARY and issues no request at all. Pointed at a dead port
+			// on 2026-09-14 it still answered the two types, while
+			// `scw instance server-type list` pointed at the same dead port
+			// failed with `connection refused` — the witness that makes the
+			// first result mean something.
+			//
+			// So no client this project drives can reach this route, and a line
+			// in scw-cli.sh calling that command would assert the CLI's own
+			// table rather than this emulator's answer. One was written and
+			// removed for exactly that reason.
+			//
+			// What reaches it is the Ansible collection of #758, which builds
+			// its request from the API description instead. The values are held
+			// against the recorded body by TestVolumeTypesAnswerTheRecordedCatalogue,
+			// and the CLI's hardcoded table agrees with them field for field,
+			// which is a second reading of the same fact.
+			Undriven: "the official CLI answers this from a table compiled into the binary and sends no request, measured against a dead port on 2026-09-14; the client that reaches it is the Ansible collection of #758, which this suite does not run"},
 		// Two declines #626 asked to be arbitrated, and the measurement withdrew
 		// them: compatible-types answers a list of names and no headroom, and the
 		// dashboard's counters name families this pack serves, with the two
