@@ -72,10 +72,10 @@
       "test": "TestAWithdrawnFirewallClaimsNoRuleSets"
     },
     {
-      "label": "an interface the pack declared outside its groups' reach is claimed wearing them (#574, #668)",
+      "label": "an interface the pack declared outside its groups' reach is claimed wearing them (#574, #668) [fragment recentre sur la condition seule : #741 a insere une branche entre elle et le append]",
       "file": "internal/core/machine/readback.go",
-      "find": "\t\tif slices.Contains(unfiltered, att.Network) {\n\t\t\tclaims = append(claims, wears{Network: att.Network})\n\t\t\tcontinue\n\t\t}",
-      "replace": "\t\tif slices.Contains(unfiltered, att.Network) && false {\n\t\t\tclaims = append(claims, wears{Network: att.Network})\n\t\t\tcontinue\n\t\t}",
+      "find": "\t\tif slices.Contains(unfiltered, att.Network) {",
+      "replace": "\t\tif slices.Contains(unfiltered, att.Network) && false {",
       "test": "TestTheRuleSetsAMachineWearsAreClaimedOnItsFilteredInterfaces"
     },
     {

@@ -166,6 +166,37 @@ func (r Reconciler) wears(res *resource.Resource, plan Plan) []Claim {
 		}
 		seen = append(seen, att.Network)
 		if slices.Contains(unfiltered, att.Network) {
+			// An interface the pack declared outside its groups' reach wears
+			// nothing on a bridge. Under OVN it wears the shared permissive set,
+			// and the driver has no choice: incus_isolate.go states that attaching
+			// any ACL to an OVN network makes the runtime add a default-deny to
+			// every NIC of it, so a machine whose groups enforce nothing "would
+			// lose all traffic the moment its network gained a second subnet".
+			//
+			// Claiming a bare interface there claimed the opposite of what the
+			// driver had just done, and the guard reported it as a broken claim on
+			// every Exoscale machine with no security group (#741).
+			//
+			// Nothing is claimed rather than the permissive set, and that is a
+			// deliberate weakening: `spreadPermissive` runs on the ISOLATION path
+			// alone, so an unfiltered interface wears the set on an isolated
+			// network and nothing on an ordinary one. This derivation cannot tell
+			// the two apart — the Reconciler holds the plan and the groups, never
+			// which networks carry isolation — so claiming either one would be
+			// wrong half the time. Claiming nothing is the same answer #454 gives
+			// for a host that withdrew the firewall capability: a claim nobody can
+			// predict is a red that says nothing.
+			//
+			// Read off the DECLARED capability rather than a mode name, which is
+			// the rule CLAUDE.md states; Isolation is exactly d.OVN
+			// (capabilities.go).
+			//
+			// TestAnUnfilteredInterfaceIsNotClaimedWhereTheDriverMayOpenIt and
+			// TestAnUnfilteredInterfaceIsStillClaimedBareWithoutIsolation fail
+			// without this.
+			if CapabilitiesOf(r.binding().driver).Isolation {
+				continue
+			}
 			claims = append(claims, wears{Network: att.Network})
 			continue
 		}
