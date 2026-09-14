@@ -43,7 +43,10 @@ terraform {
       # Moved to 2.82.0 on 2026-09-14, with the conformance fixture, and the
       # move is measured rather than assumed: that release adds an `srn`
       # attribute to six products, three of them served here.
-      version = "2.82.0"
+      # 2.83.0 the same day, with the conformance fixture: its
+      # `fix(instance): detach private network interface before deleting it`
+      # touches the call sequence this stack exercises.
+      version = "2.83.0"
     }
   }
 }

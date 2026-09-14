@@ -21,7 +21,7 @@ terraform {
       # apply proves the emulator answered whatever was newest that morning and
       # nothing anybody can replay. `feint docs --check` refuses an applied
       # example that pins nothing.
-      version = "2.82.0"
+      version = "2.83.0"
     }
   }
 }

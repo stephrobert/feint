@@ -17,6 +17,32 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Added
 
+- **A server gives up a private interface: `instance/v2alpha1/API.DetachServerPrivateNetworkInterface`.**
+  `POST /instance/v2alpha1/zones/{zone}/servers/{id}/detach-private-network-interface`
+  dissociates an interface from its server and answers the server. Terraform
+  provider **2.83.0** sends it before every delete of an interface
+  (`fix(instance): detach private network interface before deleting it`,
+  upstream #4354), and a 501 there failed every `terraform destroy`.
+
+  The refusal it leaves said *"no client this project drives reaches for these
+  operations"* — a sentence that already carried one expiry date, from 2.81.0,
+  and has now collected a second. Only the detach is withdrawn: a recording of a
+  full apply plus destroy shows it twice and the symmetric
+  `AttachServerPrivateNetworkInterface` never, so that one keeps the reason.
+
+  **It dissociates rather than deletes, and that is measured.** The client's next
+  two calls are a read that must answer 200 and a `DELETE` it sends itself;
+  deleting at the detach answers the read with a 404, the client skips its
+  delete, and the suite passes for a reason that is not the stated one. Both
+  behaviours are green — only one matches what the client does.
+
+  Serving it needed the server rendered in v2alpha1's own shape, which this pack
+  did not have. Three vocabularies differ from `instance/v1` and the contract
+  check caught each: a server is `started` where v1 says `running`, an interface
+  is `available` where a server is `started`, and a volume v1 spells
+  `sbs_volume` is `sbs`. `b_ssd` and `unified` have no v2alpha1 spelling and
+  answer `unknown_volume_type` rather than a guessed equivalence.
+
 - **A load balancer can be migrated: `lb/v1/ZonedAPI.MigrateLB`** (#762).
   `POST /lb/v1/zones/{zone}/lbs/{id}/migrate` accepts a new offer and the read
   that follows shows it. It is the one Day-2 action this API has, and no client

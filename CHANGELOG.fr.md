@@ -19,6 +19,36 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Ajouté
 
+- **Un serveur rend une interface privée : `instance/v2alpha1/API.DetachServerPrivateNetworkInterface`.**
+  `POST /instance/v2alpha1/zones/{zone}/servers/{id}/detach-private-network-interface`
+  dissocie une interface de son serveur et répond le serveur. Le provider
+  Terraform **2.83.0** l'envoie avant chaque suppression d'interface
+  (`fix(instance): detach private network interface before deleting it`,
+  upstream #4354), et un 501 à cet endroit faisait échouer tous les
+  `terraform destroy`.
+
+  Le refus qu'elle quitte disait « aucun client piloté par ce projet n'atteint
+  ces opérations » : une phrase qui portait déjà une date de péremption, venue
+  de 2.81.0, et qui vient d'en collecter une seconde. Seul le détachement est
+  retiré : l'enregistrement d'un apply et d'un destroy complets le montre deux
+  fois et ne montre jamais `AttachServerPrivateNetworkInterface`, qui garde donc
+  la raison.
+
+  **Elle dissocie sans supprimer, et c'est mesuré.** Les deux appels suivants du
+  client sont une relecture qui doit répondre 200, puis un `DELETE` qu'il envoie
+  lui-même ; supprimer dès le détachement répond 404 à cette relecture, le
+  client saute son `DELETE`, et la suite passe pour une raison qui n'est pas
+  celle annoncée. Les deux comportements sont verts, un seul correspond à ce que
+  le client fait.
+
+  La servir demandait de rendre le serveur dans la forme propre à v2alpha1, que
+  ce pack n'avait pas. Trois vocabulaires diffèrent de `instance/v1` et le
+  contrôle de contrat a attrapé chacun : un serveur est `started` là où v1 dit
+  `running`, une interface est `available` là où un serveur est `started`, et un
+  volume que v1 écrit `sbs_volume` s'écrit `sbs`. `b_ssd` et `unified` n'ont pas
+  d'orthographe en v2alpha1 et répondent `unknown_volume_type` plutôt qu'une
+  équivalence devinée.
+
 - **Un équilibreur de charge peut être migré : `lb/v1/ZonedAPI.MigrateLB`**
   (#762). `POST /lb/v1/zones/{zone}/lbs/{id}/migrate` accepte une nouvelle offre
   et la relecture qui suit la montre. C'est la seule action de jour 2 que porte

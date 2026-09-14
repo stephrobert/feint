@@ -159,6 +159,13 @@ func (p *Pack) Routes() []emulator.Route {
 		// decision and it was one only while nobody called the route.
 		{Method: "PATCH", Path: privateNICsV2Path + "/{id}", Operation: "instance/v2alpha1/API.UpdatePrivateNetworkInterface", Handler: p.updatePrivateNetworkInterface},
 		{Method: "DELETE", Path: privateNICsV2Path + "/{id}", Operation: "instance/v2alpha1/API.DeletePrivateNetworkInterface", Handler: p.deletePrivateNetworkInterface},
+		// The detach a client performs on the SERVER, not on the interface, and
+		// the only operation of v2alpha1's server family this pack serves.
+		// Provider 2.83.0 sends it before every delete of an interface
+		// (`fix(instance): detach private network interface before deleting it`)
+		// and a 501 there fails the destroy. servers_v2alpha1.go carries the
+		// recording and the reason the symmetric attach stays declined.
+		{Method: "POST", Path: serversV2Path + "/{id}/detach-private-network-interface", Operation: "instance/v2alpha1/API.DetachServerPrivateNetworkInterface", Handler: p.detachPrivateNetworkInterface},
 
 		// Placement groups through the alpha door. Same forcing client as the
 		// interfaces above: provider 2.81.0 moved the resource's CRUD onto
@@ -1219,7 +1226,16 @@ func (p *Pack) Declined() []emulator.Decline {
 		emulator.Because("instance/v2alpha1.DetachAndDeletePrivateNetworkInterface folds a detach and a delete into one call, and no client this project drives sends it: the recorded transcript of a full Terraform apply on provider 2.81.0 shows only ListPrivateNetworkInterfaces on this API. The two halves it folds are reachable through the routes already mounted, and the alpha version is named so a promotion to a stable instance/v2 has this decided again",
 			"instance/v2alpha1/API.DetachAndDeletePrivateNetworkInterface"),
 
-		emulator.Because("instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces and placement groups onto it, which is why those two families are served and these are not",
+		// The claim below is now dated twice, and the dates are the point: it held
+		// for the whole alpha API until provider 2.81.0 moved private network
+		// interfaces and placement groups onto it, and it held for the server
+		// family until 2.83.0 sent DetachServerPrivateNetworkInterface before
+		// every interface delete. That one is served and has left this list; the
+		// symmetric AttachServerPrivateNetworkInterface stays, because the
+		// recording of a full apply plus destroy on 2.83.0 shows the detach twice
+		// and the attach never. Serving a half because its other half is served
+		// is surface nothing drives.
+		emulator.Because("instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces and placement groups onto it, and for the server family until 2.83.0 reached the private-interface detach, which is why those are served and these are not",
 			"instance/v2alpha1/VolumeAPI.CreateSnapshot",
 			"instance/v2alpha1/VolumeAPI.CreateVolume",
 			"instance/v2alpha1/VolumeAPI.DeleteSnapshot",
@@ -1251,7 +1267,6 @@ func (p *Pack) Declined() []emulator.Decline {
 			"instance/v2alpha1/API.DeleteUserData",
 			"instance/v2alpha1/API.DetachServerFileSystem",
 			"instance/v2alpha1/API.DetachServerIP",
-			"instance/v2alpha1/API.DetachServerPrivateNetworkInterface",
 			"instance/v2alpha1/API.DetachServerVolume",
 			"instance/v2alpha1/API.GetResourceCounts",
 			"instance/v2alpha1/API.GetSecurityGroup",
