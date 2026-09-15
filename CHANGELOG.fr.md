@@ -19,6 +19,38 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Ajouté
 
+- **La route propre à la passerelle d'API : `scw/Client.GetAPIMetadata`**
+  (#776). `GET /metadata` répond `{"platform", "partition", "domain"}`, que le
+  SDK lit pour construire côté client un `srn://<service>.<domain>/…` pour chaque
+  produit qui en a reçu un.
+
+  Mesuré le 2026-09-14 avec `feint proxy --record` : un `apply` puis un
+  `destroy` de la fixture de conformance en ont envoyé **148, et cet émulateur a
+  répondu 404 à chacun**, soit 148 des 169 refus de cette exécution. Rien
+  n'échouait, parce que le SDK jette l'erreur et que le SRN reste vide. C'est de
+  la chance, pas une décision, et c'est exactement la forme de #257.
+
+  **L'instrument devait bouger avant le gestionnaire.** `Route.Operation` doit
+  nommer une opération que le scan de dérive trouve, et ce scan ne lisait que
+  `api/<produit>/<version>`, où `Client.GetAPIMetadata` ne se trouve pas : la
+  route serait devenue orpheline, alors que les trois baselines en portent zéro.
+  Le scan lit désormais le paquet de la passerelle, avec un critère propre : une
+  méthode qui **construit** une requête, et non une qui transporte celle d'un
+  autre. Réutiliser le filtre des produits était faux dans les deux sens, et
+  c'est mesuré : il trouvait `Client.Do`, le transport que toute requête
+  traverse, et `Config.String`, un formateur, et manquait la seule opération qui
+  compte.
+
+  Le contrat la décrit aussi, par `--gateway`, la même échappatoire que la forme
+  de refus utilise déjà : Scaleway publie un document par produit et la
+  passerelle n'en est pas un. La réponse est donc **validée**, pas exemptée.
+
+  Les trois valeurs sont celles du vrai cloud, lues lors d'un tir en lecture
+  seule sur un compte fr-par et versées dans
+  `corpus/scaleway/scw-gateway.jsonl`. Un corpus commité est anonymisé : il note
+  le statut et l'arbre des champs, jamais les valeurs, que tiennent le fragment
+  de contrat et un test qui les écrit au lieu de les relire du gestionnaire.
+
 - **Un serveur rend une interface privée : `instance/v2alpha1/API.DetachServerPrivateNetworkInterface`.**
   `POST /instance/v2alpha1/zones/{zone}/servers/{id}/detach-private-network-interface`
   dissocie une interface de son serveur et répond le serveur. Le provider

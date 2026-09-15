@@ -50,7 +50,85 @@ func ScanScalewaySDK(root string) ([]Operation, error) {
 		}
 	}
 
+	gateway, err := scanGatewayDir(filepath.Join(root, "scw"))
+	if err != nil {
+		return nil, err
+	}
+	ops = append(ops, gateway...)
+
 	sort.Slice(ops, func(i, j int) bool { return ops[i].Name < ops[j].Name })
+	return ops, nil
+}
+
+// scanGatewayDir reads the operations the API gateway serves, which live in
+// `scw/` rather than under a product.
+//
+// # Why the walk above is not enough
+//
+// The SDK that Terraform provider 2.83.0 embeds calls `GET /metadata` after
+// every read of a product that carries an SRN, to build one client-side. This
+// emulator answered 404 to it 148 times per apply (#776), and the route could
+// not be mounted to fix that: `Route.Operation` must name an operation this scan
+// finds, and `Client.GetAPIMetadata` failed TWO of its criteria — the directory,
+// and a receiver that is `*Client` rather than something ending in API.
+//
+// # Why widening here does not widen the surface
+//
+// Widening the instrument that reports drift is the change CLAUDE.md warns
+// about, so the criterion is what keeps this narrow rather than the directory:
+// of the 83 exported methods in `scw/`, exactly one BUILDS a request, and that
+// is the one this walk returns. A helper that formats a zone, parses a size or
+// renders an error is not an operation and never reaches the baseline.
+//
+// It does NOT reuse issuesRequest, and buildsGatewayRequest says at length why:
+// that matcher is written for the product packages and was measured wrong here
+// in both directions.
+//
+// The day Scaleway adds a second gateway call, it appears here, the baseline
+// disagrees, and somebody triages it. That is the mechanism working, not a leak.
+//
+// # The name carries no version, and that is deliberate
+//
+// `scw/Client.GetAPIMetadata`, on the precedent scan_outscale.go already sets
+// and states: the gateway declares no API version, the path lives in the
+// endpoint template, and inventing a "v1" would be a fact nobody could check.
+//
+// TestTheGatewayScanCountsWhatBuildsARequest fails without this.
+func scanGatewayDir(dir string) ([]Operation, error) {
+	files, err := os.ReadDir(dir)
+	if err != nil {
+		// A checkout without scw/ is not this scan's problem to diagnose: the
+		// product walk above has already failed on the same root if the clone is
+		// broken, and an empty gateway surface is a truthful answer for an SDK
+		// laid out differently.
+		return nil, nil //nolint:nilerr // absence is not drift
+	}
+
+	var ops []Operation
+	for _, f := range files {
+		if !strings.HasSuffix(f.Name(), ".go") || strings.HasSuffix(f.Name(), "_test.go") {
+			continue
+		}
+		path := filepath.Join(dir, f.Name())
+		fset := token.NewFileSet()
+		parsed, err := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
+		if err != nil {
+			return nil, fmt.Errorf("parse %s: %w", path, err)
+		}
+		for _, decl := range parsed.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok || fn.Recv == nil || len(fn.Recv.List) == 0 || !fn.Name.IsExported() {
+				continue
+			}
+			if !buildsGatewayRequest(fn) {
+				continue
+			}
+			ops = append(ops, Operation{
+				Name:    "scw/" + receiverName(fn.Recv.List[0].Type) + "." + fn.Name.Name,
+				Product: "scw",
+			})
+		}
+	}
 	return ops, nil
 }
 
@@ -164,6 +242,51 @@ func issuesRequest(fn *ast.FuncDecl) bool {
 					found = true
 				}
 			}
+		}
+		return !found
+	})
+	return found
+}
+
+// buildsGatewayRequest reports whether a method of `scw/` BUILDS a request,
+// which is what makes it an operation rather than plumbing.
+//
+// issuesRequest above cannot answer this, and reusing it was wrong in both
+// directions — measured, not guessed. Its three patterns are written for the
+// product packages: a QUALIFIED `scw.ScalewayRequest` literal, a delegation to
+// an unexported method, and `recv.client.Do`. Inside `scw/` itself the literal
+// is unqualified, `Do` is exported and called on the receiver directly, and
+// there is no `client` field. So it missed `Client.GetAPIMetadata`, the one
+// operation this walk exists for, while accepting `Client.Do` — the transport
+// every call goes through — and `Config.String`, a formatter.
+//
+// Building a request is the honest criterion here: `Do` RECEIVES one,
+// `String` never sees one, and a method that constructs a ScalewayRequest with
+// a path is addressing the gateway. It answers exactly one method today, and
+// it will answer a second the day Scaleway adds one — which is the scan's job.
+//
+// TestTheGatewayScanCountsWhatBuildsARequest fails without the distinction, on
+// both halves.
+func buildsGatewayRequest(fn *ast.FuncDecl) bool {
+	if fn.Body == nil {
+		return false
+	}
+	found := false
+	ast.Inspect(fn.Body, func(n ast.Node) bool {
+		if found {
+			return false
+		}
+		lit, ok := n.(*ast.CompositeLit)
+		if !ok {
+			return true
+		}
+		// Unqualified inside the package, qualified if the walk ever reads it
+		// from outside. Both spellings name the same type.
+		switch t := lit.Type.(type) {
+		case *ast.Ident:
+			found = t.Name == "ScalewayRequest"
+		case *ast.SelectorExpr:
+			found = isRequestLiteral(t)
 		}
 		return !found
 	})

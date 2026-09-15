@@ -3581,6 +3581,12 @@
     }
    }
   },
+  "scw.GetAPIMetadata": {
+   "path": "/metadata",
+   "method": "GET",
+   "group": "Gateway",
+   "response": "scw.ApiMetadata"
+  },
   "vpc/v2.AddPrivateNetworkObjectStoragePrivateAccess": {
    "path": "/vpc/v2/regions/{region}/object-storage-private-access/{vpc_id}/private-networks",
    "method": "POST",
@@ -4392,6 +4398,9 @@
     },
     "qualification": {
      "ref": "account/v3.scaleway.account.v3.Qualification"
+    },
+    "srn": {
+     "type": "string"
     },
     "status": {
      "ref": "account/v3.scaleway.account.v3.Project.Status"
@@ -6283,6 +6292,9 @@
     "size": {
      "type": "integer"
     },
+    "srn": {
+     "type": "string"
+    },
     "status": {
      "ref": "block/v1.scaleway.block.v1.Snapshot.Status"
     },
@@ -6378,6 +6390,9 @@
     "specs": {
      "ref": "block/v1.scaleway.block.v1.VolumeSpecifications"
     },
+    "srn": {
+     "type": "string"
+    },
     "status": {
      "ref": "block/v1.scaleway.block.v1.Volume.Status"
     },
@@ -6437,6 +6452,9 @@
     },
     "specs": {
      "ref": "block/v1.scaleway.block.v1.VolumeSpecifications"
+    },
+    "srn": {
+     "type": "string"
     },
     "type": {
      "type": "string"
@@ -7412,6 +7430,9 @@
     "secret_key": {
      "type": "string"
     },
+    "srn": {
+     "type": "string"
+    },
     "updated_at": {
      "type": "string"
     },
@@ -7448,6 +7469,9 @@
      "type": "integer"
     },
     "organization_id": {
+     "type": "string"
+    },
+    "srn": {
      "type": "string"
     },
     "tags": {
@@ -7672,6 +7696,9 @@
     "organization_id": {
      "type": "string"
     },
+    "srn": {
+     "type": "string"
+    },
     "tags": {
      "type": "array",
      "items": {
@@ -7716,6 +7743,9 @@
      "type": "string"
     },
     "jti": {
+     "type": "string"
+    },
+    "srn": {
      "type": "string"
     },
     "updated_at": {
@@ -8072,6 +8102,9 @@
     "resource_type": {
      "ref": "iam/v1alpha1.scaleway.iam.v1alpha1.Log.ResourceType"
     },
+    "srn": {
+     "type": "string"
+    },
     "user_agent": {
      "type": "string"
     }
@@ -8228,6 +8261,9 @@
     "organization_id": {
      "type": "string"
     },
+    "srn": {
+     "type": "string"
+    },
     "tags": {
      "type": "array",
      "items": {
@@ -8264,6 +8300,9 @@
      "type": "string"
     },
     "pretty_name": {
+     "type": "string"
+    },
+    "srn": {
      "type": "string"
     },
     "unit": {
@@ -8317,6 +8356,9 @@
     },
     "project_ids": {
      "type": "array"
+    },
+    "srn": {
+     "type": "string"
     }
    }
   },
@@ -8364,6 +8406,9 @@
     "public_key": {
      "type": "string"
     },
+    "srn": {
+     "type": "string"
+    },
     "updated_at": {
      "type": "string"
     }
@@ -8382,6 +8427,9 @@
      "ref": "iam/v1alpha1.scaleway.iam.v1alpha1.Saml.ServiceProvider"
     },
     "single_sign_on_url": {
+     "type": "string"
+    },
+    "srn": {
      "type": "string"
     },
     "status": {
@@ -8425,6 +8473,9 @@
     },
     "origin": {
      "ref": "iam/v1alpha1.scaleway.iam.v1alpha1.SamlCertificate.Origin"
+    },
+    "srn": {
+     "type": "string"
     },
     "type": {
      "ref": "iam/v1alpha1.scaleway.iam.v1alpha1.SamlCertificate.Type"
@@ -8528,6 +8579,9 @@
      "type": "string"
     },
     "phone_number": {
+     "type": "string"
+    },
+    "srn": {
      "type": "string"
     },
     "status": {
@@ -12239,6 +12293,9 @@
     "project_id": {
      "type": "string"
     },
+    "srn": {
+     "type": "string"
+    },
     "tags": {
      "type": "array",
      "items": {
@@ -12287,6 +12344,9 @@
      "type": "string"
     },
     "server_id": {
+     "type": "string"
+    },
+    "srn": {
      "type": "string"
     },
     "status": {
@@ -12345,6 +12405,9 @@
      "type": "string"
     },
     "server_id": {
+     "type": "string"
+    },
+    "srn": {
      "type": "string"
     },
     "status": {
@@ -12455,6 +12518,9 @@
      "items": {
       "ref": "instance/v2alpha1.scaleway.instance.v2alpha1.SecurityGroupRule"
      }
+    },
+    "srn": {
+     "type": "string"
     },
     "stateless": {
      "type": "boolean"
@@ -12614,6 +12680,9 @@
     "project_id": {
      "type": "string"
     },
+    "srn": {
+     "type": "string"
+    },
     "stateless": {
      "type": "boolean"
     },
@@ -12674,6 +12743,9 @@
      "type": "boolean"
     },
     "server_type": {
+     "type": "string"
+    },
+    "srn": {
      "type": "string"
     },
     "status": {
@@ -12909,6 +12981,9 @@
     "server_type": {
      "type": "string"
     },
+    "srn": {
+     "type": "string"
+    },
     "status": {
      "ref": "instance/v2alpha1.scaleway.instance.v2alpha1.Server.Status"
     },
@@ -13074,6 +13149,9 @@
     "server_type": {
      "type": "string"
     },
+    "srn": {
+     "type": "string"
+    },
     "tags": {
      "type": "array",
      "items": {
@@ -13137,6 +13215,9 @@
      }
     },
     "server_type": {
+     "type": "string"
+    },
+    "srn": {
      "type": "string"
     },
     "tags": {
@@ -13328,6 +13409,9 @@
     },
     "source": {
      "ref": "ipam/v1.scaleway.ipam.v1.Source"
+    },
+    "srn": {
+     "type": "string"
     },
     "tags": {
      "type": "array",
@@ -15455,6 +15539,25 @@
     }
    }
   },
+  "scw.ApiMetadata": {
+   "closed": false,
+   "required": [
+    "domain",
+    "partition",
+    "platform"
+   ],
+   "properties": {
+    "domain": {
+     "type": "string"
+    },
+    "partition": {
+     "type": "string"
+    },
+    "platform": {
+     "type": "string"
+    }
+   }
+  },
   "scw.ResponseError": {
    "closed": false,
    "required": [
@@ -15886,6 +15989,9 @@
     "source": {
      "type": "string"
     },
+    "srn": {
+     "type": "string"
+    },
     "tags": {
      "type": "array",
      "items": {
@@ -16091,6 +16197,9 @@
     "region": {
      "type": "string"
     },
+    "srn": {
+     "type": "string"
+    },
     "subnets": {
      "type": "array",
      "items": {
@@ -16139,6 +16248,9 @@
      "type": "string"
     },
     "region": {
+     "type": "string"
+    },
+    "srn": {
      "type": "string"
     },
     "tags": {
@@ -16216,6 +16328,9 @@
     "region": {
      "type": "string"
     },
+    "srn": {
+     "type": "string"
+    },
     "subnet": {
      "type": "string"
     },
@@ -16263,6 +16378,9 @@
     "routing_enabled": {
      "type": "boolean"
     },
+    "srn": {
+     "type": "string"
+    },
     "tags": {
      "type": "array",
      "items": {
@@ -16299,6 +16417,9 @@
      "type": "string"
     },
     "region": {
+     "type": "string"
+    },
+    "srn": {
      "type": "string"
     },
     "status": {
@@ -16602,6 +16723,9 @@
     "smtp_enabled": {
      "type": "boolean"
     },
+    "srn": {
+     "type": "string"
+    },
     "status": {
      "ref": "vpcgw/v2.scaleway.vpc_gw.v2.Gateway.Status"
     },
@@ -16667,6 +16791,9 @@
     "push_default_route": {
      "type": "boolean"
     },
+    "srn": {
+     "type": "string"
+    },
     "status": {
      "ref": "vpcgw/v2.scaleway.vpc_gw.v2.GatewayNetwork.Status"
     },
@@ -16726,6 +16853,9 @@
      "type": "string"
     },
     "reverse": {
+     "type": "string"
+    },
+    "srn": {
      "type": "string"
     },
     "tags": {
@@ -16878,6 +17008,9 @@
     },
     "public_port": {
      "type": "integer"
+    },
+    "srn": {
+     "type": "string"
     },
     "updated_at": {
      "type": "string"

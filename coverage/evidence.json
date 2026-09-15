@@ -6,7 +6,7 @@
     "none"
   ],
   "generated_from": {
-    "contracts": "e969cbd8c5841bb9",
+    "contracts": "f0d31330a2dc84b7",
     "shapes": "cac046c206cc9fc8",
     "suites": "88882d1375a101e2"
   },
@@ -3286,6 +3286,15 @@
       "shape": "observed",
       "behaviour": true,
       "negative": true
+    },
+    "scw/Client.GetAPIMetadata": {
+      "driven": true,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": false,
+      "negative": false
     },
     "vpc/v2/API.CreatePrivateNetwork": {
       "driven": true,

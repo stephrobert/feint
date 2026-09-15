@@ -70,10 +70,30 @@ func TestEveryDeclaredPrefixLooksLikeAScalewayProduct(t *testing.T) {
 	// space, and both answer requests in this pack's dialect.
 	shape := regexp.MustCompile(`^/[a-z0-9-]+/v[0-9]+(alpha[0-9]*|beta[0-9]*)?/$`)
 
+	// The gateway is the one thing in this list that is not a product, and it is
+	// named rather than matched by a looser shape: `/metadata` is served by the
+	// gateway in front of every product (#776), it carries no version because
+	// the gateway declares none, and a regex widened to admit it would also
+	// admit the typos this test exists to catch.
+	const gateway = "/metadata"
+
+	seenGateway := false
 	for _, prefix := range unrouted.Prefixes() {
+		if prefix == gateway {
+			seenGateway = true
+			continue
+		}
 		if !shape.MatchString(prefix) {
 			t.Errorf("prefix %q is not shaped like a Scaleway product root", prefix)
 		}
+	}
+
+	// And the exception is held from the other side too: if the gateway path
+	// ever leaves this list, the exception above stops being taken and this
+	// line says so, rather than quietly permitting a value nothing declares.
+	if !seenGateway {
+		t.Errorf("%q is no longer declared; the exception carved out for it above "+
+			"now permits nothing and should go with it", gateway)
 	}
 }
 

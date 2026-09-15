@@ -37,7 +37,14 @@ OUTSCALE_SDK="${FEINT_SDK_OUTSCALE:-.upstream/osc-sdk-go}"
 # right after it. Adding it here is what puts the product's thirty-seven
 # operations in front of the triage — two served, thirty-five declined with a
 # reason.
-SCALEWAY_PRODUCTS="${FEINT_PRODUCTS:-instance,vpc,ipam,iam,marketplace,block,lb,vpcgw,account,baremetal}"
+# scw joined on 2026-09-15 with #776. It is not a product: it is the API
+# gateway that sits in front of all of them, and its one operation lives in
+# scaleway-sdk-go/scw/ rather than under api/<product>/<version>. The SDK
+# provider 2.83.0 embeds calls it after every read of a product carrying an
+# SRN — 148 times in one apply, every one answered 404 here before the route
+# was mounted. Naming it here is what puts it in front of the triage instead
+# of leaving the scanned surface and the published document disagreeing.
+SCALEWAY_PRODUCTS="${FEINT_PRODUCTS:-instance,vpc,ipam,iam,marketplace,block,lb,vpcgw,account,baremetal,scw}"
 
 [ -x "$FEINT" ] || { echo "no feint binary at $FEINT (build it: mise run build)" >&2; exit 1; }
 

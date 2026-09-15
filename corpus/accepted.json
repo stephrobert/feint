@@ -188,25 +188,19 @@
   "warn_after_days": 180,
   "recorded": [
     {
-      "file": "scaleway/scw-cli.jsonl",
-      "at": "2026-08-21",
-      "client": "scw 2.56.3",
-      "cloud": "Scaleway fr-par"
-    },
-    {
-      "file": "scaleway/scw-instance.jsonl",
-      "at": "2026-08-21",
-      "client": "scw 2.56.3",
-      "cloud": "Scaleway fr-par"
-    },
-    {
-      "file": "scaleway/terraform.jsonl",
-      "at": "2026-08-21",
-      "client": "terraform-provider-scaleway 2.81.0",
-      "cloud": "Scaleway fr-par"
-    },
-    {
       "file": "exoscale/exo-cli.jsonl",
+      "at": "2026-08-21",
+      "client": "exo 1.95.1 (egoscale v3.1.36)",
+      "cloud": "Exoscale ch-gva-2"
+    },
+    {
+      "file": "exoscale/exo-free-shapes.jsonl",
+      "at": "2026-08-24",
+      "client": "exo 1.95.1 (egoscale v3.1.36)",
+      "cloud": "Exoscale ch-gva-2"
+    },
+    {
+      "file": "exoscale/exo-refusals.jsonl",
       "at": "2026-08-21",
       "client": "exo 1.95.1 (egoscale v3.1.36)",
       "cloud": "Exoscale ch-gva-2"
@@ -218,48 +212,18 @@
       "cloud": "Outscale eu-west-2, no account"
     },
     {
+      "file": "outscale/oapi-cli-lb-shapes.jsonl",
+      "at": "2026-08-24",
+      "client": "oapi-cli 0.13.0",
+      "cloud": "Outscale cloudgouv-eu-west-1",
+      "region": "cloudgouv-eu-west-1"
+    },
+    {
       "file": "outscale/oapi-cli-lifecycle.jsonl",
       "at": "2026-08-21",
       "client": "oapi-cli 0.13.0",
       "cloud": "Outscale cloudgouv-eu-west-1",
       "region": "cloudgouv-eu-west-1"
-    },
-    {
-      "file": "scaleway/scw-refusals.jsonl",
-      "at": "2026-08-21",
-      "client": "scw 2.56.3",
-      "cloud": "Scaleway fr-par"
-    },
-    {
-      "file": "exoscale/exo-refusals.jsonl",
-      "at": "2026-08-21",
-      "client": "exo 1.95.1 (egoscale v3.1.36)",
-      "cloud": "Exoscale ch-gva-2"
-    },
-    {
-      "file": "outscale/oapi-cli-refusals.jsonl",
-      "at": "2026-08-21",
-      "client": "oapi-cli 0.13.0",
-      "cloud": "Outscale cloudgouv-eu-west-1",
-      "region": "cloudgouv-eu-west-1"
-    },
-    {
-      "file": "scaleway/scw-free-shapes.jsonl",
-      "at": "2026-08-24",
-      "client": "scw 2.56.3",
-      "cloud": "Scaleway fr-par"
-    },
-    {
-      "file": "scaleway/scw-billed-shapes.jsonl",
-      "at": "2026-08-24",
-      "client": "scw 2.56.3",
-      "cloud": "Scaleway fr-par"
-    },
-    {
-      "file": "exoscale/exo-free-shapes.jsonl",
-      "at": "2026-08-24",
-      "client": "exo 1.95.1 (egoscale v3.1.36)",
-      "cloud": "Exoscale ch-gva-2"
     },
     {
       "file": "outscale/oapi-cli-machine-shapes.jsonl",
@@ -269,11 +233,53 @@
       "region": "cloudgouv-eu-west-1"
     },
     {
-      "file": "outscale/oapi-cli-lb-shapes.jsonl",
-      "at": "2026-08-24",
+      "file": "outscale/oapi-cli-refusals.jsonl",
+      "at": "2026-08-21",
       "client": "oapi-cli 0.13.0",
       "cloud": "Outscale cloudgouv-eu-west-1",
       "region": "cloudgouv-eu-west-1"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "at": "2026-08-24",
+      "client": "scw 2.56.3",
+      "cloud": "Scaleway fr-par"
+    },
+    {
+      "file": "scaleway/scw-cli.jsonl",
+      "at": "2026-08-21",
+      "client": "scw 2.56.3",
+      "cloud": "Scaleway fr-par"
+    },
+    {
+      "file": "scaleway/scw-free-shapes.jsonl",
+      "at": "2026-08-24",
+      "client": "scw 2.56.3",
+      "cloud": "Scaleway fr-par"
+    },
+    {
+      "file": "scaleway/scw-gateway.jsonl",
+      "at": "2026-09-15",
+      "client": "scaleway-sdk-go, the call provider 2.83.0 makes",
+      "cloud": "Scaleway fr-par"
+    },
+    {
+      "file": "scaleway/scw-instance.jsonl",
+      "at": "2026-08-21",
+      "client": "scw 2.56.3",
+      "cloud": "Scaleway fr-par"
+    },
+    {
+      "file": "scaleway/scw-refusals.jsonl",
+      "at": "2026-08-21",
+      "client": "scw 2.56.3",
+      "cloud": "Scaleway fr-par"
+    },
+    {
+      "file": "scaleway/terraform.jsonl",
+      "at": "2026-08-21",
+      "client": "terraform-provider-scaleway 2.81.0",
+      "cloud": "Scaleway fr-par"
     }
   ],
   "accepted": [
