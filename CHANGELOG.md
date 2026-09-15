@@ -17,6 +17,37 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Added
 
+- **The API gateway's own route: `scw/Client.GetAPIMetadata`** (#776).
+  `GET /metadata` answers `{"platform", "partition", "domain"}`, which the SDK
+  reads to build a `srn://<service>.<domain>/…` client-side for every product
+  that gained one.
+
+  Measured 2026-09-14 through `feint proxy --record`: one `apply` plus `destroy`
+  of the conformance fixture sent **148 of these and this emulator answered 404
+  to every one** — 148 of that run's 169 refusals. Nothing failed, because the
+  SDK discards the error and the SRN stays empty. That is luck rather than a
+  decision, and the shape of #257 exactly.
+
+  **The instrument had to move before the handler could.** `Route.Operation`
+  must name an operation the drift scan finds, and the scan walked
+  `api/<product>/<version>` only, where `Client.GetAPIMetadata` is not — so the
+  route would have been an orphan, and all three baselines carry zero. The scan
+  now reads the gateway package on a criterion of its own: a method that
+  **builds** a request rather than one that carries someone else's. Reusing the
+  product walk's matcher was measured wrong in both directions — it found
+  `Client.Do`, the transport every call goes through, and `Config.String`, a
+  formatter, and missed the one operation that matters.
+
+  The contract describes it too, through `--gateway`, the same escape the
+  refusal shape already uses: Scaleway publishes one document per product and
+  the gateway is not one. So the response is **validated** rather than exempted.
+
+  The three values are the real cloud's, read on a read-only shot at an fr-par
+  account and committed as `corpus/scaleway/scw-gateway.jsonl`. A committed
+  corpus is sanitised, so it grades the status and the field tree and not the
+  values; those are held by the contract fragment and by a test that writes them
+  out rather than reading them from the handler.
+
 - **A server gives up a private interface: `instance/v2alpha1/API.DetachServerPrivateNetworkInterface`.**
   `POST /instance/v2alpha1/zones/{zone}/servers/{id}/detach-private-network-interface`
   dissociates an interface from its server and answers the server. Terraform

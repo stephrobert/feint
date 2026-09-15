@@ -2955,7 +2955,7 @@ proof.
 |---|---|--:|---|
 | Exoscale | `2.0.0` | 473 | *assumed* by this emulator |
 | Outscale | `1.42.0` | 655 | **declared** by the provider |
-| Scaleway | `instance/v1, instance/v2alpha1, vpc/v2, ipam/v1, iam/v1alpha1, marketplace/v2, block/v1, block/v1alpha1, lb/v1, vpcgw/v2, account/v3, baremetal/v1` | 707 | **declared** by the provider |
+| Scaleway | `instance/v1, instance/v2alpha1, vpc/v2, ipam/v1, iam/v1alpha1, marketplace/v2, block/v1, block/v1alpha1, lb/v1, vpcgw/v2, account/v3, baremetal/v1` | 708 | **declared** by the provider |
 <!-- contracts:end -->
 
 **Declared** means the provider wrote `additionalProperties: false` themselves:
@@ -3252,42 +3252,38 @@ choice rather than an accident:
   publishes none, and listing the private groups under a public label would be
   the same lie #271 names, pointed the other way.
 
-## The Scaleway gateway serves `GET /metadata` and this emulator does not (#776)
+## The Scaleway gateway's `GET /metadata` is served, and what it answers is three constants (#776)
 
-The Scaleway SDK that provider **2.82.0** embeds asks the gateway for its
-metadata, and uses the domain it answers to compute a `srn://…` client-side for
-every product that gained one. This emulator mounts no such route.
+The SDK that Terraform provider **2.82.0** and later embed asks the gateway for
+its metadata, and uses the domain it answers to compute a `srn://…` client-side
+for every product that gained one. This emulator mounted no such route until
+2026-09-15, and answered 404: measured through `feint proxy --record`, one
+`apply` plus `destroy` of the conformance fixture sent **148 of them**, which
+was 148 of that run's 169 refusals.
 
-Measured 2026-09-14, one `apply` plus `destroy` of the conformance fixture
-through `feint proxy --record`: **539 exchanges over 100 paths, of which 148 are
-`GET /metadata` and every one is answered 404** — 148 of the run's 169 refusals.
+Nothing failed, and that was luck rather than a decision: the callers discard
+the error, so the SRN stayed empty rather than wrong.
 
-Nothing fails, and that is luck rather than a decision. `scw/client.go` reads the
-metadata and its callers discard the error:
-
-```go
-apiMetadata, err := s.client.GetAPIMetadata()
-if err == nil {
-    resp.setSRN(apiMetadata.Domain)
-}
-```
-
-So the SRN stays empty and the apply completes. A caller that stops ignoring it
-turns this into a failure with no change on this side, which is the shape of
-#257 exactly.
-
-What the real cloud answers is known rather than guessed — a read-only shot
-against a real `fr-par` account the same day, no resource created:
+**What is served now, and what it costs.** Three constants:
 
 ```
-GET https://api.scaleway.com/metadata  ->  200
+GET /metadata  ->  200
 {"platform": "external", "partition": "scw", "domain": "scw.eu"}
 ```
 
-It is not mounted yet because `Route.Operation` must name an operation the drift
-scan finds, and that scan walks `api/<product>/<version>` only, where
-`GetAPIMetadata` is not. A route declaring it becomes an orphan, and all three
-baselines carry zero. The instrument gets decided before the handler: #776.
+They are the real cloud's own answer, read on a read-only shot at an `fr-par`
+account on 2026-09-14 and again on 2026-09-15, and committed as
+`corpus/scaleway/scw-gateway.jsonl`. **They are constants, and that is the
+limit**: the real gateway describes the platform a caller reached, so an
+account on a different platform or partition would be told this one. Every
+account this project can reach answers these three, and an emulator serving one
+platform cannot honestly vary them — but a reader building a multi-platform
+expectation on this route would be building it on a fixture.
+
+The corpus grades the shape rather than the values, because a committed corpus
+is sanitised: it keeps the status, the field tree and the types, and replaces
+every value with a synthetic one. The values are held by
+`tools/contract/scaleway-gateway.yaml` and by a test that writes them out.
 
 ## The per-parameter half: 18 Scaleway list operations, 72 parameters, each served or refused (#277)
 

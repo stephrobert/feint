@@ -496,6 +496,12 @@ def main() -> int:
         help="a YAML fragment {fields: [...]} adding fields a recording of the real cloud "
         "carries and the document does not declare; every entry cites its recording",
     )
+    parser.add_argument(
+        "--gateway",
+        metavar="FILE",
+        help="a YAML fragment {name, operation, schemas} describing an operation the API "
+        "gateway serves and no per-product document declares; same reason as --error-shape",
+    )
     args = parser.parse_args()
 
     schemas: dict = {}
@@ -570,6 +576,33 @@ def main() -> int:
         artefact["errorSchema"] = error_schema
     if recorded_fields:
         artefact["recordedFields"] = recorded_fields
+    # The gateway's own operations, which belong to no product document. Folded
+    # in last, and a collision is refused rather than resolved: a name the
+    # documents already carry means the fragment has become redundant, and
+    # letting it win silently is how an artefact stops being what the extraction
+    # produces.
+    if args.gateway:
+        with open(args.gateway) as f:
+            fragment = yaml.safe_load(f)
+        name = fragment["name"]
+        if name in operations:
+            print(
+                f"{args.output}: {name} is already declared by a document; "
+                f"drop the gateway fragment",
+                file=sys.stderr,
+            )
+            return 1
+        operations[name] = fragment["operation"]
+        for schema_name, sch in (fragment.get("schemas") or {}).items():
+            if schema_name in schemas:
+                print(
+                    f"{args.output}: schema {schema_name} is already extracted; "
+                    f"the gateway fragment must not redefine it",
+                    file=sys.stderr,
+                )
+                return 1
+            schemas[schema_name] = schema_entry(sch, args)
+
     artefact["operations"] = dict(sorted(operations.items()))
     artefact["schemas"] = dict(sorted(schemas.items()))
 

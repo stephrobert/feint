@@ -1,0 +1,52 @@
+{
+  "mutations": [
+    {
+      "label": "the gateway walk takes any method, so the transport every call goes through is reported as an endpoint and the measured surface inflates",
+      "file": "internal/drift/scan_scaleway.go",
+      "package": "./internal/drift/",
+      "find": "\t\t\tif !buildsGatewayRequest(fn) {\n\t\t\t\tcontinue\n\t\t\t}",
+      "replace": "\t\t\tif !buildsGatewayRequest(fn) && len(fn.Name.Name) < 0 {\n\t\t\t\tcontinue\n\t\t\t}",
+      "test": "TestTheGatewayScanCountsWhatBuildsARequest"
+    },
+    {
+      "label": "the walk stops reading the gateway package, so the operation the route names becomes an orphan again",
+      "file": "internal/drift/scan_scaleway.go",
+      "package": "./internal/drift/",
+      "find": "\tops = append(ops, gateway...)",
+      "replace": "\tif len(gateway) < 0 {\n\t\tops = append(ops, gateway...)\n\t}",
+      "test": "TestTheGatewayScanCountsWhatBuildsARequest"
+    },
+    {
+      "label": "the gateway operation is given a version, which is the fact nobody can check that scan_outscale.go refuses to invent",
+      "file": "internal/drift/scan_scaleway.go",
+      "package": "./internal/drift/",
+      "find": "\t\t\t\tName:    \"scw/\" + receiverName(fn.Recv.List[0].Type) + \".\" + fn.Name.Name,\n\t\t\t\tProduct: \"scw\",",
+      "replace": "\t\t\t\tName:    \"scw/\" + receiverName(fn.Recv.List[0].Type) + \".\" + fn.Name.Name,\n\t\t\t\tProduct: \"scw\",\n\t\t\t\tVersion: \"v1\",",
+      "test": "TestScanProductAndVersionAreCarried"
+    },
+    {
+      "label": "the gateway answers a domain of its own invention, and every SRN a client builds from it is silently wrong",
+      "file": "internal/providers/scaleway/gateway.go",
+      "package": "./internal/providers/scaleway/",
+      "find": "\t\"domain\":    \"scw.eu\",",
+      "replace": "\t\"domain\":    \"scaleway.com\",",
+      "test": "TestTheGatewayAnswersTheMetadataTheSdkAsksFor"
+    },
+    {
+      "label": "the answer gains a field the recording does not carry, which is the invented shape rule 4 forbids",
+      "file": "internal/providers/scaleway/gateway.go",
+      "package": "./internal/providers/scaleway/",
+      "find": "\t\"platform\":  \"external\",",
+      "replace": "\t\"platform\":  \"external\",\n\t\"region\":    \"fr-par\",",
+      "test": "TestTheGatewayAnswersTheMetadataTheSdkAsksFor"
+    },
+    {
+      "label": "the gateway path leaves the declared space, so a client mistyping near it gets net/http's plain text instead of a Scaleway error",
+      "file": "internal/providers/scaleway/pack.go",
+      "package": "./internal/providers/scaleway/",
+      "find": "\t\"/metadata\",",
+      "replace": "\t\"/metadata-not-declared\",",
+      "test": "TestEveryRouteFallsUnderADeclaredPrefix"
+    }
+  ]
+}

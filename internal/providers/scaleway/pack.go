@@ -71,6 +71,10 @@ func (p *Pack) Routes() []emulator.Route {
 	const lbZones = "/lb/v1/zones/{zone}"
 	const gwZones = "/vpc-gw/v2/zones/{zone}"
 	return []emulator.Route{
+		// The gateway's own route, under no product. gateway.go carries the
+		// recording and the reason the three values are constants.
+		{Method: "GET", Path: "/metadata", Operation: "scw/Client.GetAPIMetadata", Handler: p.metadata},
+
 		{Method: "GET", Path: zones + "/servers", Operation: "instance/v1/API.ListServers", Handler: p.listServers},
 		{Method: "POST", Path: zones + "/servers", Operation: "instance/v1/API.CreateServer", Handler: p.createServer},
 		{Method: "GET", Path: zones + "/servers/{id}", Operation: "instance/v1/API.GetServer", Handler: p.getServer},
@@ -585,6 +589,12 @@ var productPrefixes = []string{
 	"/vpc-gw/v2/",
 	// Since #631: Elastic Metal's listing, the one route of the product.
 	"/baremetal/v1/",
+	// Since #776: the API gateway's own path, which belongs to no product. It
+	// is a full path rather than a prefix with a trailing slash, because the
+	// gateway serves exactly this one and `/metadata/anything` is not its space.
+	// What this list decides is the error envelope, and a client that mistypes
+	// here is unambiguously a Scaleway client.
+	"/metadata",
 
 	// Published by Scaleway and not served here. They are declared so that a
 	// client reaching one gets a Scaleway error envelope rather than net/http's

@@ -67,4 +67,5 @@ done < tools/contract/scaleway-products.txt
 # shellcheck disable=SC2086 # specs is a built argument list, and must split
 extract contracts/scaleway.json --provider scaleway \
   --source "https://www.scaleway.com/en/developers/api/<product>/schema.yml" \
-  --error-shape tools/contract/scaleway-error.yaml $specs
+  --error-shape tools/contract/scaleway-error.yaml \
+  --gateway tools/contract/scaleway-gateway.yaml $specs

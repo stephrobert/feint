@@ -8,6 +8,7 @@
     "A declared query parameter is served or refused, never dropped — and `labels` is the refused one": "2026-08-27",
     "A machine's route out: which shapes reach a package repository (#507)": "2026-08-28",
     "A public address is the provider's value, made to answer on the host": "2026-08-27",
+    "A reverse that does not resolve is accepted here and refused upstream (#676)": "2026-09-04",
     "A run presented as local can still reach the real cloud (#280)": "2026-08-27",
     "An API reboot used to log `Failed to add route: file exists` for its own public /32 (#498, lifted 2026-08-27)": "2026-08-27",
     "An ERROR is a failure and a WARN is a decline, and one refusal was on the wrong side (#474)": "2026-08-28",
@@ -16,6 +17,7 @@
     "An Outscale load balancer distributes packets inside its network, and nowhere else": "2026-08-27",
     "An Outscale machine owns a root volume, and that volume holds no bytes": "2026-08-27",
     "Exoscale has one zone per process, and the reason is the client": "2026-08-27",
+    "Four Outscale parameters reach the API only as a payload, and that is `octl`'s gap": "2026-09-14",
     "Identifiers are not checked against anything": "2026-09-02",
     "Lifecycle transitions are immediate, unless you ask for otherwise": "2026-09-03",
     "Managed Kubernetes is not emulated, and a CRUD-only version is refused (#283)": "2026-08-27",
@@ -25,20 +27,18 @@
     "ReadTags does not list an internet service, because upstream names no type for one": "2026-08-27",
     "The Exoscale Terraform provider is refused, and why": "2026-08-27",
     "The Exoscale stack's second plan is not empty: two per-id outputs read back null at apply time (#520)": "2026-08-29",
+    "The Scaleway gateway's `GET /metadata` is served, and what it answers is three constants (#776)": "2026-09-15",
     "The catalogue is a whitelist, and its values are measured": "2026-08-27",
     "The contracts do not guarantee the same thing": "2026-08-27",
     "The cost of DNS/TLS interception, measured (#76)": "2026-08-27",
     "The firewall enforces, within stated bounds": "2026-08-28",
     "The guest's DHCP client is not how a published address reaches a machine (#587)": "2026-08-29",
-    "The Scaleway gateway serves `GET /metadata` and this emulator does not (#776)": "2026-09-14",
     "The per-parameter half: 18 Scaleway list operations, 72 parameters, each served or refused (#277)": "2026-08-29",
     "The station reaches an OVN private address only via the network's router, and the posted uplink routes do not go there (#496)": "2026-08-27",
     "The three packs hand their security groups to the runtime, within two measured bounds": "2026-08-28",
-    "Four Outscale parameters reach the API only as a payload, and that is `octl`'s gap": "2026-09-14",
     "What survives a dead emulator, in one table": "2026-08-27",
     "`feint images resolve` prints only what boots, and names what it left out (#476)": "2026-08-30",
     "`lb/v1` refusals carry an envelope the real one does not": "2026-09-03",
-    "`scw` 2.56.3 prints a recovered panic on every successful `lb acl delete`, and the defect is upstream (#505)": "2026-08-28",
-    "A reverse that does not resolve is accepted here and refused upstream (#676)": "2026-09-04"
+    "`scw` 2.56.3 prints a recovered panic on every successful `lb acl delete`, and the defect is upstream (#505)": "2026-08-28"
   }
 }

@@ -1,0 +1,46 @@
+# The API gateway's own operation, which no per-product OpenAPI document
+# declares because the gateway is not a product.
+#
+# Scaleway publishes one schema.yml per product (tools/contract/scaleway-products.txt)
+# and `GET /metadata` belongs to none of them: it is served by the gateway in
+# front of all of them, and its Go entry point lives in scaleway-sdk-go/scw/client.go
+# rather than under api/<product>/<version>. Same reason scaleway-error.yaml
+# exists — a shape the SDK reads and the documents do not carry.
+#
+# WHY IT MATTERS: the SDK that Terraform provider 2.83.0 embeds calls this after
+# every read of a product carrying an SRN, to build one client-side. Measured
+# 2026-09-14, one apply plus destroy of the conformance fixture sent 148 of them
+# and this emulator answered 404 to every one (#776).
+#
+# THE SHAPE IS MEASURED, NOT TRANSCRIBED FROM A GUESS. A read-only shot at a
+# real fr-par account on 2026-09-14, recorded through `feint proxy --record` and
+# committed as corpus/scaleway/scw-gateway.jsonl:
+#
+#     GET https://api.scaleway.com/metadata  ->  200
+#     {"platform": "external", "partition": "scw", "domain": "scw.eu"}
+#
+# The field names and types match scw.ApiMetadata in the SDK, which is what
+# GetAPIMetadata unmarshals into. `required` carries all three because the
+# recording carries all three and the struct has no omitempty: a caller reading
+# Domain to build an SRN gets the empty string if one goes missing, and the SRN
+# is then silently wrong rather than absent.
+name: scw.GetAPIMetadata
+operation:
+  path: /metadata
+  method: GET
+  group: Gateway
+  response: scw.ApiMetadata
+schemas:
+  scw.ApiMetadata:
+    type: object
+    required:
+      - platform
+      - partition
+      - domain
+    properties:
+      platform:
+        type: string
+      partition:
+        type: string
+      domain:
+        type: string

@@ -9,6 +9,7 @@
     "ipam",
     "lb",
     "marketplace",
+    "scw",
     "vpc",
     "vpcgw"
   ],

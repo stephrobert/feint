@@ -1,7 +1,7 @@
 {
   "provider": "scaleway",
-  "total": 536,
-  "implemented": 194,
+  "total": 537,
+  "implemented": 195,
   "declined": 342,
   "unknown": 0,
   "orphans": null,
@@ -163,6 +163,13 @@
       ]
     },
     {
+      "product": "scw",
+      "total": 1,
+      "implemented": 1,
+      "declined": 0,
+      "unknown": 0
+    },
+    {
       "product": "vpc",
       "total": 37,
       "implemented": 19,
@@ -257,6 +264,13 @@
       "total": 8,
       "implemented": 1,
       "declined": 7,
+      "unknown": 0
+    },
+    {
+      "group": "scw",
+      "total": 1,
+      "implemented": 1,
+      "declined": 0,
       "unknown": 0
     },
     {
@@ -3159,6 +3173,11 @@
       "reason": "the global image index spans every image Scaleway publishes in every zone, and the emulator answers from a small fixed table that would either list images it cannot boot or claim the catalogue is six entries long",
       "version": "v2",
       "status": "declined"
+    },
+    {
+      "operation": "scw/Client.GetAPIMetadata",
+      "product": "scw",
+      "status": "implemented"
     },
     {
       "operation": "vpc/v2/API.AddPrivateNetworkObjectStoragePrivateAccess",
