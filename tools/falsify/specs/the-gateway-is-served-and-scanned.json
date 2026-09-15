@@ -47,6 +47,14 @@
       "find": "\t\"/metadata\",",
       "replace": "\t\"/metadata-not-declared\",",
       "test": "TestEveryRouteFallsUnderADeclaredPrefix"
+    },
+    {
+      "label": "the gateway path leaves the declared space, so a POST near it answers net/http's plain text and the SDK hands its caller a bare status",
+      "file": "internal/providers/scaleway/pack.go",
+      "package": "./internal/providers/scaleway/",
+      "find": "\t\"/metadata\",",
+      "replace": "\t\"/metadata-not-declared-either\",",
+      "test": "TestTheGatewayMetadataDoesNotVary"
     }
   ]
 }
