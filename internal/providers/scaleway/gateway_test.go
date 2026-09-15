@@ -69,19 +69,22 @@ func TestTheGatewayMetadataDoesNotVary(t *testing.T) {
 	// And it is a GET: the SDK issues no other verb at this path, so anything
 	// else must not be served here by accident.
 	//
-	// Read with a bare client rather than the shared helper, which decodes JSON
-	// and fails on this answer — because an unmounted path answers net/http's
-	// plain-text "404 page not found". The real gateway answers a Scaleway error
-	// document there (`{"type":"404","message":…}`, measured 2026-09-14). That
-	// divergence is real and belongs to every unmounted path rather than to this
-	// route, so it is named in #776 and not fixed here; this assertion is about
-	// the verb, and it is written not to depend on a body it is not judging.
-	res, err := ts.Client().Post(ts.URL+"/metadata", "application/json", nil) //nolint:noctx // test client
-	if err != nil {
-		t.Fatalf("POST /metadata: %v", err)
-	}
-	defer func() { _ = res.Body.Close() }()
-	if res.StatusCode == http.StatusOK {
+	// What it answers instead is this pack's own refusal, and that is worth
+	// asserting rather than merely "not 200": declaring `/metadata` in
+	// productPrefixes is what buys it. Before that line, a POST here fell
+	// through to net/http and came back as plain-text "404 page not found" —
+	// which the SDK drops, leaving a caller with a bare status and nothing to
+	// branch on. That is #74's finding, and this route is inside it.
+	//
+	// Measured both ways on 2026-09-15: without the prefix, `404 page not
+	// found`; with it, `501 {"type":"not_emulated", …}`.
+	status, body := do(t, ts, "POST", "/metadata", "")
+	if status == http.StatusOK {
 		t.Error("POST /metadata answered 200; the gateway serves a read")
+	}
+	if body["type"] != "not_emulated" {
+		t.Errorf("POST /metadata answered %v, not this pack's refusal. A path inside "+
+			"a declared prefix must answer in Scaleway's dialect, or the SDK drops "+
+			"the body and the caller gets a bare status", body)
 	}
 }
