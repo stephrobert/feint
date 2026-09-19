@@ -1,9 +1,9 @@
 {
   "provider": "scaleway",
-  "total": 537,
+  "total": 542,
   "implemented": 195,
   "declined": 342,
-  "unknown": 0,
+  "unknown": 5,
   "orphans": null,
   "products": [
     {
@@ -86,10 +86,10 @@
     },
     {
       "product": "instance",
-      "total": 151,
+      "total": 156,
       "implemented": 73,
       "declined": 78,
-      "unknown": 0,
+      "unknown": 5,
       "versions": [
         {
           "version": "v1",
@@ -100,10 +100,10 @@
         },
         {
           "version": "v2alpha1",
-          "total": 73,
+          "total": 78,
           "implemented": 11,
           "declined": 62,
-          "unknown": 0
+          "unknown": 5
         }
       ]
     },
@@ -240,10 +240,10 @@
     },
     {
       "group": "instance",
-      "total": 151,
+      "total": 156,
       "implemented": 73,
       "declined": 78,
-      "unknown": 0
+      "unknown": 5
     },
     {
       "group": "ipam",
@@ -2023,6 +2023,12 @@
       "status": "declined"
     },
     {
+      "operation": "instance/v2alpha1/API.GetDedicatedPool",
+      "product": "instance",
+      "version": "v2alpha1",
+      "status": "unknown"
+    },
+    {
       "operation": "instance/v2alpha1/API.GetPlacementGroup",
       "product": "instance",
       "version": "v2alpha1",
@@ -2091,6 +2097,18 @@
       "status": "declined"
     },
     {
+      "operation": "instance/v2alpha1/API.ListDedicatedPoolServerTypes",
+      "product": "instance",
+      "version": "v2alpha1",
+      "status": "unknown"
+    },
+    {
+      "operation": "instance/v2alpha1/API.ListDedicatedPools",
+      "product": "instance",
+      "version": "v2alpha1",
+      "status": "unknown"
+    },
+    {
       "operation": "instance/v2alpha1/API.ListPlacementGroups",
       "product": "instance",
       "version": "v2alpha1",
@@ -2108,6 +2126,12 @@
       "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces and placement groups onto it, and for the server family until 2.83.0 reached the private-interface detach, which is why those are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.ListServerCompatibleTypes",
+      "product": "instance",
+      "version": "v2alpha1",
+      "status": "unknown"
     },
     {
       "operation": "instance/v2alpha1/API.ListServerTypes",
@@ -2220,6 +2244,12 @@
       "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces and placement groups onto it, and for the server family until 2.83.0 reached the private-interface detach, which is why those are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.UpdateDedicatedPool",
+      "product": "instance",
+      "version": "v2alpha1",
+      "status": "unknown"
     },
     {
       "operation": "instance/v2alpha1/API.UpdatePlacementGroup",
