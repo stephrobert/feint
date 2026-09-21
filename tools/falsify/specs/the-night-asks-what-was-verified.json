@@ -1,0 +1,21 @@
+{
+  "package": "./tools/ci/",
+  "mutations": [
+    {
+      "label": "the night stops asking what the emulator verified: the step is commented out rather than deleted, so every name in the file survives and only a test that reads STEPS rather than TEXT can notice (#740)",
+      "file": ".github/workflows/runtime-proof.yml",
+      "package": "./tools/ci/",
+      "find": "      - name: What the emulator verified against every plan\n        if: always()\n        run: sudo tools/conformance/guard.sh verification http://127.0.0.1:4599",
+      "replace": "      # - name: What the emulator verified against every plan\n      #   if: always()\n      #   run: sudo tools/conformance/guard.sh verification http://127.0.0.1:4599",
+      "test": "TestTheRuntimeProofAsksWhatTheEmulatorVerified"
+    },
+    {
+      "label": "the step stops being `if: always()`, so a suite that already failed hides the claims of the very run that went wrong",
+      "file": ".github/workflows/runtime-proof.yml",
+      "package": "./tools/ci/",
+      "find": "      - name: What the emulator verified against every plan\n        if: always()\n",
+      "replace": "      - name: What the emulator verified against every plan\n        if: always() == false\n",
+      "test": "TestTheRuntimeProofAsksWhatTheEmulatorVerified"
+    }
+  ]
+}
