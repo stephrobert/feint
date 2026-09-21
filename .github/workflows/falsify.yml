@@ -39,7 +39,13 @@ jobs:
     # Each mutation is a fresh copy plus a package build and one test run. The
     # first copy pays for the whole module's compilation; the rest hit the cache.
     #
-    # 150, not 30, and the figure is measured rather than chosen. The suite was
+    # 210, and each raise is measured rather than chosen. 30 was what cancelled
+    # this job for twenty-four consecutive nights (#737). 150 was set from a
+    # local projection of 97 minutes; the first night that actually finished
+    # took **145** (04:30 to 06:55 on 2026-09-20), leaving five minutes of
+    # margin on a suite that grew from 199 to 207 specs in the same week. A
+    # budget that tight turns the next dozen specs into a cancelled night, which
+    # is the failure this line already caused once. The suite was
     # killed by this very line for twenty-four consecutive nights (#737): 30
     # minutes was set when the suite was smaller, and it now carries 1271
     # mutations across 199 specs. A local replay on a warm cache was clocked at
@@ -51,7 +57,7 @@ jobs:
     # cancellation as an infrastructure finding rather than as a guard breaking.
     #
     # When this line needs raising again, split the specs across a matrix instead.
-    timeout-minutes: 150
+    timeout-minutes: 210
     permissions:
       contents: read
     steps:

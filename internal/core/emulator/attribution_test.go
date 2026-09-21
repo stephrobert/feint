@@ -26,20 +26,37 @@ import (
 // they touch the store. Nothing about the old attribution could survive it: two
 // non-probe requests were in flight for every touch, so every touch was
 // dropped.
+//
+// Two barriers, not one, and the second is what makes the falsification
+// deterministic. With only the entry barrier, both handlers started together and
+// then raced: a handler that finished its touches and returned left the flight
+// before the other touched anything, so the other attributed correctly even with
+// the goroutine check removed. The mutation went undetected in roughly three
+// runs out of five — measured on 2026-09-21 — which reads as "this guard stopped
+// working" in a nightly replay and is nothing of the sort.
+//
+// The exit barrier holds both requests in flight until BOTH have touched, which
+// is what the sentence above always claimed and what the guard actually has to
+// survive.
 func barrierPack(env *emulator.Env) stubPack {
 	const provider, kind = "stub", "thing"
 	tenant := resource.Tenant{Provider: provider}
 
 	// Both handlers meet here before the first store touch and leave together,
 	// so the overlap is a fact of the test rather than a hope about timing.
-	var barrier sync.WaitGroup
-	barrier.Add(2)
+	var entry, exit sync.WaitGroup
+	entry.Add(2)
+	exit.Add(2)
 	cycle := func(w http.ResponseWriter, _ *http.Request) {
-		barrier.Done()
-		barrier.Wait()
+		entry.Done()
+		entry.Wait()
 		id := env.NewID()
 		env.Store.Put(&resource.Resource{ID: id, Kind: kind, Tenant: tenant})
 		env.Store.Delete(provider, kind, id)
+		// Nobody leaves until both have touched, or the last toucher is alone in
+		// flight and any attribution rule at all would get it right.
+		exit.Done()
+		exit.Wait()
 		emulator.WriteJSON(w, http.StatusOK, map[string]string{"id": id})
 	}
 	return stubPack{name: provider, routes: []emulator.Route{

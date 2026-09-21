@@ -10,10 +10,10 @@
       "test": "TestEveryScheduledWorkflowReportsOrSaysWhyNot"
     },
     {
-      "label": "the replay is given back the thirty minutes that killed it every night",
+      "label": "the replay is given back the thirty minutes that killed it every night, measured against a run that now needs 145 (#737, #781)",
       "file": ".github/workflows/falsify.yml",
       "package": "./tools/ci/",
-      "find": "    timeout-minutes: 150",
+      "find": "    timeout-minutes: 210",
       "replace": "    timeout-minutes: 30",
       "test": "TestTheFalsifySuiteIsGivenTimeToFinish"
     }
