@@ -1,8 +1,8 @@
 {
   "provider": "scaleway",
-  "total": 537,
+  "total": 542,
   "implemented": 195,
-  "declined": 342,
+  "declined": 347,
   "unknown": 0,
   "orphans": null,
   "products": [
@@ -86,9 +86,9 @@
     },
     {
       "product": "instance",
-      "total": 151,
+      "total": 156,
       "implemented": 73,
-      "declined": 78,
+      "declined": 83,
       "unknown": 0,
       "versions": [
         {
@@ -100,9 +100,9 @@
         },
         {
           "version": "v2alpha1",
-          "total": 73,
+          "total": 78,
           "implemented": 11,
-          "declined": 62,
+          "declined": 67,
           "unknown": 0
         }
       ]
@@ -240,9 +240,9 @@
     },
     {
       "group": "instance",
-      "total": 151,
+      "total": 156,
       "implemented": 73,
-      "declined": 78,
+      "declined": 83,
       "unknown": 0
     },
     {
@@ -2023,6 +2023,13 @@
       "status": "declined"
     },
     {
+      "operation": "instance/v2alpha1/API.GetDedicatedPool",
+      "product": "instance",
+      "reason": "a Dedicated Pool is physical capacity reserved for an organisation, and this emulator has no fleet: answering would invent hardware a client could plan a migration onto, which is the same refusal GetServerTypesAvailability carries. It holds whether or not this API stays alpha",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
       "operation": "instance/v2alpha1/API.GetPlacementGroup",
       "product": "instance",
       "version": "v2alpha1",
@@ -2091,6 +2098,20 @@
       "status": "declined"
     },
     {
+      "operation": "instance/v2alpha1/API.ListDedicatedPoolServerTypes",
+      "product": "instance",
+      "reason": "a Dedicated Pool is physical capacity reserved for an organisation, and this emulator has no fleet: answering would invent hardware a client could plan a migration onto, which is the same refusal GetServerTypesAvailability carries. It holds whether or not this API stays alpha",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.ListDedicatedPools",
+      "product": "instance",
+      "reason": "a Dedicated Pool is physical capacity reserved for an organisation, and this emulator has no fleet: answering would invent hardware a client could plan a migration onto, which is the same refusal GetServerTypesAvailability carries. It holds whether or not this API stays alpha",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
       "operation": "instance/v2alpha1/API.ListPlacementGroups",
       "product": "instance",
       "version": "v2alpha1",
@@ -2106,6 +2127,13 @@
       "operation": "instance/v2alpha1/API.ListSecurityGroups",
       "product": "instance",
       "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces and placement groups onto it, and for the server family until 2.83.0 reached the private-interface detach, which is why those are served and these are not",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.ListServerCompatibleTypes",
+      "product": "instance",
+      "reason": "which types a server can be converted to is a compatibility matrix this emulator has no measurement for: corpus/ holds no recording of it, and the catalogue served here is a small fixed table rather than Scaleway's. An invented answer would have a client plan a resize the real API refuses",
       "version": "v2alpha1",
       "status": "declined"
     },
@@ -2218,6 +2246,13 @@
       "operation": "instance/v2alpha1/API.StopServer",
       "product": "instance",
       "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces and placement groups onto it, and for the server family until 2.83.0 reached the private-interface detach, which is why those are served and these are not",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.UpdateDedicatedPool",
+      "product": "instance",
+      "reason": "a Dedicated Pool is physical capacity reserved for an organisation, and this emulator has no fleet: answering would invent hardware a client could plan a migration onto, which is the same refusal GetServerTypesAvailability carries. It holds whether or not this API stays alpha",
       "version": "v2alpha1",
       "status": "declined"
     },
