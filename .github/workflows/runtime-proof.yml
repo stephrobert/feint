@@ -73,7 +73,7 @@ jobs:
         mode: [incus, incus-ovn]
     steps:
       - name: Harden the runner
-        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: audit
 
@@ -424,6 +424,27 @@ jobs:
         if: always()
         run: sudo tools/conformance/score.sh http://127.0.0.1:4599
 
+      # What the emulator read back against every machine's plan, asked before
+      # it stops because the counters and the claims die with it (#670).
+      #
+      # This job ran the four dataplane suites and never asked (#740). The two
+      # local reproductions of those same suites do — leg.sh and day2.sh both
+      # call it — so a claim the emulator itself published as broken reddened a
+      # workstation and never a night. `runtime-proof` is the gate #736 wanted a
+      # green night from before tagging, and a green here did not say the claims
+      # held.
+      #
+      # Measured before arming it, because a gate that starts red teaches people
+      # to ignore it and #731 is about exactly that: on 2026-09-15, after #741
+      # closed the one claim that was breaking under OVN, the incus-ovn leg
+      # answers `held=58 broken=0 unreadable=0 repaired=0`.
+      #
+      # `if: always()` so a suite that already failed still gets its claims
+      # reported rather than hiding them behind the first red.
+      - name: What the emulator verified against every plan
+        if: always()
+        run: sudo tools/conformance/guard.sh verification http://127.0.0.1:4599
+
       # On failure only: what the emulator saw, and what the runtime holds —
       # the two views whose disagreement is usually the diagnosis.
       - name: The emulator's log and the runtime's state
@@ -579,7 +600,7 @@ jobs:
         control: [false, true]
     steps:
       - name: Harden the runner
-        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: audit
 
@@ -894,7 +915,7 @@ jobs:
       contents: read
     steps:
       - name: Harden the runner
-        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: audit
 
@@ -964,7 +985,7 @@ jobs:
       contents: read
     steps:
       - name: Harden the runner
-        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: audit
 
