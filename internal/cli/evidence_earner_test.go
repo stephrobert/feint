@@ -188,6 +188,7 @@ func TestNoClientBorneAxisIsEarnedWithoutAClient(t *testing.T) {
 	}
 
 	witnessed := 0
+	var unwitnessed []string
 	for _, a := range evidenceAxisList() {
 		got := earnedWithoutAClient[a.Name]
 		if a.earner == earnedByAClient {
@@ -200,6 +201,29 @@ func TestNoClientBorneAxisIsEarnedWithoutAClient(t *testing.T) {
 			continue
 		}
 		witnessed += len(got)
+		if len(got) == 0 {
+			unwitnessed = append(unwitnessed, a.Name)
+		}
+	}
+	// Per axis, not only in total, and the difference is what #781 cost.
+	//
+	// The guard below is global: one witnessed axis satisfies it, and a
+	// declaration flipping a DIFFERENT axis to client-borne then passes
+	// unchanged. That is exactly what happened to `shape` — on 2026-09-21 the
+	// committed record held 21 undriven operations and not one of them carried a
+	// recorded answer, so the falsification for that axis proved nothing and a
+	// nightly replay read it as a guard that had stopped working.
+	//
+	// Logged rather than failed, on purpose. An axis no undriven operation earns
+	// is an ordinary state of the record, not a defect, and failing on it would
+	// be a red nobody can clear. What is not ordinary is nobody noticing, so the
+	// names are printed and a falsification can be aimed at an axis that still
+	// has a population.
+	if len(unwitnessed) > 0 {
+		sort.Strings(unwitnessed)
+		t.Logf("this record cannot contradict a declaration on %d axis/axes, because no undriven "+
+			"operation earns them: %s. A falsification aimed at one of those proves nothing.",
+			len(unwitnessed), strings.Join(unwitnessed, ", "))
 	}
 	if witnessed == 0 {
 		t.Fatal("no axis declared earnable without a client was earned by any undriven operation, " +
