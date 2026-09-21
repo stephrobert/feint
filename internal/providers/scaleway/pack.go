@@ -1236,6 +1236,35 @@ func (p *Pack) Declined() []emulator.Decline {
 		emulator.Because("instance/v2alpha1.DetachAndDeletePrivateNetworkInterface folds a detach and a delete into one call, and no client this project drives sends it: the recorded transcript of a full Terraform apply on provider 2.81.0 shows only ListPrivateNetworkInterfaces on this API. The two halves it folds are reachable through the routes already mounted, and the alpha version is named so a promotion to a stable instance/v2 has this decided again",
 			"instance/v2alpha1/API.DetachAndDeletePrivateNetworkInterface"),
 
+		// Appeared upstream in the nightly scan of 2026-09-21, and they get two
+		// reasons rather than one because they fail for different reasons. Both
+		// would survive a promotion of v2alpha1 to a stable instance/v2, which the
+		// blanket reason below would not: that one rests on the API being alpha.
+		//
+		// A Dedicated Pool is physical capacity reserved for an organisation —
+		// "List Dedicated Pools for an organization", "Instance types available in
+		// a Dedicated Pool and their technical details", says the SDK. This is the
+		// provider's own fleet, which docs/limits.md refuses to invent for the
+		// reason GetServerTypesAvailability is already declined: an emulator that
+		// answered would be publishing headroom a client could plan against, and
+		// there is no honest number to put there.
+		emulator.Because("a Dedicated Pool is physical capacity reserved for an organisation, and this emulator has no fleet: answering would invent hardware a client could plan a migration onto, which is the same refusal GetServerTypesAvailability carries. It holds whether or not this API stays alpha",
+			"instance/v2alpha1/API.GetDedicatedPool",
+			"instance/v2alpha1/API.ListDedicatedPoolServerTypes",
+			"instance/v2alpha1/API.ListDedicatedPools",
+			"instance/v2alpha1/API.UpdateDedicatedPool"),
+
+		// "List the Instance types that a given instance could be converted to."
+		// A different refusal from the pools above: the obstacle is not a missing
+		// fleet but a missing measurement. This pack serves a small fixed
+		// catalogue (catalog.go), and which of its types a given server could
+		// become is a compatibility matrix — local volumes, architecture,
+		// generation — that no recording in corpus/ arbitrates. Answering would
+		// mean inventing the matrix, and a client that trusted it would plan a
+		// resize the real API refuses.
+		emulator.Because("which types a server can be converted to is a compatibility matrix this emulator has no measurement for: corpus/ holds no recording of it, and the catalogue served here is a small fixed table rather than Scaleway's. An invented answer would have a client plan a resize the real API refuses",
+			"instance/v2alpha1/API.ListServerCompatibleTypes"),
+
 		// The claim below is now dated twice, and the dates are the point: it held
 		// for the whole alpha API until provider 2.81.0 moved private network
 		// interfaces and placement groups onto it, and it held for the server
