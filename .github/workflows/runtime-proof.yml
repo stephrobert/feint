@@ -982,6 +982,10 @@ jobs:
     permissions:
       actions: read
       contents: read
+      # To comment on #125 when the criterion is met. Read-only here would make
+      # the announcement below a no-op that reports success, which is the shape
+      # of failure this whole change is about.
+      issues: write
     steps:
       - name: Harden the runner
         uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
@@ -989,6 +993,7 @@ jobs:
           egress-policy: audit
 
       - name: Count the streak, from the Actions history
+        id: count
         env:
           GH_TOKEN: ${{ github.token }}
           TARGET: '14'
@@ -1032,6 +1037,25 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
           echo "streak=${streak}/${TARGET}"
+          echo "streak=${streak}" >> "$GITHUB_OUTPUT"
+
+      # The summary above is where this said "the criterion is met" on
+      # 2026-09-21, and nobody read it. The streak broke the next night and the
+      # moment passed. A job log and a step summary are the two places nobody
+      # opens without already knowing there is a problem — the sentence the
+      # report job below already carries for red nights, never applied to the
+      # half that asks for action.
+      #
+      # So it says it on the issue, once. tools/ci/streak-report.sh holds the
+      # decision because a run: block cannot be executed outside Actions, and
+      # tools/ci/streak_report_test.go drives it with a stubbed gh.
+      - name: A met criterion says so on the issue
+        if: steps.count.outputs.streak != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          FEINT_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: tools/ci/streak-report.sh --apply "${{ steps.count.outputs.streak }}" 14 125
 
   # A red night tells somebody (#502). Ten scheduled reds in twelve nights
   # (#501) left no trace outside job logs and the summary above — the two
