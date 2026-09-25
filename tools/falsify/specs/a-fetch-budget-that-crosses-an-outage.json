@@ -1,0 +1,33 @@
+{
+  "package": "./tools/ci/",
+  "mutations": [
+    {
+      "label": "the budget goes back to what every install step had, seven seconds, which is a one-in-five chance of a red night at the failure rate measured on 2026-09-14",
+      "file": "tools/ci/fetch.sh",
+      "find": "attempts=\"${FEINT_FETCH_ATTEMPTS:-10}\"",
+      "replace": "attempts=\"${FEINT_FETCH_ATTEMPTS:-4}\"",
+      "test": "TestTheFetchDefaultsAreTheMeasuredOnes"
+    },
+    {
+      "label": "a missing asset is retried like an outage, so a pin naming something that does not exist takes the full budget and reads like a bad night",
+      "file": "tools/ci/fetch.sh",
+      "find": "  --retry-connrefused \\",
+      "replace": "  --retry-connrefused --retry-all-errors \\",
+      "test": "TestFetchDoesNotRetryAMissingAsset"
+    },
+    {
+      "label": "the destination keeps whatever a failed fetch wrote, so the checksum step compares against an empty file",
+      "file": "tools/ci/fetch.sh",
+      "find": "curl --fail --silent --show-error --location \\",
+      "replace": "curl --fail --no-fail --silent --show-error --location \\",
+      "test": "TestFetchLeavesNothingBehindWhenItFails"
+    },
+    {
+      "label": "the retry budget has no ceiling, so an outage that does not end holds a runner instead of ending the night with a verdict",
+      "file": "tools/ci/fetch.sh",
+      "find": "max_time=\"${FEINT_FETCH_MAX_TIME:-200}\"",
+      "replace": "max_time=\"${FEINT_FETCH_MAX_TIME:-0}\"",
+      "test": "TestTheFetchDefaultsAreTheMeasuredOnes"
+    }
+  ]
+}

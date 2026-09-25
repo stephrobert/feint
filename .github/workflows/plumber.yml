@@ -68,8 +68,8 @@ jobs:
           workdir="$(mktemp -d)"
           base="https://github.com/getplumber/plumber/releases/download/v${PLUMBER_VERSION}"
           asset="plumber-linux-amd64"
-          curl -fsSL -o "${workdir}/${asset}" "${base}/${asset}"
-          curl -fsSL -o "${workdir}/checksums.txt" "${base}/checksums.txt"
+          tools/ci/fetch.sh "${base}/${asset}" "${workdir}/${asset}"
+          tools/ci/fetch.sh "${base}/checksums.txt" "${workdir}/checksums.txt"
           (cd "${workdir}" && grep " ${asset}$" checksums.txt | sha256sum -c -)
           sudo install -m 0755 "${workdir}/${asset}" /usr/local/bin/plumber
           plumber version
