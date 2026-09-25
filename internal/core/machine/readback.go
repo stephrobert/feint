@@ -30,6 +30,16 @@ import (
 // the lease. A virtual machine is Unreadable until its agent answers, and the
 // verification replays from ReplayAddresses, the late-address door that
 // already exists for exactly that.
+//
+// That paragraph was written true of the path it was measured on and false of
+// the other one, and this reader believed it for four red nights (#125).
+// settleFirstBoot waited only for an interface whose address the driver had
+// reserved; an interface that is genuinely DHCP's was walked past, so PowerOn
+// returned on a container that carried nothing yet and this reader broke two
+// claims 0.6 s later on a machine whose lease landed at 0.54 s. The wait now
+// covers both halves, which is what makes the sentence above true rather than
+// nearly true — and the reason it is stated here as well as there is that this
+// file is where the assumption is *used*.
 
 // Observer is the optional half a driver implements, on the model of
 // EgressRouter and Capable: it reads back what a machine carries. A driver

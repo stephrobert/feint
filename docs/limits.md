@@ -2159,6 +2159,48 @@ correct and is the case #202 exists for.
 After it, on the same station and the same images: `alpine:3.21` carries its
 address 31 ms and 36 ms after the create answers, like the other two.
 
+### "Left to DHCP" was read as "walked past", and that cost four nights (#125)
+
+The sentence above is right about the address and was wrong about the wait. A
+device that reserves nothing must not be given an invented address; it still has
+to be **waited for**, because `PowerOn` returning is what the verification of
+#670 takes as its cue to read the machine.
+
+Measured on the maintainer's station on 2026-09-25, `--vm incus-ovn`, on the one
+machine in this repository that attaches with no address — an Outscale `Vm` with
+no `SubnetId`, created by `tools/conformance/outscale/ssh.sh`:
+
+| what | when |
+|---|---|
+| the verdict was published | 0.6 s after the container started |
+| the lease actually landed | 0.54 s |
+| ssh into that same machine | succeeded moments later, in the same suite |
+
+So the emulator reported "a machine does not carry what its plan claims" about a
+machine that carried it, and `runtime-proof.yml` went red four nights running.
+The suite passing and the verdict failing in the same run is the signature: the
+suite asks at one moment, the verdict is a cumulative counter on
+`/_feint/health` that remembers every reading, including the one taken too
+early.
+
+`settleFirstBoot` now waits for the lease on that branch too. Waiting invents
+nothing — the guest is read, never written — so #202 stays closed, and one wait
+mends both broken claims because the lease carries the private aggregates with
+it as DHCP option 121 (`proto dhcp` on all three). The budget is 10 s and not
+`guestRouteWait`'s 90 s: a lease lands in about half a second, or the client has
+declined it for good, which the measurement above this section established at
+45 s, 90 s and 180 s alike.
+
+`TestAFirstBootWaitsForTheLeaseOfANICThatPinsNone` fails without it, and
+`tools/falsify/specs/first-boot-takes-its-address.json` mutates it.
+
+**Why `leg.sh runtime` said the opposite.** It runs the four network suites; the
+CI job runs those plus the three ssh ones, and the machine above is created by
+`outscale/ssh.sh`. A local run measured `broken=0` and the gate was armed on it.
+Replaying the CI population — same seven suites, one emulator, in that order —
+reproduced it outside the runner, and answers `held=67 broken=0 unreadable=0
+repaired=0` with the wait in place.
+
 ### What this does not claim
 
 - It is not a statement about dhcpcd being wrong. A real cloud's DHCP server

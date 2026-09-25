@@ -1303,11 +1303,35 @@ func (d *Incus) ownedManagedNICs(ctx context.Context, machine string) (instanceV
 //
 // Devices that pin nothing are left alone — that is the DHCP case, it is
 // correct, and inventing an address for it is exactly what this emulator must
-// not do. There is no wait here for the same reason: the address this puts on
-// the interface is the one it just reserved, so the routes that follow have
-// their connected subnet already.
+// not do. The pinned path needs no wait for the same reason: the address this
+// puts on the interface is the one it just reserved, so the routes that follow
+// have their connected subnet already.
 //
-// TestAFirstBootGivesTheGuestTheAddressItReserved fails without this.
+// THE DHCP HALF STILL HAS TO BE WAITED FOR, and leaving without a word was the
+// other half of the defect (#125). "Left alone" was written as "walked past",
+// so a machine whose interface is genuinely DHCP's returned from PowerOn
+// carrying nothing at all, and readback.go's "when Binding.PowerOn returns, a
+// container is configured" was true only of the pinned case it was measured on.
+//
+// What that cost, measured on the maintainer's station on 2026-09-25 under
+// `--vm incus-ovn`: the verification of #670 read the machine 0.6 s after the
+// container started and broke two claims — the lease and the private
+// aggregates — on a machine whose lease landed at 0.54 s and which the suite
+// then logged into over ssh without trouble. A race lost by a tenth of a
+// second, reported as a machine that does not carry what its plan claims. The
+// nightly runtime proof went red on it four nights running, and `leg.sh
+// runtime` could not reproduce it because the population that produces this
+// machine — outscale/ssh.sh, a Vm with no Subnet, the one path in the
+// repository that attaches with no address — is in the CI job and not in that
+// leg.
+//
+// Waiting invents nothing, which is why it is the answer that does not reopen
+// #202: the guest is read, never written. And the lease brings both broken
+// claims at once, which is why one wait mends both — the aggregates arrive in
+// it as DHCP option 121, `proto dhcp` on every one of the three.
+//
+// TestAFirstBootGivesTheGuestTheAddressItReserved and
+// TestAFirstBootWaitsForTheLeaseOfANICThatPinsNone fail without this.
 func (d *Incus) settleFirstBoot(ctx context.Context, machine string) error {
 	devices, names, err := d.ownedManagedNICs(ctx, machine)
 	if err != nil {
@@ -1320,7 +1344,22 @@ func (d *Incus) settleFirstBoot(ctx context.Context, machine string) error {
 	// TestAFirstBootLeavesTheRoutedNICToTheGuestsOwnConfig fails without this.
 	for _, device := range names {
 		if devices.own[device]["ipv4.address"] == "" {
-			continue // DHCP owns this interface, and inventing an address for it is #202
+			// DHCP owns this interface, and inventing an address for it is #202.
+			// Waiting for the lease invents nothing — the guest is read, never
+			// written — and it is what makes "PowerOn returned" mean the same
+			// thing here as on the pinned path.
+			//
+			// Not fatal, and not a reason to abandon the other devices: a lease
+			// that never comes is a true fact about the machine, and the
+			// verification of #670 is what says so. Reporting it here as a
+			// failed boot would be the lie in the other direction, the one
+			// Start already refuses just above this call.
+			if err := d.waitForGuestAddress(ctx, machine, device, guestLeasePoll, guestLeaseWait); err != nil {
+				d.logger().Warn("a machine's interface carried no address before its boot was called finished",
+					"machine", machine, "device", device, "error", err,
+					"consequence", "the verification reads it as broken, which is what it is: the guest's DHCP client did not take a lease in time")
+			}
+			continue
 		}
 		if err := d.restorePinnedAddress(ctx, machine, device, devices.own[device]); err != nil {
 			return fmt.Errorf("settle the first boot of %s: %w", machine, err)
@@ -1558,14 +1597,44 @@ func (d *Incus) restorePinnedAddress(ctx context.Context, machine, device string
 // waitForGuestInterface blocks until the guest carries an IPv4 address on the
 // interface behind a device, which is what tells a boot that has finished
 // configuring the interface from one still doing it.
+//
+// The bounds are the route path's, because that is what this wait orders: a
+// route laid before the address it is relative to is a route the kernel
+// refuses.
 func (d *Incus) waitForGuestInterface(ctx context.Context, machine, device string) error {
-	poll := d.routePoll
-	if poll <= 0 {
-		poll = guestRoutePoll
+	return d.waitForGuestAddress(ctx, machine, device, guestRoutePoll, guestRouteWait)
+}
+
+// guestLeasePoll and guestLeaseWait bound the first boot's wait for a lease on
+// an interface that pins no address (#125).
+//
+// Seconds, not the ninety of guestRouteWait, and the difference is not a taste:
+// a lease either lands in about a second — 0.54 s measured on 2026-09-25, the
+// only measurement this wait has to beat — or the guest's client has declined
+// it for good, which #587 measured on alpine's dhcpcd at 45 s, 90 s and 180 s
+// alike. Waiting longer buys nothing in the first case and nothing in the
+// second, and it sits on the boot path a client is blocked on.
+//
+// The poll is finer than guestRoutePoll's two seconds for the same measurement:
+// polling every two seconds would charge every boot two seconds for a lease
+// that arrives in half of one.
+const (
+	guestLeasePoll = 250 * time.Millisecond
+	guestLeaseWait = 10 * time.Second
+)
+
+// waitForGuestAddress is that wait with the bounds its caller names, so the
+// boot path does not have to borrow the route path's ninety seconds.
+//
+// The driver's own routePoll and routeBudget still win when a test sets them:
+// they are the seam every wait in this file already reads, and a test that
+// shortens one shortens them all rather than learning which name to override.
+func (d *Incus) waitForGuestAddress(ctx context.Context, machine, device string, poll, budget time.Duration) error {
+	if d.routePoll > 0 {
+		poll = d.routePoll
 	}
-	budget := d.routeBudget
-	if budget <= 0 {
-		budget = guestRouteWait
+	if d.routeBudget > 0 {
+		budget = d.routeBudget
 	}
 	deadline := time.Now().Add(budget)
 	var last error
