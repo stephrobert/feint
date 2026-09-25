@@ -4,8 +4,8 @@
     {
       "label": "the first boot skips the devices that reserve an address and settles the ones that do not, so whether a machine carries the address its API published is decided by the image's DHCP client again (#587)",
       "file": "internal/core/machine/incus_ovn.go",
-      "find": "\t\tif devices.own[device][\"ipv4.address\"] == \"\" {\n\t\t\tcontinue // DHCP owns this interface, and inventing an address for it is #202",
-      "replace": "\t\tif devices.own[device][\"ipv4.address\"] != \"\" {\n\t\t\tcontinue // DHCP owns this interface, and inventing an address for it is #202",
+      "find": "\t\tif devices.own[device][\"ipv4.address\"] == \"\" {\n\t\t\t// DHCP owns this interface, and inventing an address for it is #202.",
+      "replace": "\t\tif devices.own[device][\"ipv4.address\"] != \"\" {\n\t\t\t// DHCP owns this interface, and inventing an address for it is #202.",
       "test": "TestAFirstBootGivesTheGuestTheAddressItReserved"
     },
     {
@@ -14,6 +14,20 @@
       "find": "\t\tif !ownedNetwork(cfg[\"network\"]) {\n\t\t\tcontinue\n\t\t}\n\t\tnames = append(names, device)",
       "replace": "\t\tif !ownedNetwork(cfg[\"network\"]) && device == \"\\x00never\" {\n\t\t\tcontinue\n\t\t}\n\t\tnames = append(names, device)",
       "test": "TestAFirstBootLeavesAForeignNICAlone"
+    },
+    {
+      "label": "the first boot walks past a DHCP interface without waiting for its lease, so PowerOn returns on a machine carrying nothing and the verification of #670 breaks two claims 0.6 s later on a lease that lands at 0.54 s (#125)",
+      "file": "internal/core/machine/incus_ovn.go",
+      "find": "d.waitForGuestAddress(ctx, machine, device, guestLeasePoll, guestLeaseWait)",
+      "replace": "d.waitForGuestAddress(ctx, machine, device, guestLeasePoll, guestLeaseWait*0)",
+      "test": "TestAFirstBootWaitsForTheLeaseOfANICThatPinsNone"
+    },
+    {
+      "label": "a lease that never lands is reported as a failed boot, which abandons every device after it — including a NIC whose address the driver had reserved and which nothing else will put on (#125)",
+      "file": "internal/core/machine/incus_ovn.go",
+      "find": "\t\t\t\t\t\"consequence\", \"the verification reads it as broken, which is what it is: the guest's DHCP client did not take a lease in time\")\n\t\t\t}",
+      "replace": "\t\t\t\t\t\"consequence\", \"the verification reads it as broken, which is what it is: the guest's DHCP client did not take a lease in time\")\n\t\t\t\treturn fmt.Errorf(\"settle the first boot of %s: %w\", machine, err)\n\t\t\t}",
+      "test": "TestALeaseThatNeverLandsDoesNotCostTheOtherInterfacesTheirs"
     }
   ]
 }

@@ -399,6 +399,12 @@ func TestAnExtraInterfaceAndAnIsolationDetachTakeTurns(t *testing.T) {
 	f.plugOn = racedStartNet2
 	d := NewIncusOVN()
 	d.runner = f.run
+	// Both attachments pin no address, so the first boot now waits for their
+	// leases (#125) and this fixture offers none. The subject here is the order
+	// of two concurrent operations, not the lease, and the wait it would sit out
+	// is ten seconds of it — the same reason the restart race above sets these.
+	d.routePoll = time.Millisecond
+	d.routeBudget = 2 * time.Millisecond
 
 	var wg sync.WaitGroup
 	var startErr, detachErr error
