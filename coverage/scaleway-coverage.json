@@ -1818,35 +1818,35 @@
       "status": "implemented"
     },
     {
-      "operation": "instance/v1/MetadataAPI.DeleteUserData",
+      "operation": "instance/v1/MetadataAPI.DeleteUserDataWithContext",
       "product": "instance",
       "reason": "the metadata service answers on the link-local address 169.254.42.42, from inside the machine, to a caller that carries no credentials",
       "version": "v1",
       "status": "declined"
     },
     {
-      "operation": "instance/v1/MetadataAPI.GetMetadata",
+      "operation": "instance/v1/MetadataAPI.GetMetadataWithContext",
       "product": "instance",
       "reason": "the metadata service answers on the link-local address 169.254.42.42, from inside the machine, to a caller that carries no credentials",
       "version": "v1",
       "status": "declined"
     },
     {
-      "operation": "instance/v1/MetadataAPI.GetUserData",
+      "operation": "instance/v1/MetadataAPI.GetUserDataWithContext",
       "product": "instance",
       "reason": "the metadata service answers on the link-local address 169.254.42.42, from inside the machine, to a caller that carries no credentials",
       "version": "v1",
       "status": "declined"
     },
     {
-      "operation": "instance/v1/MetadataAPI.ListUserData",
+      "operation": "instance/v1/MetadataAPI.ListUserDataWithContext",
       "product": "instance",
       "reason": "the metadata service answers on the link-local address 169.254.42.42, from inside the machine, to a caller that carries no credentials",
       "version": "v1",
       "status": "declined"
     },
     {
-      "operation": "instance/v1/MetadataAPI.SetUserData",
+      "operation": "instance/v1/MetadataAPI.SetUserDataWithContext",
       "product": "instance",
       "reason": "the metadata service answers on the link-local address 169.254.42.42, from inside the machine, to a caller that carries no credentials",
       "version": "v1",
