@@ -89,7 +89,7 @@ jobs:
           set -euo pipefail
           version="2.56.3"
           url="https://github.com/scaleway/scaleway-cli/releases/download/v${version}/scaleway-cli_${version}_linux_amd64"
-          curl --fail --silent --show-error --location "$url" -o "$RUNNER_TEMP/scw"
+          tools/ci/fetch.sh "$url" "$RUNNER_TEMP/scw"
           chmod +x "$RUNNER_TEMP/scw"
           echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
 

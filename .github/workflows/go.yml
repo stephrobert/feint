@@ -75,8 +75,8 @@ jobs:
           set -euo pipefail
           workdir="$(mktemp -d)"
           asset="shellcheck-v${SHELLCHECK_VERSION}.linux.x86_64.tar.xz"
-          curl -fsSL -o "${workdir}/${asset}" \
-            "https://github.com/koalaman/shellcheck/releases/download/v${SHELLCHECK_VERSION}/${asset}"
+          tools/ci/fetch.sh "https://github.com/koalaman/shellcheck/releases/download/v${SHELLCHECK_VERSION}/${asset}" \
+            "${workdir}/${asset}"
           tar -xJf "${workdir}/${asset}" -C "${workdir}"
           sudo install -m 0755 "${workdir}/shellcheck-v${SHELLCHECK_VERSION}/shellcheck" /usr/local/bin/shellcheck
           shellcheck --version
