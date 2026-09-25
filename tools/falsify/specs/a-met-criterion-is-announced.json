@@ -1,0 +1,47 @@
+{
+  "package": "./tools/ci/",
+  "mutations": [
+    {
+      "label": "a met criterion goes back to a step summary alone, which is where it was said on 2026-09-21 and where nobody read it",
+      "file": ".github/workflows/runtime-proof.yml",
+      "find": "        run: tools/ci/streak-report.sh --apply \"${{ steps.count.outputs.streak }}\" 14 125",
+      "replace": "        run: echo tools/ci/streak-report.sh --apply \"${{ steps.count.outputs.streak }}\" 14 125",
+      "test": "TestTheStreakJobAnnouncesOnTheIssue"
+    },
+    {
+      "label": "the job cannot write on an issue, so the announcement is a silence that reports success",
+      "file": ".github/workflows/runtime-proof.yml",
+      "find": "      issues: write\n    steps:\n      - name: Harden the runner",
+      "replace": "      # issues: write\n      issues: read\n    steps:\n      - name: Harden the runner",
+      "test": "TestTheStreakJobAnnouncesOnTheIssue"
+    },
+    {
+      "label": "the criterion is read as an equality, so a streak past the target falls through and goes silent",
+      "file": "tools/ci/streak-report.sh",
+      "find": "if [ \"$streak\" -lt \"$target\" ]; then",
+      "replace": "if [ \"$streak\" -lt \"$target\" ] || [ \"$streak\" -gt \"$target\" ]; then",
+      "test": "TestAStreakPastTheTargetStillAnnounces"
+    },
+    {
+      "label": "the announcement repeats every night, which is how a notification becomes noise somebody mutes",
+      "file": "tools/ci/streak-report.sh",
+      "find": "if [ \"$already\" = true ]; then",
+      "replace": "if [ \"$already\" = maybe ]; then",
+      "test": "TestAnAnnouncedCriterionIsNotRepeated"
+    },
+    {
+      "label": "a maintainer writing about the criterion silences the mechanism, because the words are searched rather than the marker",
+      "file": "tools/ci/streak-report.sh",
+      "find": "  if printf '%s' \"${comments}\" | grep -qF \"${marker}\"; then",
+      "replace": "  if printf '%s' \"${comments}\" | grep -qF \"criterion is met\"; then",
+      "test": "TestHumanProseDoesNotCountAsTheAnnouncement"
+    },
+    {
+      "label": "it announces below the target too, so the comment arrives whatever happens and stops meaning anything",
+      "file": "tools/ci/streak-report.sh",
+      "find": "  echo \"verdict: not met (${streak}/${target}), nothing to announce\"\n  exit 0",
+      "replace": "  echo \"verdict: not met (${streak}/${target}), nothing to announce\"\n  if [ -z \"$streak\" ]; then exit 0; fi\n  streak=\"$target\"",
+      "test": "TestAStreakBelowTheTargetAnnouncesNothing"
+    }
+  ]
+}
