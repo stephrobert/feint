@@ -873,12 +873,24 @@ func (p *Pack) Declined() []emulator.Decline {
 		// and serving it would mean an HTTP listener inside every emulated
 		// machine. User data reaches the guest through the runtime instead,
 		// which is what cloud-init reads.
+		//
+		// The names moved on 2026-09-2x and the endpoints did not. Scaleway added a
+		// `WithContext` variant of each and turned the bare one into a deprecated
+		// wrapper — `GetMetadata()` is now `GetMetadataWithContext(ctx)` with a
+		// timeout around it, carrying a `//go:fix inline` directive.
+		//
+		// So the scan stopped counting the old spellings, and it is right to: a
+		// method that composes an exported one adds no endpoint, which is the rule
+		// that already keeps WaitForServer and ServerActionAndWait out. The five
+		// listed here are the ones that build a request today. Keeping the old
+		// names beside them would leave five orphan routes — a refusal naming
+		// something upstream no longer has, which is the drift report's own alarm.
 		emulator.Because("the metadata service answers on the link-local address 169.254.42.42, from inside the machine, to a caller that carries no credentials",
-			"instance/v1/MetadataAPI.GetMetadata",
-			"instance/v1/MetadataAPI.GetUserData",
-			"instance/v1/MetadataAPI.ListUserData",
-			"instance/v1/MetadataAPI.SetUserData",
-			"instance/v1/MetadataAPI.DeleteUserData"),
+			"instance/v1/MetadataAPI.GetMetadataWithContext",
+			"instance/v1/MetadataAPI.GetUserDataWithContext",
+			"instance/v1/MetadataAPI.ListUserDataWithContext",
+			"instance/v1/MetadataAPI.SetUserDataWithContext",
+			"instance/v1/MetadataAPI.DeleteUserDataWithContext"),
 
 		// IAM, everything except the SSH keys the pack serves.
 		//
