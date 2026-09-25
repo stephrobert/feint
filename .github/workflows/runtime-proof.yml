@@ -617,26 +617,6 @@ jobs:
           # and cannot be wrong.
           fetch-depth: 0
 
-      # The control's whole subject, resolved here so the log says which tag it
-      # is about. A control that did not name its own subject would be a second
-      # green nobody can interpret.
-      #
-      # It moves the working tree to the tag, SUITES INCLUDED, and that is
-      # deliberate: the question is "does the thing we shipped still work in
-      # today's world", and a harness fix that only exists on main is not part of
-      # what we shipped. The consequence has to be said out loud, because it is
-      # the one that would otherwise teach "the control is always red": a defect
-      # already fixed on main can still redden the control until the next
-      # release carries the fix.
-      - name: Move to the last release, and say which
-        if: matrix.control
-        run: |
-          set -euo pipefail
-          tag="$(git describe --tags --abbrev=0 --match 'v*')"
-          echo "control: the same gate at ${tag}, suites included" >> "$GITHUB_STEP_SUMMARY"
-          echo "CONTROL_TAG=${tag}" >> "$GITHUB_ENV"
-          git checkout --detach "${tag}"
-
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
@@ -707,6 +687,66 @@ jobs:
       # routed addresses.
       - name: Keep the runner's Docker firewall out of the verdict
         run: sudo iptables -P FORWARD ACCEPT
+
+      # `feint up` drives Terraform, which is what applies both stacks. Same
+      # pinned version and upstream checksums as conformance.yml — one client,
+      # three workflows, one truth. No provider CLI is installed: this gate
+      # speaks curl and jq to the emulator and reads the machines with `incus`.
+      #
+      # Installed BEFORE the control moves to the tag, with the other tools, and
+      # that position is the fix for #794's regression — see the step below.
+      - name: Install Terraform
+        env:
+          TERRAFORM_VERSION: '1.13.3'
+        run: |
+          set -euo pipefail
+          workdir="$(mktemp -d)"
+          base="https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}"
+          asset="terraform_${TERRAFORM_VERSION}_linux_amd64.zip"
+          tools/ci/fetch.sh "${base}/${asset}" "${workdir}/${asset}"
+          tools/ci/fetch.sh "${base}/terraform_${TERRAFORM_VERSION}_SHA256SUMS" "${workdir}/sums"
+          (cd "${workdir}" && grep " ${asset}$" sums | sha256sum -c -)
+          sudo unzip -o "${workdir}/${asset}" terraform -d /usr/local/bin
+          terraform version
+
+      # The control's whole subject, resolved here so the log says which tag it
+      # is about. A control that did not name its own subject would be a second
+      # green nobody can interpret.
+      #
+      # It moves the working tree to the tag, SUITES INCLUDED, and that is
+      # deliberate: the question is "does the thing we shipped still work in
+      # today's world", and a harness fix that only exists on main is not part of
+      # what we shipped. The consequence has to be said out loud, because it is
+      # the one that would otherwise teach "the control is always red": a defect
+      # already fixed on main can still redden the control until the next
+      # release carries the fix.
+      #
+      # WHY IT SITS HERE AND NOT BEFORE THE TOOLS (#794). It used to run second,
+      # so every later step ran inside the tag's tree — including the ones that
+      # install Incus and Terraform. On 2026-09-25 #794 moved those downloads onto
+      # `tools/ci/fetch.sh`, a file that exists on main and not in v0.13.0, and
+      # the control died with `tools/ci/fetch.sh: No such file or directory`,
+      # exit 127, thirty-five seconds in, before a single stack. No pull request
+      # could have caught it: this job only exists on the nightly schedule.
+      #
+      # The position is also the better control. A witness should differ from its
+      # subject in ONE thing, the code under test — not in how its runner was
+      # built. Installing the tools from main for both legs is what makes the two
+      # comparable; running the tag's own installation steps mixed the runtime
+      # under test with the harness that fetched it.
+      #
+      # So: everything that provisions the RUNNER runs before this line, and
+      # everything that is the PRODUCT — the binary, the images, the suites —
+      # runs after it. TestTheControlNeverRunsARepositoryScriptInsideTheTag
+      # fails without it.
+      - name: Move to the last release, and say which
+        if: matrix.control
+        run: |
+          set -euo pipefail
+          tag="$(git describe --tags --abbrev=0 --match 'v*')"
+          echo "control: the same gate at ${tag}, suites included" >> "$GITHUB_STEP_SUMMARY"
+          echo "CONTROL_TAG=${tag}" >> "$GITHUB_ENV"
+          git checkout --detach "${tag}"
 
       - name: Build feint and diagnose the runtime
         run: |
@@ -790,24 +830,6 @@ jobs:
 
       - name: Build the machine images the stacks boot
         run: sudo ./feint images --vm incus-ovn
-
-      # `feint up` drives Terraform, which is what applies both stacks. Same
-      # pinned version and upstream checksums as conformance.yml — one client,
-      # three workflows, one truth. No provider CLI is installed: this gate
-      # speaks curl and jq to the emulator and reads the machines with `incus`.
-      - name: Install Terraform
-        env:
-          TERRAFORM_VERSION: '1.13.3'
-        run: |
-          set -euo pipefail
-          workdir="$(mktemp -d)"
-          base="https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}"
-          asset="terraform_${TERRAFORM_VERSION}_linux_amd64.zip"
-          tools/ci/fetch.sh "${base}/${asset}" "${workdir}/${asset}"
-          tools/ci/fetch.sh "${base}/terraform_${TERRAFORM_VERSION}_SHA256SUMS" "${workdir}/sums"
-          (cd "${workdir}" && grep " ${asset}$" sums | sha256sum -c -)
-          sudo unzip -o "${workdir}/${asset}" terraform -d /usr/local/bin
-          terraform version
 
       # The gate itself. FEINT_VM is exported rather than left to the default so
       # the mode is announced with the provenance a reader can check against

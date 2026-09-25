@@ -1,0 +1,19 @@
+{
+  "package": "./tools/ci/",
+  "mutations": [
+    {
+      "label": "a CI script runs after the control checked out the tag, which is how #794 killed the positive control with exit 127 thirty-five seconds in, before a single stack (#125)",
+      "file": ".github/workflows/runtime-proof.yml",
+      "find": "        run: sudo ./feint images --vm incus-ovn",
+      "replace": "        run: tools/ci/fetch.sh https://example.invalid/image /dev/null && sudo ./feint images --vm incus-ovn",
+      "test": "TestTheControlNeverRunsARepositoryScriptInsideTheTag"
+    },
+    {
+      "label": "the control moves to the tag before the tools are installed, so the witness differs from its subject in how its runner was built and not only in the code under test (#125)",
+      "file": ".github/workflows/runtime-proof.yml",
+      "find": "          tools/ci/fetch.sh https://pkgs.zabbly.com/key.asc \"${workdir}/zabbly.asc\"\n          fpr=\"$(gpg --show-keys --with-colons \"${workdir}/zabbly.asc\" | awk -F: '/^fpr/ {print $10; exit}')\"\n          if [ \"${fpr}\" != \"${ZABBLY_FPR}\" ]; then\n            echo \"unexpected Zabbly key fingerprint: ${fpr}\" >&2\n            exit 1\n          fi\n          sudo install -D -m 0644 \"${workdir}/zabbly.asc\" /etc/apt/keyrings/zabbly.asc\n          # shellcheck disable=SC1091\n          codename=\"$(. /etc/os-release && echo \"${VERSION_CODENAME}\")\"\n          arch=\"$(dpkg --print-architecture)\"\n          sudo tee /etc/apt/sources.list.d/zabbly-incus.sources >/dev/null <<EOF\n          Enabled: yes\n          Types: deb\n          URIs: https://pkgs.zabbly.com/incus/stable\n          Suites: ${codename}\n          Components: main\n          Architectures: ${arch}\n          Signed-By: /etc/apt/keyrings/zabbly.asc\n          EOF\n          sudo apt-get update\n          sudo apt-get install -y --no-install-recommends incus incus-client netcat-openbsd\n          sudo incus --version\n\n      - name: Install and wire OVN",
+      "replace": "          tools/ci/fetch.sh https://pkgs.zabbly.com/key.asc \"${workdir}/zabbly.asc\"\n          fpr=\"$(gpg --show-keys --with-colons \"${workdir}/zabbly.asc\" | awk -F: '/^fpr/ {print $10; exit}')\"\n          if [ \"${fpr}\" != \"${ZABBLY_FPR}\" ]; then\n            echo \"unexpected Zabbly key fingerprint: ${fpr}\" >&2\n            exit 1\n          fi\n          sudo install -D -m 0644 \"${workdir}/zabbly.asc\" /etc/apt/keyrings/zabbly.asc\n          # shellcheck disable=SC1091\n          codename=\"$(. /etc/os-release && echo \"${VERSION_CODENAME}\")\"\n          arch=\"$(dpkg --print-architecture)\"\n          sudo tee /etc/apt/sources.list.d/zabbly-incus.sources >/dev/null <<EOF\n          Enabled: yes\n          Types: deb\n          URIs: https://pkgs.zabbly.com/incus/stable\n          Suites: ${codename}\n          Components: main\n          Architectures: ${arch}\n          Signed-By: /etc/apt/keyrings/zabbly.asc\n          EOF\n          sudo apt-get update\n          sudo apt-get install -y --no-install-recommends incus incus-client netcat-openbsd\n          sudo incus --version\n\n      - name: Move the control to the tag too early\n        if: matrix.control\n        run: git checkout --detach \"$(git describe --tags --abbrev=0 --match 'v*')\"\n\n      - name: Install and wire OVN",
+      "test": "TestTheControlNeverRunsARepositoryScriptInsideTheTag"
+    }
+  ]
+}
