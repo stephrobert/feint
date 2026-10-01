@@ -23,12 +23,8 @@
    "path": "/account/v3/projects/{project_id}/delete-with-resources",
    "method": "POST",
    "group": "Projects",
-   "response": "account/v3.scaleway.account.v3.Project",
-   "query": {
-    "project_name": {
-     "type": "string"
-    }
-   }
+   "request": "account/v3.DeleteProjectWithResources.Request",
+   "response": "account/v3.scaleway.account.v3.Project"
   },
   "account/v3.GetProject": {
    "path": "/account/v3/projects/{project_id}",
@@ -944,6 +940,11 @@
    "method": "GET",
    "group": "SAML",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.SamlCertificate"
+  },
+  "iam/v1alpha1.GetScimToken": {
+   "path": "/iam/v1alpha1/scim-tokens/{scim_token_id}",
+   "method": "GET",
+   "response": "iam/v1alpha1.scaleway.iam.v1alpha1.ScimToken"
   },
   "iam/v1alpha1.GetUser": {
    "path": "/iam/v1alpha1/users/{user_id}",
@@ -2538,6 +2539,20 @@
      "items": {
       "type": "string"
      }
+    }
+   }
+  },
+  "instance/v2alpha1.ListServerCompatibleTypes": {
+   "path": "/instance/v2alpha1/zones/{zone}/servers/{server_id}/compatible-types",
+   "method": "GET",
+   "group": "Instance Types",
+   "response": "instance/v2alpha1.scaleway.instance.v2alpha1.ListServerCompatibleTypesResponse",
+   "query": {
+    "page_token": {
+     "type": "string"
+    },
+    "page_size": {
+     "type": "integer"
     }
    }
   },
@@ -4335,6 +4350,14 @@
     }
    }
   },
+  "account/v3.DeleteProjectWithResources.Request": {
+   "closed": false,
+   "properties": {
+    "project_name": {
+     "type": "string"
+    }
+   }
+  },
   "account/v3.SetProjectQualification.Request": {
    "closed": false,
    "properties": {
@@ -5294,6 +5317,9 @@
      "items": {
       "ref": "baremetal/v1.scaleway.baremetal.v1.Disk"
      }
+    },
+    "dual_attach": {
+     "type": "boolean"
     },
     "enable": {
      "type": "boolean"
@@ -12170,6 +12196,23 @@
     }
    }
   },
+  "instance/v2alpha1.scaleway.instance.v2alpha1.ListServerCompatibleTypesResponse": {
+   "closed": false,
+   "properties": {
+    "next_page_token": {
+     "type": "string"
+    },
+    "server_types": {
+     "type": "array",
+     "items": {
+      "ref": "instance/v2alpha1.scaleway.instance.v2alpha1.ServerType"
+     }
+    },
+    "total_count": {
+     "type": "integer"
+    }
+   }
+  },
   "instance/v2alpha1.scaleway.instance.v2alpha1.ListServerTypesResponse": {
    "closed": false,
    "properties": {
@@ -12742,6 +12785,9 @@
     "rescue_mode": {
      "type": "boolean"
     },
+    "runtime_info": {
+     "ref": "instance/v2alpha1.scaleway.instance.v2alpha1.Server.RuntimeInfo"
+    },
     "server_type": {
      "type": "string"
     },
@@ -12817,6 +12863,9 @@
      "type": "boolean"
     },
     "id": {
+     "type": "string"
+    },
+    "provisioned_address": {
      "type": "string"
     },
     "status": {
@@ -12915,6 +12964,14 @@
     },
     "rdp_ssh_key_id": {
      "type": "string"
+    }
+   }
+  },
+  "instance/v2alpha1.scaleway.instance.v2alpha1.Server.RuntimeInfo": {
+   "closed": false,
+   "properties": {
+    "spot": {
+     "type": "boolean"
     }
    }
   },
@@ -13028,6 +13085,9 @@
     "name": {
      "type": "string"
     },
+    "spot_info": {
+     "ref": "instance/v2alpha1.scaleway.instance.v2alpha1.ServerType.SpotInfo"
+    },
     "vcpu_count": {
      "type": "integer"
     }
@@ -13049,7 +13109,8 @@
     "unknown_availability",
     "available",
     "low_stock",
-    "out_of_stock"
+    "out_of_stock",
+    "unavailable"
    ]
   },
   "instance/v2alpha1.scaleway.instance.v2alpha1.ServerType.GpuInfo": {
@@ -13098,6 +13159,14 @@
     },
     "volume_count": {
      "type": "integer"
+    }
+   }
+  },
+  "instance/v2alpha1.scaleway.instance.v2alpha1.ServerType.SpotInfo": {
+   "closed": false,
+   "properties": {
+    "availability": {
+     "ref": "instance/v2alpha1.scaleway.instance.v2alpha1.ServerType.Availability"
     }
    }
   },

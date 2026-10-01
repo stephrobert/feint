@@ -710,6 +710,56 @@ prove_end "$neg"
 prove_end "$span"
 ok "created, listed, read, renamed, removed"
 
+# SCIM, driven by the CLI that has subcommands for it (#800).
+#
+# The drift of 2026-09-29 brought `GetScimToken` and nothing else: its six
+# neighbours were declined, so serving that one alone would have been a route
+# answering 404 to every identifier while counting as implemented. The family is
+# served instead, and this is the half that proves a real client walks it.
+#
+# WHY curl ENABLES IT. `scw iam scim` carries `delete` and nothing else — there
+# is no `enable` and no `get` — while every operation the CLI DOES drive takes a
+# `scim-id` as its first argument. So the configuration is created through the
+# API, and the CLI is what exercises the three operations it can reach. The
+# emulator's own door, never a fixture: the identifier the CLI is handed is the
+# one the create answered.
+echo "- a SCIM configuration is created, and the CLI drives its tokens"
+span="$(prove_begin behaviour)"
+scim="$(curl -sf -X POST "$ENDPOINT/iam/v1alpha1/organizations/$SCW_DEFAULT_ORGANIZATION_ID/scim" -d '{}' 2>&1)" \
+  || fail "enabling SCIM was refused: $scim"
+scim_id="$(printf '%s' "$scim" | jq -r '.id // empty')"
+[ -n "$scim_id" ] || fail "no id in the SCIM response: $scim"
+
+token="$(scw iam scim-tokens create scim-id="$scim_id" -o json 2>&1)" \
+  || fail "scim-tokens create rejected by the CLI: $token"
+# The bearer token is answered once and never again, which is what the real
+# product does: a create that did not carry it would leave a directory with
+# nothing to authenticate with.
+printf '%s' "$token" | jq -e '.bearer_token != null and .bearer_token != ""' >/dev/null \
+  || fail "the create carried no bearer token: $token"
+token_id="$(printf '%s' "$token" | jq -r '.token.id // empty')"
+[ -n "$token_id" ] || fail "no token id in the create response: $token"
+
+scw iam scim-tokens list scim-id="$scim_id" -o json \
+  | jq -e --arg i "$token_id" 'any(.[]; .id == $i)' >/dev/null \
+  || fail "the token is missing from the list the CLI reads"
+scw iam scim-tokens delete token-id="$token_id" >/dev/null \
+  || fail "scim-tokens delete rejected by the CLI"
+scw iam scim-tokens list scim-id="$scim_id" -o json \
+  | jq -e --arg i "$token_id" 'any(.[]; .id == $i) | not' >/dev/null \
+  || fail "a deleted SCIM token is still listed"
+# The refusal, and it has to be one the emulator ANSWERS rather than an empty
+# list: a span that claims a negative is checked against a 4xx on the wire.
+neg="$(prove_begin negative)"
+if scw iam scim-tokens delete token-id="$token_id" >/dev/null 2>&1; then
+  fail "deleting a SCIM token twice succeeded"
+fi
+prove_end "$neg"
+
+scw iam scim delete scim-id="$scim_id" >/dev/null || fail "scim delete rejected by the CLI"
+prove_end "$span"
+ok "SCIM enabled, a token created, listed and removed, then SCIM disabled"
+
 # The Account product's projects (#372). Not scenery: this is the pair every
 # third-party VPC stack walks before it reaches a VPC path, because
 # `data "scaleway_account_project"` is evaluated ahead of every resource — the

@@ -6,9 +6,9 @@
     "none"
   ],
   "generated_from": {
-    "contracts": "f0d31330a2dc84b7",
+    "contracts": "ed36f9b500bddee0",
     "shapes": "cac046c206cc9fc8",
-    "suites": "88882d1375a101e2"
+    "suites": "ecc2680b2b1c058a"
   },
   "operations": {
     "account/v3/ProjectAPI.CreateProject": {
@@ -1217,6 +1217,15 @@
       "behaviour": true,
       "negative": true
     },
+    "iam/v1alpha1/API.CreateScimToken": {
+      "driven": true,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
     "iam/v1alpha1/API.DeleteSSHKey": {
       "driven": true,
       "probed": "response",
@@ -1225,6 +1234,42 @@
       "shape": "unobserved",
       "behaviour": true,
       "negative": true
+    },
+    "iam/v1alpha1/API.DeleteScim": {
+      "driven": true,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
+    "iam/v1alpha1/API.DeleteScimToken": {
+      "driven": true,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": true
+    },
+    "iam/v1alpha1/API.EnableOrganizationScim": {
+      "driven": true,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
+    "iam/v1alpha1/API.GetOrganizationScim": {
+      "driven": false,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": false,
+      "shape": "unobserved",
+      "behaviour": false,
+      "negative": false
     },
     "iam/v1alpha1/API.GetSSHKey": {
       "driven": true,
@@ -1235,12 +1280,30 @@
       "behaviour": true,
       "negative": true
     },
+    "iam/v1alpha1/API.GetScimToken": {
+      "driven": false,
+      "probed": "refusal",
+      "contract": "unchecked",
+      "dataplane": false,
+      "shape": "unobserved",
+      "behaviour": false,
+      "negative": false
+    },
     "iam/v1alpha1/API.ListSSHKeys": {
       "driven": true,
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
       "shape": "observed",
+      "behaviour": true,
+      "negative": false
+    },
+    "iam/v1alpha1/API.ListScimTokens": {
+      "driven": true,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
       "behaviour": true,
       "negative": false
     },
