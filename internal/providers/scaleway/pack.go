@@ -519,6 +519,29 @@ func (p *Pack) Routes() []emulator.Route {
 		{Method: "PATCH", Path: "/iam/v1alpha1/ssh-keys/{id}", Operation: "iam/v1alpha1/API.UpdateSSHKey", Handler: p.updateSSHKey},
 		{Method: "DELETE", Path: "/iam/v1alpha1/ssh-keys/{id}", Operation: "iam/v1alpha1/API.DeleteSSHKey", Handler: p.deleteSSHKey},
 
+		// SCIM, the whole chain, served since 2026-10-01 (#800). The scan found
+		// GetScimToken new and untriaged while its six neighbours were declined,
+		// and serving that one alone would have been a route answering 404 to
+		// every identifier while counting as implemented — nothing could have
+		// created the token it reads. scim.go carries the reasoning and says what
+		// is NOT claimed: the /scim/v2 endpoints a directory calls are a second
+		// product and are not emulated.
+		// Driven, and by curl rather than by `scw`: the CLI has no `enable`,
+		// and the three operations it DOES drive all take the identifier this
+		// one returns, so the suite creates the configuration through the API
+		// and hands it over. No Undriven reason, because the operation IS
+		// driven — TestEveryUndrivenOperationSaysWhy refuses a reason that
+		// outlived its cause, on the precedent above.
+		{Method: "POST", Path: "/iam/v1alpha1/organizations/{organization_id}/scim", Operation: "iam/v1alpha1/API.EnableOrganizationScim", Handler: p.enableOrganizationScim},
+		{Method: "GET", Path: "/iam/v1alpha1/organizations/{organization_id}/scim", Operation: "iam/v1alpha1/API.GetOrganizationScim", Handler: p.getOrganizationScim,
+			Undriven: "no official client calls it: `scw iam scim` has no `get`, and no Terraform data source reads a SCIM configuration. Served because it is the only door that answers which configuration an organization has, which is what every other operation of the family takes as its argument"},
+		{Method: "DELETE", Path: "/iam/v1alpha1/scim/{scim_id}", Operation: "iam/v1alpha1/API.DeleteScim", Handler: p.deleteScim},
+		{Method: "POST", Path: "/iam/v1alpha1/scim/{scim_id}/tokens", Operation: "iam/v1alpha1/API.CreateScimToken", Handler: p.createScimToken},
+		{Method: "GET", Path: "/iam/v1alpha1/scim/{scim_id}/tokens", Operation: "iam/v1alpha1/API.ListScimTokens", Handler: p.listScimTokens},
+		{Method: "GET", Path: "/iam/v1alpha1/scim-tokens/{id}", Operation: "iam/v1alpha1/API.GetScimToken", Handler: p.getScimToken,
+			Undriven: "no official client calls it: `scw iam scim-tokens` has create, list and delete, and no get — the CLI reads a token through the list. This is the operation the drift of 2026-09-29 found, and the reason the whole family is served rather than it alone: a route nothing can create for is a route that answers 404 for ever"},
+		{Method: "DELETE", Path: "/iam/v1alpha1/scim-tokens/{id}", Operation: "iam/v1alpha1/API.DeleteScimToken", Handler: p.deleteScimToken},
+
 		// The Account product's projects (#372). Not a resource a stack makes:
 		// the thing every other resource is filed under, and therefore the
 		// first call a third-party VPC stack issues — `data
@@ -915,7 +938,6 @@ func (p *Pack) Declined() []emulator.Decline {
 			"iam/v1alpha1/API.CreateGroup",
 			"iam/v1alpha1/API.CreateJWT",
 			"iam/v1alpha1/API.CreatePolicy",
-			"iam/v1alpha1/API.CreateScimToken",
 			"iam/v1alpha1/API.CreateUser",
 			"iam/v1alpha1/API.CreateUserMFAOTP",
 			"iam/v1alpha1/API.DeleteAPIKey",
@@ -925,13 +947,10 @@ func (p *Pack) Declined() []emulator.Decline {
 			"iam/v1alpha1/API.DeletePolicy",
 			"iam/v1alpha1/API.DeleteSaml",
 			"iam/v1alpha1/API.DeleteSamlCertificate",
-			"iam/v1alpha1/API.DeleteScim",
-			"iam/v1alpha1/API.DeleteScimToken",
 			"iam/v1alpha1/API.DeleteUser",
 			"iam/v1alpha1/API.DeleteUserMFAOTP",
 			"iam/v1alpha1/API.DeleteWebAuthnAuthenticator",
 			"iam/v1alpha1/API.EnableOrganizationSaml",
-			"iam/v1alpha1/API.EnableOrganizationScim",
 			"iam/v1alpha1/API.FinishUserWebAuthnRegistration",
 			"iam/v1alpha1/API.GetAPIKey",
 			"iam/v1alpha1/API.GetApplication",
@@ -940,7 +959,6 @@ func (p *Pack) Declined() []emulator.Decline {
 			"iam/v1alpha1/API.GetLog",
 			"iam/v1alpha1/API.GetOrganization",
 			"iam/v1alpha1/API.GetOrganizationSaml",
-			"iam/v1alpha1/API.GetOrganizationScim",
 			"iam/v1alpha1/API.GetOrganizationSecuritySettings",
 			"iam/v1alpha1/API.GetPolicy",
 			"iam/v1alpha1/API.GetQuotum",
@@ -960,7 +978,6 @@ func (p *Pack) Declined() []emulator.Decline {
 			"iam/v1alpha1/API.ListQuota",
 			"iam/v1alpha1/API.ListRules",
 			"iam/v1alpha1/API.ListSamlCertificates",
-			"iam/v1alpha1/API.ListScimTokens",
 			"iam/v1alpha1/API.ListUserWebAuthnAuthenticators",
 			"iam/v1alpha1/API.ListUsers",
 			"iam/v1alpha1/API.LockUser",
@@ -1445,7 +1462,27 @@ func (p *Pack) Declined() []emulator.Decline {
 			"baremetal/v3/PrivateNetworkAPI.DeleteServerPrivateNetwork",
 			"baremetal/v3/PrivateNetworkAPI.ListServerPrivateNetworks",
 			"baremetal/v3/PrivateNetworkAPI.SetServerPrivateNetworks"),
+		// The spot start, refused on a measurement rather than on a preference,
+		// and it is worth stating because the first answer was to serve it
+		// (#800). Its response carries no spot field at all, so the body could
+		// not have promised a client anything about billing or interruption:
+		// serving it looked free.
+		//
+		// What refuses it is the contract. `start-spot` is in the Go SDK and
+		// NOT in the document Scaleway publishes — `contracts/scaleway.json`
+		// knows `spot_info` on a ServerType and no such operation — and this
+		// repository has no exemption for that direction, deliberately:
+		// contract.CheckRoutes answers "the API defines no such operation" and
+		// a route whose response nothing can validate breaks one of the three
+		// mechanisms this project is built on. contract-only.json covers the
+		// opposite case, a document the SDK never wrapped.
+		//
+		// So it waits for the document, and the nightly scan will bring it back
+		// the day it moves.
+		emulator.Because("the Go SDK declares it and the published document does not, so no contract could validate the response: this pack does not mount a route `feint replay` cannot check, and no official client reaches it either — `scw instance server` has no spot subcommand",
+			"instance/v2alpha1/API.StartSpotServer"),
 	)
+
 }
 
 // The zone and region a client defaults to when it is given none. They are the

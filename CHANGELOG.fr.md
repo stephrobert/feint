@@ -19,6 +19,63 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Ajouté
 
+- **SCIM, toute la chaîne, et un démarrage spot** : la dérive nocturne du
+  2026-09-29 (#800), triée en servant plutôt qu'en déclinant.
+
+  Le scan a trouvé `iam/v1alpha1/API.GetScimToken` nouvelle en amont et non
+  triée, alors que ses six voisines étaient déclinées. Ne servir que celle-là
+  était l'option qui paraissait la moins chère et qui était la pire : la route
+  aurait répondu 404 à tout identifiant, tout en comptant comme implémentée dans
+  `coverage/scaleway-coverage.json`, puisque créer le jeton qu'elle lit demande
+  une configuration SCIM et que l'activation en était refusée. Un chiffre de
+  couverture qui compte une route inatteignable est la seule chose que ce projet
+  ne peut pas se permettre.
+
+  La chaîne est donc servie de bout en bout :
+  `iam/v1alpha1/API.EnableOrganizationScim`,
+  `iam/v1alpha1/API.GetOrganizationScim`, `iam/v1alpha1/API.DeleteScim`,
+  `iam/v1alpha1/API.CreateScimToken`, `iam/v1alpha1/API.ListScimTokens`,
+  `iam/v1alpha1/API.GetScimToken`, `iam/v1alpha1/API.DeleteScimToken`. Une
+  configuration par compte, les jetons en dessous, et la suppression de la
+  configuration emporte ses jetons, parce qu'aucune opération en amont ne le
+  ferait jamais. Le jeton porteur est rendu une fois et conservé nulle part : ce
+  qui est à la fois le comportement du produit et la seule forme qui ne laisse
+  aucun secret que `PUT /_feint/state` pourrait restituer.
+
+  **Ce qui n'est pas revendiqué :** les points d'entrée `/scim/v2/Users` et
+  `/scim/v2/Groups` qu'un annuaire appelle réellement. Il s'agit ici du plan de
+  contrôle qu'un client configure ; provisionner des utilisateurs depuis un
+  annuaire est un second produit, et il n'est pas émulé.
+
+  Et c'est le CLI qui la pilote. `scw iam scim` et `scw iam scim-tokens`
+  existent, donc la suite de conformance parcourt la famille avec le vrai client
+  plutôt que de déclarer que personne ne l'appelle. Seules les trois opérations
+  pour lesquelles le CLI n'a pas de sous-commande (activer SCIM, lire la
+  configuration, lire un jeton) portent une raison `Route.Undriven`, et la suite
+  atteint la première avec curl, parce que les trois que le CLI sait piloter
+  prennent toutes l'identifiant qu'elle rend.
+
+### Modifié
+
+- **`instance/v2alpha1/API.StartSpotServer` est déclinée, et la raison est le
+  contrat** (#800). Elle est arrivée dans la même dérive et la première réponse a
+  été de la servir : son corps ne porte aucun champ spot, il ne pouvait donc rien
+  promettre au client sur la facturation ni sur l'interruption, les deux moitiés
+  de « spot » qu'un émulateur ne sait pas honorer.
+
+  Ce qui la refuse est mesuré. L'opération est dans le SDK Go et **absente du
+  document que Scaleway publie** : `contracts/scaleway.json` connaît `spot_info`
+  sur un `ServerType` et aucune opération de ce nom. Il n'existe aucune
+  dérogation dans ce sens, et c'est délibéré : `contract.CheckRoutes` répond
+  « the API defines no such operation », et une route dont rien ne peut valider
+  la réponse casse l'un des trois mécanismes sur lesquels ce projet repose.
+  `coverage/contract-only.json` couvre le cas inverse, un document que le SDK
+  n'a jamais enveloppé.
+
+  Elle attend donc le document, et le scan nocturne la ramènera le jour où il
+  bougera. Aucun client officiel ne l'atteint non plus : `scw instance server`
+  n'a pas de sous-commande spot.
+
 - **La route propre à la passerelle d'API : `scw/Client.GetAPIMetadata`**
   (#776). `GET /metadata` répond `{"platform", "partition", "domain"}`, que le
   SDK lit pour construire côté client un `srn://<service>.<domain>/…` pour chaque

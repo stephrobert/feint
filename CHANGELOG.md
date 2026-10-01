@@ -17,6 +17,58 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Added
 
+- **SCIM, the whole chain, and a spot start** — the nightly drift of 2026-09-29
+  (#800), triaged by serving rather than declining.
+
+  The scan found `iam/v1alpha1/API.GetScimToken` new upstream and untriaged while
+  its six neighbours were declined. Serving that one alone was the option that
+  looked cheapest and was the worst: the route would have answered 404 to every
+  identifier, and counted as implemented in `coverage/scaleway-coverage.json`,
+  because creating the token it reads needs a SCIM configuration and enabling one
+  was refused. A coverage number that counts an unreachable route is the one
+  thing this project cannot afford.
+
+  So the chain is served end to end — `iam/v1alpha1/API.EnableOrganizationScim`,
+  `iam/v1alpha1/API.GetOrganizationScim`, `iam/v1alpha1/API.DeleteScim`,
+  `iam/v1alpha1/API.CreateScimToken`, `iam/v1alpha1/API.ListScimTokens`,
+  `iam/v1alpha1/API.GetScimToken`, `iam/v1alpha1/API.DeleteScimToken` — one
+  configuration per account, tokens under
+  it, and the configuration's deletion takes its tokens with it because upstream
+  has no operation that ever would. The bearer token is answered once and kept
+  nowhere, which is both how the product behaves and the only shape that leaves
+  no secret for `PUT /_feint/state` to hand back.
+
+  **What is not claimed:** the `/scim/v2/Users` and `/scim/v2/Groups` endpoints a
+  directory actually calls. This is the control plane a client configures;
+  provisioning users from a directory is a second product and it is not emulated.
+
+  The CLI drives it. `scw iam scim` and `scw iam scim-tokens` exist, so the
+  conformance suite walks the family with the real client rather than declaring
+  that nobody calls it; only the three operations the CLI has no subcommand for
+  — enabling SCIM, reading the configuration, reading a single token — carry a
+  `Route.Undriven` reason, and the suite reaches the first of them with curl
+  because the three the CLI *does* drive all take the identifier it returns.
+
+### Changed
+
+- **`instance/v2alpha1/API.StartSpotServer` is declined, and the reason is the
+  contract** (#800). It arrived in the same drift and the first answer was to
+  serve it: its response carries no spot field at all, so the body could not have
+  promised a client anything about billing or interruption, which are the two
+  halves of "spot" an emulator cannot honour.
+
+  What refuses it is measured. The operation is in the Go SDK and **not in the
+  document Scaleway publishes** — `contracts/scaleway.json` knows `spot_info` on
+  a `ServerType` and no such operation — and there is no exemption in that
+  direction, deliberately: `contract.CheckRoutes` answers "the API defines no
+  such operation", and a route whose response nothing can validate breaks one of
+  the three mechanisms this project rests on. `coverage/contract-only.json`
+  covers the opposite case, a document the SDK never wrapped.
+
+  So it waits for the document, and the nightly scan brings it back the day that
+  moves. No official client reaches it either: `scw instance server` has no spot
+  subcommand.
+
 - **The API gateway's own route: `scw/Client.GetAPIMetadata`** (#776).
   `GET /metadata` answers `{"platform", "partition", "domain"}`, which the SDK
   reads to build a `srn://<service>.<domain>/…` client-side for every product

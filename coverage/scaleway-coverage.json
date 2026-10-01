@@ -1,8 +1,8 @@
 {
   "provider": "scaleway",
-  "total": 542,
-  "implemented": 195,
-  "declined": 347,
+  "total": 544,
+  "implemented": 202,
+  "declined": 342,
   "unknown": 0,
   "orphans": null,
   "products": [
@@ -70,25 +70,25 @@
     },
     {
       "product": "iam",
-      "total": 83,
-      "implemented": 5,
-      "declined": 78,
+      "total": 84,
+      "implemented": 12,
+      "declined": 72,
       "unknown": 0,
       "versions": [
         {
           "version": "v1alpha1",
-          "total": 83,
-          "implemented": 5,
-          "declined": 78,
+          "total": 84,
+          "implemented": 12,
+          "declined": 72,
           "unknown": 0
         }
       ]
     },
     {
       "product": "instance",
-      "total": 156,
+      "total": 157,
       "implemented": 73,
-      "declined": 83,
+      "declined": 84,
       "unknown": 0,
       "versions": [
         {
@@ -100,9 +100,9 @@
         },
         {
           "version": "v2alpha1",
-          "total": 78,
+          "total": 79,
           "implemented": 11,
-          "declined": 67,
+          "declined": 68,
           "unknown": 0
         }
       ]
@@ -233,16 +233,16 @@
     },
     {
       "group": "iam",
-      "total": 83,
-      "implemented": 5,
-      "declined": 78,
+      "total": 84,
+      "implemented": 12,
+      "declined": 72,
       "unknown": 0
     },
     {
       "group": "instance",
-      "total": 156,
+      "total": 157,
       "implemented": 73,
-      "declined": 83,
+      "declined": 84,
       "unknown": 0
     },
     {
@@ -864,9 +864,8 @@
     {
       "operation": "iam/v1alpha1/API.CreateScimToken",
       "product": "iam",
-      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
       "version": "v1alpha1",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "iam/v1alpha1/API.CreateUser",
@@ -940,16 +939,14 @@
     {
       "operation": "iam/v1alpha1/API.DeleteScim",
       "product": "iam",
-      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
       "version": "v1alpha1",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "iam/v1alpha1/API.DeleteScimToken",
       "product": "iam",
-      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
       "version": "v1alpha1",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "iam/v1alpha1/API.DeleteUser",
@@ -982,9 +979,8 @@
     {
       "operation": "iam/v1alpha1/API.EnableOrganizationScim",
       "product": "iam",
-      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
       "version": "v1alpha1",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "iam/v1alpha1/API.FinishUserWebAuthnRegistration",
@@ -1045,9 +1041,8 @@
     {
       "operation": "iam/v1alpha1/API.GetOrganizationScim",
       "product": "iam",
-      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
       "version": "v1alpha1",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "iam/v1alpha1/API.GetOrganizationSecuritySettings",
@@ -1082,6 +1077,12 @@
       "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
       "version": "v1alpha1",
       "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.GetScimToken",
+      "product": "iam",
+      "version": "v1alpha1",
+      "status": "implemented"
     },
     {
       "operation": "iam/v1alpha1/API.GetUser",
@@ -1197,9 +1198,8 @@
     {
       "operation": "iam/v1alpha1/API.ListScimTokens",
       "product": "iam",
-      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
       "version": "v1alpha1",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "iam/v1alpha1/API.ListUserWebAuthnAuthenticators",
@@ -2232,6 +2232,13 @@
       "operation": "instance/v2alpha1/API.StartServer",
       "product": "instance",
       "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces and placement groups onto it, and for the server family until 2.83.0 reached the private-interface detach, which is why those are served and these are not",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.StartSpotServer",
+      "product": "instance",
+      "reason": "the Go SDK declares it and the published document does not, so no contract could validate the response: this pack does not mount a route `feint replay` cannot check, and no official client reaches it either — `scw instance server` has no spot subcommand",
       "version": "v2alpha1",
       "status": "declined"
     },
