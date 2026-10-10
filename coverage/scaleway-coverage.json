@@ -1,9 +1,9 @@
 {
   "provider": "scaleway",
-  "total": 542,
+  "total": 544,
   "implemented": 195,
   "declined": 347,
-  "unknown": 0,
+  "unknown": 2,
   "orphans": null,
   "products": [
     {
@@ -70,26 +70,26 @@
     },
     {
       "product": "iam",
-      "total": 83,
+      "total": 84,
       "implemented": 5,
       "declined": 78,
-      "unknown": 0,
+      "unknown": 1,
       "versions": [
         {
           "version": "v1alpha1",
-          "total": 83,
+          "total": 84,
           "implemented": 5,
           "declined": 78,
-          "unknown": 0
+          "unknown": 1
         }
       ]
     },
     {
       "product": "instance",
-      "total": 156,
+      "total": 157,
       "implemented": 73,
       "declined": 83,
-      "unknown": 0,
+      "unknown": 1,
       "versions": [
         {
           "version": "v1",
@@ -100,10 +100,10 @@
         },
         {
           "version": "v2alpha1",
-          "total": 78,
+          "total": 79,
           "implemented": 11,
           "declined": 67,
-          "unknown": 0
+          "unknown": 1
         }
       ]
     },
@@ -233,17 +233,17 @@
     },
     {
       "group": "iam",
-      "total": 83,
+      "total": 84,
       "implemented": 5,
       "declined": 78,
-      "unknown": 0
+      "unknown": 1
     },
     {
       "group": "instance",
-      "total": 156,
+      "total": 157,
       "implemented": 73,
       "declined": 83,
-      "unknown": 0
+      "unknown": 1
     },
     {
       "group": "ipam",
@@ -1082,6 +1082,12 @@
       "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
       "version": "v1alpha1",
       "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.GetScimToken",
+      "product": "iam",
+      "version": "v1alpha1",
+      "status": "unknown"
     },
     {
       "operation": "iam/v1alpha1/API.GetUser",
@@ -2234,6 +2240,12 @@
       "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces and placement groups onto it, and for the server family until 2.83.0 reached the private-interface detach, which is why those are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.StartSpotServer",
+      "product": "instance",
+      "version": "v2alpha1",
+      "status": "unknown"
     },
     {
       "operation": "instance/v2alpha1/API.StopAndDeleteServer",
