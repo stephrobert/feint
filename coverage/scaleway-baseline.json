@@ -13,5 +13,8 @@
     "vpc",
     "vpcgw"
   ],
-  "unknown": []
+  "unknown": [
+    "iam/v1alpha1/API.GetScimToken",
+    "instance/v2alpha1/API.StartSpotServer"
+  ]
 }
