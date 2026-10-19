@@ -235,6 +235,53 @@ func TestTheStreakJobAnnouncesOnTheIssue(t *testing.T) {
 	}
 }
 
+// The announcement cannot redden the night it measures (#795).
+//
+// Measured, and it cost more than the six red nights it caused. The step failed
+// on a missing checkout, and:
+//
+//	a failed step reddens the run
+//	→ a red run resets the consecutive-green count
+//	→ the count is what this step announces
+//
+// The mechanism built so a met criterion would not pass unnoticed destroyed the
+// streak of fourteen it existed to report — issue #801 says so in its own words,
+// "the green streak before this series was 14; it is now 0" — and then held it at
+// zero, because its own failure was what kept the number there. It could not
+// have recovered without a human.
+//
+// `continue-on-error` would be wrong on a gate, whose verdict IS the product. It
+// is right on a notification that is idempotent and retried every night: a
+// broken night then costs nothing, as long as it does not touch its subject.
+// What keeps this one honest is the rest of this file, not the colour of the run.
+func TestTheAnnouncementCannotRedenTheNightItMeasures(t *testing.T) {
+	workflow := readWorkflow(t, "runtime-proof.yml")
+
+	block := stepBlock(workflow, "A met criterion says so on the issue")
+	if block == "" {
+		t.Fatal("runtime-proof.yml no longer announces the criterion: this test names the wrong step")
+	}
+	if !strings.Contains(block, "continue-on-error: true") {
+		t.Error("the announcement can fail the scheduled run, which resets the very streak it " +
+			"reports: a notification that destroys its own subject can never recover, and this " +
+			"one held a met criterion at zero for six nights")
+	}
+
+	// The accepting half, on the step whose verdict IS the product: the gate must
+	// still be able to fail, or this rule would have quietly disarmed the night.
+	gate := stepBlock(workflow, "The runtime suites, and what they verified")
+	if gate == "" {
+		gate = stepBlock(workflow, "The example stacks, applied and probed")
+	}
+	if gate == "" {
+		t.Fatal("neither gate step was found: this test cannot show that the rule above is narrow")
+	}
+	if strings.Contains(withoutComments(gate), "continue-on-error: true") {
+		t.Error("a gate step carries continue-on-error: true unconditionally — a gate that cannot " +
+			"fail is not a gate, and that is the opposite of what the rule above licenses")
+	}
+}
+
 // commandOf answers a step's `run:` command, or "" when it declares none.
 //
 // The value, so a check on it cannot be satisfied by a longer line that merely

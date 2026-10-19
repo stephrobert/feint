@@ -42,6 +42,20 @@
       "find": "  echo \"verdict: not met (${streak}/${target}), nothing to announce\"\n  exit 0",
       "replace": "  echo \"verdict: not met (${streak}/${target}), nothing to announce\"\n  if [ -z \"$streak\" ]; then exit 0; fi\n  streak=\"$target\"",
       "test": "TestAStreakBelowTheTargetAnnouncesNothing"
+    },
+    {
+      "label": "a step runs a repository script before the job checks the repository out, which is the shape that killed the announcement for six nights: the call lands in an empty working directory, exit 127 (#795)",
+      "file": ".github/workflows/runtime-proof.yml",
+      "find": "      # file that was not where the step ran.\n      - name: Checkout",
+      "replace": "      # file that was not where the step ran.\n      - name: Ask the helper for its usage first\n        run: tools/ci/fetch.sh --help || true\n\n      - name: Checkout",
+      "test": "TestEveryJobThatRunsARepositoryScriptChecksItOut"
+    },
+    {
+      "label": "the announcement can fail the scheduled run again, so its own failure resets the streak it reports and holds it at zero for ever (#801)",
+      "file": ".github/workflows/runtime-proof.yml",
+      "find": "        if: steps.count.outputs.streak != ''\n        continue-on-error: true",
+      "replace": "        if: steps.count.outputs.streak != ''\n        continue-on-error: false",
+      "test": "TestTheAnnouncementCannotRedenTheNightItMeasures"
     }
   ]
 }

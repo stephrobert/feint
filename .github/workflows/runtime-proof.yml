@@ -1014,6 +1014,19 @@ jobs:
         with:
           egress-policy: audit
 
+      # This job counted the streak from the Actions API and needed nothing from
+      # the repository, so it checked nothing out — and then #795 added a step
+      # that runs `tools/ci/streak-report.sh`. Six nights of
+      # `No such file or directory`, exit 127.
+      #
+      # TestEveryJobThatRunsARepositoryScriptChecksItOut fails without this, for
+      # every job of every workflow: it is the third time a step has called a
+      # file that was not where the step ran.
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
       - name: Count the streak, from the Actions history
         id: count
         env:
@@ -1071,8 +1084,31 @@ jobs:
       # So it says it on the issue, once. tools/ci/streak-report.sh holds the
       # decision because a run: block cannot be executed outside Actions, and
       # tools/ci/streak_report_test.go drives it with a stubbed gh.
+      # AND IT CANNOT REDDEN THE NIGHT IT MEASURES. This step failed for six
+      # nights on a missing checkout, and the cost was not the six red nights:
+      #
+      #   a failed step reddens the run
+      #   → a red run resets the consecutive-green count
+      #   → the count is what this step announces
+      #
+      # So the mechanism built so that a met criterion would not pass unnoticed
+      # destroyed the streak of fourteen it existed to report, and then held it
+      # at zero for as long as it stayed broken. It could never have recovered on
+      # its own, because its own failure was what kept the number at 0.
+      #
+      # `continue-on-error` is right here and would be wrong on a gate, and the
+      # difference is worth naming: a gate's verdict IS the product, so a gate
+      # that cannot fail is no gate. This is a notification, it is idempotent,
+      # and it retries every night until the marker lands — so a broken night
+      # costs nothing as long as it does not touch the subject. What keeps it
+      # honest is not the red: it is tools/ci/streak_report_test.go driving the
+      # real script against a stubbed gh, and the falsify spec replaying it with
+      # each decision neutralised.
+      #
+      # TestTheAnnouncementCannotRedenTheNightItMeasures fails without this.
       - name: A met criterion says so on the issue
         if: steps.count.outputs.streak != ''
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
