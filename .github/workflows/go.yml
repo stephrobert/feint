@@ -47,7 +47,15 @@ jobs:
           # apart silently — the divergence CONTRIBUTING.md forbids. An exact
           # pin is reproducible and moves when somebody decides it moves.
           # TestTheGoWorkflowPinsTheVersionMiseDoes fails when the two disagree.
-          go-version: '1.26.6'
+          #
+          # MOVED TO 1.26.9 on 2026-10-19, and the same way: govulncheck went
+          # red on main and on every pull request, including ones touching no Go
+          # file, on GO-2026-6617 — net/http in the standard library, found in
+          # go1.26.6 and fixed in go1.26.9. Nothing in this repository was the
+          # cause and nothing here could fix it; the pin is what moves. Every
+          # file that names a patch moves together, which is what the test above
+          # is for.
+          go-version: '1.26.9'
           # No go.sum to key a cache on: the zero-dependency rule keeps this module
           # dependency-free, and a pre-commit hook fails if the file ever
           # appears. Pointing the cache at it warned on every run and never
@@ -185,7 +193,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: '1.26.6'
+          go-version: '1.26.9'
           cache: false
 
       - name: Every operation that changed hands is named, or signed
@@ -241,7 +249,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: '1.26.6'
+          go-version: '1.26.9'
           cache: false
 
       - name: go build
