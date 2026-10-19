@@ -1053,7 +1053,7 @@ it is the kind of theatre somebody stores: a reader told to "save it, it is show
 only once" saves a secret that is not one, and may reuse it.
 
 **What this costs, measured.** The Outscale course at
-`blog.stephane-robert.info` opens its first hands-on page with exactly this call:
+`www.stephane-robert.info` opens its first hands-on page with exactly this call:
 
 ```bash
 octl iaas api CreateKeypair --KeypairName ma-cle-test

@@ -20,7 +20,7 @@
 **Read this in another language:** [Français](./README.fr.md)
 
 **The handbook**, with screenshots and a maturity table per provider:
-[blog.stephane-robert.info](https://blog.stephane-robert.info/en/docs/cloud/outils/feint/)
+[www.stephane-robert.info](https://www.stephane-robert.info/en/docs/cloud/outils/feint/)
 
 [**What you can validate**](docs/confidence.md) • [Install](#install) •
 [Use it](#use-it) • [What is proven](#status) • [Commands](#commands) •

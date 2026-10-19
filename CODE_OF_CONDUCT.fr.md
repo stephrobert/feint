@@ -56,7 +56,7 @@ publics.
 
 Les cas de comportement abusif, harcelant ou autrement inacceptable peuvent être
 signalés au mainteneur du projet via les coordonnées publiées sur
-<https://blog.stephane-robert.info>. Toutes les plaintes seront examinées et
+<https://www.stephane-robert.info>. Toutes les plaintes seront examinées et
 instruites rapidement et équitablement.
 
 Tous les dirigeants de la communauté sont tenus de respecter la vie privée et la

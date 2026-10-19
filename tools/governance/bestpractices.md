@@ -19,7 +19,7 @@ Working notes, not documentation. Update them when the answers stop being true.
 ### `homepage_url` — the project's home page
 
 **Answer:** the URL is already recorded
-(`https://blog.stephane-robert.info/docs/cloud/outils/feint`). The criterion asks
+(`https://www.stephane-robert.info/docs/cloud/outils/feint`). The criterion asks
 that the page **succinctly describe what the software does**. Mark *Met* once the
 page opens with a sentence to that effect; the README's own line is the one to
 reuse:

@@ -15,7 +15,7 @@
 # gate teaches. What is useful is the DIFF against last time.
 #
 # The subject, measured 2026-08-30: the Outscale course at
-# blog.stephane-robert.info — 54 pages, 48 distinct API operations, 94 pairs of
+# www.stephane-robert.info — 54 pages, 48 distinct API operations, 94 pairs of
 # (operation, parameter). The census that produced this list is in the issue
 # this script was written for; the list below is the census applied.
 #

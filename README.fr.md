@@ -19,7 +19,7 @@
 **Autre langue :** [English](./README.md)
 
 **Le guide complet**, avec captures et un tableau de maturité par provider :
-[blog.stephane-robert.info](https://blog.stephane-robert.info/docs/cloud/outils/feint/)
+[www.stephane-robert.info](https://www.stephane-robert.info/docs/cloud/outils/feint/)
 
 [**Ce que vous pouvez valider**](docs/confidence.md) • [Installer](#installer) •
 [S'en servir](#sen-servir) • [Ce qui est prouvé](#état) • [Commandes](#commandes) •

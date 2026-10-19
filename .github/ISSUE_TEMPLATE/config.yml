@@ -4,7 +4,7 @@ contact_links:
     url: https://github.com/stephrobert/feint/blob/main/docs/limits.md
     about: The documented limits, measured rather than guessed. Check here before opening an issue about a missing behaviour.
   - name: Documentation and tutorials
-    url: https://blog.stephane-robert.info
+    url: https://www.stephane-robert.info
     about: Guides and walkthroughs on the author's blog.
   - name: Security report
     url: https://github.com/stephrobert/feint/security/advisories/new

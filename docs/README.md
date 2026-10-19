@@ -10,8 +10,8 @@ beside its original, and the English one prevails if the two disagree.
 
 **The handbook lives outside this repository**, in both languages, and it is what
 the repository's own homepage field points at:
-[English](https://blog.stephane-robert.info/en/docs/cloud/outils/feint/) ·
-[Français](https://blog.stephane-robert.info/docs/cloud/outils/feint/).
+[English](https://www.stephane-robert.info/en/docs/cloud/outils/feint/) ·
+[Français](https://www.stephane-robert.info/docs/cloud/outils/feint/).
 It carries screenshots and a maturity table per provider — a thing this directory
 does not do, and the reason it is named here rather than left to be found.
 

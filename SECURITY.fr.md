@@ -42,7 +42,7 @@ Signalez en privé via **Security → Report a vulnerability** sur ce dépôt :
 avis privé que seuls les mainteneurs peuvent lire.
 
 Si GitHub vous est inaccessible, écrivez à l'adresse publiée sur
-<https://blog.stephane-robert.info>, en précisant qu'il s'agit d'une
+<https://www.stephane-robert.info>, en précisant qu'il s'agit d'une
 vulnérabilité pour que le message ne soit pas lu comme du courrier ordinaire.
 
 Merci de ne pas ouvrir d'issue publique pour quoi que ce soit d'exploitable.
