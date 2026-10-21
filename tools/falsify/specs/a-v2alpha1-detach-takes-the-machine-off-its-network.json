@@ -1,0 +1,19 @@
+{
+  "package": "./internal/providers/scaleway/",
+  "mutations": [
+    {
+      "label": "the detach never reaches the runtime, so the interface leaves its server in the store and the device stays on the machine, where the client's own DELETE can no longer name it",
+      "file": "internal/providers/scaleway/servers_v2alpha1.go",
+      "find": "\tp.detachMachineFromNetwork(r.Context(), nic)",
+      "replace": "\tif len(nic.ID) < 0 {\n\t\tp.detachMachineFromNetwork(r.Context(), nic)\n\t}",
+      "test": "TestADetachTakesTheMachineOffItsNetwork"
+    },
+    {
+      "label": "an interface that no longer belongs to any server is detached again, so the repeated call answers 200 where the Terraform provider reads a 404 as \"already done\"",
+      "file": "internal/providers/scaleway/servers_v2alpha1.go",
+      "find": "\tif nic.Runtime[runtimeServerKey] != serverID {",
+      "replace": "\tif nic.Runtime[runtimeServerKey] != serverID && nic.Runtime[runtimeServerKey] != \"\" {",
+      "test": "TestADetachRepeatedAnswersNotFoundAndHarmsNothing"
+    }
+  ]
+}
