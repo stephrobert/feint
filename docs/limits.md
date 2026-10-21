@@ -43,6 +43,30 @@ one product on this one client. The escape-path section below (#280) carries
 the full measured list, what warns before the run, and the egress cuts that
 were tested rather than described.
 
+## An imported block snapshot is an intention, and the object is never read (#807)
+
+`block/v1/API.ImportSnapshotFromObjectStorage` and its `block/v1alpha1` twin are
+served. The client sends `{bucket, key}` and the real cloud reads that object
+server-side, so nothing in the Terraform provider's path speaks S3 on this call:
+the reason its export half carries, that the provider builds the S3 endpoint in
+code and redirecting it needs DNS interception and a certificate, does not reach
+here. The export stays declined; the import no longer shares its refusal.
+
+What this emulator records is the intention. A snapshot appears, `available`,
+carrying the name, project and tags the client gave, with no parent volume and a
+size of zero, because no bytes moved and none could have.
+
+The divergence, stated rather than hidden: the real API refuses an object that
+does not exist, and this emulator cannot. There is no Object Storage here to
+check a bucket and a key against, so an import naming an object nobody uploaded
+answers success here and answers an error upstream. A plan that depends on that
+refusal is not covered.
+
+One thing neither side of #807 could answer: which status a real import reports
+while it is in flight. The block contract lists `creating` and `available`, no
+fixture in this repository records the call, and this emulator goes straight to
+`available`.
+
 ## The cost of DNS/TLS interception, measured (#76)
 
 The refusal above rested on an unmeasured cost. Measured against the real
