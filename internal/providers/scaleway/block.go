@@ -619,6 +619,75 @@ func (p *Pack) createBlockSnapshot(w http.ResponseWriter, r *http.Request) {
 	emulator.WriteJSON(w, blockCreateStatus, p.blockSnapshotView(res))
 }
 
+type importBlockSnapshotRequest struct {
+	Name      string    `json:"name"`
+	Bucket    string    `json:"bucket"`
+	Key       string    `json:"key"`
+	ProjectID *string   `json:"project_id"`
+	Tags      *[]string `json:"tags"`
+}
+
+// importBlockSnapshotFromObjectStorage records a snapshot imported from an
+// Object Storage object.
+//
+// The client sends {bucket, key} and the real cloud reads that object
+// server-side, so there is no S3 client in the provider's path and no endpoint
+// to intercept: the call is a control-plane intention like CreateSnapshot, not
+// the byte transfer ExportSnapshotToObjectStorage is (#807). The emulator
+// accepts the bucket and key, records a snapshot with no parent volume, and
+// moves no bytes. What it cannot answer is written in docs/limits.md: the real
+// API refuses an object that does not exist, and this emulator has no Object
+// Storage to check against.
+//
+// A missing name, bucket or key is refused rather than stored, for the reason
+// createBlockSnapshot refuses a missing volume: the client named inputs, and
+// answering success about a snapshot built from none is the half-success this
+// project exists to avoid.
+func (p *Pack) importBlockSnapshotFromObjectStorage(w http.ResponseWriter, r *http.Request) {
+	zone, ok := zoneOf(w, r)
+	if !ok {
+		return
+	}
+	var req importBlockSnapshotRequest
+	if err := emulator.DecodeJSON(r, &req); err != nil {
+		writeInvalidArguments(w, ArgumentError{ArgumentName: "body", Reason: "format", HelpMessage: err.Error()})
+		return
+	}
+	if req.Name == "" {
+		writeInvalidArguments(w, ArgumentError{ArgumentName: "name", Reason: "required"})
+		return
+	}
+	if req.Bucket == "" {
+		writeInvalidArguments(w, ArgumentError{ArgumentName: "bucket", Reason: "required"})
+		return
+	}
+	if req.Key == "" {
+		writeInvalidArguments(w, ArgumentError{ArgumentName: "key", Reason: "required"})
+		return
+	}
+
+	if p.refuseUnknownProject(w, textPtr(req.ProjectID), projectDeniedToBlock) {
+		return
+	}
+	project, _ := projectOf(textPtr(req.ProjectID))
+	now := p.env.Now()
+	res := resource.New(p.env.NewID(), kindBlockSnapshot, resource.Tenant{Provider: Name, Project: project, Zone: zone}, "available", now)
+	res.Attrs = map[string]any{
+		"name":    req.Name,
+		"project": project,
+		"tags":    orEmpty(slicePtr(req.Tags)),
+		// No parent volume and no bytes: the snapshot was imported from an
+		// object this emulator does not hold, so it carries the inputs the
+		// client named and nothing it could not have observed.
+		"size":          uint64(0),
+		"zone":          zone,
+		"public":        false,
+		"parent_volume": nil,
+	}
+	p.env.Store.Put(res)
+	emulator.WriteJSON(w, blockCreateStatus, p.blockSnapshotView(res))
+}
+
 // blockSnapshotView renders block/v1's Snapshot.
 //
 // Read from the SDK rather than measured, and that is worth stating: the account

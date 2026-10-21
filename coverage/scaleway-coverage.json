@@ -1,8 +1,8 @@
 {
   "provider": "scaleway",
   "total": 544,
-  "implemented": 202,
-  "declined": 342,
+  "implemented": 204,
+  "declined": 340,
   "unknown": 0,
   "orphans": null,
   "products": [
@@ -48,8 +48,8 @@
     {
       "product": "block",
       "total": 27,
-      "implemented": 22,
-      "declined": 5,
+      "implemented": 24,
+      "declined": 3,
       "unknown": 0,
       "versions": [
         {
@@ -227,8 +227,8 @@
     {
       "group": "block",
       "total": 27,
-      "implemented": 22,
-      "declined": 5,
+      "implemented": 24,
+      "declined": 3,
       "unknown": 0
     },
     {
@@ -671,9 +671,8 @@
     {
       "operation": "block/v1/API.ImportSnapshotFromObjectStorage",
       "product": "block",
-      "reason": "it moves a snapshot's bytes through Object Storage, which is not emulated because the Terraform provider builds the S3 endpoint in code: supporting it needs DNS interception and a certificate, measured in docs/limits.md",
       "version": "v1",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "block/v1/API.ListSnapshots",
@@ -751,9 +750,8 @@
     {
       "operation": "block/v1alpha1/API.ImportSnapshotFromObjectStorage",
       "product": "block",
-      "reason": "it moves a snapshot's bytes through Object Storage, which is not emulated because the Terraform provider builds the S3 endpoint in code: supporting it needs DNS interception and a certificate, measured in docs/limits.md",
       "version": "v1alpha1",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "block/v1alpha1/API.ImportSnapshotFromS3",
