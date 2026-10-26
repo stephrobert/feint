@@ -108,7 +108,20 @@ func TestTheDay2ReaderControlFindsABrokenComparator(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("the reader control fails on the real comparator (exit %d):\n%s", code, out)
 	}
-	code, out = runDay2(t, `d2_says() { ok "$1: stubbed"; }
+	// The stub CONSUMES stdin, and that is not tidiness.
+	//
+	// d2_reader_control feeds every comparison through `printf … | d2_says`,
+	// the harness runs under `set -o pipefail`, and a stub that returns without
+	// reading leaves printf writing into a pipe nobody holds: printf takes
+	// SIGPIPE, pipefail propagates 141, and the pipeline fails although the
+	// stub succeeded. Whether it does is a race against the pipe buffer — the
+	// documents here are sixty bytes and fit, so it passed on Linux for months
+	// and lost on macos-15 twice on 2026-10-26, with two different messages
+	// because a different comparison lost each time.
+	//
+	// Measured: the same stub fed 200 kB answers 141 every run, fed sixty bytes
+	// answers 0. The race is the buffer, not the platform.
+	code, out = runDay2(t, `d2_says() { cat >/dev/null; ok "$1: stubbed"; }
 d2_reader_control`)
 	if code == 0 || !strings.Contains(out, "passed a planted wrong value") {
 		t.Fatalf("the control did not notice a comparator that passes everything (exit %d):\n%s", code, out)
