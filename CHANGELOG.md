@@ -15,6 +15,8 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-10-26
+
 ### Added
 
 - **A block snapshot imported from Object Storage, through both doors**

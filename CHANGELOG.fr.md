@@ -17,6 +17,8 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-10-26
+
 ### Ajouté
 
 - **Un instantané Block importé depuis l'Object Storage, par les deux portes**
