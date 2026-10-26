@@ -17,6 +17,22 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Added
 
+- **A block snapshot imported from Object Storage, through both doors**
+  (#807): `block/v1/API.ImportSnapshotFromObjectStorage` and
+  `block/v1alpha1/API.ImportSnapshotFromObjectStorage`.
+
+  The client sends `{bucket, key}` and the real cloud reads that object
+  server-side, so nothing in the Terraform provider's path speaks S3 on this
+  call. That is what separates it from its export half, which stays declined:
+  there the provider builds the S3 endpoint from the region in code, so pointing
+  it at this emulator would take DNS interception and a certificate it accepts.
+
+  What is recorded is the intention. A snapshot appears, `available`, with no
+  parent volume and a size of zero, because no bytes moved and none could have.
+  The divergence is stated in `docs/limits.md` rather than hidden: the real API
+  refuses an object that does not exist, and there is no Object Storage here to
+  check a bucket and a key against.
+
 - **SCIM, the whole chain, and a spot start** — the nightly drift of 2026-09-29
   (#800), triaged by serving rather than declining.
 

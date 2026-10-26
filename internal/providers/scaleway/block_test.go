@@ -526,3 +526,71 @@ func TestABlockVolumeIsAvailableOnceItsServerIsGone(t *testing.T) {
 		})
 	}
 }
+
+// A snapshot imported from an object this emulator does not hold. The client
+// names a bucket and a key, the real cloud reads that object server-side, and
+// nothing in the provider's path speaks S3, so the call is served as an
+// accepted intention (#807). What the emulator records is what the client
+// named: no parent volume, and no bytes it could not have observed.
+func TestABlockSnapshotImportedFromObjectStorageIsAnIntention(t *testing.T) {
+	ts := newTestServer(t)
+
+	status, snap := do(t, ts, "POST", blockURL+"/snapshots/import-from-object-storage",
+		`{"name":"golden","bucket":"images","key":"talos/v1.9.raw"}`)
+	if status != http.StatusOK {
+		t.Fatalf("import from object storage: expected 200, got %d (%v)", status, snap)
+	}
+	if snap["name"] != "golden" {
+		t.Errorf("the snapshot does not carry the name the client gave: %v", snap["name"])
+	}
+	if snap["status"] != "available" {
+		t.Errorf("an imported snapshot reports %v", snap["status"])
+	}
+	if parent, ok := snap["parent_volume"].(map[string]any); ok && parent != nil {
+		t.Errorf("the import names a parent volume nobody created: %v", parent)
+	}
+	if size, _ := snap["size"].(float64); size != 0 {
+		t.Errorf("the emulator moved no bytes, yet reports %v of them", size)
+	}
+
+	snapID, _ := snap["id"].(string)
+	if status, got := do(t, ts, "GET", blockURL+"/snapshots/"+snapID, ""); status != http.StatusOK {
+		t.Errorf("the imported snapshot is not readable afterwards: %d (%v)", status, got)
+	}
+}
+
+// The inputs the client named are the only thing the import has. Dropping one
+// and answering success would be the half-success this project exists to
+// avoid, so it is refused and nothing is recorded.
+func TestABlockImportWithoutItsObjectIsRefused(t *testing.T) {
+	for _, body := range []string{
+		`{"bucket":"images","key":"talos/v1.9.raw"}`,
+		`{"name":"golden","key":"talos/v1.9.raw"}`,
+		`{"name":"golden","bucket":"images"}`,
+	} {
+		ts := newTestServer(t)
+		status, got := do(t, ts, "POST", blockURL+"/snapshots/import-from-object-storage", body)
+		if status != http.StatusBadRequest || got["type"] != "invalid_arguments" {
+			t.Fatalf("%s: expected 400 invalid_arguments, got %d (%v)", body, status, got)
+		}
+		_, listed := do(t, ts, "GET", blockURL+"/snapshots", "")
+		if items, _ := listed["snapshots"].([]any); len(items) != 0 {
+			t.Errorf("%s: the refused import was recorded anyway: %v", body, listed)
+		}
+	}
+}
+
+// Both doors, because the Terraform provider calls block/v1 and scw calls the
+// alpha. ImportSnapshotFromS3 is the alpha's older spelling and stays declined:
+// no official client drives it.
+func TestBothBlockImportDoorsAnswer(t *testing.T) {
+	ts := newTestServer(t)
+
+	for _, base := range []string{blockURL, "/block/v1alpha1/zones/fr-par-1"} {
+		status, snap := do(t, ts, "POST", base+"/snapshots/import-from-object-storage",
+			`{"name":"golden","bucket":"images","key":"talos/v1.9.raw"}`)
+		if status != http.StatusOK {
+			t.Errorf("%s: expected 200, got %d (%v)", base, status, snap)
+		}
+	}
+}

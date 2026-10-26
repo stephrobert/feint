@@ -128,6 +128,15 @@
       "behaviour": true,
       "negative": true
     },
+    "block/v1/API.ImportSnapshotFromObjectStorage": {
+      "driven": false,
+      "probed": "none",
+      "contract": "unchecked",
+      "dataplane": false,
+      "shape": "unobserved",
+      "behaviour": false,
+      "negative": false
+    },
     "block/v1/API.ListSnapshots": {
       "driven": true,
       "probed": "response",
@@ -226,6 +235,15 @@
       "shape": "observed",
       "behaviour": true,
       "negative": true
+    },
+    "block/v1alpha1/API.ImportSnapshotFromObjectStorage": {
+      "driven": false,
+      "probed": "none",
+      "contract": "unchecked",
+      "dataplane": false,
+      "shape": "unobserved",
+      "behaviour": false,
+      "negative": false
     },
     "block/v1alpha1/API.ListSnapshots": {
       "driven": true,

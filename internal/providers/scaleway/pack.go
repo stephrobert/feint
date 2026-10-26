@@ -255,6 +255,8 @@ func (p *Pack) Routes() []emulator.Route {
 		{Method: "DELETE", Path: blockZones + "/volumes/{id}", Operation: "block/v1/API.DeleteVolume", Handler: p.deleteBlockVolume},
 		{Method: "GET", Path: blockZones + "/snapshots", Operation: "block/v1/API.ListSnapshots", Handler: p.listBlockSnapshots},
 		{Method: "POST", Path: blockZones + "/snapshots", Operation: "block/v1/API.CreateSnapshot", Handler: p.createBlockSnapshot},
+		{Method: "POST", Path: blockZones + "/snapshots/import-from-object-storage", Operation: "block/v1/API.ImportSnapshotFromObjectStorage", Handler: p.importBlockSnapshotFromObjectStorage,
+			Undriven: "no suite here drives it: the client that does is the Terraform provider's scaleway_block_snapshot with an import block, reported in #807 from a stack this project does not run, and driving it would need an object staged in an Object Storage this emulator does not serve"},
 		{Method: "GET", Path: blockZones + "/snapshots/{id}", Operation: "block/v1/API.GetSnapshot", Handler: p.getBlockSnapshot},
 		{Method: "PATCH", Path: blockZones + "/snapshots/{id}", Operation: "block/v1/API.UpdateSnapshot", Handler: p.updateBlockSnapshot},
 		{Method: "DELETE", Path: blockZones + "/snapshots/{id}", Operation: "block/v1/API.DeleteSnapshot", Handler: p.deleteBlockSnapshot},
@@ -294,6 +296,8 @@ func (p *Pack) Routes() []emulator.Route {
 		{Method: "DELETE", Path: blockAlphaZones + "/volumes/{id}", Operation: "block/v1alpha1/API.DeleteVolume", Handler: p.deleteBlockVolume},
 		{Method: "GET", Path: blockAlphaZones + "/snapshots", Operation: "block/v1alpha1/API.ListSnapshots", Handler: p.listBlockSnapshots},
 		{Method: "POST", Path: blockAlphaZones + "/snapshots", Operation: "block/v1alpha1/API.CreateSnapshot", Handler: p.createBlockSnapshot},
+		{Method: "POST", Path: blockAlphaZones + "/snapshots/import-from-object-storage", Operation: "block/v1alpha1/API.ImportSnapshotFromObjectStorage", Handler: p.importBlockSnapshotFromObjectStorage,
+			Undriven: "the alpha door is the one `scw` reaches, and this project's CLI suite does not stage an object to import from, for the reason its v1 twin is not driven either"},
 		{Method: "GET", Path: blockAlphaZones + "/snapshots/{id}", Operation: "block/v1alpha1/API.GetSnapshot", Handler: p.getBlockSnapshot},
 		{Method: "PATCH", Path: blockAlphaZones + "/snapshots/{id}", Operation: "block/v1alpha1/API.UpdateSnapshot", Handler: p.updateBlockSnapshot},
 		{Method: "DELETE", Path: blockAlphaZones + "/snapshots/{id}", Operation: "block/v1alpha1/API.DeleteSnapshot", Handler: p.deleteBlockSnapshot},
@@ -726,20 +730,27 @@ func (p *Pack) Declined() []emulator.Decline {
 			"instance/v1/API.AttachServerFileSystem",
 			"instance/v1/API.DetachServerFileSystem"),
 
-		// Block Storage, the two halves SW-3 does not serve.
+		// Block Storage: ExportSnapshotToObjectStorage stays declined.
 		//
-		// The transfers write and read a snapshot's bytes through Object Storage,
-		// which is the same measured reason instance/v1/API.ExportSnapshot carries:
-		// the Terraform provider builds the S3 endpoint from the region in code,
-		// so pointing it here would take DNS interception and a certificate it
-		// accepts. An emulated snapshot has no bytes to send there in any case.
+		// It writes a snapshot's bytes out through Object Storage, the same
+		// measured reason instance/v1/API.ExportSnapshot carries: the Terraform
+		// provider builds the S3 endpoint from the region in code, so pointing
+		// it here would take DNS interception and a certificate it accepts, and
+		// an emulated snapshot has no bytes to send there in any case.
+		//
+		// ImportSnapshotFromObjectStorage is no longer declined with it (#807):
+		// the client sends {bucket, key} and the cloud reads the object
+		// server-side, so there is no S3 client in the provider's path and no
+		// endpoint to intercept. It is served as an accepted intention, with the
+		// divergence it cannot answer written in docs/limits.md.
 		emulator.Because("it moves a snapshot's bytes through Object Storage, which is not emulated because the Terraform provider builds the S3 endpoint in code: supporting it needs DNS interception and a certificate, measured in docs/limits.md",
-			"block/v1/API.ExportSnapshotToObjectStorage",
-			"block/v1/API.ImportSnapshotFromObjectStorage"),
+			"block/v1/API.ExportSnapshotToObjectStorage"),
 
-		// The alpha's own transfers, declined for the reason its v1 twins are: they
-		// move bytes through Object Storage. ImportSnapshotFromS3 is the older
-		// spelling of the same call and goes with them.
+		// The alpha's own export, declined for the reason its v1 twin is: it
+		// moves bytes out through Object Storage. ImportSnapshotFromS3 is the
+		// older spelling of ImportSnapshotFromObjectStorage, which is served on
+		// the alpha as it is on v1 (#807), but this deprecated spelling stays
+		// declined: no official client drives it.
 		//
 		// The rest of block/v1alpha1 is served, not declined, and the first
 		// version of this entry declined the lot with a reason the conformance
@@ -748,7 +759,6 @@ func (p *Pack) Declined() []emulator.Decline {
 		// what replaced it.
 		emulator.Because("it moves a snapshot's bytes through Object Storage, which is not emulated because the Terraform provider builds the S3 endpoint in code: supporting it needs DNS interception and a certificate, measured in docs/limits.md",
 			"block/v1alpha1/API.ExportSnapshotToObjectStorage",
-			"block/v1alpha1/API.ImportSnapshotFromObjectStorage",
 			"block/v1alpha1/API.ImportSnapshotFromS3"),
 
 		// Written by hand in instance_utils.go and marked deprecated there, which

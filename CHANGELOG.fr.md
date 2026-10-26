@@ -19,6 +19,22 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Ajouté
 
+- **Un instantané Block importé depuis l'Object Storage, par les deux portes**
+  (#807) : `block/v1/API.ImportSnapshotFromObjectStorage` et
+  `block/v1alpha1/API.ImportSnapshotFromObjectStorage`.
+
+  Le client envoie `{bucket, key}` et le vrai cloud lit cet objet côté serveur :
+  rien, dans le chemin du provider Terraform, ne parle S3 sur cet appel. C'est
+  ce qui la sépare de sa moitié export, qui reste déclinée : là, le provider
+  construit l'adresse S3 depuis la région, dans son code, et la rediriger vers
+  cet émulateur demanderait une interception DNS et un certificat qu'il accepte.
+
+  Ce qui est enregistré, c'est l'intention. Un instantané apparaît, `available`,
+  sans volume parent et d'une taille nulle, parce qu'aucun octet n'a bougé et
+  qu'aucun n'aurait pu. La divergence est écrite dans `docs/limits.md` plutôt que
+  tue : la vraie API refuse un objet qui n'existe pas, et il n'y a ici aucun
+  Object Storage pour vérifier un bucket et une clé.
+
 - **SCIM, toute la chaîne, et un démarrage spot** : la dérive nocturne du
   2026-09-29 (#800), triée en servant plutôt qu'en déclinant.
 
