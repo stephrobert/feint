@@ -1,21 +1,22 @@
 {
-  "generated_at": "2026-10-26T04:33:04Z",
+  "generated_at": "2026-10-27T04:30:22Z",
   "project": "feint",
-  "total_binary_downloads": 4013,
-  "latest_release": "v0.13.0",
+  "total_binary_downloads": 4089,
+  "latest_release": "v0.14.0",
   "platforms": {
     "darwin-amd64": 32,
-    "darwin-arm64": 44,
-    "linux-amd64": 3895,
+    "darwin-arm64": 45,
+    "linux-amd64": 3970,
     "linux-arm64": 42
   },
   "versions": {
     "v0.1.0": 11,
     "v0.10.0": 264,
-    "v0.11.0": 17,
+    "v0.11.0": 18,
     "v0.12.0": 430,
     "v0.12.1": 771,
-    "v0.13.0": 2172,
+    "v0.13.0": 2247,
+    "v0.14.0": 0,
     "v0.2.0": 9,
     "v0.3.0": 1,
     "v0.3.1": 10,
@@ -33,9 +34,9 @@
     "v0.9.0": 73
   },
   "recent": {
-    "downloads_1d": 28,
-    "downloads_30d": 2112,
-    "downloads_7d": 446
+    "downloads_1d": 76,
+    "downloads_30d": 2108,
+    "downloads_7d": 368
   },
   "adoption": {
     "v0.10.0": {
@@ -53,6 +54,9 @@
     "v0.13.0": {
       "J+30": 1097,
       "J+7": 69
+    },
+    "v0.14.0": {
+      "J+1": 0
     },
     "v0.7.1": {
       "J+30": 1
@@ -72,28 +76,33 @@
   },
   "active_old_releases": [
     {
+      "version": "v0.13.0",
+      "downloads_in_window": 353,
+      "window_days": 7
+    },
+    {
       "version": "v0.12.1",
       "downloads_in_window": 7,
       "window_days": 7
     },
     {
       "version": "v0.7.1",
-      "downloads_in_window": 3,
-      "window_days": 7
-    },
-    {
-      "version": "v0.8.0",
-      "downloads_in_window": 3,
-      "window_days": 7
-    },
-    {
-      "version": "v0.1.0",
       "downloads_in_window": 2,
       "window_days": 7
     },
     {
       "version": "v0.7.3",
       "downloads_in_window": 2,
+      "window_days": 7
+    },
+    {
+      "version": "v0.1.0",
+      "downloads_in_window": 1,
+      "window_days": 7
+    },
+    {
+      "version": "v0.11.0",
+      "downloads_in_window": 1,
       "window_days": 7
     },
     {
