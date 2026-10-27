@@ -1,0 +1,33 @@
+{
+  "package": "./tools/ci/",
+  "mutations": [
+    {
+      "label": "the report comments whatever the scan found, so a night where only an artefact moved says 'nobody has triaged' over a list of 'nothing left to triage' — the twenty-one comments of #800",
+      "file": "tools/ci/drift-report.sh",
+      "find": "if [ \"${undecided}\" != \"failure\" ]; then",
+      "replace": "if [ \"${undecided}\" != \"failure\" ] && false; then",
+      "test": "TestADriftReportWithNothingUndecidedAndNoIssueIsSilent"
+    },
+    {
+      "label": "the issue is never closed, so the mechanism that opens on a finding outlives its cause and reads as a standing problem nobody is fixing",
+      "file": "tools/ci/drift-report.sh",
+      "find": "  if [ \"${apply}\" = true ]; then\n    gh issue close",
+      "replace": "  if [ \"${apply}\" = true ] && false; then\n    gh issue close",
+      "test": "TestADriftReportWithNothingUndecidedClosesTheIssue"
+    },
+    {
+      "label": "the body promises a pull request tagged chore/upstream-drift again, which no scheduled night opens because this repository withholds that permission from Actions",
+      "file": "tools/ci/drift-report.sh",
+      "find": "  echo \"The refreshed baseline is on the branch \\`chore/upstream-drift\\`. Opening a\"",
+      "replace": "  echo \"The refreshed baseline is in the pull request tagged \\`chore/upstream-drift\\`. Opening a\"",
+      "test": "TestADriftReportDoesNotPromiseAPullRequestActionsCannotOpen"
+    },
+    {
+      "label": "the triage view is dropped from the comment, so 'something is undecided' asks its reader to go and run the scan themselves",
+      "file": "tools/ci/drift-report.sh",
+      "find": "  if [ -s \"${triage}\" ]; then\n    cat \"${triage}\"",
+      "replace": "  if [ -s \"${triage}\" ] && false; then\n    cat \"${triage}\"",
+      "test": "TestADriftReportWithUndecidedOperationsReports"
+    }
+  ]
+}
