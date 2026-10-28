@@ -1,9 +1,9 @@
 {
   "provider": "scaleway",
-  "total": 544,
+  "total": 546,
   "implemented": 204,
   "declined": 340,
-  "unknown": 0,
+  "unknown": 2,
   "orphans": null,
   "products": [
     {
@@ -24,17 +24,17 @@
     },
     {
       "product": "baremetal",
-      "total": 37,
+      "total": 39,
       "implemented": 2,
       "declined": 35,
-      "unknown": 0,
+      "unknown": 2,
       "versions": [
         {
           "version": "v1",
-          "total": 33,
+          "total": 35,
           "implemented": 2,
           "declined": 31,
-          "unknown": 0
+          "unknown": 2
         },
         {
           "version": "v3",
@@ -55,15 +55,15 @@
         {
           "version": "v1",
           "total": 13,
-          "implemented": 11,
-          "declined": 2,
+          "implemented": 12,
+          "declined": 1,
           "unknown": 0
         },
         {
           "version": "v1alpha1",
           "total": 14,
-          "implemented": 11,
-          "declined": 3,
+          "implemented": 12,
+          "declined": 2,
           "unknown": 0
         }
       ]
@@ -219,10 +219,10 @@
     },
     {
       "group": "baremetal",
-      "total": 37,
+      "total": 39,
       "implemented": 2,
       "declined": 35,
-      "unknown": 0
+      "unknown": 2
     },
     {
       "group": "block",
@@ -556,11 +556,23 @@
       "status": "declined"
     },
     {
+      "operation": "baremetal/v1/API.UpdateServerCommitment",
+      "product": "baremetal",
+      "version": "v1",
+      "status": "unknown"
+    },
+    {
       "operation": "baremetal/v1/API.UpdateSetting",
       "product": "baremetal",
       "reason": "the product's settings are per-project switches on the real account, one type in the SDK today (smtp: whether a project's servers may send mail), and nothing here sends anything",
       "version": "v1",
       "status": "declined"
+    },
+    {
+      "operation": "baremetal/v1/API.UpgradeServerCommitment",
+      "product": "baremetal",
+      "version": "v1",
+      "status": "unknown"
     },
     {
       "operation": "baremetal/v1/API.ValidatePartitioningSchema",
