@@ -20,6 +20,16 @@ import (
 //
 // mise.toml is the source: it is what a contributor's shell reads, and the
 // workflow follows it rather than the other way round.
+//
+// golangci-lint and ruff were pinned twice and guarded by nothing until #749:
+// their mise.toml comments said "mirrors the Go workflow" and "mirrors
+// .pre-commit-config.yaml" and that was the whole mechanism, in a repository
+// whose own rule is that a comment is not a control. They agreed on the day it
+// was found, which is exactly when a missing guard is cheapest to add and
+// easiest to argue is unnecessary.
+//
+// Each of the four entries below reds this test when its two copies disagree,
+// and when either copy can no longer be found.
 func TestTheWorkflowsPinTheSameToolsAsMise(t *testing.T) {
 	root := moduleRoot(t)
 
@@ -35,6 +45,12 @@ func TestTheWorkflowsPinTheSameToolsAsMise(t *testing.T) {
 		// from here rather than keeping a third copy.
 		"commitizen": {".pre-commit-config.yaml",
 			regexp.MustCompile(`commitizen-tools/commitizen\s*\n\s*rev:\s*v?([0-9][^\s]*)`)},
+		// mise.toml: `golangci-lint = "2.12.2"`. Anchored, because the file also
+		// holds `trufflehog` and an unanchored name would match inside it.
+		"golangci-lint": {"mise.toml",
+			regexp.MustCompile(`(?m)^golangci-lint\s*=\s*"([^"]+)"`)},
+		// mise.toml: `ruff = "0.14.9"`.
+		"ruff": {"mise.toml", regexp.MustCompile(`(?m)^ruff\s*=\s*"([^"]+)"`)},
 	}
 	// Where each version is repeated, and the pattern that reads it back.
 	repeats := map[string][]struct {
@@ -48,6 +64,21 @@ func TestTheWorkflowsPinTheSameToolsAsMise(t *testing.T) {
 		"commitizen": {{
 			file:    "tools/ci/commitizen-requirements.txt",
 			pattern: regexp.MustCompile(`(?m)^commitizen==([^\s\\]+)`),
+		}},
+		// A linter whose CI version differs from the workstation's reports
+		// findings a contributor cannot reproduce, or misses ones they cannot
+		// see. go.yml installs it by version rather than by hash, so the version
+		// is the only thing that says which linter ran.
+		"golangci-lint": {{
+			file:    ".github/workflows/go.yml",
+			pattern: regexp.MustCompile(`golangci-lint/v2/cmd/golangci-lint@v([^\s]+)`),
+		}},
+		// The hook is what formats Python on the workstation; mise is what the
+		// contract extraction runs under. Two formatters disagreeing rewrite each
+		// other's output, and the diff lands in committed contracts.
+		"ruff": {{
+			file:    ".pre-commit-config.yaml",
+			pattern: regexp.MustCompile(`astral-sh/ruff-pre-commit\s*\n\s*rev:\s*v?([0-9][^\s]*)`),
 		}},
 	}
 
@@ -83,6 +114,51 @@ func TestTheWorkflowsPinTheSameToolsAsMise(t *testing.T) {
 					repeat.file, tool, got[1], owner.file, want[1])
 			}
 		}
+	}
+}
+
+// .golangci.yml's `version: "2"` is the configuration schema's version, not the
+// tool's, which is why mise.toml's comment claiming it "mirrors .golangci.yml"
+// was never about the same number. The link is real all the same and it is a
+// major: a v2 schema is read by golangci-lint v2 and rejected by any other
+// major, so a mise pin that crossed one would make every lint run fail on the
+// configuration rather than on the code.
+//
+// This is deliberately a major-only comparison. Pinning the schema to the
+// tool's patch level would red the repository on every upstream patch release,
+// which is the gate nobody keeps.
+//
+// TestTheLinterConfigSchemaMatchesTheLinterMajor fails without the pin it reads:
+// flipping either side's major in isolation reds it.
+func TestTheLinterConfigSchemaMatchesTheLinterMajor(t *testing.T) {
+	root := moduleRoot(t)
+
+	read := func(file string, pattern *regexp.Regexp, what string) string {
+		t.Helper()
+		raw, err := os.ReadFile(filepath.Join(root, file))
+		if err != nil {
+			t.Fatalf("read %s: %v", file, err)
+		}
+		found := pattern.FindSubmatch(raw)
+		if found == nil {
+			t.Fatalf("%s no longer declares %s: this test cannot compare what it "+
+				"cannot find, and would otherwise pass while measuring nothing",
+				file, what)
+		}
+		return string(found[1])
+	}
+
+	toolMajor := read("mise.toml",
+		regexp.MustCompile(`(?m)^golangci-lint\s*=\s*"(\d+)[^"]*"`),
+		"golangci-lint's version")
+	schemaMajor := read(".golangci.yml",
+		regexp.MustCompile(`(?m)^version:\s*"?(\d+)"?`),
+		"a configuration version")
+
+	if toolMajor != schemaMajor {
+		t.Errorf(".golangci.yml declares schema version %s and mise.toml pins "+
+			"golangci-lint %s.x: the linter would refuse the configuration "+
+			"before it read a line of Go", schemaMajor, toolMajor)
 	}
 }
 
