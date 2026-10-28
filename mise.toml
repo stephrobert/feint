@@ -2,11 +2,17 @@
 # and CI). Activate: `mise install` then `mise trust`. Run a task: `mise run <task>`. List: `mise tasks`.
 [tools]
 go = "1.26.10"            # the feint binary
-golangci-lint = "2.12.2" # Go linters, mirrors .golangci.yml and the Go workflow
+# Repeated in .github/workflows/go.yml, which installs it by version; the major
+# is repeated again as .golangci.yml's schema version. Both are held by
+# TestTheWorkflowsPinTheSameToolsAsMise and
+# TestTheLinterConfigSchemaMatchesTheLinterMajor, which red when either diverges.
+golangci-lint = "2.12.2" # Go linters
 trufflehog = "3.95.6"    # secret scanning (pre-commit + CI)
 python = "3.12.11"       # the contract extraction under tools/, development time only
 uv = "0.13.5"           # brings the extraction its one dependency without a venv to maintain
-ruff = "0.14.9"          # Python lint + format, mirrors .pre-commit-config.yaml
+# Repeated as the ruff-pre-commit rev in .pre-commit-config.yaml, held by
+# TestTheWorkflowsPinTheSameToolsAsMise.
+ruff = "0.14.9"          # Python lint + format
 
 [env]
 # get_env, not a literal: a value declared here beats an exported variable, so
