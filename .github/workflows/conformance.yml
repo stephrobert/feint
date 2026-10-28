@@ -506,16 +506,42 @@ jobs:
       # answers. Stopping first failed this step, and with it every leg of the
       # matrix, on runs that were otherwise green.
       #
-      # FEINT_FIELD_GATE on the `fields` leg only, because only that leg drove
-      # every client against this emulator. Everywhere else score.sh still
-      # prints what the omission check found and judges none of it: an absent
-      # field on a partial run says nothing about the emulator. An undeclared
-      # whole run counts as partial, the way an undeclared driver capability
-      # counts as absent.
+      # The gate's precondition, asserted by an effect rather than by a name.
+      #
+      # This step carries no `if: always()`, so GitHub skips it the moment any
+      # earlier step of the leg failed, and `steps.whole.outputs.ran` stays
+      # empty. That is the whole mechanism: the gate below reads what happened,
+      # not what the matrix intended.
+      #
+      # #789 is why. Twice in ten days an install failed on an upstream 500
+      # (the `terraform` provider registry), steps 17 through 25 were skipped —
+      # the Outscale and Exoscale suites among them — and the gate judged
+      # anyway, naming six Outscale operations as omitting fields that only the
+      # suites which never ran could have produced. The leg was still *called*
+      # `fields`, and that was all the gate ever asked.
+      #
+      # TestTheFieldGateCannotBeDeclaredByTheLegsNameAlone fails without this.
+      - name: Every suite of this leg ran
+        id: whole
+        if: matrix.client == 'fields'
+        run: echo 'ran=1' >> "$GITHUB_OUTPUT"
+
+      # FEINT_FIELD_GATE on the `fields` leg only, because only that leg drives
+      # every client against this emulator — and only when that leg actually
+      # finished driving them, per the step above. Everywhere else score.sh
+      # still prints what the omission check found and judges none of it: an
+      # absent field on a partial run says nothing about the emulator. An
+      # undeclared whole run counts as partial, the way an undeclared driver
+      # capability counts as absent.
+      #
+      # A run cut short is a partial run. That is the distinction CLAUDE.md
+      # draws for the lifecycle — l'état publié est celui que l'effet a
+      # produit, pas celui que l'intention visait — applied to a verdict
+      # instead of to a server.
       - name: Report what was exercised
         if: always()
         env:
-          FEINT_FIELD_GATE: ${{ matrix.client == 'fields' && '1' || '0' }}
+          FEINT_FIELD_GATE: ${{ steps.whole.outputs.ran == '1' && '1' || '0' }}
         run: tools/conformance/score.sh http://127.0.0.1:4599
 
       # Always: a job that leaves the emulator running leaves a process holding a

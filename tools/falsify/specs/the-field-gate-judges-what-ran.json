@@ -1,0 +1,27 @@
+{
+  "package": "./tools/ci/",
+  "mutations": [
+    {
+      "label": "the leg's name is read again beside the step, which reads as belt-and-braces and is #789 intact: the right-hand side is true on exactly the runs the left-hand side exists to exclude, so a leg that died at step 16 of 25 judges anyway",
+      "file": ".github/workflows/conformance.yml",
+      "find": "FEINT_FIELD_GATE: ${{ steps.whole.outputs.ran == '1' && '1' || '0' }}",
+      "replace": "FEINT_FIELD_GATE: ${{ (steps.whole.outputs.ran == '1' || matrix.client == 'fields') && '1' || '0' }}",
+      "test": "TestTheFieldGateCannotBeDeclaredByTheLegsNameAlone"
+    },
+    {
+      "label": "the precondition runs after an earlier step failed, so it reports a complete run on a run that was cut short: the same defect with one more step in front of it, which is the shape a reviewer would accept",
+      "file": ".github/workflows/conformance.yml",
+      "find": "        id: whole\n        if: matrix.client == 'fields'",
+      "replace": "        id: whole\n        if: always() && matrix.client == 'fields'",
+      "test": "TestTheFieldGateCannotBeDeclaredByTheLegsNameAlone"
+    },
+    {
+      "label": "the sentinel keeps its id and loses its skippability through failure(), the other half of the same hollowing: it then runs precisely when an earlier step died",
+      "file": ".github/workflows/conformance.yml",
+      "find": "        id: whole\n        if: matrix.client == 'fields'",
+      "replace": "        id: whole\n        if: failure() || matrix.client == 'fields'",
+      "test": "TestTheFieldGateCannotBeDeclaredByTheLegsNameAlone"
+    }
+  ],
+  "note": "The subject is #789. The omission half of the field check (#88) asks whether no answer of this run carried a declared field, which is a statement about the run's whole population. It was turned on by `matrix.client == 'fields'` — an intention fixed before any work happened — and never compared with what the leg managed to do. Twice in ten days an upstream failure (a 500 from the Terraform provider registry on 2026-09-21, a connection reset on 2026-09-11) killed step 16 of 25, the remaining nine steps were skipped, and the `if: always()` reporting step judged anyway: six Outscale operations named as omitting fields only the suites that never ran could have produced. Neither red was reproducible locally, because `mise run conformance` drives every suite against one emulator, which is the population the verdict assumes. The fix is a precondition asserted by an effect: a step with no `if: always()`, which GitHub skips the moment an earlier step failed, so `steps.whole.outputs.ran` stays empty. Mutation 1 is the one that matters and it is the one this harness forced into existence: the first spec written here deleted `steps` from the expression, the lint refused it as too destructive, and the conservative version it asked for — an `or` with the matrix — passed the test as first written. That is what added the matrix check to the guard. The three mutations are now the three ways the precondition can be hollowed out while still reading as correct."
+}
