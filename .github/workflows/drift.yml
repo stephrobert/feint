@@ -42,6 +42,12 @@ jobs:
     outputs:
       changed: ${{ steps.diff.outputs.changed }}
       contracts: ${{ steps.contracts.outputs.changed }}
+      # The gate's own verdict, which `propose` already reads one job over and
+      # the issue job could not see: "failure" means operations upstream are
+      # undecided. `changed` means an artefact moved, which is not the same
+      # question and is what made the report say "nobody has triaged" over a
+      # list of "nothing left to triage" (#800).
+      undecided: ${{ steps.report.outcome }}
     steps:
       - name: Harden runner
         uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
@@ -324,7 +330,11 @@ jobs:
     needs: [drift, propose]
     # always(), because the issue matters most when `propose` failed: a drift
     # nobody was told about is a drift nobody triages.
-    if: always() && github.event_name == 'schedule' && (needs.drift.outputs.changed == 'true' || needs.drift.outputs.contracts == 'true')
+    # Runs on any movement AND on an undecided verdict, because it now has two
+    # things to do: report what is undecided, and CLOSE the issue when the last
+    # undecided thing is gone. A condition that fired only on a finding could
+    # never close what it opened.
+    if: always() && github.event_name == 'schedule' && (needs.drift.outputs.changed == 'true' || needs.drift.outputs.contracts == 'true' || needs.drift.outputs.undecided == 'failure')
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -350,55 +360,23 @@ jobs:
           name: triage
           path: /tmp/
 
-      # One issue, updated, never a new one per night. A scan that opens an issue
-      # every night teaches everyone to close them unread, which is the failure
-      # mode this whole mechanism exists to avoid.
-      - name: Open or update the issue
+      # One issue, updated, never a new one per night — and closed when there
+      # is nothing left to decide. The decision lives in tools/ci/drift-report.sh
+      # rather than here, for the reason night-report.sh states: a run: block
+      # cannot be executed outside GitHub Actions, and this repository has paid
+      # for CI fixes described in comments and never executed.
+      #
+      # What it fixes (#800): the body used to be written unconditionally, so a
+      # night where only an artefact had moved posted "operations upstream that
+      # nobody has triaged" above a list reading "nothing left to triage" three
+      # times. Twenty-one such comments, which is how a notification stops being
+      # read — the failure #795 named in the other mechanism.
+      - name: Say what the scan found, or close the issue
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          set -euo pipefail
-          title="Upstream API surface moved"
-
-          {
-            echo "The nightly scan found operations upstream that nobody has triaged."
-            echo
-            echo "Each one is a decision, not a task: **implement it**, or **add it to the"
-            echo "pack's \`Declined()\` with the reason**. \"Not done yet\" and \"out of scope\""
-            echo "are different answers and only the second belongs in Declined."
-            echo
-            echo "The refreshed baseline is in the pull request tagged \`chore/upstream-drift\`."
-            echo "Merging it without deciding is what makes this report meaningless: the"
-            echo "operations stop being reported and start being forgotten."
-            echo
-            echo "<details><summary>What is undecided, grouped by subject</summary>"
-            echo
-            echo '```'
-            # Never `cat` bare: set -e above would kill the step, and with it the
-            # issue, on the run where the view is missing.
-            if [ -s /tmp/triage.txt ]; then
-              cat /tmp/triage.txt
-            else
-              echo "The triage view did not make it to this run. The scan output is in the run log."
-            fi
-            echo '```'
-            echo
-            echo "</details>"
-            echo
-            echo "[Run]($RUN_URL) · scanned $(date -u +%Y-%m-%d)"
-          } > /tmp/issue.md
-
-          existing="$(gh issue list --state open --label drift --json number --jq '.[0].number')"
-          if [ -n "$existing" ]; then
-            gh issue comment "$existing" --body-file /tmp/issue.md
-            echo "commented on #$existing"
-          else
-            # The label may not exist on a fresh repository; create it once.
-            gh label create drift --color FBCA04 \
-              --description "The upstream API surface moved and needs triage" 2>/dev/null || true
-            gh issue create --title "$title" --label drift --body-file /tmp/issue.md
-          fi
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          FEINT_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: tools/ci/drift-report.sh --apply "${{ needs.drift.outputs.undecided }}" /tmp/triage.txt
 
   # A red night opens an issue, a green one closes it (#705): the mechanism
   # runtime-proof.yml adopted first, as a reusable workflow, because a block
