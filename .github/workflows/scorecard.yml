@@ -56,7 +56,6 @@ jobs:
           # requirement, and the workflow keeps working if the secret is ever
           # removed. It is scoped read-only and reachable only from the
           # protected `security` environment above.
-          repo_token: ${{ secrets.ADMIN_READ_TOKEN }}
 
       - name: Upload to code scanning
         uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
