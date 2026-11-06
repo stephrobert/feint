@@ -234,6 +234,12 @@ var rules = []rule{
 			Absent: []string{"--state", "snapshot"},
 		}},
 	},
+	{
+		Path: "internal/core/objectstore/",
+		Why:  "neutral persisted bytes, not yet connected to a served protocol",
+		Unproven: "the package tests prove byte round trips and reopen, not S3 responses, " +
+			"real-client conformance, checkpoint/reset, power-loss recovery or network filesystem locking",
+	},
 
 	// ------------------------------------------------------ what describes it
 	{

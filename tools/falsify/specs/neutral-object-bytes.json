@@ -1,0 +1,117 @@
+{
+  "package": "./internal/core/objectstore/",
+  "mutations": [
+    {
+      "label": "a returned reader lets io.Copy continue after cancellation",
+      "file": "internal/core/objectstore/files.go",
+      "find": "if err := r.ctx.Err(); err != nil {",
+      "replace": "if err := r.ctx.Err(); err != nil && false {",
+      "test": "TestReturnedReaderHonorsCancellationThroughCopy"
+    },
+    {
+      "label": "a writable non-sticky parent admits the root-creation substitution window",
+      "file": "internal/core/objectstore/files.go",
+      "find": "if info.Mode().Perm()&0o022 != 0 && info.Mode()&os.ModeSticky == 0 {",
+      "replace": "if info.Mode().Perm()&0o022 != 0 && info.Mode()&os.ModeSticky == 0 && false {",
+      "test": "TestUnsafeParentIsRefusedBeforeCreation"
+    },
+    {
+      "label": "a foreign parent owner is trusted merely because the directory is sticky",
+      "file": "internal/core/objectstore/files.go",
+      "find": "if !ok || (stat.Uid != 0 && int64(stat.Uid) != int64(os.Geteuid())) {",
+      "replace": "if !ok || (stat.Uid != 0 && int64(stat.Uid) != int64(os.Geteuid()) && false) {",
+      "test": "TestStickyProtectionDoesNotTrustAForeignParentOwner"
+    },
+    {
+      "label": "the blob loses its written bytes before its metadata is published",
+      "file": "internal/core/objectstore/files.go",
+      "find": "\t\tcopyErr = file.Sync()",
+      "replace": "\t\tcopyErr = file.Truncate(0)\n\t\tif copyErr == nil {\n\t\t\tcopyErr = file.Sync()\n\t\t}",
+      "test": "TestBytesAndMetadataSurviveReopen"
+    },
+    {
+      "label": "a stale upload is allowed into a recreated bucket",
+      "file": "internal/core/objectstore/store.go",
+      "find": "if b.Generation != generation {",
+      "replace": "if b.Generation != generation && false {",
+      "test": "TestDeletedAndRecreatedBucketCannotBeResurrectedByUpload"
+    },
+    {
+      "label": "a nonempty bucket can be deleted",
+      "file": "internal/core/objectstore/store.go",
+      "find": "if len(b.Objects) != 0 {",
+      "replace": "if len(b.Objects) != 0 && false {",
+      "test": "TestEmptyObjectsAndBucketLifecycle"
+    },
+    {
+      "label": "short and long uploads publish metadata",
+      "file": "internal/core/objectstore/files.go",
+      "find": "if copyErr == nil && n != size {",
+      "replace": "if copyErr == nil && n != size && false {",
+      "test": "TestUnfinishedUploadsNeverReplaceCommittedBytes"
+    },
+    {
+      "label": "same-length corrupted bytes pass digest verification",
+      "file": "internal/core/objectstore/files.go",
+      "find": "if n != obj.Size || hex.EncodeToString(hash.Sum(nil)) != obj.Digest {",
+      "replace": "if n != obj.Size || (hex.EncodeToString(hash.Sum(nil)) != obj.Digest && false) {",
+      "test": "TestMissingAndCorruptBlobsFailGetHeadAndReopen"
+    },
+    {
+      "label": "public permissions are accepted as private ownership",
+      "file": "internal/core/objectstore/files.go",
+      "find": "if info.Mode().Perm()&0o077 != 0 {",
+      "replace": "if info.Mode().Perm()&0o077 != 0 && false {",
+      "test": "TestRootOwnershipPermissionsAndSymlinksAreRefused"
+    },
+    {
+      "label": "root inspection follows a symlink instead of refusing it",
+      "file": "internal/core/objectstore/files.go",
+      "find": "info, err := parent.Lstat(name)",
+      "replace": "info, err := parent.Stat(name)",
+      "test": "TestRootOwnershipPermissionsAndSymlinksAreRefused"
+    },
+    {
+      "label": "metadata inspection follows an internal symlink",
+      "file": "internal/core/objectstore/files.go",
+      "find": "info, err := root.Lstat(name)",
+      "replace": "info, err := root.Stat(name)",
+      "test": "TestRootOwnershipPermissionsAndSymlinksAreRefused"
+    },
+    {
+      "label": "an unmarked private directory can be adopted",
+      "file": "internal/core/objectstore/files.go",
+      "find": "\t\ts.state, err = readManifest(ctx, root)",
+      "replace": "\t\ts.state, err = readManifest(ctx, root)\n\t\tif err != nil {\n\t\t\ts.state = manifest{Format: storeFormat, Version: 1, Buckets: make(map[string]*bucket)}\n\t\t\terr = root.MkdirAll(\"blobs\", 0o700)\n\t\t}",
+      "test": "TestRootOwnershipPermissionsAndSymlinksAreRefused"
+    },
+    {
+      "label": "a future metadata version is silently accepted",
+      "file": "internal/core/objectstore/manifest.go",
+      "find": "if state.Version != 1 || state.Buckets == nil {",
+      "replace": "if (state.Version != 1 && false) || state.Buckets == nil {",
+      "test": "TestManifestIsClosedVersionedAndValidated"
+    },
+    {
+      "label": "unknown persisted fields are silently ignored",
+      "file": "internal/core/objectstore/manifest.go",
+      "find": "\tdecoder.DisallowUnknownFields()",
+      "replace": "\tif false { decoder.DisallowUnknownFields() }",
+      "test": "TestManifestIsClosedVersionedAndValidated"
+    },
+    {
+      "label": "the exclusive directory process lock is disabled",
+      "file": "internal/core/objectstore/files.go",
+      "find": "syscall.Flock(int(s.dir.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)",
+      "replace": "syscall.Flock(int(s.dir.Fd()), syscall.LOCK_UN)",
+      "test": "TestRootIsExclusiveAcrossInstancesAndProcesses"
+    },
+    {
+      "label": "directory sync failure reports a successful metadata commit",
+      "file": "internal/core/objectstore/manifest.go",
+      "find": "if err := s.dir.Sync(); err != nil {",
+      "replace": "if err := s.dir.Sync(); err != nil && false {",
+      "test": "TestDirectorySyncFailureIsNotSuccessAndRequiresReopen"
+    }
+  ]
+}

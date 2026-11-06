@@ -13,6 +13,7 @@ internal/cli/               the commands: lifecycle, serve, env, doctor, snapsho
                             coverage, probe, docs, catalog, clean, version
 internal/core/resource/     the neutral resource: ID, Kind, Tenant, State, Attrs, Runtime
 internal/core/store/        in-memory storage plus JSON snapshot, with no provider knowledge
+internal/core/objectstore/  neutral persisted object bytes and metadata; no S3 route yet
 internal/core/emulator/     Env, Pack, Route, the single-port mount, /_feint/*
 internal/core/machine/      the machine runtime behind --vm: Incus containers, VMs, OVN
 internal/core/network/      address plans, subnets, firewall bindings
@@ -72,6 +73,44 @@ identically for another provider? If yes, it belongs to the core. What stays in
 the pack is what only that provider knows — its image catalogue, the login its
 machines use, the field its API publishes an address under, or the fact that it
 publishes none.
+
+## Neutral object bytes, not yet an S3 service
+
+[objectstore](../internal/core/objectstore/store.go) is an independent library
+for #850. It is not wired into the emulator or CLI, and does not change the
+Object Storage support limit. Its caller explicitly selects a private root
+whose parent already exists. New roots are mode 0700; files are mode 0600.
+The pinned parent must belong to this user or root; group/other write permission
+requires its sticky bit so another UID cannot replace the newly created root
+before it is opened. A sticky directory owned by a foreign UID is not trusted.
+Existing unmarked roots, symlinks, non-regular files, foreign owners and public
+permissions are refused, not repaired or adopted.
+
+The store holds a directory lock across its lifetime on Linux/macOS local
+filesystems. Logical bucket names and keys are JSON data, never paths. A
+streaming PUT declares its exact decoded size, writes and syncs a temporary
+blob, links it under its SHA-256 without overwriting an existing blob, and
+syncs that directory before atomically publishing and syncing metadata.
+Uploads to distinct keys run independently. A generation check prevents an
+unfinished upload from repopulating a deleted or recreated bucket.
+
+GET and HEAD verify the complete blob; listing is a metadata inventory only.
+The digest is not an S3 ETag. Deletion removes references, not blobs. The
+private `feint-objectstore` v1 index is not `feint-snapshot` v1: no snapshot,
+checkpoint/reset or cleanup command reads it yet. Unreferenced blobs and
+temporary files from a process crash are retained; there is no collector or
+recursive root deletion.
+An interrupted initial creation may leave an unmarked directory; inspect and
+remove that explicitly rather than asking Open to adopt it.
+
+A successful mutation follows file and directory syncs. If metadata was renamed
+but its directory sync fails, the call reports failure and the instance requires
+close/reopen; failure may therefore have published metadata. Reopen, corruption
+and concurrency are tested, not actual power loss or network filesystem locks.
+The root is not a sandbox against a malicious process sharing its owner's UID.
+The caller must impose storage quotas and unblock its input reader on
+cancellation; waiting for an existing same-key transaction may also delay
+cancellation. No structured format passes through a text template.
 
 ## What varies is a field, not a convention
 
