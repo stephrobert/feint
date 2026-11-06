@@ -8,6 +8,12 @@ done. It is ordered by what unblocks a user, not by what is interesting to build
 What is *measured* rather than planned lives in [limits.md](limits.md), and how
 the pieces fit together in [architecture.md](architecture.md).
 
+> [!IMPORTANT]
+> The current major-release cut is **[Feint 1.0 — The local cloud lab](roadmap-1.0.md)**,
+> owned by [#847](https://github.com/stephrobert/feint/issues/847). The historical
+> sequence below remains the record of how the project got here; it is not the
+> execution order for 1.0.
+
 
 ## The order 0.11.0 is being worked in
 
