@@ -25,7 +25,7 @@ func fixture(t *testing.T) (*Server, *objectstore.Store) {
 	if err := os.Chmod(parent, 0700); err != nil {
 		t.Fatal(err)
 	}
-	store, err := objectstore.Open(t.Context(), filepath.Join(parent, "objects"))
+	store, err := objectstore.OpenWithLimit(t.Context(), filepath.Join(parent, "objects"), 2<<20)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -424,5 +424,28 @@ func TestAmbiguousUploadHeadersDoNotPublish(t *testing.T) {
 		if !duplicate && w.Code != 200 || duplicate && w.Code != 400 {
 			t.Fatal("ambiguous headers were silently ignored", duplicate, w.Code, w.Body.String())
 		}
+	}
+
+}
+
+func TestQuotaRefusalIsExplicitAndPreservesExistingObject(t *testing.T) {
+	s, _ := fixture(t)
+	if w := request(t, s, "PUT", "/bucket", nil, nil); w.Code != 200 {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	payload := bytes.Repeat([]byte("x"), 1<<20)
+	if w := request(t, s, "PUT", "/bucket/key", payload, nil); w.Code != 200 {
+		t.Fatal("exact quota threshold must work", w.Code, w.Body.String())
+	}
+	if w := request(t, s, "PUT", "/bucket/second", bytes.Repeat([]byte("y"), 1<<20), nil); w.Code != 200 {
+		t.Fatal("remaining quota must work", w.Code, w.Body.String())
+	}
+	w := request(t, s, "PUT", "/bucket/key", []byte("z"), nil)
+	if w.Code != 507 || !strings.HasPrefix(w.Body.String(), "feint: object storage blob byte budget exceeded") {
+		t.Fatal("quota became an invented cloud response or success", w.Code, w.Body.String())
+	}
+	w = request(t, s, "GET", "/bucket/key", nil, nil)
+	if w.Code != 200 || !bytes.Equal(w.Body.Bytes(), payload) {
+		t.Fatal("quota refusal damaged existing bytes", w.Code)
 	}
 }

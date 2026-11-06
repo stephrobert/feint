@@ -259,6 +259,8 @@ func (s *Server) storeError(w http.ResponseWriter, r *http.Request, bucket strin
 	status, message := http.StatusInternalServerError, "object storage operation failed"
 	var tooLarge *http.MaxBytesError
 	switch {
+	case errors.Is(err, objectstore.ErrQuota):
+		status, message = http.StatusInsufficientStorage, "object storage blob byte budget exceeded"
 	case errors.Is(err, objectstore.ErrObjectNotFound), errors.Is(err, objectstore.ErrBucketExists),
 		errors.Is(err, objectstore.ErrBucketNotEmpty):
 		status, message = http.StatusNotImplemented, "cloud error shape has not been measured for this store outcome"

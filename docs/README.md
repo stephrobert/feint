@@ -55,6 +55,8 @@ small enough to read, and no cloud account.
 
 - [architecture.md](architecture.md) — the packs, the neutral core, and the
   boundary between them.
+- [object-storage-routing.md](object-storage-routing.md) — the accepted
+  single-port S3 door decision and its byte budgets; implementation is staged.
 - [../CONTRIBUTING.md](../CONTRIBUTING.md) — how a change is proved before it is
   proposed.
 - [proxy.md](proxy.md) — record a real cloud, read the recording, and turn it

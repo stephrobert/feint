@@ -113,6 +113,22 @@ The caller must impose storage quotas and unblock its input reader on
 cancellation; waiting for an existing same-key transaction may also delay
 cancellation. No structured format passes through a text template.
 
+`OpenWithLimit` adds an explicit cumulative blob-byte budget without changing
+the index format or `Open`'s unlimited library behavior. It counts retained and
+orphan data on reopen, with hard-linked names counted once, and reserves each
+upload's declared size before file creation or input reads. The EOF probe is
+read into memory, never written beyond that reservation. Reservations are
+released after temporary-file cleanup; new published blobs remain charged even
+when metadata publication fails. Failed cleanup retains the partial byte charge.
+Deletion does not free blob bytes. Identical uploads still require temporary
+space. Metadata and filesystem overhead are outside this byte budget.
+See the [accepted door ADR](object-storage-routing.md) for the selected opt-in
+defaults (1 GiB cumulative, 256 MiB per simple PUT) and the still-unmounted
+server integration.
+The gateway renders a budget refusal as a logged Feint HTTP 507 text response,
+not an unmeasured S3 XML error. The official-client component proof uses a small
+explicit cumulative budget; deployment defaults are not yet CLI options.
+
 ### Explicit S3 component, not shipped Object Storage support
 
 [s3](../internal/s3/server.go) is a direct HTTP handler over that store, with no

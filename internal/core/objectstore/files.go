@@ -215,15 +215,43 @@ func tempFile(root *os.Root) (*os.File, string, error) {
 }
 
 func (s *Store) writeBlob(ctx context.Context, body io.Reader, size int64) (_ string, err error) {
+	if err := s.reserveBlob(size); err != nil {
+		return "", err
+	}
+	var retained int64
+	defer func() { s.settleBlob(size, retained) }()
 	file, temp, err := tempFile(s.blobs)
 	if err != nil {
 		return "", err
 	}
-	defer func() { err = errors.Join(err, s.blobs.Remove(temp)) }()
+	var n int64
+	published := false
+	defer func() {
+		removeErr := s.blobs.Remove(temp)
+		err = errors.Join(err, removeErr)
+		if published {
+			retained = size
+		} else if removeErr != nil {
+			retained = n
+		}
+	}()
 	hash := sha256.New()
-	n, copyErr := io.Copy(io.MultiWriter(file, hash), io.LimitReader(&contextReader{ctx: ctx, reader: body}, size+1))
+	reader := &contextReader{ctx: ctx, reader: body}
+	// TestFailedUploadReleasesBudgetAndNeverWritesProbeByte holds the physical
+	// bound: detect excess input without writing outside the reservation.
+	n, copyErr := io.Copy(io.MultiWriter(file, hash), io.LimitReader(reader, size))
 	if copyErr == nil && n != size {
 		copyErr = fmt.Errorf("%w: expected %d bytes, received %d", ErrInvalid, size, n)
+	}
+	if copyErr == nil {
+		var extra [1]byte
+		count, probeErr := io.ReadFull(reader, extra[:])
+		switch {
+		case count != 0:
+			copyErr = fmt.Errorf("%w: upload exceeds its declared size", ErrInvalid)
+		case !errors.Is(probeErr, io.EOF):
+			copyErr = probeErr
+		}
 	}
 	if copyErr == nil {
 		copyErr = ctx.Err()
@@ -246,6 +274,8 @@ func (s *Store) writeBlob(ctx context.Context, body io.Reader, size int64) (_ st
 		if err := existing.Close(); err != nil {
 			return "", fmt.Errorf("close existing blob: %w", err)
 		}
+	} else {
+		published = true
 	}
 	dir, err := s.blobs.Open(".")
 	if err != nil {

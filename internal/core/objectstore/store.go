@@ -77,6 +77,7 @@ type Store struct {
 	closed bool
 	fault  error
 	domain string
+	budget *blobBudget
 }
 
 // Close releases directory handles and the exclusive process lock.

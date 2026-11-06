@@ -1,0 +1,76 @@
+{
+  "package": "./internal/core/objectstore/",
+  "mutations": [
+    {
+      "label": "aggregate allocations exceed the blob-byte limit",
+      "file": "internal/core/objectstore/budget.go",
+      "find": "if size > b.limit-b.used-b.held {",
+      "replace": "if size > b.limit-b.used-b.held && false {",
+      "test": "TestBudgetRetainsDeletedBytesAndAllowsExactThreshold|TestBudgetReservesConcurrentUploadsBeforeReading"
+    },
+    {
+      "label": "concurrent uploads never reserve their input size",
+      "file": "internal/core/objectstore/budget.go",
+      "find": "b.held += size",
+      "replace": "b.held += size * 0",
+      "test": "TestBudgetReservesConcurrentUploadsBeforeReading"
+    },
+    {
+      "label": "published bytes lose their quota charge",
+      "file": "internal/core/objectstore/budget.go",
+      "find": "b.used += retained",
+      "replace": "b.used += retained * 0",
+      "test": "TestBudgetRetainsDeletedBytesAndAllowsExactThreshold|TestBudgetChargesBlobWithoutMetadataPublication"
+    },
+    {
+      "label": "reopen forgets retained blob and crash bytes",
+      "file": "internal/core/objectstore/budget.go",
+      "find": "used += info.Size()",
+      "replace": "used += info.Size() * 0",
+      "test": "TestBudgetRecountsCrashFilesAndHardLinks"
+    },
+    {
+      "label": "hard-linked crash names count the same file twice",
+      "file": "internal/core/objectstore/budget.go",
+      "find": "if seen[identity] {",
+      "replace": "if seen[identity] && false {",
+      "test": "TestBudgetRecountsCrashFilesAndHardLinks"
+    },
+    {
+      "label": "the EOF probe byte is written beyond the reservation",
+      "file": "internal/core/objectstore/files.go",
+      "find": "io.LimitReader(reader, size)",
+      "replace": "io.LimitReader(reader, size+1)",
+      "test": "TestFailedUploadReleasesBudgetAndNeverWritesProbeByte"
+    },
+    {
+      "label": "failed temporary cleanup releases retained bytes",
+      "file": "internal/core/objectstore/files.go",
+      "find": "} else if removeErr != nil {",
+      "replace": "} else if removeErr != nil && false {",
+      "test": "TestBudgetChargesFailedTemporaryCleanup"
+    },
+    {
+      "label": "temporary reservations are never released",
+      "file": "internal/core/objectstore/budget.go",
+      "find": "b.held -= reserved",
+      "replace": "b.held -= reserved * 0",
+      "test": "TestBudgetRetainsDeletedBytesAndAllowsExactThreshold"
+    },
+    {
+      "label": "an extra EOF probe byte no longer refuses publication",
+      "file": "internal/core/objectstore/files.go",
+      "find": "case count != 0:",
+      "replace": "case count != 0 && false:",
+      "test": "TestFailedUploadReleasesBudgetAndNeverWritesProbeByte"
+    },
+    {
+      "label": "the S3 boundary disguises a quota refusal as a generic storage error",
+      "file": "internal/s3/server.go",
+      "find": "case errors.Is(err, objectstore.ErrQuota):",
+      "replace": "case errors.Is(err, objectstore.ErrQuota) && false:",
+      "test": "TestQuotaRefusalIsExplicitAndPreservesExistingObject",
+      "package": "./internal/s3/"
+    }
+  ]
+}
