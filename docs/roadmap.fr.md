@@ -14,6 +14,13 @@ ce qui est intéressant à construire.
 Ce qui est *mesuré* plutôt que planifié vit dans [limits.md](limits.md) ; la
 façon dont les pièces s'assemblent, dans [architecture.md](architecture.md).
 
+> [!IMPORTANT]
+> Le découpage courant de la prochaine majeure est **[Feint 1.0 — Le laboratoire
+> cloud local](roadmap-1.0.fr.md)**, porté par
+> [#847](https://github.com/stephrobert/feint/issues/847). La séquence historique
+> ci-dessous reste la trace du chemin parcouru ; ce n'est pas l'ordre d'exécution
+> de la 1.0.
+
 ## L'ordre dans lequel la 0.11.0 est traitée
 
 Figé le 2026-08-22. Treize issues restent, et elles ne sont pas indépendantes :
