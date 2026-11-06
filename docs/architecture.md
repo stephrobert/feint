@@ -13,7 +13,8 @@ internal/cli/               the commands: lifecycle, serve, env, doctor, snapsho
                             coverage, probe, docs, catalog, clean, version
 internal/core/resource/     the neutral resource: ID, Kind, Tenant, State, Attrs, Runtime
 internal/core/store/        in-memory storage plus JSON snapshot, with no provider knowledge
-internal/core/objectstore/  neutral persisted object bytes and metadata; no S3 route yet
+internal/core/objectstore/  neutral persisted object bytes and metadata
+internal/s3/                bounded path-style protocol component; not mounted yet
 internal/core/emulator/     Env, Pack, Route, the single-port mount, /_feint/*
 internal/core/machine/      the machine runtime behind --vm: Incus containers, VMs, OVN
 internal/core/network/      address plans, subnets, firewall bindings
@@ -111,6 +112,62 @@ The root is not a sandbox against a malicious process sharing its owner's UID.
 The caller must impose storage quotas and unblock its input reader on
 cancellation; waiting for an existing same-key transaction may also delay
 cancellation. No structured format passes through a text template.
+
+### Explicit S3 component, not shipped Object Storage support
+
+[s3](../internal/s3/server.go) is a direct HTTP handler over that store, with no
+listener, CLI option, provider route or snapshot integration. The mono-port
+server remains unchanged. Mounting provider doors, trusted intercepted host
+handoff and virtual-host routing are separate decisions, not implicit promises.
+It accepts loopback peers and literal loopback/localhost endpoint hosts only.
+SigV4 credentials are accepted without authenticating their secret; they are
+never logged. Local callers still have access to the whole selected store.
+
+Run `mise run conformance:s3` with **AWS CLI 2.32.17** installed. Absence or a
+different version fails, never skips. The isolated HOME uses the repository's
+public fake credentials, an ephemeral trusted HTTPS certificate, metadata
+discovery disabled and a non-forwarding proxy with a positive CONNECT control.
+This is a client proxy boundary, **not a network namespace or a proof that
+arbitrary clients cannot bypass proxies**.
+
+The witness performs CreateBucket, PutObject, GetObject, DeleteObject and
+DeleteBucket against the component, retrieves 73,728 identical binary bytes and
+checks their independent SHA-256. HTTPS makes this client emit `aws-chunked`
+with a CRC32 trailer. CRC32 is an explicit fixture selection, not a claim about
+the default algorithm or unmodified Terraform stacks. A sixth GET deliberately
+changes only the response checksum: the official client must reject it. No
+ETag is emitted; this client succeeds without one. This does **not** establish
+Scaleway/SOS ETag behavior or support clients that require ETags.
+
+Uploads require an exact decoded length, capped by the caller's byte bound.
+Framing is decoded and CRC32/SHA-256 checksums verified **before** EOF can let
+the core publish metadata. The raw body is bounded to twice that cap plus
+64 KiB; the trailer section is capped at 8 KiB. Logical object keys are decoded
+once, never cleaned. HTTP metadata is validated at intake and again after
+reading the neutral store, including case-insensitive header collisions.
+Callers need server read/header deadlines, header limits and **cumulative**
+disk quotas; this per-request bound does not prevent many uploads or reclaim
+unreferenced blobs.
+
+Only empty-body bucket creation, bucket HEAD/deletion and full object
+PUT/GET/HEAD/deletion are implemented. Queries other than SDK `x-id`, range and
+conditional requests, ACLs, policies, versioning, multipart, encryption,
+Content-MD5 and other checksum algorithms are explicitly refused. There are no
+successful empty bucket-listing or multipart stubs.
+The only cloud XML error is NoSuchBucket, with explicitly selected Scaleway or
+SOS envelopes from the anonymous HTTPS GET recordings of
+2026-11-06T20:33:53Z at `s3.fr-par.scw.cloud` and `sos-ch-gva-2.exo.io`.
+[The test](../internal/s3/server_test.go) decodes the recorded producer bodies;
+their response identifiers are redacted, not their fields. Applying that error
+family to other missing-bucket operations is an adapter choice, not another
+cloud measurement. NoSuchKey, conflicting creation and BucketNotEmpty still
+get a logged **Feint 501 text refusal**, not fabricated cloud XML.
+
+The official-client witness proves a protocol component, not an invocation of
+`feint serve`, `scw`, `exo`, a surveyed Terraform stack, interception or reset.
+Existing Object Storage support limits and the full conformance population are
+unchanged. [The declared mutations](../tools/falsify/specs/s3-gateway.json)
+hold checksum, framing, size, metadata and unsupported-feature guards.
 
 ## What varies is a field, not a convention
 

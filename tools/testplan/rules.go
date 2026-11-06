@@ -236,9 +236,17 @@ var rules = []rule{
 	},
 	{
 		Path: "internal/core/objectstore/",
-		Why:  "neutral persisted bytes, not yet connected to a served protocol",
-		Unproven: "the package tests prove byte round trips and reopen, not S3 responses, " +
-			"real-client conformance, checkpoint/reset, power-loss recovery or network filesystem locking",
+		Why:  "neutral persisted bytes used by the unmounted S3 component",
+		Runs: []string{"conformance:s3"},
+		Unproven: "the component proof does not mount S3 in the emulator or run provider clients, " +
+			"checkpoint/reset, power-loss recovery or network filesystem locking",
+	},
+	{
+		Path: "internal/s3/",
+		Why:  "bounded path-style S3 protocol and real-byte official-client proof",
+		Runs: []string{"conformance:s3"},
+		Unproven: "the explicit component proof covers one AWS CLI version, not provider doors, " +
+			"virtual hosts, interception, ETag semantics, multipart, public stacks or cumulative quotas",
 	},
 
 	// ------------------------------------------------------ what describes it

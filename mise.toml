@@ -50,6 +50,10 @@ run = "./feint serve --addr $FEINT_ADDR --vm ${FEINT_VM:-off}"
 description = "Run the unit tests with the race detector"
 run = "go test -race ./..."
 
+[tasks."conformance:s3"]
+description = "Prove the unmounted path-style S3 component with AWS CLI 2.32.17 (required)"
+run = "go test -race -tags=conformance ./internal/s3 -run '^TestOfficialAWSCLIBytes$' -count=1 -v"
+
 [tasks.fuzz]
 description = "Fuzz the request decoders. Longer run: FUZZTIME=5m mise run fuzz"
 run = "go test ./internal/providers/scaleway/ -run '^$' -fuzz 'FuzzCreateServer' -fuzztime=\"${FUZZTIME:-30s}\""
