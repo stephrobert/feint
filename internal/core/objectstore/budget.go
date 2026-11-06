@@ -9,6 +9,15 @@ import (
 	"syscall"
 )
 
+// BlobLimit returns the configured cumulative blob-byte limit, or zero for an
+// unlimited store. The limit is immutable for the lifetime of an open instance.
+func (s *Store) BlobLimit() int64 {
+	if s.budget == nil {
+		return 0
+	}
+	return s.budget.limit
+}
+
 // ErrQuota distinguishes a byte-budget refusal from corrupt or invalid data.
 var ErrQuota = errors.New("object store blob byte budget exceeded")
 

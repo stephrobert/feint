@@ -10,10 +10,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -22,22 +20,20 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/stephrobert/feint/internal/conformancetest"
 )
 
 func TestOfficialAWSCLIBytes(t *testing.T) {
-	aws, err := exec.LookPath("aws")
-	if err != nil {
-		t.Fatal("install AWS CLI 2.32.17 for this explicit real-client proof:", err)
-	}
 	s, store := fixture(t)
 	var guardHits atomic.Int64
 	guard := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		guardHits.Add(1)
-		http.Error(w, "feint conformance: external requests are refused, never forwarded", 502)
+		http.Error(w, "feint conformance: external requests are refused, never forwarded", http.StatusBadGateway)
 	}))
 	defer guard.Close()
 	// A positive control proves the proxy actually records and refuses CONNECT.
-	if err := probeProxyGuard(t.Context(), guard.URL); err != nil {
+	if err := conformancetest.ProbeProxyGuard(t.Context(), guard.URL); err != nil {
 		t.Fatal(err)
 	}
 	if guardHits.Load() != 1 {
@@ -74,49 +70,10 @@ func TestOfficialAWSCLIBytes(t *testing.T) {
 	if err := os.WriteFile(ca, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: endpoint.Certificate().Raw}), 0600); err != nil {
 		t.Fatal(err)
 	}
-	creds, err := os.ReadFile("../../tools/conformance/scaleway/fake-credentials.env")
-	if err != nil {
-		t.Fatal(err)
-	}
-	fake := make(map[string]string)
-	for _, line := range strings.Split(string(creds), "\n") {
-		if key, value, ok := strings.Cut(line, "="); ok && strings.HasPrefix(key, "SCW_") {
-			fake[key] = value
-		}
-	}
-	if fake["SCW_ACCESS_KEY"] == "" || fake["SCW_SECRET_KEY"] == "" {
-		t.Fatal("canonical public fake credentials are absent")
-	}
-	env := []string{
-		"HOME=" + home, "PATH=" + filepath.Dir(aws) + ":/usr/bin:/bin",
-		"AWS_ACCESS_KEY_ID=" + fake["SCW_ACCESS_KEY"], "AWS_SECRET_ACCESS_KEY=" + fake["SCW_SECRET_KEY"],
-		"AWS_DEFAULT_REGION=fr-par", "AWS_EC2_METADATA_DISABLED=true",
-		"AWS_CONFIG_FILE=" + filepath.Join(home, "config"), "AWS_SHARED_CREDENTIALS_FILE=" + filepath.Join(home, "credentials"),
-		"AWS_PAGER=", "AWS_CLI_AUTO_PROMPT=off", "AWS_MAX_ATTEMPTS=1",
-		"AWS_CA_BUNDLE=" + ca,
-		"HTTP_PROXY=" + guard.URL, "HTTPS_PROXY=" + guard.URL, "ALL_PROXY=" + guard.URL,
-		"NO_PROXY=127.0.0.1,localhost,::1", "LANG=C.UTF-8",
-	}
-	run := func(args ...string) []byte {
-		t.Helper()
-		ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
-		defer cancel()
-		cmd := exec.CommandContext(ctx, aws, args...)
-		cmd.Env = env
-		out, err := cmd.CombinedOutput()
-		if err != nil {
-			t.Fatalf("AWS CLI %s failed: %v\n%s", strings.Join(args, " "), err, out)
-		}
-		return out
-	}
-	version := string(run("--version"))
-	if !strings.HasPrefix(version, "aws-cli/2.32.17 ") {
-		t.Fatal("proof requires the measured AWS CLI 2.32.17, got:", version)
-	}
-	t.Log(strings.TrimSpace(version))
+	cli := conformancetest.AWS(t, guard.URL, ca)
 	call := func(args ...string) []byte {
 		t.Helper()
-		return run(append([]string{"--endpoint-url", endpoint.URL, "--no-cli-pager", "s3api"}, args...)...)
+		return cli.Run(t, append([]string{"--endpoint-url", endpoint.URL, "--no-cli-pager", "s3api"}, args...)...)
 	}
 	payload := bytes.Repeat([]byte{0, 255, 'f', 'e', 'i', 'n', 't', '\r', '\n'}, 8192)
 	input, output := filepath.Join(home, "input"), filepath.Join(home, "output")
@@ -150,9 +107,9 @@ func TestOfficialAWSCLIBytes(t *testing.T) {
 	// Alter only the response checksum, retaining the same successful bytes.
 	corruptChecksum.Store(true)
 	ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
-	cmd := exec.CommandContext(ctx, aws, "--endpoint-url", endpoint.URL, "--no-cli-pager", "s3api",
+	cmd := exec.CommandContext(ctx, cli.Path, "--endpoint-url", endpoint.URL, "--no-cli-pager", "s3api",
 		"get-object", "--bucket", "feint-byte-proof", "--key", "proof/data", "--checksum-mode", "ENABLED", filepath.Join(home, "corrupt-output"))
-	cmd.Env = env
+	cmd.Env = cli.Env
 	control, controlErr := cmd.CombinedOutput()
 	cancel()
 	corruptChecksum.Store(false)
@@ -199,27 +156,4 @@ func (w *statusWriter) WriteHeader(status int) {
 		w.Header().Set("X-Amz-Checksum-Sha256", base64.StdEncoding.EncodeToString(make([]byte, sha256.Size)))
 	}
 	w.ResponseWriter.WriteHeader(status)
-}
-
-func probeProxyGuard(ctx context.Context, endpoint string) error {
-	proxy, err := url.Parse(endpoint)
-	if err != nil {
-		return err
-	}
-	client := &http.Client{Transport: &http.Transport{Proxy: http.ProxyURL(proxy)}, Timeout: 5 * time.Second}
-	defer client.CloseIdleConnections()
-	r, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://s3.fr-par.scw.cloud/never-forward", nil)
-	if err != nil {
-		return err
-	}
-	response, err := client.Do(r)
-	if response != nil {
-		if closeErr := response.Body.Close(); closeErr != nil {
-			return closeErr
-		}
-	}
-	if err == nil {
-		return fmt.Errorf("guard unexpectedly permitted CONNECT")
-	}
-	return nil
 }

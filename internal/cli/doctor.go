@@ -47,6 +47,7 @@ func doctor(args []string, stdout, stderr io.Writer) int {
 	fs := newFlagSet("doctor")
 	addr := fs.String("addr", DefaultAddr, "the address serve would listen on")
 	vm := fs.String("vm", "auto", "the machine runtime to diagnose: off, incus, incus-vm, incus-ovn, auto")
+	withS3 := fs.Bool("s3", false, "require and diagnose live S3 activation on this address")
 	if err := fs.Parse(args); err != nil {
 		return exitError
 	}
@@ -62,6 +63,9 @@ func doctor(args []string, stdout, stderr io.Writer) int {
 	checks = append(checks, checkEnvHazards()...)
 	checks = append(checks, checkStackHazards()...)
 	checks = append(checks, checkSSHConfig())
+	if *withS3 {
+		checks = append(checks, checkObjectStorage(*addr))
+	}
 
 	failed := 0
 	for _, c := range checks {
@@ -74,6 +78,7 @@ func doctor(args []string, stdout, stderr io.Writer) int {
 			failed++
 		case verdictOK:
 		}
+
 		fmt.Fprintf(stream, "  %s  %s\n", mark, c.title)
 		if c.detail != "" {
 			fmt.Fprintf(stream, "        %s\n", c.detail)
@@ -88,6 +93,27 @@ func doctor(args []string, stdout, stderr io.Writer) int {
 		return exitError
 	}
 	return exitOK
+}
+
+func checkObjectStorage(addr string) check {
+	c := check{title: "live S3 storage", state: verdictFail,
+		fix: "start with --objectstore <private-directory>, then use feint env <provider> --s3"}
+	endpoint, err := storageListenEndpoint(addr)
+	if err != nil {
+		c.detail = err.Error()
+		return c
+	}
+	report, err := fetchS3(endpoint)
+	if err != nil {
+		c.detail = err.Error()
+	} else if !report.Enabled {
+		c.detail = "S3 is explicitly disabled"
+	} else {
+		c.state = verdictOK
+		c.detail = fmt.Sprintf("%d declared door(s); %d blob bytes maximum; %d bytes per simple PUT; ancillary client lifecycles are not certified",
+			len(report.Doors), report.MaxBlobBytes, report.MaxObjectBytes)
+	}
+	return c
 }
 
 // checkPort answers the first question anybody asks when serve will not start,

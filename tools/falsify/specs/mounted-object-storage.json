@@ -1,0 +1,178 @@
+{
+  "package": "./internal/s3/",
+  "mutations": [
+    {
+      "label": "S3 activates on a listener which cannot receive loopback peers",
+      "package": "./internal/cli/",
+      "file": "internal/cli/object_storage.go",
+      "find": "if !emulator.LoopbackListen(local) {",
+      "replace": "if !emulator.LoopbackListen(local) && false {",
+      "test": "TestS3ListenConfigurationAlwaysProducesUsableLoopbackEndpoints"
+    },
+    {
+      "label": "the IPv4 wildcard listener is no longer mapped to usable loopback S3",
+      "package": "./internal/cli/",
+      "file": "internal/cli/object_storage.go",
+      "find": "case \"\", \"0.0.0.0\":",
+      "replace": "case \"\", \"\\x00never\":",
+      "test": "TestS3ListenConfigurationAlwaysProducesUsableLoopbackEndpoints"
+    },
+    {
+      "label": "interrupted handlers invent completed HTTP response evidence",
+      "file": "internal/s3/doors.go",
+      "find": "if observed.status == 0 {\n\t\t\t\t\td.log.ErrorContext",
+      "replace": "if observed.status == 0 && false {\n\t\t\t\t\td.log.ErrorContext",
+      "test": "TestAnInterruptedDoorDoesNotInventResponseEvidence"
+    },
+    {
+      "label": "provider and region namespaces collapse onto one bucket",
+      "file": "internal/s3/server.go",
+      "find": "return s.cfg.Namespace + \"/\" + bucket",
+      "replace": "return strings.TrimSuffix(s.cfg.Namespace, s.cfg.Namespace) + bucket",
+      "test": "TestMountedDoorsPreserveRawKeysAndIsolateScopes"
+    },
+    {
+      "label": "dispatch uses an already decoded path",
+      "file": "internal/s3/doors.go",
+      "find": "raw := r.URL.EscapedPath()",
+      "replace": "raw := r.URL.Path",
+      "test": "TestMountedDoorsPreserveRawKeysAndIsolateScopes|TestMountedDoorRefusesUnknownAndEncodedPrefixesWithoutRedirect"
+    },
+    {
+      "label": "the mounted remainder is path-cleaned",
+      "file": "internal/s3/doors.go",
+      "find": "request.URL.Path, request.URL.RawPath = path, \"/\"+remainder",
+      "replace": "request.URL.Path, request.URL.RawPath = strings.ReplaceAll(path, \"//\", \"/\"), strings.ReplaceAll(\"/\"+remainder, \"//\", \"/\")",
+      "test": "TestMountedDoorsPreserveRawKeysAndIsolateScopes"
+    },
+    {
+      "label": "encoded bucket separators lose their boundary",
+      "file": "internal/s3/doors.go",
+      "find": "request.URL.Path, request.URL.RawPath = path, \"/\"+remainder",
+      "replace": "request.URL.Path, request.URL.RawPath = path, strings.TrimSuffix(\"/\"+remainder, \"/\"+remainder)",
+      "test": "TestMountedDoorsPreserveRawKeysAndIsolateScopes|TestMountedDoorRefusesUnknownAndEncodedPrefixesWithoutRedirect"
+    },
+    {
+      "label": "reserved unknown S3 paths reach the cleaning control-plane mux",
+      "file": "internal/s3/doors.go",
+      "find": "d.refuse(w, r, \"S3 door is not enabled or its prefix is not canonical\")",
+      "replace": "d.next.ServeHTTP(w, r)",
+      "test": "TestMountedDoorRefusesUnknownAndEncodedPrefixesWithoutRedirect"
+    },
+    {
+      "label": "an unlimited store advertises and accepts mounted quotas",
+      "file": "internal/s3/doors.go",
+      "find": "if maxBlobBytes <= 0 || maxObjectBytes > maxBlobBytes {",
+      "replace": "if (maxBlobBytes <= 0 || maxObjectBytes > maxBlobBytes) && false {",
+      "test": "TestMountRequiresActualQuotaAndExplicitActivation"
+    },
+    {
+      "label": "declared namespace tokens are not validated",
+      "file": "internal/s3/doors.go",
+      "find": "if !ValidToken(p.Provider) || !ValidToken(p.Region) {",
+      "replace": "if (!ValidToken(p.Provider) || !ValidToken(p.Region)) && false {",
+      "test": "TestMountRequiresActualQuotaAndExplicitActivation"
+    },
+    {
+      "label": "an exposed control plane disarms S3 browser protection",
+      "file": "internal/s3/server.go",
+      "find": "if len(r.Header.Values(\"Origin\")) != 0 {",
+      "replace": "if len(r.Header.Values(\"Origin\")) != 0 && false {",
+      "test": "TestMountedS3CannotDisarmItsOriginGuard"
+    },
+    {
+      "label": "PUT proceeds without read-deadline support",
+      "file": "internal/s3/doors.go",
+      "find": "err != nil {\n\t\t\t\t\td.log.ErrorContext(r.Context(), \"S3 upload read deadline unavailable\"",
+      "replace": "err != nil && false {\n\t\t\t\t\td.log.ErrorContext(r.Context(), \"S3 upload read deadline unavailable\"",
+      "test": "TestMountedPutRequiresAndInstallsBodyReadDeadline"
+    },
+    {
+      "label": "the PUT body read deadline collapses to immediate",
+      "file": "internal/s3/doors.go",
+      "find": "SetReadDeadline(time.Now().Add(UploadReadTimeout))",
+      "replace": "SetReadDeadline(time.Now().Add(UploadReadTimeout * 0))",
+      "test": "TestMountedPutRequiresAndInstallsBodyReadDeadline"
+    },
+    {
+      "label": "start forgets byte-storage settings before recording serve args",
+      "package": "./internal/cli/",
+      "file": "internal/cli/lifecycle.go",
+      "find": "out = append(out, f.storage.args()...)",
+      "replace": "out = append(out, f.storage.args()[:0]...)",
+      "test": "TestStartPreservesObjectStorageFlagsAndAbsoluteRoot"
+    },
+    {
+      "label": "restart retains a relative object-store root",
+      "package": "./internal/cli/",
+      "file": "internal/cli/object_storage.go",
+      "find": "f.root = absolute",
+      "replace": "f.root = filepath.Join(\".\", filepath.Base(absolute))",
+      "test": "TestStartPreservesObjectStorageFlagsAndAbsoluteRoot"
+    },
+    {
+      "label": "invalid and overflowing byte limits are accepted",
+      "package": "./internal/cli/",
+      "file": "internal/cli/object_storage.go",
+      "find": "if f.budgetMiB <= 0 || f.budgetMiB > math.MaxInt64>>20 ||\n\t\tf.objectMiB <= 0 || f.objectMiB > (math.MaxInt64-(64<<10))/2>>20 ||\n\t\tf.objectMiB > f.budgetMiB {",
+      "replace": "if (f.budgetMiB <= 0 || f.budgetMiB > math.MaxInt64>>20 ||\n\t\tf.objectMiB <= 0 || f.objectMiB > (math.MaxInt64-(64<<10))/2>>20 ||\n\t\tf.objectMiB > f.budgetMiB) && false {",
+      "test": "TestObjectStorageValidatesDefaultsAndLimitsWithoutStartingAnything"
+    },
+    {
+      "label": "malformed and duplicate CLI door declarations are accepted",
+      "package": "./internal/cli/",
+      "file": "internal/cli/object_storage.go",
+      "find": "if !ok || !s3.ValidToken(provider) || !s3.ValidToken(region) || seen[entry] {",
+      "replace": "if (!ok || !s3.ValidToken(provider) || !s3.ValidToken(region) || seen[entry]) && false {",
+      "test": "TestS3DeclarationsRejectUnknownMalformedAndDuplicateDoors"
+    },
+    {
+      "label": "a provider without an S3 dialect becomes a silent empty declaration",
+      "package": "./internal/cli/",
+      "file": "internal/cli/object_storage.go",
+      "find": "if !found {",
+      "replace": "if !found && false {",
+      "test": "TestS3DeclarationsRejectUnknownMalformedAndDuplicateDoors"
+    },
+    {
+      "label": "foreign or credential-bearing discovery URLs are accepted",
+      "package": "./internal/cli/",
+      "file": "internal/cli/object_storage.go",
+      "find": "if err != nil || (base.Scheme != \"http\" && base.Scheme != \"https\") ||\n\t\t!emulator.LoopbackListen(net.JoinHostPort(base.Hostname(), \"0\")) || base.User != nil || base.RawQuery != \"\" ||\n\t\tbase.Fragment != \"\" || base.RawPath != \"\" || (base.Path != \"\" && base.Path != \"/\") {",
+      "replace": "if (err != nil || (base.Scheme != \"http\" && base.Scheme != \"https\") ||\n\t\t!emulator.LoopbackListen(net.JoinHostPort(base.Hostname(), \"0\")) || base.User != nil || base.RawQuery != \"\" ||\n\t\tbase.Fragment != \"\" || base.RawPath != \"\" || (base.Path != \"\" && base.Path != \"/\")) && false {",
+      "test": "TestS3DiscoveryRefusesRedirectsInvalidReportsAndForeignEndpoints"
+    },
+    {
+      "label": "discovery follows a redirect rather than refusing it",
+      "package": "./internal/cli/",
+      "file": "internal/cli/object_storage.go",
+      "find": "return http.ErrUseLastResponse",
+      "replace": "return errors.Unwrap(http.ErrUseLastResponse)",
+      "test": "TestS3DiscoveryRefusesRedirectsInvalidReportsAndForeignEndpoints"
+    },
+    {
+      "label": "unknown report versions and inconsistent limits become valid discovery",
+      "package": "./internal/cli/",
+      "file": "internal/cli/object_storage.go",
+      "find": "if report.SchemaVersion != s3.ReportVersion || report.Doors == nil || report.HTTPRequests == nil ||\n\t\t(report.Enabled && (report.MaxBlobBytes <= 0 || report.MaxObjectBytes <= 0 ||\n\t\t\treport.MaxObjectBytes > report.MaxBlobBytes || len(report.Doors) == 0)) ||\n\t\t(!report.Enabled && len(report.Doors) != 0) {",
+      "replace": "if (report.SchemaVersion != s3.ReportVersion || report.Doors == nil || report.HTTPRequests == nil ||\n\t\t(report.Enabled && (report.MaxBlobBytes <= 0 || report.MaxObjectBytes <= 0 ||\n\t\t\treport.MaxObjectBytes > report.MaxBlobBytes || len(report.Doors) == 0)) ||\n\t\t(!report.Enabled && len(report.Doors) != 0)) && false {",
+      "test": "TestS3DiscoveryRefusesRedirectsInvalidReportsAndForeignEndpoints"
+    },
+    {
+      "label": "ordinary unset leaves the S3 endpoint installed",
+      "package": "./internal/cli/",
+      "file": "internal/cli/env.go",
+      "find": "if *withS3 || (*unset && hasS3) {",
+      "replace": "if *withS3 || (*unset && hasS3 && false) {",
+      "test": "TestS3EnvOnlyExportsLiveSelectedDoorsAndUnsetWorksOffline"
+    },
+    {
+      "label": "ambiguous S3 regions silently select the last endpoint",
+      "package": "./internal/cli/",
+      "file": "internal/cli/object_storage.go",
+      "find": "if selected != nil {",
+      "replace": "if selected != nil && false {",
+      "test": "TestS3EnvOnlyExportsLiveSelectedDoorsAndUnsetWorksOffline"
+    }
+  ]
+}

@@ -80,6 +80,18 @@ const prepushIsTheWholeGate = ""
 var rules = []rule{
 	// ---------------------------------------------------------------- packs
 	{
+		Path:     "internal/providers/scaleway/object_storage.go",
+		Why:      "declared S3 dialect and configurable endpoint variables, outside control-plane SDK coverage",
+		Runs:     []string{"conformance:s3", "conformance:s3:mounted"},
+		Unproven: "AWS CLI byte operations, not a complete scw lifecycle or hardcoded Terraform S3 redirection",
+	},
+	{
+		Path:     "internal/providers/exoscale/object_storage.go",
+		Why:      "declared SOS dialect and configurable endpoint variables, outside control-plane SDK coverage",
+		Runs:     []string{"conformance:s3", "conformance:s3:mounted"},
+		Unproven: "AWS CLI byte operations, not a complete exo lifecycle, bucket-usage API or multipart support",
+	},
+	{
 		Path: "internal/providers/scaleway/",
 		Why:  "the Scaleway pack — routes, response shapes, errors",
 		Runs: []string{"conformance:leg -- scw-cli", "conformance:leg -- fields"},
@@ -235,18 +247,39 @@ var rules = []rule{
 		}},
 	},
 	{
-		Path: "internal/core/objectstore/",
-		Why:  "neutral persisted bytes used by the unmounted S3 component",
-		Runs: []string{"conformance:s3"},
-		Unproven: "the component proof does not mount S3 in the emulator or run provider clients, " +
-			"checkpoint/reset, power-loss recovery or network filesystem locking",
+		Path:     "internal/core/objectstore/",
+		Why:      "neutral persisted bytes used by the S3 component and the real emulator process",
+		Runs:     []string{"conformance:s3", "conformance:s3:mounted"},
+		Unproven: "complete provider-client lifecycles, checkpoint/reset, power-loss recovery and network filesystem locking",
 	},
 	{
-		Path: "internal/s3/",
-		Why:  "bounded path-style S3 protocol and real-byte official-client proof",
-		Runs: []string{"conformance:s3"},
-		Unproven: "the explicit component proof covers one AWS CLI version, not provider doors, " +
-			"virtual hosts, interception, ETag semantics, multipart, public stacks or cumulative quotas",
+		Path:     "internal/s3/",
+		Why:      "bounded path-style S3 protocol and real-byte official-client proof",
+		Runs:     []string{"conformance:s3", "conformance:s3:mounted"},
+		Unproven: "one AWS CLI version, not complete scw/exo lifecycles, virtual hosts, interception, ETag semantics, multipart or public stacks",
+	},
+	{
+		Path:     "internal/conformancetest/",
+		Why:      "isolated pinned AWS CLI environment and non-forwarding egress control",
+		Runs:     []string{"conformance:s3", "conformance:s3:mounted"},
+		Unproven: "the proxy is not a network namespace and does not constrain arbitrary clients which ignore it",
+	},
+	{
+		Path:     "internal/cli/object_storage.go",
+		Why:      "S3 activation, discovery and actual-process persistence",
+		Runs:     []string{"conformance:s3:mounted"},
+		Unproven: "complete provider CLI lifecycles, declarative feint.yaml storage configuration and hardcoded Terraform endpoints",
+		Cites: []claim{{
+			About:  "declarative feint.yaml storage configuration",
+			In:     "internal/cli/up.go",
+			Absent: []string{"--objectstore", "--s3-doors"},
+		}},
+	},
+	{
+		Path:     "internal/cli/object_storage_conformance_test.go",
+		Why:      "the actual-process S3 client witness, excluded from ordinary unit tests",
+		Runs:     []string{"conformance:s3:mounted"},
+		Unproven: "complete provider CLI lifecycles and hardcoded Terraform endpoints",
 	},
 
 	// ------------------------------------------------------ what describes it

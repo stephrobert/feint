@@ -46,6 +46,8 @@ type Config struct {
 	MaxObjectBytes int64
 	MissingBucket  MissingBucketShape
 	Log            *slog.Logger
+	// Namespace is an opaque deployment scope, not an authenticated tenant.
+	Namespace string
 }
 
 // Server is a direct HTTP handler. Do not put it behind a path-cleaning mux:
@@ -57,7 +59,8 @@ type Server struct {
 
 // New validates explicit dependencies; it neither opens storage nor listens.
 func New(store *objectstore.Store, cfg Config) (*Server, error) {
-	if store == nil || cfg.Log == nil || cfg.Region == "" || !headerValue(cfg.Region) {
+	if store == nil || cfg.Log == nil || cfg.Region == "" || !headerValue(cfg.Region) ||
+		len(cfg.Namespace) > 128 || !headerValue(cfg.Namespace) {
 		return nil, errors.New("s3: store, logger and a header-safe region are required")
 	}
 	if cfg.MaxObjectBytes <= 0 || cfg.MaxObjectBytes > (math.MaxInt64-(64<<10))/2 {
@@ -73,6 +76,10 @@ func New(store *objectstore.Store, cfg Config) (*Server, error) {
 // Other features get an explicit Feint refusal, never a successful empty stub
 // or an invented cloud XML error. Signatures and credentials are never logged.
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if len(r.Header.Values("Origin")) != 0 {
+		s.refuse(w, r, http.StatusForbidden, "browser Origin is not supported", nil)
+		return
+	}
 	peer, err := netip.ParseAddrPort(r.RemoteAddr)
 	if err != nil || !peer.Addr().Unmap().IsLoopback() {
 		s.refuse(w, r, http.StatusForbidden, "only direct loopback peers are supported", err)
@@ -119,7 +126,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet, http.MethodHead:
 		s.get(w, r, bucket, key)
 	case http.MethodDelete:
-		err := s.store.DeleteObject(r.Context(), bucket, key)
+		err := s.store.DeleteObject(r.Context(), s.name(bucket), key)
 		if err != nil && !errors.Is(err, objectstore.ErrObjectNotFound) {
 			s.storeError(w, r, bucket, err)
 			return
@@ -142,14 +149,14 @@ func (s *Server) bucket(w http.ResponseWriter, r *http.Request, name string) {
 			s.refuse(w, r, http.StatusNotImplemented, "CreateBucket configuration is not implemented", readErr)
 			return
 		}
-		err = s.store.CreateBucket(r.Context(), name)
+		err = s.store.CreateBucket(r.Context(), s.name(name))
 	case http.MethodHead:
-		err = s.store.HeadBucket(r.Context(), name)
+		err = s.store.HeadBucket(r.Context(), s.name(name))
 	case http.MethodDelete:
-		err = s.store.DeleteBucket(r.Context(), name)
+		err = s.store.DeleteBucket(r.Context(), s.name(name))
 		status = http.StatusNoContent
 	case http.MethodGet:
-		err = s.store.HeadBucket(r.Context(), name)
+		err = s.store.HeadBucket(r.Context(), s.name(name))
 		if err == nil {
 			s.refuse(w, r, http.StatusNotImplemented, "bucket listing is not implemented", nil)
 			return
@@ -186,7 +193,7 @@ func (s *Server) put(w http.ResponseWriter, r *http.Request, bucket, key string)
 		s.refuse(w, r, http.StatusBadRequest, "invalid S3 upload", err)
 		return
 	}
-	obj, err := s.store.PutObject(r.Context(), bucket, key, upload, objectstore.PutOptions{
+	obj, err := s.store.PutObject(r.Context(), s.name(bucket), key, upload, objectstore.PutOptions{
 		Size: size, ContentType: r.Header.Get("Content-Type"), Metadata: metadata,
 	})
 	if err != nil {
@@ -202,7 +209,7 @@ func (s *Server) put(w http.ResponseWriter, r *http.Request, bucket, key string)
 }
 
 func (s *Server) get(w http.ResponseWriter, r *http.Request, bucket, key string) {
-	obj, body, err := s.store.GetObject(r.Context(), bucket, key)
+	obj, body, err := s.store.GetObject(r.Context(), s.name(bucket), key)
 	if err != nil {
 		s.storeError(w, r, bucket, err)
 		return
@@ -328,12 +335,20 @@ func bucketName(name string) bool {
 	if len(name) < 3 || len(name) > 63 || name[0] == '.' || name[0] == '-' || name[len(name)-1] == '.' || name[len(name)-1] == '-' {
 		return false
 	}
+
 	for _, c := range name {
 		if (c < 'a' || c > 'z') && (c < '0' || c > '9') && c != '.' && c != '-' {
 			return false
 		}
 	}
 	return !strings.Contains(name, "..")
+}
+
+func (s *Server) name(bucket string) string {
+	if s.cfg.Namespace == "" {
+		return bucket
+	}
+	return s.cfg.Namespace + "/" + bucket
 }
 
 func headerValue(value string) bool {

@@ -45,6 +45,7 @@ import (
 	"testing"
 
 	"github.com/stephrobert/feint/internal/core/emulator"
+	"github.com/stephrobert/feint/internal/s3"
 	"github.com/stephrobert/feint/internal/transcript"
 )
 
@@ -194,6 +195,7 @@ func observedSurfaces(t *testing.T) []frozenSurface {
 		// a fault from a committed file is a consumer on day one, and the rules
 		// it PUTs are the same document this answers.
 		{name: "faults", version: emulator.FaultsSchemaVersion, content: observeShape(t, "/_feint/faults", nil)},
+		{name: "s3", version: s3.ReportVersion, content: observeShape(t, s3.ReportPath, []string{"http_requests"})},
 		{name: "cli", version: cliSurfaceVersion, content: cliSurfaceContent(t)},
 	}
 	if os.Getenv("FEINT_UPDATE_FROZEN") != "" {
@@ -216,12 +218,24 @@ var frozenBody = func() func(t *testing.T, path string) []byte {
 	return func(t *testing.T, path string) []byte {
 		t.Helper()
 		once.Do(func() {
-			srv, _, err := newServer(nil)
+			srv, env, err := newServer(nil)
 			if err != nil {
 				buildErr = err
 				return
 			}
-			ts := httptest.NewServer(srv.Handler())
+			flags := &objectStorageFlags{root: filepath.Join(privateStorageDir(t), "bytes"),
+				budgetMiB: 3, objectMiB: 1, doors: defaultS3Doors}
+			doors, store, err := mountObjectStorage(t.Context(), srv, flags, env.Log)
+			if err != nil {
+				buildErr = err
+				return
+			}
+			defer func() {
+				if err := store.Close(); err != nil {
+					buildErr = err
+				}
+			}()
+			ts := httptest.NewServer(doors)
 			defer ts.Close()
 
 			drive := func(path string, probe bool) error {
@@ -250,6 +264,15 @@ var frozenBody = func() func(t *testing.T, path string) []byte {
 					buildErr = err
 					return
 				}
+			}
+			resS3, err := ts.Client().Get(ts.URL + s3.DoorPath("scaleway", "fr-par") + "missing-bucket/key")
+			if err != nil {
+				buildErr = err
+				return
+			}
+			if err := resS3.Body.Close(); err != nil {
+				buildErr = err
+				return
 			}
 
 			// One armed rule, and one call that fires it. Both halves are
@@ -283,7 +306,7 @@ var frozenBody = func() func(t *testing.T, path string) []byte {
 				return
 			}
 
-			for _, path := range []string{"/_feint/health", "/_feint/routes", "/_feint/conformance", "/_feint/trace", "/_feint/faults"} {
+			for _, path := range []string{"/_feint/health", "/_feint/routes", "/_feint/conformance", "/_feint/trace", "/_feint/faults", s3.ReportPath} {
 				res, err := ts.Client().Get(ts.URL + path)
 				if err != nil {
 					buildErr = err

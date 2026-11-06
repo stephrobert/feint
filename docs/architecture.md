@@ -14,7 +14,8 @@ internal/cli/               the commands: lifecycle, serve, env, doctor, snapsho
 internal/core/resource/     the neutral resource: ID, Kind, Tenant, State, Attrs, Runtime
 internal/core/store/        in-memory storage plus JSON snapshot, with no provider knowledge
 internal/core/objectstore/  neutral persisted object bytes and metadata
-internal/s3/                bounded path-style protocol component; not mounted yet
+internal/s3/                bounded S3 protocol and same-port explicit door dispatch
+internal/conformancetest/   isolated pinned AWS CLI harness, under the conformance tag
 internal/core/emulator/     Env, Pack, Route, the single-port mount, /_feint/*
 internal/core/machine/      the machine runtime behind --vm: Incus containers, VMs, OVN
 internal/core/network/      address plans, subnets, firewall bindings
@@ -75,11 +76,11 @@ the pack is what only that provider knows — its image catalogue, the login its
 machines use, the field its API publishes an address under, or the fact that it
 publishes none.
 
-## Neutral object bytes, not yet an S3 service
+## Neutral object bytes and explicitly mounted S3 doors
 
 [objectstore](../internal/core/objectstore/store.go) is an independent library
-for #850. It is not wired into the emulator or CLI, and does not change the
-Object Storage support limit. Its caller explicitly selects a private root
+for #850, activated only by `serve`/`start --objectstore`. It does not imply
+complete provider Object Storage support. Its caller explicitly selects a private root
 whose parent already exists. New roots are mode 0700; files are mode 0600.
 The pinned parent must belong to this user or root; group/other write permission
 requires its sticky bit so another UID cannot replace the newly created root
@@ -123,18 +124,20 @@ when metadata publication fails. Failed cleanup retains the partial byte charge.
 Deletion does not free blob bytes. Identical uploads still require temporary
 space. Metadata and filesystem overhead are outside this byte budget.
 See the [accepted door ADR](object-storage-routing.md) for the selected opt-in
-defaults (1 GiB cumulative, 256 MiB per simple PUT) and the still-unmounted
-server integration.
+defaults (1 GiB cumulative, 256 MiB per simple PUT) and the mounted
+same-port server integration.
 The gateway renders a budget refusal as a logged Feint HTTP 507 text response,
 not an unmeasured S3 XML error. The official-client component proof uses a small
-explicit cumulative budget; deployment defaults are not yet CLI options.
+explicit cumulative budget; deployment limits are configurable CLI options.
 
-### Explicit S3 component, not shipped Object Storage support
+### Explicit S3 protocol, not complete Object Storage support
 
 [s3](../internal/s3/server.go) is a direct HTTP handler over that store, with no
-listener, CLI option, provider route or snapshot integration. The mono-port
-server remains unchanged. Mounting provider doors, trusted intercepted host
-handoff and virtual-host routing are separate decisions, not implicit promises.
+listener, control-plane SDK route or snapshot integration.
+[Doors](../internal/s3/doors.go) dispatch declared provider/region prefixes
+before the mono-port server's cleaning mux, over one shared store with opaque
+namespaces. CLI composition owns activation and shutdown. Trusted intercepted
+host handoff and virtual-host routing remain deferred, not implicit promises.
 It accepts loopback peers and literal loopback/localhost endpoint hosts only.
 SigV4 credentials are accepted without authenticating their secret; they are
 never logged. Local callers still have access to the whole selected store.
@@ -179,9 +182,11 @@ family to other missing-bucket operations is an adapter choice, not another
 cloud measurement. NoSuchKey, conflicting creation and BucketNotEmpty still
 get a logged **Feint 501 text refusal**, not fabricated cloud XML.
 
-The official-client witness proves a protocol component, not an invocation of
-`feint serve`, `scw`, `exo`, a surveyed Terraform stack, interception or reset.
-Existing Object Storage support limits and the full conformance population are
+That witness proves a protocol component. `mise run conformance:s3:mounted`
+separately drives the actual `feint start`/`restart` process on both declared
+doors and proves bytes, checksums, literal keys and persisted namespaces.
+Neither proves complete `scw`/`exo` lifecycles, a surveyed Terraform stack,
+interception or reset. The full control-plane conformance population is
 unchanged. [The declared mutations](../tools/falsify/specs/s3-gateway.json)
 hold checksum, framing, size, metadata and unsupported-feature guards.
 

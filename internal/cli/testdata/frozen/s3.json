@@ -1,0 +1,59 @@
+{
+  "history": [
+    {
+      "schema_version": 1,
+      "content": {
+        "fields": [
+          {
+            "path": "doors",
+            "type": "array"
+          },
+          {
+            "path": "doors[]",
+            "type": "object"
+          },
+          {
+            "path": "doors[].path",
+            "type": "string"
+          },
+          {
+            "path": "doors[].provider",
+            "type": "string"
+          },
+          {
+            "path": "doors[].region",
+            "type": "string"
+          },
+          {
+            "path": "enabled",
+            "type": "bool"
+          },
+          {
+            "path": "http_requests",
+            "type": "object"
+          },
+          {
+            "path": "http_requests.*",
+            "type": "array"
+          },
+          {
+            "path": "http_requests.*[]",
+            "type": "number"
+          },
+          {
+            "path": "max_blob_bytes",
+            "type": "number"
+          },
+          {
+            "path": "max_object_bytes",
+            "type": "number"
+          },
+          {
+            "path": "schema_version",
+            "type": "number"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -17,6 +17,25 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ## [Unreleased]
 
+### Ajouté
+
+- **Des octets S3 simples, persistants et opt-in sur le port existant** (#850) :
+  `serve`/`start --objectstore`, `--s3-doors`, `--objectstore-budget-mib`
+  (1024 par défaut) et `--s3-object-limit-mib` (256 par défaut).
+  Les préfixes provider/région déclarés préservent les clés littérales et
+  séparent les espaces. `restart` conserve la racine absolue et les limites ;
+  les snapshots de ressources et le nettoyage ne possèdent pas ces octets.
+  AWS CLI 2.32.17 prouve l'identité octets/checksum sur le vrai processus avant
+  et après redémarrage. Les cycles `scw`/`exo` complets, les ETag, le multipart
+  et les endpoints Terraform codés en dur restent hors périmètre.
+- **La découverte S3 active, pas un endpoint deviné quand elle est désactivée**
+  (#850) : `env --s3 [--s3-region]`, `doctor --s3`, un statut explicite
+  actif/désactivé/inconnu et le rapport indépendant `/_feint/s3`, schéma **1**.
+  Ses compteurs HTTP ne gonflent ni la couverture SDK du plan de contrôle ni
+  ses preuves clientes. La surface CLI additive passe à **26** ; les codes de
+  sortie et le schéma de santé restent inchangés. `env --unset` retire aussi
+  les variables d'endpoint S3, sans instance active.
+
 ## [0.14.0] - 2026-10-26
 
 ### Ajouté

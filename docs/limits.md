@@ -4,7 +4,17 @@ What Feint deliberately does not do, and why. Stating this precisely matters
 more than the feature list: an emulator that lies about its coverage is worse
 than one that is small.
 
-## Object Storage is not emulated
+## Object Storage: simple explicit doors, not full client workflows
+
+#850 adds opt-in, persisted simple S3 operations on the existing port, with
+declared `/_feint/s3/<provider>/<region>/` endpoints, cumulative byte budgets
+and an AWS CLI 2.32.17 restart proof. See the
+[door ADR and commands](object-storage-routing.md).
+Complete `scw`/`exo` lifecycles, listing, ACL/versioning, multipart, ETags,
+checkpoint/reset and hardcoded Terraform redirection remain unsupported.
+No MinIO service or dependency is used by this implementation.
+
+### Why Scaleway Terraform is still not redirected
 
 Scaleway Object Storage is S3-compatible, so emulating it is not the hard part
 (MinIO does it already). The obstacle is **how clients reach it**.
@@ -55,11 +65,11 @@ here. The export stays declined; the import no longer shares its refusal.
 What this emulator records is the intention. A snapshot appears, `available`,
 carrying the name and project the client gave — the request declares no tags,
 unlike the create beside it — with no parent volume and a
-size of zero, because no bytes moved and none could have.
+size of zero, because this handler does not read object bytes.
 
 The divergence, stated rather than hidden: the real API refuses an object that
-does not exist, and this emulator cannot. There is no Object Storage here to
-check a bucket and a key against, so an import naming an object nobody uploaded
+does not exist, and this handler does not check the opt-in byte store. The
+snapshot-import route is not wired to the S3 gateway, so an import naming an object nobody uploaded
 answers success here and answers an error upstream. A plan that depends on that
 refusal is not covered.
 
@@ -344,8 +354,9 @@ wall and no longer an operator ceremony either — it is the coverage argument
 alone: whether the S3-through-Terraform corner is worth emulating an S3 surface,
 which is a product call and the only thing still holding the refusal.
 
-The blocker is one product on one client, so the MinIO + `SCW_S3_ENDPOINT` page
-remains the right answer for the S3 workflow, and the refusal caps coverage by
+That measurement predates #850's explicit byte gateway: a complete configurable
+S3 workflow still needs operations beyond its simple byte slice (or a separate
+S3 service such as MinIO). The Terraform refusal still caps coverage by
 exactly one corner rather than quietly bounding the whole project. If
 Object-Storage-through-Terraform is ever wanted, it is a roadmap item with a
 named owner and a shape already measured, and number 7 shortened it again:

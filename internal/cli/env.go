@@ -31,6 +31,8 @@ import (
 
 func envCommand(args []string, stdout, stderr io.Writer) int {
 	fs := newFlagSet("env")
+	withS3 := fs.Bool("s3", false, "export only live, explicitly enabled S3 endpoints as well as control-plane variables")
+	s3Region := fs.String("s3-region", "", "select an enabled S3 region when more than one is declared")
 	shell := fs.String("shell", "bash", "shell syntax: bash, fish or powershell")
 	endpoint := fs.String("endpoint", "", "the emulator's address (default: http://<the --addr default>)")
 	unset := fs.Bool("unset", false, "print the removals instead of the exports")
@@ -89,6 +91,10 @@ func envCommand(args []string, stdout, stderr io.Writer) int {
 		target = defaultEndpoint()
 	}
 	env := pack.Env(target)
+	if *s3Region != "" && !*withS3 {
+		fmt.Fprintln(stderr, "feint: --s3-region requires --s3")
+		return exitError
+	}
 	if *client != "" {
 		// A client family only means something to a pack whose clients
 		// disagree; anywhere else the flag would silently print the same thing
@@ -110,6 +116,16 @@ func envCommand(args []string, stdout, stderr io.Writer) int {
 	if !ok {
 		fmt.Fprintf(stderr, "feint: unknown shell %q; bash, fish or powershell\n", *shell)
 		return exitError
+	}
+	_, hasS3 := pack.(packObjectStorage)
+	if *withS3 || (*unset && hasS3) {
+		if err := storageEnvironment(pack, target, *s3Region, *unset, env.Vars); err != nil {
+			fmt.Fprintf(stderr, "feint: %v\n", err)
+			return exitError
+		}
+		if !*unset {
+			fmt.Fprintln(stderr, "note: S3 serves simple byte operations only; complete provider CLI lifecycles and hardcoded Terraform endpoints are not certified.")
+		}
 	}
 
 	keys := make([]string, 0, len(env.Vars))
