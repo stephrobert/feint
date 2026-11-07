@@ -20,8 +20,8 @@
     {
       "label": "interrupted handlers invent completed HTTP response evidence",
       "file": "internal/s3/doors.go",
-      "find": "if observed.status == 0 {\n\t\t\t\t\td.log.ErrorContext",
-      "replace": "if observed.status == 0 && false {\n\t\t\t\t\td.log.ErrorContext",
+      "find": "if observed.status == 0 {\n\t\t\td.log.ErrorContext",
+      "replace": "if observed.status == 0 && false {\n\t\t\td.log.ErrorContext",
       "test": "TestAnInterruptedDoorDoesNotInventResponseEvidence"
     },
     {
@@ -83,8 +83,8 @@
     {
       "label": "PUT proceeds without read-deadline support",
       "file": "internal/s3/doors.go",
-      "find": "err != nil {\n\t\t\t\t\td.log.ErrorContext(r.Context(), \"S3 upload read deadline unavailable\"",
-      "replace": "err != nil && false {\n\t\t\t\t\td.log.ErrorContext(r.Context(), \"S3 upload read deadline unavailable\"",
+      "find": "err != nil {\n\t\t\td.log.ErrorContext(r.Context(), \"S3 upload read deadline unavailable\"",
+      "replace": "err != nil && false {\n\t\t\td.log.ErrorContext(r.Context(), \"S3 upload read deadline unavailable\"",
       "test": "TestMountedPutRequiresAndInstallsBodyReadDeadline"
     },
     {

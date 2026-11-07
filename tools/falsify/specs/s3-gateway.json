@@ -46,8 +46,8 @@
     {
       "label": "virtual cloud hostnames are treated as path-style endpoints",
       "file": "internal/s3/server.go",
-      "find": "if host != \"localhost\" && (ipErr != nil || !ip.Unmap().IsLoopback()) {",
-      "replace": "if host != \"localhost\" && (ipErr != nil || !ip.Unmap().IsLoopback()) && false {",
+      "find": "if host != \"localhost\" && (ipErr != nil || !ip.Unmap().IsLoopback()) &&\n\t\t(s.cfg.endpointHost == \"\" || r.Host != s.cfg.endpointHost) {",
+      "replace": "if host != \"localhost\" && (ipErr != nil || !ip.Unmap().IsLoopback()) &&\n\t\t(s.cfg.endpointHost == \"\" || r.Host != s.cfg.endpointHost) && false {",
       "test": "TestLoopbackAndPathStyleBoundary"
     },
     {

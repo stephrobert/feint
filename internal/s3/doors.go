@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/stephrobert/feint/internal/core/emulator"
 	"github.com/stephrobert/feint/internal/core/objectstore"
 )
 
@@ -19,7 +20,7 @@ import (
 const ReportPath = "/_feint/s3"
 
 // ReportVersion versions the S3 report independently of control-plane schemas.
-const ReportVersion = 1
+const ReportVersion = 2
 
 // UploadReadTimeout bounds a simple PUT body without changing the runtime's
 // independent write deadline or the control-plane request-body policy.
@@ -34,13 +35,16 @@ type Profile struct {
 	Variables           []string
 	RegionVariable      string
 	BucketConfiguration bool
+	// HostEndpoint selects the host door for clients that discard path prefixes.
+	HostEndpoint bool
 }
 
-// Door describes an enabled path-style endpoint, without filesystem paths.
+// Door describes an enabled prefix and optional local HTTP proxy authority.
 type Door struct {
 	Provider string `json:"provider"`
 	Region   string `json:"region"`
 	Path     string `json:"path"`
+	Host     string `json:"host"`
 }
 
 // Report owns the wire shape consumed by env/status/doctor and conformance.
@@ -57,6 +61,12 @@ type Report struct {
 // validated tokens before using it to dispatch a request or export a variable.
 func DoorPath(provider, region string) string {
 	return ReportPath + "/" + provider + "/" + region + "/"
+}
+
+// DoorHost is a synthetic authority, never a cloud hostname or a DNS requirement.
+// Like DoorPath, it requires validated provider and region tokens.
+func DoorHost(provider, region string) string {
+	return provider + "." + region + ".s3.feint.invalid"
 }
 
 // ValidToken limits namespace components to short lower-case ASCII tokens.
@@ -78,6 +88,7 @@ type Doors struct {
 	next     http.Handler
 	log      *slog.Logger
 	handlers map[string]*Server
+	hosts    map[string]*Server
 	mu       sync.Mutex
 	report   Report
 }
@@ -85,10 +96,21 @@ type Doors struct {
 // Mount composes a control-plane handler and explicitly selected S3 doors.
 // A nil store and no profiles publishes disabled S3 without activating storage.
 func Mount(next http.Handler, store *objectstore.Store, profiles []Profile, maxObjectBytes int64, log *slog.Logger) (*Doors, error) {
+	return mount(next, store, profiles, maxObjectBytes, log, false)
+}
+
+// MountHosts additionally declares synthetic authorities for the same scopes.
+// Handler must be used to receive local absolute-form HTTP proxy requests.
+// No request is forwarded and no DNS or extra listener is involved.
+func MountHosts(next http.Handler, store *objectstore.Store, profiles []Profile, maxObjectBytes int64, log *slog.Logger) (*Doors, error) {
+	return mount(next, store, profiles, maxObjectBytes, log, true)
+}
+
+func mount(next http.Handler, store *objectstore.Store, profiles []Profile, maxObjectBytes int64, log *slog.Logger, hosts bool) (*Doors, error) {
 	if next == nil || log == nil || (store == nil) != (len(profiles) == 0) {
 		return nil, errors.New("s3: handler, logger and consistent explicit storage activation are required")
 	}
-	d := &Doors{next: next, log: log, handlers: make(map[string]*Server), report: Report{
+	d := &Doors{next: next, log: log, handlers: make(map[string]*Server), hosts: make(map[string]*Server), report: Report{
 		SchemaVersion: ReportVersion, Enabled: store != nil, Doors: []Door{}, HTTPRequests: make(map[string]uint64),
 	}}
 	if store == nil {
@@ -114,9 +136,37 @@ func Mount(next http.Handler, store *objectstore.Store, profiles []Profile, maxO
 			return nil, err
 		}
 		d.handlers[path] = server
-		d.report.Doors = append(d.report.Doors, Door{Provider: p.Provider, Region: p.Region, Path: path})
+		door := Door{Provider: p.Provider, Region: p.Region, Path: path}
+		if hosts {
+			door.Host = DoorHost(p.Provider, p.Region)
+			cfg := server.cfg
+			cfg.endpointHost = door.Host
+			d.hosts[door.Host] = &Server{store: store, cfg: cfg}
+		}
+		d.report.Doors = append(d.report.Doors, door)
 	}
 	return d, nil
+}
+
+// Handler keeps the control-plane rebinding guard, admitting only declared
+// absolute-form HTTP authorities to S3's own loopback/Origin boundary.
+func (d *Doors) Handler(addr string) http.Handler {
+	guarded := emulator.GuardRebinding(d, addr)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handler := d.hosts[r.Host]
+		if handler == nil && !r.URL.IsAbs() && r.Method != http.MethodConnect {
+			guarded.ServeHTTP(w, r)
+			return
+		}
+		// TestHostDoorsRefuseAmbiguousProxyTargets holds the authority boundary.
+		if handler == nil || r.Method == http.MethodConnect || r.URL.Scheme != "http" ||
+			r.URL.Host != r.Host || r.URL.User != nil || r.URL.Fragment != "" || r.URL.Opaque != "" {
+			d.log.WarnContext(r.Context(), "S3 proxy target refused")
+			http.Error(w, "feint: only declared absolute-form HTTP S3 targets are supported; never forwarded", http.StatusForbidden)
+			return
+		}
+		d.serveDoor(w, r, handler, "http://"+r.Host)
+	})
 }
 
 // Snapshot returns detached report data so readers cannot mutate live evidence.
@@ -165,30 +215,34 @@ func (d *Doors) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			request := r.Clone(r.Context())
 			request.URL.Path, request.URL.RawPath = path, "/"+remainder
-			observed := &doorWriter{ResponseWriter: w}
-			defer func() {
-				// TestAnInterruptedDoorDoesNotInventResponseEvidence holds this.
-				if observed.status == 0 {
-					d.log.ErrorContext(r.Context(), "S3 request ended without response headers")
-					return
-				}
-				d.mu.Lock()
-				key := prefix + " " + fmt.Sprint(observed.status)
-				d.report.HTTPRequests[key]++
-				d.mu.Unlock()
-			}()
-			if r.Method == http.MethodPut {
-				if err := http.NewResponseController(w).SetReadDeadline(time.Now().Add(UploadReadTimeout)); err != nil {
-					d.log.ErrorContext(r.Context(), "S3 upload read deadline unavailable", "error", err)
-					http.Error(observed, "feint: S3 upload read deadline unavailable", http.StatusServiceUnavailable)
-					return
-				}
-			}
-			handler.ServeHTTP(observed, request)
+			d.serveDoor(w, request, handler, prefix)
 			return
 		}
 	}
 	d.refuse(w, r, "S3 door is not enabled or its prefix is not canonical")
+}
+
+func (d *Doors) serveDoor(w http.ResponseWriter, r *http.Request, handler *Server, endpoint string) {
+	observed := &doorWriter{ResponseWriter: w}
+	defer func() {
+		// TestAnInterruptedDoorDoesNotInventResponseEvidence holds this.
+		if observed.status == 0 {
+			d.log.ErrorContext(r.Context(), "S3 request ended without response headers")
+			return
+		}
+		d.mu.Lock()
+		key := endpoint + " " + fmt.Sprint(observed.status)
+		d.report.HTTPRequests[key]++
+		d.mu.Unlock()
+	}()
+	if r.Method == http.MethodPut {
+		if err := http.NewResponseController(w).SetReadDeadline(time.Now().Add(UploadReadTimeout)); err != nil {
+			d.log.ErrorContext(r.Context(), "S3 upload read deadline unavailable", "error", err)
+			http.Error(observed, "feint: S3 upload read deadline unavailable", http.StatusServiceUnavailable)
+			return
+		}
+	}
+	handler.ServeHTTP(observed, r)
 }
 
 func (d *Doors) refuse(w http.ResponseWriter, r *http.Request, reason string) {

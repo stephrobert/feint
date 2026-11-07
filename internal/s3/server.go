@@ -52,6 +52,8 @@ type Config struct {
 	// BucketConfiguration enables the measured private, non-versioned bucket
 	// workflow, independently of the missing-bucket error dialect.
 	BucketConfiguration bool
+	// Set only by the explicit host-door composition, not by direct callers.
+	endpointHost string
 }
 
 // Server is a direct HTTP handler. Do not put it behind a path-cleaning mux:
@@ -94,7 +96,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		host = h
 	}
 	ip, ipErr := netip.ParseAddr(strings.Trim(host, "[]"))
-	if host != "localhost" && (ipErr != nil || !ip.Unmap().IsLoopback()) {
+	if host != "localhost" && (ipErr != nil || !ip.Unmap().IsLoopback()) &&
+		(s.cfg.endpointHost == "" || r.Host != s.cfg.endpointHost) {
 		s.refuse(w, r, http.StatusNotImplemented, "only explicit loopback path-style endpoints are supported", nil)
 		return
 	}

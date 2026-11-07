@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -79,7 +80,7 @@ func TestMountedS3OfficialAWSCLIBytes(t *testing.T) {
 		}
 	})
 	run("start", "--addr", addr, "--vm", "off", "--objectstore", "bytes",
-		"--objectstore-budget-mib", "3", "--s3-object-limit-mib", "1")
+		"--objectstore-budget-mib", "3", "--s3-object-limit-mib", "1", "--s3-host-doors")
 	var first statusReport
 	if err := json.Unmarshal(run("status", "--addr", addr, "--format", "json"), &first); err != nil ||
 		!first.Running || first.PID <= 0 || first.ObjectStorage == nil ||
@@ -89,12 +90,33 @@ func TestMountedS3OfficialAWSCLIBytes(t *testing.T) {
 	if len(first.ObjectStorage.Doors) != 2 {
 		t.Fatal("actual serve did not mount both declared doors")
 	}
+	localProxy, err := url.Parse(endpoint)
+	if err != nil {
+		t.Fatal(err)
+	}
+	proxyClient := &http.Client{Transport: &http.Transport{Proxy: http.ProxyURL(localProxy)}, Timeout: 5 * time.Second}
+	defer proxyClient.CloseIdleConnections()
+	control, err := http.NewRequestWithContext(t.Context(), "GET", "http://must-not-forward.invalid/_feint/health", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	refused, err := proxyClient.Do(control)
+	if err != nil {
+		t.Fatal("actual emulator proxy control failed:", err)
+	}
+	if err := refused.Body.Close(); err != nil || refused.StatusCode != http.StatusForbidden {
+		t.Fatal("actual emulator did not refuse an undeclared proxy authority:", refused.StatusCode, err)
+	}
 	for _, provider := range []string{"scaleway", "exoscale"} {
 		out := run("env", provider, "--s3", "--endpoint", endpoint)
 		found := false
 		for _, door := range first.ObjectStorage.Doors {
-			if door.Provider == provider && bytes.Contains(out, []byte(endpoint+strings.TrimSuffix(door.Path, "/"))) &&
-				!bytes.Contains(out, []byte(endpoint+door.Path)) {
+			target := "http://" + door.Host
+			if provider == "scaleway" {
+				target = endpoint + strings.TrimSuffix(door.Path, "/")
+			}
+			if door.Provider == provider && door.Host == s3.DoorHost(door.Provider, door.Region) &&
+				bytes.Contains(out, []byte(target)) && bytes.Contains(out, []byte(endpoint)) {
 				found = true
 			}
 		}
@@ -133,9 +155,9 @@ func TestMountedS3OfficialAWSCLIBytes(t *testing.T) {
 			t.Fatalf("actual persisted versioning status was lost or invented: %v %q", err, out)
 		}
 	}
-	get := func(door s3.Door, expected []byte) {
+	getKey := func(door s3.Door, objectKey string, expected []byte) {
 		t.Helper()
-		result := call(door, "get-object", "--bucket", bucket, "--key", key, "--checksum-mode", "ENABLED", output)
+		result := call(door, "get-object", "--bucket", bucket, "--key", objectKey, "--checksum-mode", "ENABLED", output)
 		got, err := os.ReadFile(output)
 		var meta struct{ ChecksumSHA256 string }
 		hash := sha256.Sum256(expected)
@@ -144,6 +166,7 @@ func TestMountedS3OfficialAWSCLIBytes(t *testing.T) {
 			t.Fatalf("official client did not return identical verified bytes: read=%v result=%q", err, result)
 		}
 	}
+	get := func(door s3.Door, expected []byte) { getKey(door, key, expected) }
 	for i, door := range first.ObjectStorage.Doors {
 		if door.Provider == "scaleway" {
 			bucketCall("create", true)
@@ -160,6 +183,62 @@ func TestMountedS3OfficialAWSCLIBytes(t *testing.T) {
 	}
 	get(first.ObjectStorage.Doors[0], payload)
 	get(first.ObjectStorage.Doors[1], []byte("separate-sos-scope"))
+	// Use each client's exact exported environment, without evaluating shell text.
+	var exoVars map[string]string
+	hostSCW := scw
+	hostSCW.Env = append([]string{}, scw.Env...)
+	server, _, err := newServer(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range server.Packs() {
+		if p.Name() == "scaleway" {
+			pack, ok := p.(packEnv)
+			if !ok {
+				t.Fatal("Scaleway pack environment missing")
+			}
+			vars := pack.Env(endpoint).Vars
+			if err := storageEnvironment(pack, endpoint, "fr-par", false, vars); err != nil {
+				t.Fatal(err)
+			}
+			for key, value := range vars {
+				hostSCW.Env = append(hostSCW.Env, key+"="+value)
+			}
+		}
+		if p.Name() == "exoscale" {
+			pack, ok := p.(packEnv)
+			if !ok {
+				t.Fatal("Exoscale pack environment missing")
+			}
+			exoVars = pack.Env(endpoint).Vars
+			if err := storageEnvironment(pack, endpoint, "ch-gva-2", false, exoVars); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	if exoVars == nil {
+		t.Fatal("Exoscale pack missing")
+	}
+	hostSCW.Run(t, "-o", "json", "object", "bucket", "create", "feint-host-scw", "region=fr-par")
+	hostSCW.Run(t, "-o", "json", "object", "bucket", "get", "feint-host-scw", "region=fr-par")
+	if out := hostSCW.Run(t, "-o", "json", "object", "bucket", "list", "region=fr-par"); !bytes.Contains(out, []byte("feint-host-scw")) {
+		t.Fatal("exported SCW inventory omitted its actual created bucket:", string(out))
+	}
+	hostSCW.Run(t, "-o", "json", "object", "bucket", "delete", "feint-host-scw", "region=fr-par")
+	exo := conformancetest.EXO(t, aws, exoVars)
+	if err := os.WriteFile(input, payload, 0600); err != nil {
+		t.Fatal(err)
+	}
+	exoKey := "host-byte-proof"
+	exo.Run(t, "storage", "upload", input, "sos://"+bucket+"/"+exoKey)
+	getKey(first.ObjectStorage.Doors[1], exoKey, payload)
+	// A same-name object in the other provider is a positive isolation control.
+	if err := os.WriteFile(input, []byte("other-provider-host-key"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	call(first.ObjectStorage.Doors[0], "put-object", "--bucket", bucket, "--key", exoKey, "--body", input,
+		"--checksum-algorithm", "CRC32")
+	getKey(first.ObjectStorage.Doors[0], exoKey, []byte("other-provider-host-key"))
 	beforeBucket := bucketCall("get", true)
 	checkVersioning()
 	beforeList := bucketCall("list", false)
@@ -177,8 +256,25 @@ func TestMountedS3OfficialAWSCLIBytes(t *testing.T) {
 	}
 	get(first.ObjectStorage.Doors[0], payload)
 	get(first.ObjectStorage.Doors[1], []byte("separate-sos-scope"))
+	getKey(first.ObjectStorage.Doors[1], exoKey, payload)
+	getKey(first.ObjectStorage.Doors[0], exoKey, []byte("other-provider-host-key"))
+	if restarted.ObjectStorage.Doors[1].Host != first.ObjectStorage.Doors[1].Host ||
+		restarted.ObjectStorage.HTTPRequests["http://"+first.ObjectStorage.Doors[1].Host+" 200"] != 0 {
+		t.Fatal("restart lost host configuration or invented persisted HTTP evidence")
+	}
+	exo.Run(t, "storage", "upload", input, "sos://"+bucket+"/after-restart")
+	getKey(first.ObjectStorage.Doors[1], "after-restart", []byte("other-provider-host-key"))
+	var live statusReport
+	if err := json.Unmarshal(run("status", "--addr", addr, "--format", "json"), &live); err != nil ||
+		live.ObjectStorage == nil || live.ObjectStorage.HTTPRequests["http://"+first.ObjectStorage.Doors[1].Host+" 200"] != 2 {
+		t.Fatalf("actual Exo HEAD/PUT after restart did not traverse its declared host: %+v %v", live.ObjectStorage, err)
+	}
+	run("doctor", "--addr", addr, "--s3", "--vm", "off")
 	if after := bucketCall("get", true); !bytes.Equal(after, beforeBucket) {
 		t.Fatalf("Scaleway bucket configuration changed across restart: before=%q after=%q", beforeBucket, after)
+	}
+	if after := hostSCW.Run(t, "-o", "json", "object", "bucket", "get", bucket, "region=fr-par"); !bytes.Equal(after, beforeBucket) {
+		t.Fatalf("exported SCW read diverged after restart: before=%q after=%q", beforeBucket, after)
 	}
 	checkVersioning()
 	if after := bucketCall("list", false); !bytes.Equal(after, beforeList) {
@@ -201,10 +297,14 @@ func TestMountedS3OfficialAWSCLIBytes(t *testing.T) {
 		t.Fatal(err)
 	}
 	run("start", "--addr", addr, "--vm", "off", "--objectstore", root,
-		"--objectstore-budget-mib", "3", "--s3-object-limit-mib", "1")
+		"--objectstore-budget-mib", "3", "--s3-object-limit-mib", "1", "--s3-host-doors")
 	for _, door := range first.ObjectStorage.Doors {
 		call(door, "head-object", "--bucket", bucket, "--key", key)
 		call(door, "delete-object", "--bucket", bucket, "--key", key)
+		call(door, "delete-object", "--bucket", bucket, "--key", exoKey)
+		if door.Provider == "exoscale" {
+			call(door, "delete-object", "--bucket", bucket, "--key", "after-restart")
+		}
 		if door.Provider == "scaleway" {
 			bucketCall("delete", true)
 		} else {

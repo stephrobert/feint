@@ -123,8 +123,16 @@ func envCommand(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "feint: %v\n", err)
 			return exitError
 		}
+		if storage, ok := pack.(packObjectStorage); *unset && *withS3 && ok && storage.ObjectStorage(*s3Region).HostEndpoint {
+			for _, key := range []string{"HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy", "ALL_PROXY", "all_proxy", "NO_PROXY", "no_proxy"} {
+				env.Vars[key] = ""
+			}
+		}
 		if !*unset {
 			fmt.Fprintln(stderr, "note: S3 supports simple bytes and private non-versioned Scaleway buckets; Exoscale ancillary workflows and hardcoded Terraform endpoints are not certified.")
+			if env.Vars["HTTP_PROXY"] != "" {
+				fmt.Fprintln(stderr, "note: S3 host doors replace this shell's proxy settings with the local non-forwarding emulator. Use a dedicated shell; env --s3 --unset removes them, it does not restore previous values.")
+			}
 		}
 	}
 

@@ -112,6 +112,11 @@ func checkObjectStorage(addr string) check {
 		c.state = verdictOK
 		c.detail = fmt.Sprintf("%d declared door(s); %d blob bytes maximum; %d bytes per simple PUT; ancillary client lifecycles are not certified",
 			len(report.Doors), report.MaxBlobBytes, report.MaxObjectBytes)
+		for _, door := range report.Doors {
+			if door.Host != "" {
+				c.detail += "; host " + door.Host + " requires the local non-forwarding HTTP proxy"
+			}
+		}
 	}
 	return c
 }

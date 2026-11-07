@@ -31,6 +31,12 @@ Unknown doors are refused, not treated as a default provider or region.
 The outer Host/Origin browser guard stays in place. S3 remains loopback-only;
 network exposure is not implied by the control-plane exposure option.
 
+**Amended 2026-11-07:** the measured Exoscale client discards endpoint paths.
+An additional opt-in `--s3-host-doors` declares synthetic provider/region
+authorities, served through absolute-form HTTP proxy requests on the same
+listener. Prefix doors remain available. This advances local host dispatch,
+not TLS interception or hardcoded cloud-host routing.
+
 Use one private neutral ObjectStore. Provider/region separation is a declared
 gateway namespace, not a provider name embedded in `internal/core`, and never
 a bucket/key-derived filesystem path. Provider-specific XML belongs at the
@@ -86,10 +92,9 @@ The configured-client door must be proved against clients that actually support
 the chosen endpoint prefix. If a client rejects it, revisit this decision rather
 than quietly add a second port or change its workload.
 
-Virtual hosts, trusted intercepted-host handoff, hardcoded Scaleway Terraform
-endpoints, checkpoint/reset, garbage collection and public-stack certification
-remain later work. Existing Object Storage support limits stay unchanged until
-the mounted-client proofs exist.
+Cloud virtual hosts, TLS interception, hardcoded Scaleway Terraform endpoints,
+checkpoint/reset, garbage collection and public-stack certification remain
+later work. The synthetic HTTP host slice is described below.
 
 ## Implemented mounted slice
 
@@ -125,8 +130,8 @@ control-plane-only. `env --unset` also removes S3 endpoint variables, without
 requiring a running instance. All three shell renderers use this same selection.
 These are provider CLI variables, not an AWS CLI credential configuration.
 
-The separate `GET /_feint/s3` report (schema version 1) publishes actual
-activation, declared paths, the store's configured blob-byte limit, the
+The separate `GET /_feint/s3` report (now schema version 2, previously 1) publishes
+actual activation, declared paths and optional synthetic hosts, the store's configured blob-byte limit, the
 per-object limit and completed HTTP-response counts per declared door/status.
 It publishes no credentials, keys, payloads or storage paths. These counts
 are **not official-client proof** and do not enter control-plane SDK coverage,
@@ -238,8 +243,61 @@ lists multipart uploads before deletion. Fixing only region discovery cannot
 make its lifecycle work.
 
 The prefixed door remains proved with AWS CLI and `scw`, **not exo**.
-The endpoint exports do not change this client's measured addressing behavior;
-they are not certified Exoscale CLI configuration. The addressing decision
-must be revisited before that lifecycle can be certified. Bare root requests
+Prefix-only endpoint exports do not change this client's measured addressing
+behavior; they are not certified Exoscale CLI configuration. This measurement
+prompted the host-door amendment above. Bare root requests
 must not be guessed into a namespace: different providers/regions can
 legitimately contain the same bucket name. No such fallback was added.
+
+## Measured Exoscale upload through a synthetic host
+
+Start with `--s3-host-doors` in addition to `--objectstore`. Each declared scope
+then has an authority such as `exoscale.ch-gva-2.s3.feint.invalid`. This is
+**path-style S3 at a scoped authority**, not bucket virtual-host addressing.
+The `.invalid` name is not resolved: the client sends an absolute HTTP URL to
+the emulator as its HTTP proxy, on the existing port.
+
+```bash
+feint start --objectstore "$PWD/object-storage/data" --s3-host-doors
+# Use a dedicated shell with fake credentials, not an operator account.
+eval "$(feint env exoscale --s3)"
+exo storage upload input.bin sos://existing-bucket/key
+eval "$(feint env exoscale --s3 --unset)"
+```
+
+The bucket must already exist. Normal Exoscale bucket creation, download and
+cleanup workflows are **not** certified by this upload proof.
+
+For Exoscale, `env --s3` selects the live declared authority and exports upper/lower-case
+HTTP/HTTPS/ALL proxy variables pointing at the literal loopback endpoint, with
+NO_PROXY restricted to loopback control-plane names. This replaces the dedicated
+shell's previous proxy settings. Apply `env --s3 --unset` to remove these exports;
+it does not restore earlier values. Ordinary `env --unset` retains its previous
+behavior and does not clear unrelated proxy variables. Discovery refuses
+foreign or mismatched reported hosts instead of exporting them.
+The pack declares whether its client needs host addressing: Scaleway keeps
+its measured prefix endpoint and does not gain shell proxy exports when host
+doors are enabled. The mounted witness also exercises this exported Scaleway
+configuration, so enabling Exoscale does not silently change the other client.
+
+Only exact declared authorities with matching absolute URL/Host and scheme
+`http` are served. Undeclared targets, CONNECT, URL credentials, aliases and
+authority mismatches are refused; nothing is forwarded. Host S3 cannot reach
+health, state, reports or native routes. Prefix/control-plane requests retain
+the rebinding guard; host S3 independently rejects every browser Origin and any
+non-loopback peer, even under `--expose`. No host-header rewriting, global DNS,
+certificate installation, extra listener or external S3 service is used.
+
+The existing `conformance:s3:mounted` witness now also runs **exo 1.95.1**
+`storage upload`, using the exact exported environment in its private HOME.
+It proves actual HEAD/PUT host exchanges, binary identity and SHA-256 by AWS
+retrieval through the corresponding prefix, persistence after real restart,
+another Exo upload after restart, and a different same-name object in the other
+provider. Unit tests additionally hold region separation, literal encoded keys,
+browser/peer refusals and read deadlines. The declared guards are falsified in
+`tools/falsify/specs/s3-host-doors.json`.
+
+The witness uses pack-owned public fake credentials. Its refusing proxy is not
+a network namespace and does not constrain unrelated clients that ignore proxy
+settings. Host response counters are separate from prefix counters and start
+again at zero on restart; neither is official-client or SDK-coverage evidence.

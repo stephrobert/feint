@@ -260,9 +260,9 @@ var rules = []rule{
 	},
 	{
 		Path:     "internal/s3/",
-		Why:      "bounded path-style S3 protocol, private Scaleway buckets and real-byte official-client proof",
+		Why:      "bounded S3 prefix/host dispatch, private Scaleway buckets and real-byte official-client proof",
 		Runs:     []string{"conformance:s3", "conformance:s3:mounted"},
-		Unproven: "one AWS CLI and one scw version, not complete Exoscale lifecycles, public ACLs, version histories, virtual hosts, interception, ETags, multipart or public stacks",
+		Unproven: "one AWS/scw/exo version, not complete Exoscale lifecycles, public ACLs, version histories, TLS interception, cloud virtual hosts, ETags, multipart or public stacks",
 	},
 	{
 		Path:     "internal/conformancetest/",

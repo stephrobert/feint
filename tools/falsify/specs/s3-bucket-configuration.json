@@ -145,8 +145,8 @@
       "label": "SDK endpoint exports retain the refused terminal slash",
       "package": "./internal/cli/",
       "file": "internal/cli/object_storage.go",
-      "find": "vars[key] = strings.TrimSuffix(endpoint, \"/\") + strings.TrimSuffix(selected.Path, \"/\")",
-      "replace": "vars[key] = strings.TrimSuffix(endpoint, \"/\") + selected.Path",
+      "find": "target := strings.TrimSuffix(endpoint, \"/\") + strings.TrimSuffix(selected.Path, \"/\")",
+      "replace": "target := strings.TrimSuffix(endpoint, \"/\") + selected.Path",
       "test": "TestS3EnvOnlyExportsLiveSelectedDoorsAndUnsetWorksOffline"
     }
   ]

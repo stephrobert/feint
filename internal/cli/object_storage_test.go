@@ -26,7 +26,7 @@ func TestStartPreservesObjectStorageFlagsAndAbsoluteRoot(t *testing.T) {
 	fs := newFlagSet("start")
 	flags := bindServeFlags(fs)
 	if err := fs.Parse([]string{"--objectstore", "relative-bytes", "--s3-doors", "scaleway/fr-par",
-		"--objectstore-budget-mib", "3", "--s3-object-limit-mib", "1"}); err != nil {
+		"--objectstore-budget-mib", "3", "--s3-object-limit-mib", "1", "--s3-host-doors"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := flags.storage.validate(); err != nil {
@@ -59,6 +59,10 @@ func TestObjectStorageValidatesDefaultsAndLimitsWithoutStartingAnything(t *testi
 	}
 	if len(defaults.args()) != 0 {
 		t.Fatal("disabled byte storage rendered activation flags")
+	}
+	defaults.hosts = true
+	if err := defaults.validate(); err == nil {
+		t.Fatal("host doors silently activated without byte storage")
 	}
 }
 
@@ -221,6 +225,8 @@ func TestS3DiscoveryRefusesRedirectsInvalidReportsAndForeignEndpoints(t *testing
 		func(r *s3.Report) { r.MaxObjectBytes = 4 },
 		func(r *s3.Report) { r.Enabled = false },
 		func(r *s3.Report) { r.Doors[0].Path = "/foreign" },
+		func(r *s3.Report) { r.Doors[0].Host = "cloud.example" },
+		func(r *s3.Report) { r.Doors[0].Host = s3.DoorHost("scaleway", "nl-ams") },
 		func(r *s3.Report) { r.Doors = append(r.Doors, r.Doors[0]) },
 	} {
 		report := valid
@@ -234,5 +240,85 @@ func TestS3DiscoveryRefusesRedirectsInvalidReportsAndForeignEndpoints(t *testing
 			t.Fatalf("invalid report trusted: %+v", report)
 		}
 		server.Close()
+	}
+}
+
+func TestS3HostEnvironmentUsesOnlyDeclaredAuthorityAndLocalProxy(t *testing.T) {
+	srv, env, err := newServer(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	flags := &objectStorageFlags{root: filepath.Join(privateStorageDir(t), "bytes"),
+		doors: defaultS3Doors, budgetMiB: 3, objectMiB: 1, hosts: true}
+	doors, store, err := mountObjectStorage(t.Context(), srv, flags, env.Log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := store.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
+	ts := httptest.NewServer(doors.Handler("127.0.0.1:4599"))
+	defer ts.Close()
+	for _, p := range srv.Packs() {
+		if p.Name() != "exoscale" {
+			continue
+		}
+		pack, ok := p.(packEnv)
+		if !ok {
+			t.Fatal("Exoscale environment missing")
+		}
+		vars := pack.Env(ts.URL).Vars
+		if err := storageEnvironment(pack, ts.URL, "ch-gva-2", false, vars); err != nil {
+			t.Fatal(err)
+		}
+		for _, key := range []string{"HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy", "ALL_PROXY", "all_proxy"} {
+			if vars[key] != ts.URL {
+				t.Fatalf("%s did not select the literal local proxy: %q", key, vars[key])
+			}
+		}
+		for _, key := range []string{"NO_PROXY", "no_proxy"} {
+			if vars[key] != "127.0.0.1,localhost,::1" {
+				t.Fatalf("%s could bypass proxy interception: %q", key, vars[key])
+			}
+		}
+	}
+	for _, shell := range []string{"bash", "fish", "powershell"} {
+		var out, note strings.Builder
+		code := envCommand([]string{"exoscale", "--s3", "--endpoint", ts.URL, "--shell", shell}, &out, &note)
+		if code != 0 || !strings.Contains(out.String(), "http://"+s3.DoorHost("exoscale", "ch-gva-2")) ||
+			!strings.Contains(out.String(), "HTTP_PROXY") || !strings.Contains(out.String(), "http_proxy") ||
+			!strings.Contains(out.String(), ts.URL) || !strings.Contains(out.String(), "127.0.0.1,localhost,::1") ||
+			!strings.Contains(note.String(), "proxy settings") {
+			t.Fatalf("host endpoint/proxy environment missing: %d %q %q", code, out.String(), note.String())
+		}
+	}
+	report, err := fetchS3(ts.URL)
+	if err != nil || report.Doors[1].Host != s3.DoorHost("exoscale", "ch-gva-2") {
+		t.Fatal("live discovery lost the declared host:", report, err)
+	}
+	var scaleway, scalewayNote strings.Builder
+	if code := envCommand([]string{"scaleway", "--s3", "--endpoint", ts.URL}, &scaleway, &scalewayNote); code != 0 ||
+		!strings.Contains(scaleway.String(), ts.URL+strings.TrimSuffix(s3.DoorPath("scaleway", "fr-par"), "/")) ||
+		strings.Contains(scaleway.String(), "HTTP_PROXY") {
+		t.Fatal("host activation broke the measured Scaleway prefix environment:", code, scaleway.String())
+	}
+	if c := checkObjectStorage(strings.TrimPrefix(ts.URL, "http://")); c.state != verdictOK ||
+		!strings.Contains(c.detail, report.Doors[1].Host) {
+		t.Fatal("doctor did not describe the required local proxy:", c)
+	}
+	var out, note strings.Builder
+	if code := envCommand([]string{"exoscale", "--s3", "--unset"}, &out, &note); code != 0 ||
+		!strings.Contains(out.String(), "unset HTTP_PROXY") || !strings.Contains(out.String(), "unset no_proxy") {
+		t.Fatal("explicit S3 unset did not remove local proxy settings:", code, out.String())
+	}
+	out.Reset()
+	if code := envCommand([]string{"exoscale", "--unset"}, &out, &note); code != 0 || strings.Contains(out.String(), "HTTP_PROXY") {
+		t.Fatal("ordinary unset changed unrelated proxy settings:", code, out.String())
+	}
+	out.Reset()
+	if code := envCommand([]string{"scaleway", "--s3", "--unset"}, &out, &note); code != 0 || strings.Contains(out.String(), "HTTP_PROXY") {
+		t.Fatal("prefix-only Scaleway unset changed unrelated proxy settings:", code, out.String())
 	}
 }

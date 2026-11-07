@@ -243,12 +243,13 @@ const (
 //
 // Version 26 adds opt-in Object Storage flags to serve/start and live S3
 // discovery to env/doctor (#850); existing flags and exit codes stay unchanged.
+// Version 27 adds --s3-host-doors to serve/start, retaining prefix addressing.
 //
 // The surface itself is frozen in testdata/frozen/cli.json, compared by
 // TestTheFrozenSurfacesStillMatchTheirFixture, and a fixture regenerated
 // without bumping this constant fails TestASurfaceChangeDemandsItsVersionBump.
 // The procedure for a deliberate change is in RELEASING.md ("Frozen surfaces").
-const cliSurfaceVersion = 26
+const cliSurfaceVersion = 27
 
 // Run executes one command and returns the process exit code.
 func Run(args []string, stdout, stderr io.Writer) int {
@@ -350,7 +351,7 @@ Usage:
                     [--projects <name>[,<name>...]]
                     [--consistency immediate|eventual] [--strict-catalog <file>]
                     [--objectstore <private-dir>] [--s3-doors <provider/region,...>]
-                    [--objectstore-budget-mib 1024] [--s3-object-limit-mib 256]
+                    [--objectstore-budget-mib 1024] [--s3-object-limit-mib 256] [--s3-host-doors]
                     Serve the three emulated clouds on one port, in the
                     foreground. --expose-to-network is the only way off
                     loopback, and it disarms the anti-rebinding guard: this
@@ -390,7 +391,7 @@ Usage:
                     [--projects <name>[,<name>...]] [--strict-catalog <file>]
                     [--timeout 30s] [--detach] [--foreground]
                     [--objectstore <private-dir>] [--s3-doors <provider/region,...>]
-                    [--objectstore-budget-mib 1024] [--s3-object-limit-mib 256]
+                    [--objectstore-budget-mib 1024] [--s3-object-limit-mib 256] [--s3-host-doors]
                     Same, detached: records the instance, waits until it
                     answers, prints where the log is. Refuses to adopt an
                     instance already running on that address. The serve flags
@@ -1184,7 +1185,7 @@ func serve(args []string, stdout io.Writer) (result error) {
 		// Wrapped here rather than in the server: this is where the listen
 		// address is known, and the guard's whole job is to compare what the
 		// caller asked for against what this process is bound to.
-		Handler:           emulator.GuardRebinding(doors, *addr),
+		Handler:           doors.Handler(*addr),
 		ReadHeaderTimeout: 10 * time.Second,
 		WriteTimeout:      writeTimeoutFor(rt),
 	}

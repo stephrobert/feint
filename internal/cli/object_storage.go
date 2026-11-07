@@ -27,18 +27,23 @@ type objectStorageFlags struct {
 	doors     string
 	budgetMiB int64
 	objectMiB int64
+	hosts     bool
 }
 
 func bindObjectStorageFlags(fs *flag.FlagSet) *objectStorageFlags {
 	f := &objectStorageFlags{}
 	fs.StringVar(&f.root, "objectstore", "", "opt in to persistent S3 bytes in this private directory (independent of --state)")
 	fs.StringVar(&f.doors, "s3-doors", defaultS3Doors, "comma-separated provider/region S3 doors; only these prefixes are served")
+	fs.BoolVar(&f.hosts, "s3-host-doors", false, "also accept declared synthetic S3 hosts through local HTTP proxy requests on this same port")
 	fs.Int64Var(&f.budgetMiB, "objectstore-budget-mib", 1024, "cumulative retained and reserved blob budget in MiB; deletion does not free blobs")
 	fs.Int64Var(&f.objectMiB, "s3-object-limit-mib", 256, "maximum decoded simple PUT size in MiB")
 	return f
 }
 
 func (f *objectStorageFlags) validate() error {
+	if f.hosts && f.root == "" {
+		return errors.New("--s3-host-doors requires --objectstore")
+	}
 	if f.budgetMiB <= 0 || f.budgetMiB > math.MaxInt64>>20 ||
 		f.objectMiB <= 0 || f.objectMiB > (math.MaxInt64-(64<<10))/2>>20 ||
 		f.objectMiB > f.budgetMiB {
@@ -58,8 +63,12 @@ func (f *objectStorageFlags) args() []string {
 	if f.root == "" {
 		return nil
 	}
-	return []string{"--objectstore", f.root, "--s3-doors", f.doors,
+	args := []string{"--objectstore", f.root, "--s3-doors", f.doors,
 		"--objectstore-budget-mib", fmt.Sprint(f.budgetMiB), "--s3-object-limit-mib", fmt.Sprint(f.objectMiB)}
+	if f.hosts {
+		args = append(args, "--s3-host-doors")
+	}
+	return args
 }
 
 type packObjectStorage interface {
@@ -105,7 +114,11 @@ func mountObjectStorage(ctx context.Context, srv *emulator.Server, flags *object
 	if err != nil {
 		return nil, nil, fmt.Errorf("open object storage: %w", err)
 	}
-	doors, err := s3.Mount(srv.Handler(), store, profiles, flags.objectMiB<<20, log)
+	mount := s3.Mount
+	if flags.hosts {
+		mount = s3.MountHosts
+	}
+	doors, err := mount(srv.Handler(), store, profiles, flags.objectMiB<<20, log)
 	if err != nil {
 		return nil, nil, errors.Join(err, store.Close())
 	}
@@ -186,7 +199,8 @@ func fetchS3(endpoint string) (report s3.Report, result error) {
 	seen := make(map[string]bool)
 	for _, door := range report.Doors {
 		if !s3.ValidToken(door.Provider) || !s3.ValidToken(door.Region) ||
-			door.Path != s3.DoorPath(door.Provider, door.Region) || seen[door.Path] {
+			door.Path != s3.DoorPath(door.Provider, door.Region) || seen[door.Path] ||
+			(door.Host != "" && door.Host != s3.DoorHost(door.Provider, door.Region)) {
 			return report, errors.New("S3 report declares a noncanonical or duplicate endpoint")
 		}
 		seen[door.Path] = true
@@ -227,8 +241,21 @@ func storageEnvironment(pack packEnv, endpoint, region string, unset bool, vars 
 		return fmt.Errorf("no enabled S3 door for provider %q and selected region %q", pack.Name(), region)
 	}
 	profile := storage.ObjectStorage(selected.Region)
+	target := strings.TrimSuffix(endpoint, "/") + strings.TrimSuffix(selected.Path, "/")
+	if profile.HostEndpoint && selected.Host != "" {
+		if !strings.HasPrefix(endpoint, "http://") {
+			return errors.New("S3 host doors require a local HTTP proxy endpoint, not HTTPS")
+		}
+		target = "http://" + selected.Host
+		for _, key := range []string{"HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy", "ALL_PROXY", "all_proxy"} {
+			vars[key] = strings.TrimSuffix(endpoint, "/")
+		}
+		for _, key := range []string{"NO_PROXY", "no_proxy"} {
+			vars[key] = "127.0.0.1,localhost,::1"
+		}
+	}
 	for _, key := range profile.Variables {
-		vars[key] = strings.TrimSuffix(endpoint, "/") + strings.TrimSuffix(selected.Path, "/")
+		vars[key] = target
 	}
 	vars[profile.RegionVariable] = selected.Region
 	return nil

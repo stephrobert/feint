@@ -17,6 +17,18 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Added
 
+- **Same-port synthetic S3 hosts, proved with Exo uploads** (#850):
+  opt-in `serve/start --s3-host-doors` retains the prefix doors and serves
+  declared provider/region HTTP authorities through a local non-forwarding
+  proxy. Exo 1.95.1 uploads binary bytes; AWS verifies bytes/SHA-256 before
+  and after actual restart. Native routes, browser/peer guards, quotas and
+  namespace separation remain intact. Exoscale `env --s3` sets dedicated-shell
+  proxy variables; explicit `env --s3 --unset` removes them without restoring
+  prior values. Scaleway retains its measured prefix environment.
+  Status/doctor describe the hosts. S3 report schema is now **2** and the
+  CLI surface **27**. Full Exoscale workflows, cloud bucket virtual hosts
+  and TLS/Terraform interception remain unsupported.
+
 - **Measured Exoscale S3 prefix incompatibility** (#850):
   `conformance:s3:exo:endpoint` proves that exo 1.95.1 removes the configured
   URL prefix from both bucket discovery and object upload. This listener

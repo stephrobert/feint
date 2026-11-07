@@ -19,6 +19,18 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Ajouté
 
+- **Des hôtes S3 synthétiques monoport, prouvés par les uploads Exo** (#850) :
+  `serve/start --s3-host-doors`, opt-in, conserve les préfixes et sert les
+  autorités HTTP provider/région par un proxy local qui ne transfère rien.
+  Exo 1.95.1 téléverse un binaire ; AWS vérifie octets/SHA-256 avant et après
+  redémarrage réel. Routes natives, gardes navigateur/peer, quotas et espaces
+  restent intacts. `env exoscale --s3` remplace les proxies d'un shell dédié ;
+  `env --s3 --unset` les retire sans restaurer les anciennes valeurs.
+  Statut/doctor décrivent les hôtes. Le rapport S3 passe à **2**, la surface
+  CLI à **27**. Cycles Exoscale complets, virtual hosts de buckets cloud et
+  interception TLS/Terraform restent hors périmètre.
+  Scaleway conserve son environnement préfixé mesuré.
+
 - **L'incompatibilité Exoscale avec les préfixes S3, mesurée** (#850) :
   `conformance:s3:exo:endpoint` prouve qu'exo 1.95.1 retire le préfixe
   configuré de la découverte du bucket comme de l'upload. Ce listener refuse

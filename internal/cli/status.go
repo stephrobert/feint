@@ -183,6 +183,9 @@ func writeStatusText(w io.Writer, r statusReport, health healthResponse) {
 				len(r.ObjectStorage.Doors), r.ObjectStorage.MaxBlobBytes, r.ObjectStorage.MaxObjectBytes)
 			for _, door := range r.ObjectStorage.Doors {
 				fmt.Fprintf(w, "             %s\n", door.Path)
+				if door.Host != "" {
+					fmt.Fprintf(w, "             http://%s (local HTTP proxy, never forwarded)\n", door.Host)
+				}
 			}
 		}
 	}

@@ -11,6 +11,12 @@ declared `/_feint/s3/<provider>/<region>/` endpoints, cumulative byte budgets
 and an AWS CLI 2.32.17 / scw 2.62.0 restart proof. The Scaleway private,
 non-versioned bucket `create/list/get/delete` workflow is served. See the
 [door ADR and commands](object-storage-routing.md).
+Opt-in `--s3-host-doors` also permits exo 1.95.1 simple uploads to an existing
+bucket through a synthetic scoped authority and the same-port non-forwarding
+HTTP proxy. AWS retrieval proves the uploaded binary bytes and SHA-256 survive
+actual restart. This does not implement bucket virtual hosts, DNS/TLS
+interception or a complete Exoscale lifecycle; use a dedicated shell because
+its S3 environment replaces proxy settings.
 Complete Exoscale workflows, object listing, writable tags/public ACLs,
 version histories, multipart, ETags, checkpoint/reset and hardcoded Terraform
 redirection remain unsupported.
