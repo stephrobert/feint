@@ -19,6 +19,16 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Ajouté
 
+- **Le listing Exo et les téléchargements multi-plages, mesurés** (#850) :
+  exo 1.95.1 retrouve deux binaires de 73 728 et 6 340 608 octets, octets/SHA-256
+  et dates de listing identiques avant/après redémarrage réel. AWS décode aussi
+  deux pages ListObjectsV2 d'une entrée. Les GET par plage servent les vrais
+  offsets/longueurs, sans checksum du fichier entier sur une réponse partielle.
+  Le format privé v3 persiste les dates de publication, lit v1/v2 sans les réécrire
+  et migre à la prochaine mutation ; les anciens binaires ne lisent pas v3.
+  Une page contenant un ancien objet sans date est refusée jusqu'à sa réécriture.
+  ETag, multipart et cycles complets de buckets Exoscale restent hors périmètre.
+
 - **Des hôtes S3 synthétiques monoport, prouvés par les uploads Exo** (#850) :
   `serve/start --s3-host-doors`, opt-in, conserve les préfixes et sert les
   autorités HTTP provider/région par un proxy local qui ne transfère rien.

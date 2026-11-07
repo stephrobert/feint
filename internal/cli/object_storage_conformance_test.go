@@ -79,12 +79,22 @@ func TestMountedS3OfficialAWSCLIBytes(t *testing.T) {
 			t.Errorf("stop the owned S3 witness: %v\n%s", err, out)
 		}
 	})
+	t.Cleanup(func() {
+		if t.Failed() {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			cmd := exec.CommandContext(ctx, binary, "logs", "--addr", addr)
+			cmd.Env = aws.Env
+			out, err := cmd.CombinedOutput()
+			t.Logf("owned witness logs (read error=%v): %s", err, out)
+		}
+	})
 	run("start", "--addr", addr, "--vm", "off", "--objectstore", "bytes",
-		"--objectstore-budget-mib", "3", "--s3-object-limit-mib", "1", "--s3-host-doors")
+		"--objectstore-budget-mib", "20", "--s3-object-limit-mib", "8", "--s3-host-doors")
 	var first statusReport
 	if err := json.Unmarshal(run("status", "--addr", addr, "--format", "json"), &first); err != nil ||
 		!first.Running || first.PID <= 0 || first.ObjectStorage == nil ||
-		first.ObjectStorage.MaxBlobBytes != 3<<20 || first.ObjectStorage.MaxObjectBytes != 1<<20 {
+		first.ObjectStorage.MaxBlobBytes != 20<<20 || first.ObjectStorage.MaxObjectBytes != 8<<20 {
 		t.Fatalf("real process/configuration did not become ready: %+v %v", first, err)
 	}
 	if len(first.ObjectStorage.Doors) != 2 {
@@ -232,6 +242,66 @@ func TestMountedS3OfficialAWSCLIBytes(t *testing.T) {
 	exoKey := "host-byte-proof"
 	exo.Run(t, "storage", "upload", input, "sos://"+bucket+"/"+exoKey)
 	getKey(first.ObjectStorage.Doors[1], exoKey, payload)
+	largePayload := bytes.Repeat(payload, 86)
+	largeInput := filepath.Join(aws.Home, "large-input")
+	if err := os.WriteFile(largeInput, largePayload, 0600); err != nil {
+		t.Fatal(err)
+	}
+	largeKey := "large-byte-proof"
+	// Seed a simple PUT, not an unsupported multipart upload. The Exo downloader
+	// must then read more than its 5 MiB part size through multiple byte ranges.
+	call(first.ObjectStorage.Doors[1], "put-object", "--bucket", bucket, "--key", largeKey,
+		"--body", largeInput, "--checksum-algorithm", "CRC32")
+	download := func(objectKey string, expected []byte) {
+		t.Helper()
+		destination := filepath.Join(exo.Home, "download-"+objectKey)
+		out := exo.Run(t, "storage", "download", "--force", "sos://"+bucket+"/"+objectKey, destination)
+		got, err := os.ReadFile(destination)
+		if err != nil || !bytes.Equal(got, expected) || sha256.Sum256(got) != sha256.Sum256(expected) {
+			t.Fatalf("Exo's exit code is not byte proof: read=%v bytes=%d want=%d output=%q", err, len(got), len(expected), out)
+		}
+	}
+	download(exoKey, payload)
+	download(largeKey, largePayload)
+	var page struct {
+		IsTruncated           bool
+		NextContinuationToken string
+		KeyCount              int
+		Contents              []struct {
+			Key, LastModified string
+			Size              int64
+		}
+	}
+	firstPage := call(first.ObjectStorage.Doors[1], "list-objects-v2", "--bucket", bucket,
+		"--max-keys", "1", "--no-paginate")
+	if err := json.Unmarshal(firstPage, &page); err != nil || !page.IsTruncated ||
+		page.KeyCount != 1 || len(page.Contents) != 1 || page.Contents[0].Key != key || page.NextContinuationToken == "" {
+		t.Fatalf("real AWS decoder did not receive the literal paginated key: %v %q", err, firstPage)
+	}
+	secondPage := call(first.ObjectStorage.Doors[1], "list-objects-v2", "--bucket", bucket,
+		"--max-keys", "1", "--no-paginate", "--continuation-token", page.NextContinuationToken)
+	if err := json.Unmarshal(secondPage, &page); err != nil || page.KeyCount != 1 ||
+		len(page.Contents) != 1 || page.Contents[0].Key != exoKey || page.Contents[0].Size != int64(len(payload)) {
+		t.Fatalf("real AWS pagination repeated or invented an entry: %v %q", err, secondPage)
+	}
+	beforeObjects := exo.Run(t, "--output-format", "json", "storage", "list", "sos://"+bucket+"/")
+	var listed []struct {
+		Name         string `json:"name"`
+		Size         int64  `json:"size"`
+		LastModified string `json:"last_modified"`
+	}
+	if err := json.Unmarshal(beforeObjects, &listed); err != nil {
+		t.Fatal("decode real Exo listing:", err, string(beforeObjects))
+	}
+	foundLarge := false
+	for _, obj := range listed {
+		if obj.Name == largeKey && obj.Size == int64(len(largePayload)) && obj.LastModified != "" {
+			foundLarge = true
+		}
+	}
+	if !foundLarge {
+		t.Fatal("actual Exo listing omitted size/date of the uploaded object:", string(beforeObjects))
+	}
 	// A same-name object in the other provider is a positive isolation control.
 	if err := os.WriteFile(input, []byte("other-provider-host-key"), 0600); err != nil {
 		t.Fatal(err)
@@ -251,7 +321,7 @@ func TestMountedS3OfficialAWSCLIBytes(t *testing.T) {
 	var restarted statusReport
 	if err := json.Unmarshal(run("status", "--addr", addr, "--format", "json"), &restarted); err != nil ||
 		!restarted.Running || restarted.PID == first.PID || restarted.ObjectStorage == nil ||
-		restarted.ObjectStorage.MaxBlobBytes != 3<<20 || restarted.ObjectStorage.MaxObjectBytes != 1<<20 {
+		restarted.ObjectStorage.MaxBlobBytes != 20<<20 || restarted.ObjectStorage.MaxObjectBytes != 8<<20 {
 		t.Fatalf("restart lost the process or persisted configuration: %+v %v", restarted, err)
 	}
 	get(first.ObjectStorage.Doors[0], payload)
@@ -262,12 +332,21 @@ func TestMountedS3OfficialAWSCLIBytes(t *testing.T) {
 		restarted.ObjectStorage.HTTPRequests["http://"+first.ObjectStorage.Doors[1].Host+" 200"] != 0 {
 		t.Fatal("restart lost host configuration or invented persisted HTTP evidence")
 	}
+	if after := exo.Run(t, "--output-format", "json", "storage", "list", "sos://"+bucket+"/"); !bytes.Equal(after, beforeObjects) {
+		t.Fatalf("actual Exo object inventory changed across restart: before=%q after=%q", beforeObjects, after)
+	}
 	exo.Run(t, "storage", "upload", input, "sos://"+bucket+"/after-restart")
 	getKey(first.ObjectStorage.Doors[1], "after-restart", []byte("other-provider-host-key"))
 	var live statusReport
 	if err := json.Unmarshal(run("status", "--addr", addr, "--format", "json"), &live); err != nil ||
-		live.ObjectStorage == nil || live.ObjectStorage.HTTPRequests["http://"+first.ObjectStorage.Doors[1].Host+" 200"] != 2 {
+		live.ObjectStorage == nil || live.ObjectStorage.HTTPRequests["http://"+first.ObjectStorage.Doors[1].Host+" 200"] != 4 {
 		t.Fatalf("actual Exo HEAD/PUT after restart did not traverse its declared host: %+v %v", live.ObjectStorage, err)
+	}
+	download(exoKey, payload)
+	download(largeKey, largePayload)
+	if err := json.Unmarshal(run("status", "--addr", addr, "--format", "json"), &live); err != nil ||
+		live.ObjectStorage.HTTPRequests["http://"+first.ObjectStorage.Doors[1].Host+" 206"] < 3 {
+		t.Fatal("actual Exo small/multi-part downloads did not produce partial HTTP responses:", live.ObjectStorage, err)
 	}
 	run("doctor", "--addr", addr, "--s3", "--vm", "off")
 	if after := bucketCall("get", true); !bytes.Equal(after, beforeBucket) {
@@ -283,7 +362,7 @@ func TestMountedS3OfficialAWSCLIBytes(t *testing.T) {
 	// Inspect only our private store while the owner is stopped: GET of the
 	// same cleaned key twice would otherwise masquerade as key preservation.
 	run("stop", "--addr", addr)
-	store, err := objectstore.OpenWithLimit(t.Context(), root, 3<<20)
+	store, err := objectstore.OpenWithLimit(t.Context(), root, 20<<20)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -297,13 +376,14 @@ func TestMountedS3OfficialAWSCLIBytes(t *testing.T) {
 		t.Fatal(err)
 	}
 	run("start", "--addr", addr, "--vm", "off", "--objectstore", root,
-		"--objectstore-budget-mib", "3", "--s3-object-limit-mib", "1", "--s3-host-doors")
+		"--objectstore-budget-mib", "20", "--s3-object-limit-mib", "8", "--s3-host-doors")
 	for _, door := range first.ObjectStorage.Doors {
 		call(door, "head-object", "--bucket", bucket, "--key", key)
 		call(door, "delete-object", "--bucket", bucket, "--key", key)
 		call(door, "delete-object", "--bucket", bucket, "--key", exoKey)
 		if door.Provider == "exoscale" {
 			call(door, "delete-object", "--bucket", bucket, "--key", "after-restart")
+			call(door, "delete-object", "--bucket", bucket, "--key", largeKey)
 		}
 		if door.Provider == "scaleway" {
 			bucketCall("delete", true)
@@ -314,6 +394,8 @@ func TestMountedS3OfficialAWSCLIBytes(t *testing.T) {
 	if guardHits.Load() != 1 {
 		t.Fatalf("official client reached the refusing egress proxy: delta=%d", guardHits.Load()-1)
 	}
+	t.Logf("Exo downloads before/after actual restart: small=%d bytes; multi-range=%d bytes sha256=%x",
+		len(payload), len(largePayload), sha256.Sum256(largePayload))
 	t.Logf("actual feint pid %d -> %d; two same-port namespaces; preserved key; bytes=%d sha256=%s; stop/reopen/restart; proxy delta=0 (not a network namespace)",
 		first.PID, restarted.PID, len(payload), hex.EncodeToString(sum[:]))
 }

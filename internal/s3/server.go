@@ -78,7 +78,8 @@ func New(store *objectstore.Store, cfg Config) (*Server, error) {
 	return &Server{store: store, cfg: cfg}, nil
 }
 
-// ServeHTTP implements bucket PUT/HEAD/DELETE and object PUT/GET/HEAD/DELETE.
+// ServeHTTP implements bucket PUT/HEAD/DELETE, ListObjectsV2 and object
+// PUT/GET/HEAD/DELETE, including single-byte-range GETs.
 // Other features get an explicit Feint refusal, never a successful empty stub
 // or an invented cloud XML error. Signatures and credentials are never logged.
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -106,13 +107,17 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.refuse(w, r, http.StatusBadRequest, "invalid query", err)
 		return
 	}
+	rawBucket, rawKey, _ := strings.Cut(strings.TrimPrefix(r.URL.EscapedPath(), "/"), "/")
+	listing := r.Method == http.MethodGet && rawKey == "" && query.Get("list-type") == "2"
 	for key := range query {
+		if listing && listQueryKey(key) {
+			continue
+		}
 		if key != "x-id" && (!s.cfg.BucketConfiguration || (key != "versioning" && key != "acl" && key != "tagging")) {
 			s.refuse(w, r, http.StatusNotImplemented, "S3 query features are not implemented", nil)
 			return
 		}
 	}
-	rawBucket, rawKey, _ := strings.Cut(strings.TrimPrefix(r.URL.EscapedPath(), "/"), "/")
 	bucket, bucketErr := url.PathUnescape(rawBucket)
 	key, keyErr := url.PathUnescape(rawKey)
 	checked, err := s.bucketHeaders(r, query, rawKey == "")
@@ -131,6 +136,14 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if bucketErr != nil || keyErr != nil || !bucketName(bucket) || !utf8.ValidString(key) || len(key) > 1024 {
 		s.refuse(w, r, http.StatusBadRequest, "invalid bucket or object key", errors.Join(bucketErr, keyErr))
+		return
+	}
+	if rawKey == "" && len(r.Header.Values("Range")) != 0 {
+		s.refuse(w, r, http.StatusNotImplemented, "Range requires an object GET", nil)
+		return
+	}
+	if listing {
+		s.listObjects(w, r, bucket, query)
 		return
 	}
 	if key == "" {
@@ -264,6 +277,31 @@ func (s *Server) get(w http.ResponseWriter, r *http.Request, bucket, key string)
 		s.refuse(w, r, http.StatusInternalServerError, "stored metadata cannot be represented as HTTP headers", nil)
 		return
 	}
+	status, length := http.StatusOK, obj.Size
+	if values := r.Header.Values("Range"); len(values) != 0 {
+		if len(values) != 1 {
+			s.refuse(w, r, http.StatusBadRequest, "ambiguous Range header", nil)
+			return
+		}
+		offset, count, rangeErr := byteRange(values[0], obj.Size)
+		if rangeErr != nil {
+			code := http.StatusBadRequest
+			if errors.Is(rangeErr, errRangeUnsatisfiable) {
+				code = http.StatusRequestedRangeNotSatisfiable
+				w.Header().Set("Content-Range", fmt.Sprintf("bytes */%d", obj.Size))
+			} else if errors.Is(rangeErr, errRangeUnsupported) {
+				code = http.StatusNotImplemented
+			}
+			s.refuse(w, r, code, "S3 byte range refused", rangeErr)
+			return
+		}
+		if _, err := body.Seek(offset, io.SeekStart); err != nil {
+			s.refuse(w, r, http.StatusInternalServerError, "verified object range seek failed", err)
+			return
+		}
+		status, length = http.StatusPartialContent, count
+		w.Header().Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", offset, offset+count-1, obj.Size))
+	}
 	seen := make(map[string]bool)
 	for key, value := range obj.Metadata {
 		canonical := strings.ToLower(key)
@@ -273,17 +311,21 @@ func (s *Server) get(w http.ResponseWriter, r *http.Request, bucket, key string)
 		}
 		seen[canonical] = true
 	}
-	if !s.digestHeader(w, r, obj) {
+	if status == http.StatusOK && !s.digestHeader(w, r, obj) {
 		return
 	}
-	w.Header().Set("Content-Length", strconv.FormatInt(obj.Size, 10))
+	w.Header().Set("Accept-Ranges", "bytes")
+	if !obj.Modified.IsZero() {
+		w.Header().Set("Last-Modified", obj.Modified.UTC().Format(http.TimeFormat))
+	}
+	w.Header().Set("Content-Length", strconv.FormatInt(length, 10))
 	w.Header().Set("Content-Type", obj.ContentType)
 	for key, value := range obj.Metadata {
 		w.Header().Set("X-Amz-Meta-"+key, value)
 	}
-	w.WriteHeader(http.StatusOK)
+	w.WriteHeader(status)
 	if r.Method != http.MethodHead {
-		if _, err := io.Copy(w, body); err != nil {
+		if _, err := io.CopyN(w, body, length); err != nil {
 			s.cfg.Log.ErrorContext(r.Context(), "S3 download failed after headers", "error", err)
 		}
 	}
@@ -420,7 +462,11 @@ func supportedHeaders(r *http.Request) error {
 	for name := range r.Header {
 		lower := strings.ToLower(name)
 		switch lower {
-		case "range", "if-match", "if-none-match", "if-modified-since", "if-unmodified-since", "if-range", "content-md5":
+		case "range":
+			if r.Method != http.MethodGet {
+				return fmt.Errorf("range requires GET")
+			}
+		case "if-match", "if-none-match", "if-modified-since", "if-unmodified-since", "if-range", "content-md5":
 			return fmt.Errorf("unsupported header %s", name)
 		}
 		if !strings.HasPrefix(lower, "x-amz-") || strings.HasPrefix(lower, "x-amz-meta-") {

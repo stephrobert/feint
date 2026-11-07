@@ -17,6 +17,16 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Added
 
+- **Measured Exo object listing and multi-range downloads** (#850):
+  exo 1.95.1 downloads 73,728-byte and 6,340,608-byte binary objects with exact
+  byte/SHA-256 and listing-date proof before/after actual restart. AWS independently
+  decodes two one-entry ListObjectsV2 pages. Single-byte-range GETs serve actual
+  offsets/lengths without whole-object checksums on partial bytes.
+  Private metadata v3 persists publication dates, reads v1/v2 without rewriting
+  them and upgrades on mutation; older binaries cannot read v3. Listing pages
+  containing legacy undated objects are explicitly refused until overwrite.
+  ETags, multipart and complete Exoscale bucket workflows remain unsupported.
+
 - **Same-port synthetic S3 hosts, proved with Exo uploads** (#850):
   opt-in `serve/start --s3-host-doors` retains the prefix doors and serves
   declared provider/region HTTP authorities through a local non-forwarding

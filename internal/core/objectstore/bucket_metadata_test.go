@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 func TestBucketMetadataPersistsAndDoesNotAlias(t *testing.T) {
@@ -99,6 +100,10 @@ func TestLegacyBucketMetadataUpgradeAndValidation(t *testing.T) {
 	mustPut(t, s, "bucket", "key", "legacy")
 	legacy := s.clone()
 	legacy.Version = 1
+	for key, obj := range legacy.Buckets["bucket"].Objects {
+		obj.Modified = time.Time{}
+		legacy.Buckets["bucket"].Objects[key] = obj
+	}
 	body, err := json.Marshal(legacy)
 	if err != nil {
 		t.Fatal(err)
@@ -130,7 +135,7 @@ func TestLegacyBucketMetadataUpgradeAndValidation(t *testing.T) {
 	if err := reopened.SetBucketMetadata(t.Context(), "bucket", "key", "value"); err != nil {
 		t.Fatal(err)
 	}
-	if reopened.state.Version != 2 {
+	if reopened.state.Version != 3 {
 		t.Fatal("write did not upgrade metadata version")
 	}
 	if _, err := reopened.HeadObject(t.Context(), "bucket", "key"); err != nil {

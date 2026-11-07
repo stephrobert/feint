@@ -99,7 +99,7 @@ func Open(ctx context.Context, path string) (result *Store, err error) {
 		if err := root.Mkdir("blobs", 0o700); err != nil {
 			return nil, fmt.Errorf("create blob directory: %w", err)
 		}
-		s.state = manifest{Format: storeFormat, Version: 2, Buckets: make(map[string]*bucket)}
+		s.state = manifest{Format: storeFormat, Version: storeVersion, Buckets: make(map[string]*bucket)}
 		if err := s.commit(ctx, s.state); err != nil {
 			return nil, err
 		}
@@ -358,4 +358,11 @@ func (r *blobReader) Read(p []byte) (int, error) {
 
 func (r *blobReader) Close() error {
 	return r.file.Close()
+}
+
+func (r *blobReader) Seek(offset int64, whence int) (int64, error) {
+	if err := r.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return r.file.Seek(offset, whence)
 }

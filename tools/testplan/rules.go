@@ -254,13 +254,13 @@ var rules = []rule{
 	},
 	{
 		Path:     "internal/core/objectstore/",
-		Why:      "neutral persisted bytes used by the S3 component and the real emulator process",
+		Why:      "neutral persisted bytes and modification dates used by the S3 component and real emulator process",
 		Runs:     []string{"conformance:s3", "conformance:s3:mounted"},
 		Unproven: "complete provider-client lifecycles, checkpoint/reset, power-loss recovery and network filesystem locking",
 	},
 	{
 		Path:     "internal/s3/",
-		Why:      "bounded S3 prefix/host dispatch, private Scaleway buckets and real-byte official-client proof",
+		Why:      "bounded S3 prefix/host dispatch, listing/ranges, private Scaleway buckets and real-byte official-client proof",
 		Runs:     []string{"conformance:s3", "conformance:s3:mounted"},
 		Unproven: "one AWS/scw/exo version, not complete Exoscale lifecycles, public ACLs, version histories, TLS interception, cloud virtual hosts, ETags, multipart or public stacks",
 	},

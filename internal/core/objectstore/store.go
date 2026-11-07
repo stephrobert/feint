@@ -17,6 +17,7 @@ import (
 	"os"
 	"sort"
 	"sync"
+	"time"
 	"unicode/utf8"
 
 	"github.com/stephrobert/feint/internal/core/serialise"
@@ -42,6 +43,8 @@ type Object struct {
 	Size        int64             `json:"size"`
 	ContentType string            `json:"content_type"`
 	Metadata    map[string]string `json:"metadata"`
+	// Modified is the persisted publication time, zero for legacy references.
+	Modified time.Time `json:"modified,omitzero"`
 }
 
 // PutOptions declares the exact decoded byte count and application metadata.
@@ -242,6 +245,7 @@ func (s *Store) PutObject(ctx context.Context, name, key string, body io.Reader,
 	if b.Generation != generation {
 		return Object{}, fmt.Errorf("%w: bucket was recreated during upload", ErrBucketNotFound)
 	}
+	obj.Modified = time.Now().UTC()
 	next := s.clone()
 	next.Buckets[name].Objects[key] = obj
 	if err := s.commit(ctx, next); err != nil {
@@ -251,9 +255,9 @@ func (s *Store) PutObject(ctx context.Context, name, key string, body io.Reader,
 }
 
 // GetObject verifies the complete blob's size and digest before returning a
-// reader positioned at byte zero. It never returns missing or corrupt bytes
+// seekable reader positioned at byte zero. It never returns missing or corrupt bytes
 // as a successful empty object. The caller must close the reader.
-func (s *Store) GetObject(ctx context.Context, name, key string) (Object, io.ReadCloser, error) {
+func (s *Store) GetObject(ctx context.Context, name, key string) (Object, io.ReadSeekCloser, error) {
 	if err := validKey(key); err != nil {
 		return Object{}, nil, err
 	}
@@ -358,7 +362,7 @@ func (s *Store) lookup(name string) (*bucket, error) {
 }
 
 func (s *Store) clone() manifest {
-	next := manifest{Format: s.state.Format, Version: 2, Buckets: make(map[string]*bucket)}
+	next := manifest{Format: s.state.Format, Version: storeVersion, Buckets: make(map[string]*bucket)}
 	for name, b := range s.state.Buckets {
 		next.Buckets[name] = &bucket{Generation: b.Generation, Objects: maps.Clone(b.Objects), Metadata: maps.Clone(b.Metadata)}
 	}

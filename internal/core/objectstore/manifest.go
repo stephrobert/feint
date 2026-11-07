@@ -14,6 +14,7 @@ import (
 
 const (
 	storeFormat      = "feint-objectstore"
+	storeVersion     = 3
 	maxManifestBytes = 64 << 20
 )
 
@@ -47,7 +48,7 @@ func decodeManifest(body []byte) (manifest, error) {
 	if state.Format != storeFormat {
 		return manifest{}, ErrUnowned
 	}
-	if (state.Version != 1 && state.Version != 2) || state.Buckets == nil {
+	if state.Version < 1 || state.Version > storeVersion || state.Buckets == nil {
 		return manifest{}, fmt.Errorf("%w: unsupported version or missing buckets", ErrCorrupt)
 	}
 	for name, b := range state.Buckets {
@@ -64,6 +65,12 @@ func decodeManifest(body []byte) (manifest, error) {
 			return manifest{}, errors.Join(ErrCorrupt, err)
 		}
 		for key, obj := range b.Objects {
+			if state.Version < 3 && !obj.Modified.IsZero() {
+				return manifest{}, fmt.Errorf("%w: object modification dates require metadata version 3", ErrCorrupt)
+			}
+			if !obj.Modified.IsZero() && (obj.Modified.Year() < 1 || obj.Modified.Year() > 9999) {
+				return manifest{}, fmt.Errorf("%w: invalid object modification date", ErrCorrupt)
+			}
 			if err := validKey(key); err != nil {
 				return manifest{}, errors.Join(ErrCorrupt, err)
 			}

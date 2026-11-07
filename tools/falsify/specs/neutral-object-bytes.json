@@ -4,8 +4,8 @@
     {
       "label": "a returned reader lets io.Copy continue after cancellation",
       "file": "internal/core/objectstore/files.go",
-      "find": "if err := r.ctx.Err(); err != nil {",
-      "replace": "if err := r.ctx.Err(); err != nil && false {",
+      "find": "func (r *contextReader) Read(p []byte) (int, error) {\n\tif err := r.ctx.Err(); err != nil {",
+      "replace": "func (r *contextReader) Read(p []byte) (int, error) {\n\tif err := r.ctx.Err(); err != nil && false {",
       "test": "TestReturnedReaderHonorsCancellationThroughCopy"
     },
     {
@@ -88,8 +88,8 @@
     {
       "label": "a future metadata version is silently accepted",
       "file": "internal/core/objectstore/manifest.go",
-      "find": "if (state.Version != 1 && state.Version != 2) || state.Buckets == nil {",
-      "replace": "if ((state.Version != 1 && state.Version != 2) && false) || state.Buckets == nil {",
+      "find": "if state.Version < 1 || state.Version > storeVersion || state.Buckets == nil {",
+      "replace": "if ((state.Version < 1 || state.Version > storeVersion) && false) || state.Buckets == nil {",
       "test": "TestManifestIsClosedVersionedAndValidated"
     },
     {

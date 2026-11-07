@@ -301,3 +301,45 @@ The witness uses pack-owned public fake credentials. Its refusing proxy is not
 a network namespace and does not constrain unrelated clients that ignore proxy
 settings. Host response counters are separate from prefix counters and start
 again at zero on restart; neither is official-client or SDK-coverage evidence.
+
+## Measured Exoscale listing and multi-range downloads
+
+`conformance:s3:mounted` also drives exo 1.95.1 object listing and downloads
+through the same scoped host. It checks actual listing keys, sizes and dates
+and compares downloaded binary bytes and SHA-256 before and after a real process
+restart. The small object is 73,728 bytes. A 6,340,608-byte object exceeds the
+client's 5 MiB download part size and produces multiple `206` responses.
+That object is seeded with a **simple AWS PUT**, not an Exo multipart upload.
+AWS additionally decodes two actual one-entry listing pages, including a literal
+key with escaped characters.
+
+The gateway implements **ListObjectsV2 only**, with bounded prefix, delimiter,
+start-after and max-keys (0..1000), deduplicated common prefixes and scoped
+continuation tokens. An empty optional token means the first page, as the real
+Exo downloader requests it. Cursors are bounded, closed JSON bound to the
+provider/region/bucket/prefix/delimiter; they are neither signed nor IAM and do
+not freeze an inventory against concurrent mutations. `encoding-type=url`
+preserves keys unrepresentable in XML; without it, such keys are explicitly
+refused, never silently replaced. Owner requests and v1 listing remain refused.
+
+Single `bytes` ranges support closed, open-ended and suffix forms. GET returns
+only the selected bytes with actual Content-Length and Content-Range.
+Unsatisfiable ranges return a plain Feint `416` with `bytes */<actual size>`.
+Multiple ranges, conditional reads and Range on other methods remain refused.
+Every range still verifies the **entire stored blob** before seeking.
+Partial responses deliberately omit whole-object checksum headers; full reads
+retain the verified SHA-256. ETags remain absent.
+
+Private byte metadata is now **version 3**. New stores and successful mutations
+write v3; v1/v2 are still readable and reads do not rewrite them. PUT persists
+its publication date, reused by GET/HEAD and listings across restart. Old
+undated object references retain no Last-Modified header, and pages containing
+them refuse listing until those objects are overwritten. Neither blob mtime nor
+restart time is substituted. **Older binaries cannot read an upgraded v3 index**:
+keep a pre-upgrade copy of the whole owned store if rollback is required.
+Resource snapshots still do not own these bytes.
+
+The date, listing and range properties are replayed by
+`tools/falsify/specs/s3-download.json`. This milestone does **not** certify normal
+Exo bucket creation/cleanup, ACL/CORS/ownership discovery, native bucket usage,
+multipart, version histories, bulk deletion, TLS or Terraform redirection.

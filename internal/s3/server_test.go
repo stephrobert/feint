@@ -190,12 +190,12 @@ func TestRefusalsDoNotMasqueradeAsCloudSupport(t *testing.T) {
 		method, path string
 		headers      map[string]string
 	}{
-		{"GET", "/bucket?list-type=2", nil},
+		{"GET", "/bucket?list-type=1", nil},
 		{"GET", "/bucket/missing", nil},
 		{"PUT", "/bucket", nil},
 		{"PUT", "/bucket/key?uploads", nil},
 		{"PUT", "/bucket/key", map[string]string{"X-Amz-Acl": "public-read"}},
-		{"GET", "/bucket/key", map[string]string{"Range": "bytes=0-1"}},
+		{"GET", "/bucket/key", map[string]string{"Range": "items=0-1"}},
 		{"PUT", "/bucket/key", map[string]string{"If-None-Match": "*"}},
 	} {
 		w := request(t, s, tc.method, tc.path, nil, tc.headers)

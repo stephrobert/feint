@@ -60,9 +60,9 @@
     {
       "label": "range requests silently return full bytes",
       "file": "internal/s3/server.go",
-      "find": "case \"range\", \"if-match\", \"if-none-match\", \"if-modified-since\", \"if-unmodified-since\", \"if-range\", \"content-md5\":",
-      "replace": "case \"\\x00never\", \"if-match\", \"if-none-match\", \"if-modified-since\", \"if-unmodified-since\", \"if-range\", \"content-md5\":",
-      "test": "TestRefusalsDoNotMasqueradeAsCloudSupport"
+      "find": "if values := r.Header.Values(\"Range\"); len(values) != 0 {",
+      "replace": "if values := r.Header.Values(\"Range\"); len(values) != 0 && false {",
+      "test": "TestSingleByteRangesReturnOnlyTheirVerifiedBytes"
     },
     {
       "label": "unsafe restored metadata is emitted as HTTP headers",
