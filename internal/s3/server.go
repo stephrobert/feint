@@ -21,6 +21,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -48,6 +49,9 @@ type Config struct {
 	Log            *slog.Logger
 	// Namespace is an opaque deployment scope, not an authenticated tenant.
 	Namespace string
+	// BucketConfiguration enables the measured private, non-versioned bucket
+	// workflow, independently of the missing-bucket error dialect.
+	BucketConfiguration bool
 }
 
 // Server is a direct HTTP handler. Do not put it behind a path-cleaning mux:
@@ -100,24 +104,42 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for key := range query {
-		if key != "x-id" {
+		if key != "x-id" && (!s.cfg.BucketConfiguration || (key != "versioning" && key != "acl" && key != "tagging")) {
 			s.refuse(w, r, http.StatusNotImplemented, "S3 query features are not implemented", nil)
 			return
 		}
 	}
-	if err := supportedHeaders(r); err != nil {
-		s.refuse(w, r, http.StatusNotImplemented, "S3 header feature is not implemented", err)
-		return
-	}
 	rawBucket, rawKey, _ := strings.Cut(strings.TrimPrefix(r.URL.EscapedPath(), "/"), "/")
 	bucket, bucketErr := url.PathUnescape(rawBucket)
 	key, keyErr := url.PathUnescape(rawKey)
+	checked, err := s.bucketHeaders(r, query, rawKey == "")
+	if err != nil {
+		s.refuse(w, r, http.StatusNotImplemented, "S3 bucket header feature is not implemented", err)
+		return
+	}
+	if err := supportedHeaders(checked); err != nil {
+		s.refuse(w, r, http.StatusNotImplemented, "S3 header feature is not implemented", err)
+		return
+	}
+	if rawBucket == "" && rawKey == "" && s.cfg.BucketConfiguration &&
+		(len(query) == 0 || (len(query) == 1 && query.Has("x-id"))) && r.Method == http.MethodGet {
+		s.listBuckets(w, r)
+		return
+	}
 	if bucketErr != nil || keyErr != nil || !bucketName(bucket) || !utf8.ValidString(key) || len(key) > 1024 {
 		s.refuse(w, r, http.StatusBadRequest, "invalid bucket or object key", errors.Join(bucketErr, keyErr))
 		return
 	}
 	if key == "" {
+		if len(query) != 0 && (len(query) != 1 || !query.Has("x-id")) {
+			s.bucketConfiguration(w, r, bucket, query)
+			return
+		}
 		s.bucket(w, r, bucket)
+		return
+	}
+	if query.Has("versioning") || query.Has("acl") || query.Has("tagging") {
+		s.refuse(w, r, http.StatusNotImplemented, "bucket configuration queries require a bucket, not an object", nil)
 		return
 	}
 	switch r.Method {
@@ -142,8 +164,24 @@ func (s *Server) bucket(w http.ResponseWriter, r *http.Request, name string) {
 	status := http.StatusOK
 	switch r.Method {
 	case http.MethodPut:
-		// This slice accepts only the empty CreateBucket request. Region XML
-		// configuration must be measured before enabling that request shape.
+		if s.cfg.BucketConfiguration {
+			body, readErr := configurationBody(w, r)
+			if readErr != nil {
+				s.refuse(w, r, http.StatusBadRequest, "invalid CreateBucket body", readErr)
+				return
+			}
+			if len(body) != 0 {
+				region, decodeErr := configurationValue(body, "CreateBucketConfiguration", "LocationConstraint")
+				if decodeErr != nil || region != s.cfg.Region {
+					s.refuse(w, r, http.StatusBadRequest, "CreateBucket region must match the declared door", decodeErr)
+					return
+				}
+			}
+			err = s.store.CreateBucketWithMetadata(r.Context(), s.name(name), map[string]string{
+				bucketCreated: time.Now().UTC().Format(time.RFC3339Nano),
+			})
+			break
+		}
 		body, readErr := io.ReadAll(http.MaxBytesReader(w, r.Body, 1))
 		if readErr != nil || len(body) != 0 {
 			s.refuse(w, r, http.StatusNotImplemented, "CreateBucket configuration is not implemented", readErr)

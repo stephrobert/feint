@@ -28,11 +28,12 @@ const UploadReadTimeout = 30 * time.Second
 // Profile is a provider's declared wire dialect and client environment names.
 // Variables stay local to the composition root, never taken from an HTTP report.
 type Profile struct {
-	Provider       string
-	Region         string
-	MissingBucket  MissingBucketShape
-	Variables      []string
-	RegionVariable string
+	Provider            string
+	Region              string
+	MissingBucket       MissingBucketShape
+	Variables           []string
+	RegionVariable      string
+	BucketConfiguration bool
 }
 
 // Door describes an enabled path-style endpoint, without filesystem paths.
@@ -107,7 +108,8 @@ func Mount(next http.Handler, store *objectstore.Store, profiles []Profile, maxO
 			return nil, fmt.Errorf("s3: duplicate door %s", path)
 		}
 		server, err := New(store, Config{Region: p.Region, MaxObjectBytes: maxObjectBytes,
-			MissingBucket: p.MissingBucket, Namespace: p.Provider + "/" + p.Region, Log: log})
+			MissingBucket: p.MissingBucket, Namespace: p.Provider + "/" + p.Region, Log: log,
+			BucketConfiguration: p.BucketConfiguration})
 		if err != nil {
 			return nil, err
 		}
@@ -149,7 +151,13 @@ func (d *Doors) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	raw := r.URL.EscapedPath()
 	for prefix, handler := range d.handlers {
-		if remainder, ok := strings.CutPrefix(raw, prefix); ok {
+		remainder, ok := strings.CutPrefix(raw, prefix)
+		// SCW ListBuckets uses the canonical bare endpoint rather than its
+		// slash-suffixed root. No redirect or path cleaning is involved.
+		if !ok && r.Method == http.MethodGet && handler.cfg.BucketConfiguration && raw == strings.TrimSuffix(prefix, "/") {
+			remainder, ok = "", true
+		}
+		if ok {
 			path, err := url.PathUnescape("/" + remainder)
 			if err != nil {
 				d.refuse(w, r, "invalid encoded S3 path")

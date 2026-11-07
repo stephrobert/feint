@@ -83,7 +83,7 @@ var rules = []rule{
 		Path:     "internal/providers/scaleway/object_storage.go",
 		Why:      "declared S3 dialect and configurable endpoint variables, outside control-plane SDK coverage",
 		Runs:     []string{"conformance:s3", "conformance:s3:mounted"},
-		Unproven: "AWS CLI byte operations, not a complete scw lifecycle or hardcoded Terraform S3 redirection",
+		Unproven: "AWS CLI bytes and private non-versioned scw buckets, not other bucket options or hardcoded Terraform S3 redirection",
 	},
 	{
 		Path:     "internal/providers/exoscale/object_storage.go",
@@ -254,13 +254,13 @@ var rules = []rule{
 	},
 	{
 		Path:     "internal/s3/",
-		Why:      "bounded path-style S3 protocol and real-byte official-client proof",
+		Why:      "bounded path-style S3 protocol, private Scaleway buckets and real-byte official-client proof",
 		Runs:     []string{"conformance:s3", "conformance:s3:mounted"},
-		Unproven: "one AWS CLI version, not complete scw/exo lifecycles, virtual hosts, interception, ETag semantics, multipart or public stacks",
+		Unproven: "one AWS CLI and one scw version, not complete Exoscale lifecycles, public ACLs, version histories, virtual hosts, interception, ETags, multipart or public stacks",
 	},
 	{
 		Path:     "internal/conformancetest/",
-		Why:      "isolated pinned AWS CLI environment and non-forwarding egress control",
+		Why:      "isolated pinned AWS/scw environments and non-forwarding egress control",
 		Runs:     []string{"conformance:s3", "conformance:s3:mounted"},
 		Unproven: "the proxy is not a network namespace and does not constrain arbitrary clients which ignore it",
 	},

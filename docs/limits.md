@@ -8,10 +8,12 @@ than one that is small.
 
 #850 adds opt-in, persisted simple S3 operations on the existing port, with
 declared `/_feint/s3/<provider>/<region>/` endpoints, cumulative byte budgets
-and an AWS CLI 2.32.17 restart proof. See the
+and an AWS CLI 2.32.17 / scw 2.62.0 restart proof. The Scaleway private,
+non-versioned bucket `create/list/get/delete` workflow is served. See the
 [door ADR and commands](object-storage-routing.md).
-Complete `scw`/`exo` lifecycles, listing, ACL/versioning, multipart, ETags,
-checkpoint/reset and hardcoded Terraform redirection remain unsupported.
+Complete Exoscale workflows, object listing, writable tags/public ACLs,
+version histories, multipart, ETags, checkpoint/reset and hardcoded Terraform
+redirection remain unsupported.
 No MinIO service or dependency is used by this implementation.
 
 ### Why Scaleway Terraform is still not redirected
@@ -36,9 +38,9 @@ for the number; the section below is that number, measured. The short version:
 the certificate half is cheap and safe, the DNS half is neither, and the whole
 blocker reduces to this one product on this one client.
 
-The SDK and the CLI are better off: they honour `SCW_S3_ENDPOINT`. So an S3
-workflow driven by `scw` or by an SDK can already point at MinIO today; only the
-Terraform path is blocked.
+The SDK and the CLI are better off: they honour `SCW_S3_ENDPOINT`. The private,
+non-versioned bucket workflow now points at Feint's explicit same-port door
+and passes with the pinned CLI; the Terraform path remains blocked.
 
 The consequence has since been observed live, from a stranger's stack rather
 than a fixture ([#262](https://github.com/stephrobert/feint/issues/262),

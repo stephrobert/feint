@@ -53,8 +53,8 @@
     {
       "label": "S3 query features silently become ordinary CRUD",
       "file": "internal/s3/server.go",
-      "find": "if key != \"x-id\" {",
-      "replace": "if key != \"x-id\" && false {",
+      "find": "if key != \"x-id\" && (!s.cfg.BucketConfiguration || (key != \"versioning\" && key != \"acl\" && key != \"tagging\")) {",
+      "replace": "if key != \"x-id\" && (!s.cfg.BucketConfiguration || (key != \"versioning\" && key != \"acl\" && key != \"tagging\")) && false {",
       "test": "TestRefusalsDoNotMasqueradeAsCloudSupport"
     },
     {

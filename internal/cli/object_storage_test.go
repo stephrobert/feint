@@ -138,7 +138,8 @@ func TestS3EnvOnlyExportsLiveSelectedDoorsAndUnsetWorksOffline(t *testing.T) {
 	}
 	for _, shell := range []string{"bash", "fish", "powershell"} {
 		if code := call("scaleway", "--s3", "--s3-region", "fr-par", "--endpoint", ts.URL, "--shell", shell); code != 0 ||
-			!strings.Contains(out.String(), ts.URL+s3.DoorPath("scaleway", "fr-par")) ||
+			!strings.Contains(out.String(), ts.URL+strings.TrimSuffix(s3.DoorPath("scaleway", "fr-par"), "/")) ||
+			strings.Contains(out.String(), ts.URL+s3.DoorPath("scaleway", "fr-par")) ||
 			strings.Contains(out.String(), "not certified") || !strings.Contains(note.String(), "not certified") {
 			t.Fatalf("live selected S3 environment or stderr contract failed: %d %q %q", code, out.String(), note.String())
 		}

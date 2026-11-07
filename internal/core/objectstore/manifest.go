@@ -47,7 +47,7 @@ func decodeManifest(body []byte) (manifest, error) {
 	if state.Format != storeFormat {
 		return manifest{}, ErrUnowned
 	}
-	if state.Version != 1 || state.Buckets == nil {
+	if (state.Version != 1 && state.Version != 2) || state.Buckets == nil {
 		return manifest{}, fmt.Errorf("%w: unsupported version or missing buckets", ErrCorrupt)
 	}
 	for name, b := range state.Buckets {
@@ -56,6 +56,12 @@ func decodeManifest(body []byte) (manifest, error) {
 		}
 		if b == nil || b.Objects == nil || b.Generation == "" || len(b.Generation) > 128 || !utf8.ValidString(b.Generation) {
 			return manifest{}, fmt.Errorf("%w: invalid bucket metadata", ErrCorrupt)
+		}
+		if state.Version == 1 && b.Metadata != nil {
+			return manifest{}, fmt.Errorf("%w: bucket attributes require metadata version 2", ErrCorrupt)
+		}
+		if err := validMetadata(Object{Metadata: b.Metadata}); err != nil {
+			return manifest{}, errors.Join(ErrCorrupt, err)
 		}
 		for key, obj := range b.Objects {
 			if err := validKey(key); err != nil {

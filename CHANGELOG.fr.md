@@ -26,7 +26,7 @@ change ni l'un ni l'autre a sa place dans `git log`.
   séparent les espaces. `restart` conserve la racine absolue et les limites ;
   les snapshots de ressources et le nettoyage ne possèdent pas ces octets.
   AWS CLI 2.32.17 prouve l'identité octets/checksum sur le vrai processus avant
-  et après redémarrage. Les cycles `scw`/`exo` complets, les ETag, le multipart
+  et après redémarrage. Les cycles `exo` complets, les ETag, le multipart
   et les endpoints Terraform codés en dur restent hors périmètre.
 - **La découverte S3 active, pas un endpoint deviné quand elle est désactivée**
   (#850) : `env --s3 [--s3-region]`, `doctor --s3`, un statut explicite
@@ -35,6 +35,15 @@ change ni l'un ni l'autre a sa place dans `git log`.
   ses preuves clientes. La surface CLI additive passe à **26** ; les codes de
   sortie et le schéma de santé restent inchangés. `env --unset` retire aussi
   les variables d'endpoint S3, sans instance active.
+- **Le cycle mesuré des buckets Scaleway privés** (#850) :
+  `scw` 2.62.0 `create/list/get/delete`, avec les octets vérifiés par AWS CLI,
+  survit au redémarrage réel. Région XML, checksums de transport bornés,
+  versioning `Suspended` persistant, ACL privée et `NoSuchTagSet` enregistré
+  sont servis ; historique de versions, écriture des tags et droits publics
+  restent refusés. Les endpoints exportés omettent le slash refusé par le SDK ;
+  la liste accepte sa racine canonique nue sans redirection. Le format privé
+  neutre version 2 lit la version 1 et la migre à la prochaine mutation ;
+  les anciens binaires ne peuvent pas relire cette version 2.
 
 ## [0.14.0] - 2026-10-26
 

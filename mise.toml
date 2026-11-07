@@ -55,7 +55,7 @@ description = "Prove the unmounted path-style S3 component with AWS CLI 2.32.17 
 run = "go test -race -tags=conformance ./internal/s3 -run '^TestOfficialAWSCLIBytes$' -count=1 -v"
 
 [tasks."conformance:s3:mounted"]
-description = "Prove prefixed S3 bytes through the actual feint start/stop/restart process with AWS CLI 2.32.17"
+description = "Prove prefixed bytes and private Scaleway buckets through real start/stop/restart with AWS CLI 2.32.17 and scw 2.62.0"
 run = "go test -race -tags=conformance ./internal/cli -run '^TestMountedS3OfficialAWSCLIBytes$' -count=1 -v"
 
 [tasks.fuzz]

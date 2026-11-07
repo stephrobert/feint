@@ -16,15 +16,15 @@ import (
 	"time"
 )
 
-// AWSCLI is an isolated AWS CLI installation, not a host credential profile.
-type AWSCLI struct {
+// Client is a pinned official client in an isolated, public-fake environment.
+type Client struct {
 	Path string
 	Home string
 	Env  []string
 }
 
 // AWS builds a private environment from the repository's public fake keys.
-func AWS(t *testing.T, proxy, ca string) AWSCLI {
+func AWS(t *testing.T, proxy, ca string) Client {
 	t.Helper()
 	binary, err := exec.LookPath("aws")
 	if err != nil {
@@ -34,20 +34,8 @@ func AWS(t *testing.T, proxy, ca string) AWSCLI {
 	if err := os.Chmod(home, 0700); err != nil { //nolint:gosec // a private directory, not a file
 		t.Fatal(err)
 	}
-	creds, err := os.ReadFile("../../tools/conformance/scaleway/fake-credentials.env")
-	if err != nil {
-		t.Fatal(err)
-	}
-	fake := make(map[string]string)
-	for _, line := range strings.Split(string(creds), "\n") {
-		if key, value, ok := strings.Cut(line, "="); ok && strings.HasPrefix(key, "SCW_") {
-			fake[key] = value
-		}
-	}
-	if fake["SCW_ACCESS_KEY"] == "" || fake["SCW_SECRET_KEY"] == "" {
-		t.Fatal("canonical public fake credentials are absent")
-	}
-	cli := AWSCLI{Path: binary, Home: home, Env: []string{
+	fake := fakeCredentials(t)
+	cli := Client{Path: binary, Home: home, Env: []string{
 		"HOME=" + home, "PATH=" + filepath.Dir(binary) + ":/usr/bin:/bin",
 		"XDG_STATE_HOME=" + home, "XDG_RUNTIME_DIR=" + home,
 		"AWS_ACCESS_KEY_ID=" + fake["SCW_ACCESS_KEY"], "AWS_SECRET_ACCESS_KEY=" + fake["SCW_SECRET_KEY"],
@@ -68,8 +56,26 @@ func AWS(t *testing.T, proxy, ca string) AWSCLI {
 	return cli
 }
 
+func fakeCredentials(t *testing.T) map[string]string {
+	t.Helper()
+	creds, err := os.ReadFile("../../tools/conformance/scaleway/fake-credentials.env")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fake := make(map[string]string)
+	for _, line := range strings.Split(string(creds), "\n") {
+		if key, value, ok := strings.Cut(line, "="); ok && strings.HasPrefix(key, "SCW_") {
+			fake[key] = value
+		}
+	}
+	if fake["SCW_ACCESS_KEY"] == "" || fake["SCW_SECRET_KEY"] == "" {
+		t.Fatal("canonical public fake credentials are absent")
+	}
+	return fake
+}
+
 // Run executes the pinned client with a bounded lifetime and no shell.
-func (c AWSCLI) Run(t *testing.T, args ...string) []byte {
+func (c Client) Run(t *testing.T, args ...string) []byte {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 	defer cancel()
@@ -77,7 +83,7 @@ func (c AWSCLI) Run(t *testing.T, args ...string) []byte {
 	cmd.Env = c.Env
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		t.Fatalf("AWS CLI %s failed: %v\n%s", strings.Join(args, " "), err, out)
+		t.Fatalf("%s %s failed: %v\n%s", filepath.Base(c.Path), strings.Join(args, " "), err, out)
 	}
 	return out
 }

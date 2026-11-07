@@ -55,6 +55,7 @@ type PutOptions struct {
 type bucket struct {
 	Generation string            `json:"generation"`
 	Objects    map[string]Object `json:"objects"`
+	Metadata   map[string]string `json:"metadata,omitempty"`
 }
 
 type manifest struct {
@@ -114,7 +115,16 @@ func (s *Store) begin(ctx context.Context) (func(), error) {
 
 // CreateBucket durably creates a logical bucket. Its name never becomes a path.
 func (s *Store) CreateBucket(ctx context.Context, name string) error {
+	return s.CreateBucketWithMetadata(ctx, name, nil)
+}
+
+// CreateBucketWithMetadata atomically creates a bucket with detached, opaque
+// UTF-8 attributes. Attributes share SetBucketMetadata's 65,536-byte bound.
+func (s *Store) CreateBucketWithMetadata(ctx context.Context, name string, metadata map[string]string) error {
 	if err := validName(name); err != nil {
+		return err
+	}
+	if err := validMetadata(Object{Metadata: metadata}); err != nil {
 		return err
 	}
 	end, err := s.begin(ctx)
@@ -128,7 +138,7 @@ func (s *Store) CreateBucket(ctx context.Context, name string) error {
 		return ErrBucketExists
 	}
 	next := s.clone()
-	next.Buckets[name] = &bucket{Generation: rand.Text(), Objects: make(map[string]Object)}
+	next.Buckets[name] = &bucket{Generation: rand.Text(), Objects: make(map[string]Object), Metadata: maps.Clone(metadata)}
 	return s.commit(ctx, next)
 }
 
@@ -348,9 +358,9 @@ func (s *Store) lookup(name string) (*bucket, error) {
 }
 
 func (s *Store) clone() manifest {
-	next := manifest{Format: s.state.Format, Version: s.state.Version, Buckets: make(map[string]*bucket)}
+	next := manifest{Format: s.state.Format, Version: 2, Buckets: make(map[string]*bucket)}
 	for name, b := range s.state.Buckets {
-		next.Buckets[name] = &bucket{Generation: b.Generation, Objects: maps.Clone(b.Objects)}
+		next.Buckets[name] = &bucket{Generation: b.Generation, Objects: maps.Clone(b.Objects), Metadata: maps.Clone(b.Metadata)}
 	}
 	return next
 }

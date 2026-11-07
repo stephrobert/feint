@@ -228,7 +228,7 @@ func storageEnvironment(pack packEnv, endpoint, region string, unset bool, vars 
 	}
 	profile := storage.ObjectStorage(selected.Region)
 	for _, key := range profile.Variables {
-		vars[key] = strings.TrimSuffix(endpoint, "/") + selected.Path
+		vars[key] = strings.TrimSuffix(endpoint, "/") + strings.TrimSuffix(selected.Path, "/")
 	}
 	vars[profile.RegionVariable] = selected.Region
 	return nil

@@ -24,7 +24,7 @@ what this project is judged on: **a response shape a client can observe**, and
   namespaces. `restart` preserves the absolute root and limits; resource
   snapshots and cleanup do not own these bytes. AWS CLI 2.32.17 proves
   byte/checksum identity through the real process before and after restart.
-  Complete `scw`/`exo` lifecycles, ETag semantics, multipart and hardcoded
+  Complete `exo` lifecycles, ETag semantics, multipart and hardcoded
   Terraform endpoints remain unsupported.
 - **Live S3 discovery, not an endpoint guessed while disabled** (#850):
   `env --s3 [--s3-region]`, `doctor --s3`, explicit enabled/disabled/unknown
@@ -33,6 +33,14 @@ what this project is judged on: **a response shape a client can observe**, and
   The additive CLI surface is version **26**; existing exit codes and the
   health schema stay unchanged. Ordinary `env --unset` also clears S3
   endpoint variables offline.
+- **Measured private Scaleway bucket lifecycle** (#850): `scw` 2.62.0
+  `create/list/get/delete`, alongside verified AWS CLI bytes, survives actual
+  process restart. Region XML, bounded transport checksums, persisted
+  `Suspended` versioning, private canonical ACL and recorded `NoSuchTagSet`
+  are served; version histories, writable tags and public grants are refused.
+  S3 env endpoints omit the slash the SDK rejects; canonical bare bucket-list
+  roots are dispatched without redirects. Neutral private metadata version 2
+  reads version 1 and upgrades on mutation; older binaries cannot read it.
 
 ## [0.14.0] - 2026-10-26
 

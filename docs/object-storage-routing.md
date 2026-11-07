@@ -160,8 +160,59 @@ data. This is an HTTP actual-process witness;
 hostile-response-checksum controls.
 
 This certifies simple CreateBucket, PutObject, GetObject, HeadObject,
-DeleteObject and DeleteBucket through the mounted gateway, not complete
-`scw`/`exo` lifecycles. Unsupported ancillary operations, missing-object cloud
-errors and multipart still receive explicit Feint refusals. No ETag is invented.
+DeleteObject and DeleteBucket through the mounted gateway, plus the bounded
+Scaleway bucket workflow below, not complete `exo` lifecycles. Unsupported
+ancillary operations, missing-object cloud errors and multipart still receive
+explicit Feint refusals. No ETag is invented.
 The snapshot-import route still records an intention rather than reading these
 bytes. Object Storage 1.0 and hardcoded Terraform redirection are not delivered.
+
+## Measured Scaleway bucket workflow
+
+The declared Scaleway doors additionally serve `scw` **2.62.0** bucket
+`create/list/get/delete`, with the ordinary defaults: private ACL, no Object
+Lock and `enable-versioning=false`. `mise run conformance:s3:mounted` now
+requires that pinned client as well as AWS CLI. It creates the bucket with
+`scw`, uploads/downloads the binary witness with AWS CLI (the Scaleway CLI has
+no object upload command), and repeats both bucket reads and byte retrieval
+after the real process restarts. Creation dates and the canonical local owner
+remain stable; listing reads the actual namespace-scoped inventory.
+
+The wire contract comes from the official CLI source and historical HTTP
+cassettes at revision `a2a40172bb27582c2a0fe37a4837f949cb10e6a6`,
+particularly
+[simple create](https://github.com/scaleway/scaleway-cli/blob/a2a40172bb27582c2a0fe37a4837f949cb10e6a6/internal/namespaces/object/v1/testdata/test-bucket-create-simple.cassette.yaml)
+and
+[list](https://github.com/scaleway/scaleway-cli/blob/a2a40172bb27582c2a0fe37a4837f949cb10e6a6/internal/namespaces/object/v1/testdata/test-bucket-list-simple.cassette.yaml).
+This is historical Scaleway evidence, not an Exoscale response oracle or a
+new authenticated cloud recording.
+
+`CreateBucket` checks the optional XML region against its declared door.
+`PutBucketVersioning` verifies its bounded body/checksums, including the
+client's legacy Content-MD5, before persisting `Suspended`. A new bucket has
+no explicit versioning status until that write. `Enabled`, tags writes,
+non-private permissions and Object Lock remain logged Feint refusals.
+`GetBucketTagging` uses the recorded `NoSuchTagSet` response because tag
+creation is not supported; `GetBucketAcl` describes the only accepted policy.
+The stable owner is a local fixture identity, not authenticated IAM.
+The isolated SCW cache has a fresh `last-cli-checks` marker, using the pinned
+client's own predicate to suppress unrelated GitHub version/API-key checks.
+The non-forwarding proxy remains enabled; no host cache or credentials are used.
+
+The SDK refuses a trailing slash in its configured endpoint, and ListBuckets
+uses that bare root. `env --s3` therefore exports endpoints **without** their
+terminal slash, for every shell. The report retains canonical slash-suffixed
+door prefixes. The dispatcher accepts a canonical bare GET for the declared
+bucket workflow, without redirecting, cleaning paths or accepting encoded
+aliases. Literal object-key handling is unchanged.
+
+Bucket attributes belong to the neutral byte store, in private metadata
+version **2**. Version 1 indexes remain readable without a read-time rewrite;
+the next mutation upgrades them. An older binary cannot read the upgraded
+index. Existing bytes, generations and quotas remain unchanged. Legacy buckets
+without a stored creation date receive an explicit listing refusal rather
+than an invented date. Resource snapshots still do not own this metadata.
+
+Exoscale upload/download/delete, its mandatory ListMultipartUploads during
+bucket removal, native bucket-usage API, and full Object Storage 1.0 remain
+separate follow-up work. No empty multipart success stub was added.

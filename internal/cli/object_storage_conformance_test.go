@@ -27,8 +27,9 @@ import (
 
 func TestMountedS3OfficialAWSCLIBytes(t *testing.T) {
 	var guardHits atomic.Int64
-	guard := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	guard := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		guardHits.Add(1)
+		t.Logf("refusing proxy observed method=%s host=%s (never forwarded)", r.Method, r.Host)
 		http.Error(w, "external requests refused, never forwarded", http.StatusBadGateway)
 	}))
 	defer guard.Close()
@@ -92,7 +93,8 @@ func TestMountedS3OfficialAWSCLIBytes(t *testing.T) {
 		out := run("env", provider, "--s3", "--endpoint", endpoint)
 		found := false
 		for _, door := range first.ObjectStorage.Doors {
-			if door.Provider == provider && bytes.Contains(out, []byte(endpoint+door.Path)) {
+			if door.Provider == provider && bytes.Contains(out, []byte(endpoint+strings.TrimSuffix(door.Path, "/"))) &&
+				!bytes.Contains(out, []byte(endpoint+door.Path)) {
 				found = true
 			}
 		}
@@ -113,6 +115,24 @@ func TestMountedS3OfficialAWSCLIBytes(t *testing.T) {
 		return aws.Run(t, append([]string{"--endpoint-url", endpoint + door.Path, "--region", door.Region,
 			"--no-cli-pager", "s3api"}, args...)...)
 	}
+	scw := conformancetest.SCW(t, aws, endpoint+strings.TrimSuffix(s3.DoorPath("scaleway", "fr-par"), "/"))
+	bucketCall := func(verb string, name bool) []byte {
+		t.Helper()
+		args := []string{"-o", "json", "object", "bucket", verb}
+		if name {
+			args = append(args, bucket)
+		}
+		return scw.Run(t, append(args, "region=fr-par")...)
+	}
+	checkVersioning := func() {
+		t.Helper()
+		var configuration struct{ Status string }
+		out := call(s3.Door{Provider: "scaleway", Region: "fr-par", Path: s3.DoorPath("scaleway", "fr-par")},
+			"get-bucket-versioning", "--bucket", bucket)
+		if err := json.Unmarshal(out, &configuration); err != nil || configuration.Status != "Suspended" {
+			t.Fatalf("actual persisted versioning status was lost or invented: %v %q", err, out)
+		}
+	}
 	get := func(door s3.Door, expected []byte) {
 		t.Helper()
 		result := call(door, "get-object", "--bucket", bucket, "--key", key, "--checksum-mode", "ENABLED", output)
@@ -125,7 +145,11 @@ func TestMountedS3OfficialAWSCLIBytes(t *testing.T) {
 		}
 	}
 	for i, door := range first.ObjectStorage.Doors {
-		call(door, "create-bucket", "--bucket", bucket)
+		if door.Provider == "scaleway" {
+			bucketCall("create", true)
+		} else {
+			call(door, "create-bucket", "--bucket", bucket)
+		}
 		if i == 1 {
 			if err := os.WriteFile(input, []byte("separate-sos-scope"), 0600); err != nil {
 				t.Fatal(err)
@@ -136,6 +160,12 @@ func TestMountedS3OfficialAWSCLIBytes(t *testing.T) {
 	}
 	get(first.ObjectStorage.Doors[0], payload)
 	get(first.ObjectStorage.Doors[1], []byte("separate-sos-scope"))
+	beforeBucket := bucketCall("get", true)
+	checkVersioning()
+	beforeList := bucketCall("list", false)
+	if !bytes.Contains(beforeList, []byte(bucket)) {
+		t.Fatal("Scaleway CLI list omitted its created bucket:", string(beforeList))
+	}
 	// Restart the initially relative-root invocation from a different cwd.
 	work = privateStorageDir(t)
 	run("restart", "--addr", addr)
@@ -147,6 +177,13 @@ func TestMountedS3OfficialAWSCLIBytes(t *testing.T) {
 	}
 	get(first.ObjectStorage.Doors[0], payload)
 	get(first.ObjectStorage.Doors[1], []byte("separate-sos-scope"))
+	if after := bucketCall("get", true); !bytes.Equal(after, beforeBucket) {
+		t.Fatalf("Scaleway bucket configuration changed across restart: before=%q after=%q", beforeBucket, after)
+	}
+	checkVersioning()
+	if after := bucketCall("list", false); !bytes.Equal(after, beforeList) {
+		t.Fatalf("Scaleway bucket identity/creation time changed across restart: before=%q after=%q", beforeList, after)
+	}
 	// Inspect only our private store while the owner is stopped: GET of the
 	// same cleaned key twice would otherwise masquerade as key preservation.
 	run("stop", "--addr", addr)
@@ -168,7 +205,11 @@ func TestMountedS3OfficialAWSCLIBytes(t *testing.T) {
 	for _, door := range first.ObjectStorage.Doors {
 		call(door, "head-object", "--bucket", bucket, "--key", key)
 		call(door, "delete-object", "--bucket", bucket, "--key", key)
-		call(door, "delete-bucket", "--bucket", bucket)
+		if door.Provider == "scaleway" {
+			bucketCall("delete", true)
+		} else {
+			call(door, "delete-bucket", "--bucket", bucket)
+		}
 	}
 	if guardHits.Load() != 1 {
 		t.Fatalf("official client reached the refusing egress proxy: delta=%d", guardHits.Load()-1)

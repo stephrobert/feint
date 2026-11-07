@@ -124,7 +124,7 @@ func envCommand(args []string, stdout, stderr io.Writer) int {
 			return exitError
 		}
 		if !*unset {
-			fmt.Fprintln(stderr, "note: S3 serves simple byte operations only; complete provider CLI lifecycles and hardcoded Terraform endpoints are not certified.")
+			fmt.Fprintln(stderr, "note: S3 supports simple bytes and private non-versioned Scaleway buckets; Exoscale ancillary workflows and hardcoded Terraform endpoints are not certified.")
 		}
 	}
 

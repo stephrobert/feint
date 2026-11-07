@@ -99,7 +99,7 @@ func Open(ctx context.Context, path string) (result *Store, err error) {
 		if err := root.Mkdir("blobs", 0o700); err != nil {
 			return nil, fmt.Errorf("create blob directory: %w", err)
 		}
-		s.state = manifest{Format: storeFormat, Version: 1, Buckets: make(map[string]*bucket)}
+		s.state = manifest{Format: storeFormat, Version: 2, Buckets: make(map[string]*bucket)}
 		if err := s.commit(ctx, s.state); err != nil {
 			return nil, err
 		}

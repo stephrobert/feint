@@ -122,6 +122,29 @@ func TestMountedDoorRefusesUnknownAndEncodedPrefixesWithoutRedirect(t *testing.T
 	}
 }
 
+func TestMountedBucketListingAcceptsOnlyItsCanonicalBareEndpoint(t *testing.T) {
+	doors, _ := mountedFixture(t)
+	prefix := DoorPath("scaleway", "fr-par")
+	doors.handlers[prefix].cfg.BucketConfiguration = true
+	ts := httptest.NewServer(doors)
+	defer ts.Close()
+	doorRequest(t, ts.Client(), "PUT", ts.URL+prefix+"bucket", "", 200)
+	bare := strings.TrimSuffix(prefix, "/")
+	for _, path := range []string{prefix, bare, prefix + "?x-id=ListBuckets", bare + "?x-id=ListBuckets"} {
+		body := doorRequest(t, ts.Client(), "GET", ts.URL+path, "", 200)
+		if !bytes.Contains(body, []byte("<Name>bucket</Name>")) {
+			t.Fatal("canonical bucket root omitted actual inventory:", string(body))
+		}
+	}
+	for _, path := range []string{
+		strings.Replace(bare, "/scaleway/", "/scaleway%2F", 1),
+		bare + "-foreign",
+	} {
+		doorRequest(t, ts.Client(), "GET", ts.URL+path, "", 404)
+	}
+	doorRequest(t, ts.Client(), "PUT", ts.URL+bare, "", 404)
+}
+
 type deadlineWriter struct {
 	*httptest.ResponseRecorder
 	deadline time.Time
