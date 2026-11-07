@@ -19,6 +19,14 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Ajouté
 
+- **La suppression en lot Exo, mesurée** (#856) : exo 1.95.1 supprime quatre
+  vraies clés ; AWS vérifie l'inventaire vide après redémarrage et les octets
+  Scaleway intacts. DeleteObjects vérifie checksum et XML fermé avant une seule
+  transaction de métadonnées (1 à 1000 clés sans version, XML de 8 Mio maximum).
+  Les réponses verbose/quiet décrivent des suppressions réelles. Les blobs restent
+  conservés ; multipart, erreurs cloud mixtes par clé et cycles complets de
+  buckets restent hors de cette tranche mesurée.
+
 - **Le listing Exo et les téléchargements multi-plages, mesurés** (#850) :
   exo 1.95.1 retrouve deux binaires de 73 728 et 6 340 608 octets, octets/SHA-256
   et dates de listing identiques avant/après redémarrage réel. AWS décode aussi

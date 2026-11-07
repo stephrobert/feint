@@ -15,6 +15,7 @@ import (
 	"maps"
 	"math"
 	"os"
+	"slices"
 	"sort"
 	"sync"
 	"time"
@@ -344,6 +345,42 @@ func (s *Store) DeleteObject(ctx context.Context, name, key string) error {
 	}
 	next := s.clone()
 	delete(next.Buckets[name].Objects, key)
+	return s.commit(ctx, next)
+}
+
+// DeleteObjects removes references in one metadata transaction, retaining blobs.
+// Missing keys are harmless. Validation or a failed commit never publishes a
+// partially deleted inventory; indeterminate durability still faults the store.
+func (s *Store) DeleteObjects(ctx context.Context, name string, keys []string) error {
+	if len(keys) == 0 {
+		return fmt.Errorf("%w: deletion requires at least one key", ErrInvalid)
+	}
+	keys = slices.Clone(keys)
+	for _, key := range keys {
+		if err := validKey(key); err != nil {
+			return err
+		}
+	}
+	end, err := s.begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer end()
+	slices.Sort(keys)
+	keys = slices.Compact(keys)
+	for _, key := range keys {
+		release := serialise.Lock(s.domain + "/" + name + "\x00" + key)
+		defer release()
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, err := s.lookup(name); err != nil {
+		return err
+	}
+	next := s.clone()
+	for _, key := range keys {
+		delete(next.Buckets[name].Objects, key)
+	}
 	return s.commit(ctx, next)
 }
 

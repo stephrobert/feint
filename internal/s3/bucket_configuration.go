@@ -52,18 +52,25 @@ func (s *Server) bucketHeaders(r *http.Request, query url.Values, bucket bool) (
 }
 
 func configurationBody(w http.ResponseWriter, r *http.Request) ([]byte, error) {
-	upload, _, err := newUpload(w, r, 64<<10)
+	return xmlBody(w, r, 64<<10)
+}
+
+func xmlBody(w http.ResponseWriter, r *http.Request, max int64) ([]byte, error) {
+	upload, size, err := newUpload(w, r, max)
 	if err != nil {
 		return nil, err
 	}
-	body, err := io.ReadAll(upload)
+	body, err := io.ReadAll(io.LimitReader(upload, max+1))
 	if err != nil {
 		return nil, err
+	}
+	if int64(len(body)) != size {
+		return nil, errors.New("S3 XML body does not match its bounded decoded size")
 	}
 	if values := r.Header.Values("Content-MD5"); len(values) != 0 {
 		digest := md5.Sum(body) //nolint:gosec // Verify the legacy S3 transport checksum; never use it as identity.
 		if len(values) != 1 || values[0] != base64.StdEncoding.EncodeToString(digest[:]) {
-			return nil, errors.New("bucket configuration Content-MD5 mismatch")
+			return nil, errors.New("S3 XML Content-MD5 mismatch")
 		}
 	}
 	return body, nil

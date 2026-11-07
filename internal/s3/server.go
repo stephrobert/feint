@@ -78,7 +78,7 @@ func New(store *objectstore.Store, cfg Config) (*Server, error) {
 	return &Server{store: store, cfg: cfg}, nil
 }
 
-// ServeHTTP implements bucket PUT/HEAD/DELETE, ListObjectsV2 and object
+// ServeHTTP implements bucket PUT/HEAD/DELETE, ListObjectsV2, DeleteObjects and object
 // PUT/GET/HEAD/DELETE, including single-byte-range GETs.
 // Other features get an explicit Feint refusal, never a successful empty stub
 // or an invented cloud XML error. Signatures and credentials are never logged.
@@ -109,8 +109,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	rawBucket, rawKey, _ := strings.Cut(strings.TrimPrefix(r.URL.EscapedPath(), "/"), "/")
 	listing := r.Method == http.MethodGet && rawKey == "" && query.Get("list-type") == "2"
+	bulkDelete := r.Method == http.MethodPost && rawKey == "" && query.Has("delete")
 	for key := range query {
 		if listing && listQueryKey(key) {
+			continue
+		}
+		if bulkDelete && key == "delete" {
 			continue
 		}
 		if key != "x-id" && (!s.cfg.BucketConfiguration || (key != "versioning" && key != "acl" && key != "tagging")) {
@@ -124,6 +128,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		s.refuse(w, r, http.StatusNotImplemented, "S3 bucket header feature is not implemented", err)
 		return
+	}
+	if bulkDelete {
+		checked = checked.Clone(r.Context())
+		checked.Header.Del("Content-MD5")
 	}
 	if err := supportedHeaders(checked); err != nil {
 		s.refuse(w, r, http.StatusNotImplemented, "S3 header feature is not implemented", err)
@@ -144,6 +152,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if listing {
 		s.listObjects(w, r, bucket, query)
+		return
+	}
+	if bulkDelete {
+		s.deleteObjects(w, r, bucket, query)
 		return
 	}
 	if key == "" {

@@ -377,25 +377,72 @@ func TestMountedS3OfficialAWSCLIBytes(t *testing.T) {
 	}
 	run("start", "--addr", addr, "--vm", "off", "--objectstore", root,
 		"--objectstore-budget-mib", "20", "--s3-object-limit-mib", "8", "--s3-host-doors")
+	checkInventory := func(want int) {
+		t.Helper()
+		var inventory struct {
+			Name     string
+			KeyCount *int
+			Contents []json.RawMessage
+		}
+		out := call(first.ObjectStorage.Doors[1], "list-objects-v2", "--bucket", bucket, "--no-paginate")
+		if err := json.Unmarshal(out, &inventory); err != nil || inventory.Name != bucket ||
+			inventory.KeyCount == nil || *inventory.KeyCount != want || len(inventory.Contents) != want {
+			t.Fatalf("independent inventory did not witness %d actual objects: %v %q", want, err, out)
+		}
+	}
+	checkInventory(4)
+	deleted := exo.Run(t, "storage", "delete", "--force", "--recursive", "--verbose", "sos://"+bucket+"/")
+	for _, objectKey := range []string{key, exoKey, largeKey, "after-restart"} {
+		if !bytes.Contains(deleted, []byte(objectKey+"\n")) {
+			t.Fatalf("Exo did not report the actual deleted key %q: %q", objectKey, deleted)
+		}
+	}
+	var absentDeletion struct {
+		Deleted []struct{ Key string }
+		Errors  []json.RawMessage
+	}
+	absent := call(first.ObjectStorage.Doors[1], "delete-objects", "--bucket", bucket,
+		"--delete", `{"Objects":[{"Key":"absent-witness"}]}`, "--checksum-algorithm", "CRC32")
+	if err := json.Unmarshal(absent, &absentDeletion); err != nil || len(absentDeletion.Errors) != 0 ||
+		len(absentDeletion.Deleted) != 1 || absentDeletion.Deleted[0].Key != "absent-witness" {
+		t.Fatalf("actual AWS decoder lost idempotent bulk deletion: %v %q", err, absent)
+	}
+	checkEmpty := func() {
+		t.Helper()
+		checkInventory(0)
+		getKey(first.ObjectStorage.Doors[0], exoKey, []byte("other-provider-host-key"))
+	}
+	checkEmpty()
+	call(first.ObjectStorage.Doors[1], "put-object", "--bucket", bucket, "--key", "quiet-witness",
+		"--body", input, "--checksum-algorithm", "CRC32")
+	checkInventory(1)
+	quiet := call(first.ObjectStorage.Doors[1], "delete-objects", "--bucket", bucket,
+		"--delete", `{"Objects":[{"Key":"quiet-witness"}],"Quiet":true}`, "--checksum-algorithm", "CRC32")
+	if len(bytes.TrimSpace(quiet)) != 0 {
+		var response map[string]json.RawMessage
+		if err := json.Unmarshal(quiet, &response); err != nil || len(response) != 0 {
+			t.Fatalf("actual AWS Quiet result advertised successful keys or errors: %v %q", err, quiet)
+		}
+	}
+	checkEmpty()
+	run("restart", "--addr", addr)
+	checkEmpty()
 	for _, door := range first.ObjectStorage.Doors {
+		if door.Provider == "exoscale" {
+			call(door, "delete-bucket", "--bucket", bucket)
+			continue
+		}
 		call(door, "head-object", "--bucket", bucket, "--key", key)
 		call(door, "delete-object", "--bucket", bucket, "--key", key)
 		call(door, "delete-object", "--bucket", bucket, "--key", exoKey)
-		if door.Provider == "exoscale" {
-			call(door, "delete-object", "--bucket", bucket, "--key", "after-restart")
-			call(door, "delete-object", "--bucket", bucket, "--key", largeKey)
-		}
-		if door.Provider == "scaleway" {
-			bucketCall("delete", true)
-		} else {
-			call(door, "delete-bucket", "--bucket", bucket)
-		}
+		bucketCall("delete", true)
 	}
 	if guardHits.Load() != 1 {
 		t.Fatalf("official client reached the refusing egress proxy: delta=%d", guardHits.Load()-1)
 	}
 	t.Logf("Exo downloads before/after actual restart: small=%d bytes; multi-range=%d bytes sha256=%x",
 		len(payload), len(largePayload), sha256.Sum256(largePayload))
+	t.Log("Exo bulk-deleted four actual keys; independent AWS inventory empty across restart; other provider bytes retained")
 	t.Logf("actual feint pid %d -> %d; two same-port namespaces; preserved key; bytes=%d sha256=%s; stop/reopen/restart; proxy delta=0 (not a network namespace)",
 		first.PID, restarted.PID, len(payload), hex.EncodeToString(sum[:]))
 }

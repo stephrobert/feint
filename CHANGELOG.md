@@ -17,6 +17,14 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Added
 
+- **Measured Exo bulk deletion** (#856): exo 1.95.1 deletes four actual keys;
+  AWS independently checks the empty inventory across restart and untouched
+  Scaleway bytes. DeleteObjects verifies transport checksums and closed XML
+  before one metadata transaction (1..1000 unversioned keys, 8 MiB XML).
+  Verbose/quiet results describe actual deletions. Blobs remain retained;
+  multipart, mixed per-key cloud errors and complete bucket workflows remain
+  outside this measured slice.
+
 - **Measured Exo object listing and multi-range downloads** (#850):
   exo 1.95.1 downloads 73,728-byte and 6,340,608-byte binary objects with exact
   byte/SHA-256 and listing-date proof before/after actual restart. AWS independently

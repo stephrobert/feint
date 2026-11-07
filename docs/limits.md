@@ -19,6 +19,11 @@ multiple HTTP ranges. ListObjectsV2 exposes actual persisted modification dates;
 legacy undated objects must be overwritten before their listing can be served.
 Private byte metadata v3 reads v1/v2 without inventing dates; successful mutations
 upgrade it, and older binaries cannot read v3.
+Exo also bulk-deletes actual unversioned keys; AWS independently confirms the
+empty inventory survives restart while the other provider's bytes remain.
+DeleteObjects requires a verified transport checksum and closed XML, bounded to
+1000 keys and 8 MiB. Store failures return an explicit whole-request Feint refusal,
+not fabricated per-key cloud errors; immutable blobs remain retained.
 This does not implement bucket virtual hosts, DNS/TLS
 interception or a complete Exoscale lifecycle; use a dedicated shell because
 its S3 environment replaces proxy settings.

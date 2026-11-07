@@ -218,7 +218,7 @@ index. Existing bytes, generations and quotas remain unchanged. Legacy buckets
 without a stored creation date receive an explicit listing refusal rather
 than an invented date. Resource snapshots still do not own this metadata.
 
-Exoscale upload/download/delete, its mandatory ListMultipartUploads during
+Complete Exoscale bucket workflows, their mandatory ListMultipartUploads during
 bucket removal, native bucket-usage API, and full Object Storage 1.0 remain
 separate follow-up work. No empty multipart success stub was added.
 
@@ -342,4 +342,34 @@ Resource snapshots still do not own these bytes.
 The date, listing and range properties are replayed by
 `tools/falsify/specs/s3-download.json`. This milestone does **not** certify normal
 Exo bucket creation/cleanup, ACL/CORS/ownership discovery, native bucket usage,
-multipart, version histories, bulk deletion, TLS or Terraform redirection.
+multipart, version histories, TLS or Terraform redirection.
+
+## Measured Exoscale bulk deletion
+
+The pinned exo 1.95.1 `storage delete --force --recursive --verbose sos://BUCKET/`
+enumerates keys with ListObjectsV2, then sends DeleteObjects. The mounted witness
+failed with an actual 501 before this support. It now deletes four real keys,
+including a literal escaped key, and checks every reported key. An independent
+AWS CLI inventory is empty before and after another actual process restart;
+same-name objects in the Scaleway namespace still return their original bytes.
+AWS also decodes the idempotent deletion of a missing key using CRC32.
+
+The request/response members and XML namespace follow the S3 v1.2.0 serializer
+and deserializer used by that Exo release. The bounded subset accepts 1..1000
+unversioned keys in at most 8 MiB of decoded XML. Content-MD5, CRC32 or SHA-256
+transport validation finishes before any deletion. Unknown XML fields, versions,
+attributes, duplicate singleton fields, invalid sizes/checksums and unrelated
+query features are refused before changing any reference.
+
+Verbose responses identify every requested deleted key, including missing keys.
+Quiet responses omit successful keys only after actual deletion. The neutral
+store publishes one metadata transaction and retains immutable blobs and their
+quota charge: this is not GC. A store error yields an explicit logged
+whole-request Feint refusal, not invented mixed per-key cloud errors. An
+indeterminate directory-sync failure still faults the store until reopen.
+The index remains v3.
+
+`tools/falsify/specs/s3-delete.json` holds the destructive-input checks and
+publication properties. This closes only the bulk-deletion slice of #856:
+multipart upload/list/abort/complete and ordinary `exo storage rb` remain
+unsupported, and the complete bucket workflow remains #858.
