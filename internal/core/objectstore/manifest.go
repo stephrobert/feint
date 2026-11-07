@@ -19,7 +19,11 @@ const (
 )
 
 func readManifest(ctx context.Context, root *os.Root) (_ manifest, err error) {
-	file, err := openPrivate(root, "index.json")
+	return readNamedManifest(ctx, root, "index.json")
+}
+
+func readNamedManifest(ctx context.Context, root *os.Root, name string) (_ manifest, err error) {
+	file, err := openPrivate(root, name)
 	if err != nil {
 		return manifest{}, fmt.Errorf("read storage ownership metadata: %w", errors.Join(ErrUnowned, err))
 	}

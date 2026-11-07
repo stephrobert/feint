@@ -3,7 +3,9 @@
 // Blobs are immutable and addressed by SHA-256, never by a bucket or object key.
 // Mutations publish metadata only after the blob is durable. One Store owns a
 // private directory exclusively; Close releases it so Open can load it again.
-// This package provides no S3 protocol, resource snapshots, checkpoints or GC.
+// Named checkpoints retain full metadata and blobs until explicitly deleted.
+// Garbage collection is explicit; aborting an upload never collects bytes.
+// This package provides no provider protocol or resource snapshots.
 package objectstore
 
 import (
@@ -73,6 +75,8 @@ type manifest struct {
 // writes and deletes to the same key are serialized. Metadata commits are short
 // exclusive transactions. Close waits for in-flight operations, not for the
 // independent readers returned by GetObject.
+// Checkpoint operations and garbage collection exclude all active operations,
+// including slow uploads, without holding the metadata mutex during body reads.
 type Store struct {
 	life   sync.RWMutex
 	mu     sync.RWMutex

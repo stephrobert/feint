@@ -1,0 +1,61 @@
+{
+  "package": "./internal/core/objectstore/",
+  "mutations": [
+    {
+      "label": "reset ignores failed object and part integrity verification",
+      "file": "internal/core/objectstore/checkpoint.go",
+      "find": "if err := s.verifyManifest(ctx, next); err != nil {",
+      "replace": "if err := s.verifyManifest(ctx, next); err != nil && false {",
+      "test": "^TestCheckpointCorruptBytesNeverPublish$"
+    },
+    {
+      "label": "checkpoint lifecycle gate admits concurrent mutations",
+      "file": "internal/core/objectstore/checkpoint.go",
+      "find": "s.life.Lock()\n\tend := s.life.Unlock",
+      "replace": "s.life.RLock()\n\tend := s.life.RUnlock",
+      "test": "^TestCheckpointExclusiveGate$"
+    },
+    {
+      "label": "save accepts unsafe checkpoint names",
+      "file": "internal/core/objectstore/checkpoint.go",
+      "find": "func (s *Store) SaveCheckpoint(ctx context.Context, name string) (err error) {\n\tif !validCheckpointName(name) {",
+      "replace": "func (s *Store) SaveCheckpoint(ctx context.Context, name string) (err error) {\n\tif !validCheckpointName(name) && false {",
+      "test": "^TestCheckpointNamesAndFormats$"
+    },
+    {
+      "label": "collection deletes referenced checkpoint objects and parts",
+      "file": "internal/core/objectstore/gc.go",
+      "find": "if refs[entry.name] {",
+      "replace": "if refs[entry.name] && false {",
+      "test": "^TestCheckpointProtectsGarbageAndReleasesBudget$"
+    },
+    {
+      "label": "collection deletes arbitrary private blob filenames",
+      "file": "internal/core/objectstore/gc.go",
+      "find": "if !validDigest(name) && !validPendingName(name) {",
+      "replace": "if !validDigest(name) && !validPendingName(name) && false {",
+      "test": "^TestGarbageCollectionRejectsUnsafeInventory$/foreign-name$"
+    },
+    {
+      "label": "collection accepts a manifest at an unsafe persisted checkpoint name",
+      "file": "internal/core/objectstore/gc.go",
+      "find": "if !strings.HasSuffix(name, \".json\") || !validCheckpointName(strings.TrimSuffix(name, \".json\")) {",
+      "replace": "if (!strings.HasSuffix(name, \".json\") || !validCheckpointName(strings.TrimSuffix(name, \".json\"))) && false {",
+      "test": "^TestGarbageCollectionRejectsUnsafeInventory$/checkpoint-name$"
+    },
+    {
+      "label": "checkpoint save skips syncing the parent directory",
+      "file": "internal/core/objectstore/checkpoint.go",
+      "find": "if err == nil && create {",
+      "replace": "if err == nil && create && false {",
+      "test": "^TestCheckpointDirectorySyncFailureIsReportedAndRetried$"
+    },
+    {
+      "label": "collection fails to release retained quota",
+      "file": "internal/core/objectstore/gc.go",
+      "find": "s.budget.used = used",
+      "replace": "s.budget.used = used + s.budget.used",
+      "test": "^TestCheckpointProtectsGarbageAndReleasesBudget$"
+    }
+  ]
+}

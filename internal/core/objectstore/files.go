@@ -137,16 +137,8 @@ func Open(ctx context.Context, path string) (result *Store, err error) {
 	if err := private(opened, true); err != nil {
 		return nil, fmt.Errorf("opened blob directory: %w", errors.Join(ErrCorrupt, err))
 	}
-	for _, b := range s.state.Buckets {
-		for _, obj := range b.Objects {
-			file, err := s.openBlob(ctx, obj)
-			if err != nil {
-				return nil, err
-			}
-			if err := file.Close(); err != nil {
-				return nil, fmt.Errorf("close startup blob verification: %w", err)
-			}
-		}
+	if err := s.verifyManifest(ctx, s.state); err != nil {
+		return nil, err
 	}
 	return s, nil
 }
