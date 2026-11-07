@@ -216,3 +216,30 @@ than an invented date. Resource snapshots still do not own this metadata.
 Exoscale upload/download/delete, its mandatory ListMultipartUploads during
 bucket removal, native bucket-usage API, and full Object Storage 1.0 remain
 separate follow-up work. No empty multipart success stub was added.
+
+## Exoscale prefix incompatibility measured
+
+`mise run conformance:s3:exo:endpoint` pins **exo 1.95.1**, revision
+`7aaf76d0b13b8e10a343ec88c9cb03116f09b4c1`, with an isolated HOME,
+pack-owned public fake credentials and a positively tested refusing proxy.
+A local measurement listener receives the commands; it never forwards them.
+
+With `EXOSCALE_SOS_ENDPOINT` and `EXOSCALE_STORAGE_API_ENDPOINT` set to
+`http://127.0.0.1:<port>/_feint/s3/exoscale/ch-gva-2/`, `storage upload`
+issues **HEAD /feint-bucket**, without the configured prefix. When the
+measurement listener supplies the bucket-region header, the next request is
+**PUT /feint-bucket/exo-byte-proof**, also without that prefix.
+The PUT is deliberately refused with 501: this is an addressing measurement,
+not an upload success or a SOS cloud-response fixture.
+
+The same client's normal `storage mb` additionally reads ACL/CORS/ownership,
+download enumerates objects then uses a range downloader, and `storage rb`
+lists multipart uploads before deletion. Fixing only region discovery cannot
+make its lifecycle work.
+
+The prefixed door remains proved with AWS CLI and `scw`, **not exo**.
+The endpoint exports do not change this client's measured addressing behavior;
+they are not certified Exoscale CLI configuration. The addressing decision
+must be revisited before that lifecycle can be certified. Bare root requests
+must not be guessed into a namespace: different providers/regions can
+legitimately contain the same bucket name. No such fallback was added.

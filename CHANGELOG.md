@@ -17,6 +17,12 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Added
 
+- **Measured Exoscale S3 prefix incompatibility** (#850):
+  `conformance:s3:exo:endpoint` proves that exo 1.95.1 removes the configured
+  URL prefix from both bucket discovery and object upload. This listener
+  deliberately refuses the PUT; it does not certify a byte lifecycle.
+  Prefixed mounted doors remain proved with AWS CLI/scw, not exo.
+
 - **Opt-in, persisted simple S3 bytes on the existing port** (#850):
   `serve`/`start --objectstore`, `--s3-doors`, `--objectstore-budget-mib`
   (1024 by default) and `--s3-object-limit-mib` (256 by default).

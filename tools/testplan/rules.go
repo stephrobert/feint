@@ -78,6 +78,12 @@ type rule struct {
 const prepushIsTheWholeGate = ""
 
 var rules = []rule{
+	{
+		Path:     "internal/cli/exo_endpoint_conformance_test.go",
+		Why:      "pinned Exoscale S3 addressing measurement, not a successful object lifecycle",
+		Runs:     []string{"conformance:s3:exo:endpoint"},
+		Unproven: "Exoscale byte lifecycles, mounted S3 host dispatch, multipart, native bucket usage and interception",
+	},
 	// ---------------------------------------------------------------- packs
 	{
 		Path:     "internal/providers/scaleway/object_storage.go",

@@ -19,6 +19,12 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Ajouté
 
+- **L'incompatibilité Exoscale avec les préfixes S3, mesurée** (#850) :
+  `conformance:s3:exo:endpoint` prouve qu'exo 1.95.1 retire le préfixe
+  configuré de la découverte du bucket comme de l'upload. Ce listener refuse
+  volontairement le PUT ; il ne certifie pas un cycle d'octets. Les portes
+  préfixées restent prouvées avec AWS CLI/scw, pas exo.
+
 - **Des octets S3 simples, persistants et opt-in sur le port existant** (#850) :
   `serve`/`start --objectstore`, `--s3-doors`, `--objectstore-budget-mib`
   (1024 par défaut) et `--s3-object-limit-mib` (256 par défaut).
