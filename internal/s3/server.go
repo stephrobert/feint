@@ -110,7 +110,11 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	rawBucket, rawKey, _ := strings.Cut(strings.TrimPrefix(r.URL.EscapedPath(), "/"), "/")
 	listing := r.Method == http.MethodGet && rawKey == "" && query.Get("list-type") == "2"
 	bulkDelete := r.Method == http.MethodPost && rawKey == "" && query.Has("delete")
+	multipart := query.Has("uploads") || query.Has("uploadId")
 	for key := range query {
+		if multipart && multipartQueryKey(key) {
+			continue
+		}
 		if listing && listQueryKey(key) {
 			continue
 		}
@@ -129,7 +133,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.refuse(w, r, http.StatusNotImplemented, "S3 bucket header feature is not implemented", err)
 		return
 	}
-	if bulkDelete {
+	if bulkDelete || (multipart && r.Method == http.MethodPut) {
 		checked = checked.Clone(r.Context())
 		checked.Header.Del("Content-MD5")
 	}
@@ -152,6 +156,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if listing {
 		s.listObjects(w, r, bucket, query)
+		return
+	}
+	if multipart {
+		s.multipart(w, r, bucket, key, query)
 		return
 	}
 	if bulkDelete {
@@ -240,18 +248,9 @@ func (s *Server) bucket(w http.ResponseWriter, r *http.Request, name string) {
 }
 
 func (s *Server) put(w http.ResponseWriter, r *http.Request, bucket, key string) {
-	metadata := make(map[string]string)
-	for name, values := range r.Header {
-		if suffix, ok := strings.CutPrefix(strings.ToLower(name), "x-amz-meta-"); ok {
-			if len(values) != 1 || !headerName(suffix) || !headerValue(values[0]) {
-				s.refuse(w, r, http.StatusBadRequest, "invalid object metadata header", nil)
-				return
-			}
-			metadata[suffix] = values[0]
-		}
-	}
-	if !headerValue(r.Header.Get("Content-Type")) {
-		s.refuse(w, r, http.StatusBadRequest, "invalid content type", nil)
+	options, err := requestMetadata(r)
+	if err != nil {
+		s.refuse(w, r, http.StatusBadRequest, "invalid object metadata header or content type", err)
 		return
 	}
 	upload, size, err := newUpload(w, r, s.cfg.MaxObjectBytes)
@@ -259,9 +258,8 @@ func (s *Server) put(w http.ResponseWriter, r *http.Request, bucket, key string)
 		s.refuse(w, r, http.StatusBadRequest, "invalid S3 upload", err)
 		return
 	}
-	obj, err := s.store.PutObject(r.Context(), s.name(bucket), key, upload, objectstore.PutOptions{
-		Size: size, ContentType: r.Header.Get("Content-Type"), Metadata: metadata,
-	})
+	options.Size = size
+	obj, err := s.store.PutObject(r.Context(), s.name(bucket), key, upload, options)
 	if err != nil {
 		s.storeError(w, r, bucket, err)
 		return
@@ -272,6 +270,22 @@ func (s *Server) put(w http.ResponseWriter, r *http.Request, bucket, key string)
 	}
 	w.Header().Set("X-Amz-Checksum-Crc32", upload.crc32())
 	w.WriteHeader(http.StatusOK)
+}
+
+func requestMetadata(r *http.Request) (objectstore.PutOptions, error) {
+	metadata := make(map[string]string)
+	for name, values := range r.Header {
+		if suffix, ok := strings.CutPrefix(strings.ToLower(name), "x-amz-meta-"); ok {
+			if len(values) != 1 || !headerName(suffix) || !headerValue(values[0]) {
+				return objectstore.PutOptions{}, errors.New("invalid object metadata header")
+			}
+			metadata[suffix] = values[0]
+		}
+	}
+	if !headerValue(r.Header.Get("Content-Type")) {
+		return objectstore.PutOptions{}, errors.New("invalid content type")
+	}
+	return objectstore.PutOptions{ContentType: r.Header.Get("Content-Type"), Metadata: metadata}, nil
 }
 
 func (s *Server) get(w http.ResponseWriter, r *http.Request, bucket, key string) {
@@ -363,7 +377,7 @@ func (s *Server) storeError(w http.ResponseWriter, r *http.Request, bucket strin
 	switch {
 	case errors.Is(err, objectstore.ErrQuota):
 		status, message = http.StatusInsufficientStorage, "object storage blob byte budget exceeded"
-	case errors.Is(err, objectstore.ErrObjectNotFound), errors.Is(err, objectstore.ErrBucketExists),
+	case errors.Is(err, objectstore.ErrObjectNotFound), errors.Is(err, objectstore.ErrUploadNotFound), errors.Is(err, objectstore.ErrBucketExists),
 		errors.Is(err, objectstore.ErrBucketNotEmpty):
 		status, message = http.StatusNotImplemented, "cloud error shape has not been measured for this store outcome"
 	case errors.As(err, &tooLarge):

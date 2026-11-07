@@ -194,6 +194,7 @@ func TestRefusalsDoNotMasqueradeAsCloudSupport(t *testing.T) {
 		{"GET", "/bucket/missing", nil},
 		{"PUT", "/bucket", nil},
 		{"PUT", "/bucket/key?uploads", nil},
+		{"PUT", "/bucket/key?future-feature=", nil},
 		{"PUT", "/bucket/key", map[string]string{"X-Amz-Acl": "public-read"}},
 		{"GET", "/bucket/key", map[string]string{"Range": "items=0-1"}},
 		{"PUT", "/bucket/key", map[string]string{"If-None-Match": "*"}},

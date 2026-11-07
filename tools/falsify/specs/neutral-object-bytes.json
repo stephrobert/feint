@@ -39,8 +39,8 @@
     {
       "label": "a nonempty bucket can be deleted",
       "file": "internal/core/objectstore/store.go",
-      "find": "if len(b.Objects) != 0 {",
-      "replace": "if len(b.Objects) != 0 && false {",
+      "find": "if len(b.Objects) != 0 || len(b.Uploads) != 0 {",
+      "replace": "if (len(b.Objects) != 0 && false) || len(b.Uploads) != 0 {",
       "test": "TestEmptyObjectsAndBucketLifecycle"
     },
     {

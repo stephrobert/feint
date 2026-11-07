@@ -14,7 +14,7 @@ import (
 
 const (
 	storeFormat      = "feint-objectstore"
-	storeVersion     = 3
+	storeVersion     = 4
 	maxManifestBytes = 64 << 20
 )
 
@@ -63,6 +63,14 @@ func decodeManifest(body []byte) (manifest, error) {
 		}
 		if err := validMetadata(Object{Metadata: b.Metadata}); err != nil {
 			return manifest{}, errors.Join(ErrCorrupt, err)
+		}
+		if state.Version < 4 && len(b.Uploads) != 0 {
+			return manifest{}, fmt.Errorf("%w: upload sessions require metadata version 4", ErrCorrupt)
+		}
+		for id, upload := range b.Uploads {
+			if err := validUpload(id, upload); err != nil {
+				return manifest{}, errors.Join(ErrCorrupt, err)
+			}
 		}
 		for key, obj := range b.Objects {
 			if state.Version < 3 && !obj.Modified.IsZero() {

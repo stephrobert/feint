@@ -19,12 +19,23 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Ajouté
 
+- **Le multipart persistant, prouvé avec Exo/AWS réels** (#856) :
+  exo 1.95.1 téléverse 6 340 608 octets en multipart ; AWS vérifie l'assemblage,
+  reprend les parties après redémarrage réel et termine un autre objet.
+  La suppression de bucket Exo abandonne une vraie session restante.
+  Le format privé v4 lit v1..v3 ; un retour à un ancien binaire demande une copie
+  complète du store avant migration. L'assemblage garde la limite du PUT simple ;
+  parties et assemblage partagent le quota, et l'abandon n'est pas du GC.
+  Les tags SHA-256 opaques ne promettent pas des ETag génériques. Création normale
+  de bucket Exo, usage natif, erreurs cloud mixtes et Object Storage 1.0 complet
+  restent hors de cette preuve.
+
 - **La suppression en lot Exo, mesurée** (#856) : exo 1.95.1 supprime quatre
   vraies clés ; AWS vérifie l'inventaire vide après redémarrage et les octets
   Scaleway intacts. DeleteObjects vérifie checksum et XML fermé avant une seule
   transaction de métadonnées (1 à 1000 clés sans version, XML de 8 Mio maximum).
   Les réponses verbose/quiet décrivent des suppressions réelles. Les blobs restent
-  conservés ; multipart, erreurs cloud mixtes par clé et cycles complets de
+  conservés ; erreurs cloud mixtes par clé et cycles complets de création de
   buckets restent hors de cette tranche mesurée.
 
 - **Le listing Exo et les téléchargements multi-plages, mesurés** (#850) :
@@ -35,7 +46,7 @@ change ni l'un ni l'autre a sa place dans `git log`.
   Le format privé v3 persiste les dates de publication, lit v1/v2 sans les réécrire
   et migre à la prochaine mutation ; les anciens binaires ne lisent pas v3.
   Une page contenant un ancien objet sans date est refusée jusqu'à sa réécriture.
-  ETag, multipart et cycles complets de buckets Exoscale restent hors périmètre.
+  ETag génériques et création complète de buckets Exoscale restent hors périmètre.
 
 - **Des hôtes S3 synthétiques monoport, prouvés par les uploads Exo** (#850) :
   `serve/start --s3-host-doors`, opt-in, conserve les préfixes et sert les

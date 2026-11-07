@@ -17,12 +17,22 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Added
 
+- **Persistent multipart, proved with real Exo/AWS clients** (#856):
+  exo 1.95.1 multipart-uploads 6,340,608 bytes; AWS verifies assembled bytes,
+  resumes persisted parts after actual restart and completes another object.
+  Exo bucket removal aborts a real dangling session before deleting the bucket.
+  Private metadata v4 reads v1..v3; older binaries need a pre-upgrade whole-store
+  copy for rollback. Assembly uses the simple-PUT limit; retained parts and
+  assembly share the blob quota, and abort is not GC. Opaque SHA-256 part tags
+  are not generic ETags. Normal Exo bucket creation, native usage, mixed per-key
+  cloud errors and full Object Storage 1.0 remain outside this proof.
+
 - **Measured Exo bulk deletion** (#856): exo 1.95.1 deletes four actual keys;
   AWS independently checks the empty inventory across restart and untouched
   Scaleway bytes. DeleteObjects verifies transport checksums and closed XML
   before one metadata transaction (1..1000 unversioned keys, 8 MiB XML).
   Verbose/quiet results describe actual deletions. Blobs remain retained;
-  multipart, mixed per-key cloud errors and complete bucket workflows remain
+  mixed per-key cloud errors and complete bucket-creation workflows remain
   outside this measured slice.
 
 - **Measured Exo object listing and multi-range downloads** (#850):
@@ -33,7 +43,7 @@ what this project is judged on: **a response shape a client can observe**, and
   Private metadata v3 persists publication dates, reads v1/v2 without rewriting
   them and upgrades on mutation; older binaries cannot read v3. Listing pages
   containing legacy undated objects are explicitly refused until overwrite.
-  ETags, multipart and complete Exoscale bucket workflows remain unsupported.
+  Generic ETags and complete Exoscale bucket-creation workflows remain unsupported.
 
 - **Same-port synthetic S3 hosts, proved with Exo uploads** (#850):
   opt-in `serve/start --s3-host-doors` retains the prefix doors and serves

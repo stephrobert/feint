@@ -167,8 +167,9 @@ hostile-response-checksum controls.
 This certifies simple CreateBucket, PutObject, GetObject, HeadObject,
 DeleteObject and DeleteBucket through the mounted gateway, plus the bounded
 Scaleway bucket workflow below, not complete `exo` lifecycles. Unsupported
-ancillary operations, missing-object cloud errors and multipart still receive
-explicit Feint refusals. No ETag is invented.
+ancillary operations and missing-object cloud errors still receive explicit
+Feint refusals. Multipart is measured separately below; ordinary object reads
+still do not advertise ETags.
 The snapshot-import route still records an intention rather than reading these
 bytes. Object Storage 1.0 and hardcoded Terraform redirection are not delivered.
 
@@ -218,9 +219,9 @@ index. Existing bytes, generations and quotas remain unchanged. Legacy buckets
 without a stored creation date receive an explicit listing refusal rather
 than an invented date. Resource snapshots still do not own this metadata.
 
-Complete Exoscale bucket workflows, their mandatory ListMultipartUploads during
-bucket removal, native bucket-usage API, and full Object Storage 1.0 remain
-separate follow-up work. No empty multipart success stub was added.
+Complete Exoscale bucket creation, the native bucket-usage API, and full Object
+Storage 1.0 remain separate follow-up work. Multipart inventory and bucket
+removal now operate on real sessions, as measured below.
 
 ## Exoscale prefix incompatibility measured
 
@@ -309,7 +310,8 @@ through the same scoped host. It checks actual listing keys, sizes and dates
 and compares downloaded binary bytes and SHA-256 before and after a real process
 restart. The small object is 73,728 bytes. A 6,340,608-byte object exceeds the
 client's 5 MiB download part size and produces multiple `206` responses.
-That object is seeded with a **simple AWS PUT**, not an Exo multipart upload.
+That object is now uploaded by **Exo multipart**, with independently verified
+stored parts and assembled bytes, as described below.
 AWS additionally decodes two actual one-entry listing pages, including a literal
 key with escaped characters.
 
@@ -330,25 +332,25 @@ Every range still verifies the **entire stored blob** before seeking.
 Partial responses deliberately omit whole-object checksum headers; full reads
 retain the verified SHA-256. ETags remain absent.
 
-Private byte metadata is now **version 3**. New stores and successful mutations
-write v3; v1/v2 are still readable and reads do not rewrite them. PUT persists
+Publication dates were introduced in private metadata **version 3**; the current
+multipart format is **v4** and still reads v1/v2/v3 without rewriting them. PUT persists
 its publication date, reused by GET/HEAD and listings across restart. Old
 undated object references retain no Last-Modified header, and pages containing
 them refuse listing until those objects are overwritten. Neither blob mtime nor
-restart time is substituted. **Older binaries cannot read an upgraded v3 index**:
+restart time is substituted. **Older binaries cannot read an upgraded v4 index**:
 keep a pre-upgrade copy of the whole owned store if rollback is required.
 Resource snapshots still do not own these bytes.
 
 The date, listing and range properties are replayed by
 `tools/falsify/specs/s3-download.json`. This milestone does **not** certify normal
-Exo bucket creation/cleanup, ACL/CORS/ownership discovery, native bucket usage,
-multipart, version histories, TLS or Terraform redirection.
+Exo bucket creation, ACL/CORS/ownership discovery, native bucket usage,
+version histories, TLS or Terraform redirection.
 
 ## Measured Exoscale bulk deletion
 
 The pinned exo 1.95.1 `storage delete --force --recursive --verbose sos://BUCKET/`
 enumerates keys with ListObjectsV2, then sends DeleteObjects. The mounted witness
-failed with an actual 501 before this support. It now deletes four real keys,
+failed with an actual 501 before this support. It now deletes five real keys,
 including a literal escaped key, and checks every reported key. An independent
 AWS CLI inventory is empty before and after another actual process restart;
 same-name objects in the Scaleway namespace still return their original bytes.
@@ -367,9 +369,55 @@ store publishes one metadata transaction and retains immutable blobs and their
 quota charge: this is not GC. A store error yields an explicit logged
 whole-request Feint refusal, not invented mixed per-key cloud errors. An
 indeterminate directory-sync failure still faults the store until reopen.
-The index remains v3.
+The current multipart-enabled index is v4.
 
 `tools/falsify/specs/s3-delete.json` holds the destructive-input checks and
-publication properties. This closes only the bulk-deletion slice of #856:
-multipart upload/list/abort/complete and ordinary `exo storage rb` remain
-unsupported, and the complete bucket workflow remains #858.
+publication properties. Mixed per-key cloud errors remain outside this measured
+slice of #856; the complete bucket-creation workflow remains #858.
+
+## Measured persistent multipart uploads
+
+`conformance:s3:mounted` drives **exo 1.95.1** uploading the 6,340,608-byte
+fixture through its actual multipart uploader. AWS retrieves identical assembled
+bytes and SHA-256. The stopped owned store contains the distinct last-part blob;
+this is not a simple PUT disguised as multipart.
+
+AWS CLI **2.32.17** additionally initiates two real sessions and uploads parts.
+Nonempty session and part inventories remain identical across an actual process
+restart. AWS resumes one session, completes it and retrieves the expected bytes.
+Finally, `exo storage rb --force` deletes five actual objects, lists and aborts
+the real remaining session, then removes the bucket. The stopped store confirms
+the bucket is absent; same-name Scaleway objects retain their original bytes.
+This certifies removal of an existing bucket, not normal Exo bucket creation.
+
+The served subset is initiate, upload/replace part, list uploads, list parts,
+complete and abort. Part numbers are 1..10000; selected completion parts must be
+ascending and match the exact observed tag. Every selected part except the last
+must be at least 5 MiB. Completion verifies each immutable part before streaming
+the assembled blob and commits object publication and session removal together.
+Failed completion preserves the old object and session.
+
+Sessions survive restart in private metadata **v4**. New stores and successful
+mutations write v4; versions 1..3 remain readable and reads do not rewrite them.
+Older binaries cannot read v4: rollback requires a pre-upgrade copy of the
+**whole owned store**, not just its index. Resource snapshots still omit bytes.
+The assembled object uses the configured simple-PUT limit, **256 MiB** by
+default. Parts and assembly both count against the shared retained/reserved blob
+budget, **1 GiB** by default, unless identical blobs deduplicate. Completion
+requires sufficient peak reservation; abort and deletion remove references but
+perform no GC and release no retained-byte charge.
+
+Part ETags are quoted, verified SHA-256 opaque tokens, not promises of MD5 or
+generic object ETag semantics. Completion returns Bucket, Key and this opaque
+ETag; it does not certify consumers requiring a Location URL. Upload pages sort
+by key and initiation time, with ID as tie-breaker. A same-key upload marker
+must identify a live session; missing/deleted markers are explicitly refused.
+The pinned Exo bucket remover does not paginate upload inventory, so its proof
+does not certify cleanup beyond one upload page (1000 sessions). Multipart
+copy, optional checksum negotiation beyond the measured requests and provider
+cloud-error dialects remain explicit Feint refusals, not invented successes.
+
+`tools/falsify/specs/s3-multipart.json` replays the input, scope, bound and
+transactional-publication checks. Full Object Storage 1.0, native Exoscale usage,
+ACL/CORS/ownership discovery, public stacks and TLS/Terraform interception remain
+outside this delivery.

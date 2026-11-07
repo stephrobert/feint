@@ -9,6 +9,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -38,6 +39,7 @@ func TestMountedS3OfficialAWSCLIBytes(t *testing.T) {
 		t.Fatalf("local proxy control did not record its refusal: %v hits=%d", err, guardHits.Load())
 	}
 	aws := conformancetest.AWS(t, guard.URL, "")
+	aws.Env = append(aws.Env, "AWS_REQUEST_CHECKSUM_CALCULATION=when_required")
 	binary := filepath.Join(t.TempDir(), "feint")
 	buildCtx, cancelBuild := context.WithTimeout(t.Context(), 2*time.Minute)
 	build := exec.CommandContext(buildCtx, "go", "build", "-o", binary, "../../cmd/feint")
@@ -70,7 +72,11 @@ func TestMountedS3OfficialAWSCLIBytes(t *testing.T) {
 		return out
 	}
 	// Cleanup uses the recorded process identity, not a process-name kill.
+	stoppedAtEnd := false
 	t.Cleanup(func() {
+		if stoppedAtEnd {
+			return
+		}
 		ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
 		defer cancel()
 		cmd := exec.CommandContext(ctx, binary, "stop", "--addr", addr)
@@ -248,10 +254,63 @@ func TestMountedS3OfficialAWSCLIBytes(t *testing.T) {
 		t.Fatal(err)
 	}
 	largeKey := "large-byte-proof"
-	// Seed a simple PUT, not an unsupported multipart upload. The Exo downloader
-	// must then read more than its 5 MiB part size through multiple byte ranges.
-	call(first.ObjectStorage.Doors[1], "put-object", "--bucket", bucket, "--key", largeKey,
-		"--body", largeInput, "--checksum-algorithm", "CRC32")
+	exo.Run(t, "storage", "upload", largeInput, "sos://"+bucket+"/"+largeKey)
+	getKey(first.ObjectStorage.Doors[1], largeKey, largePayload)
+	firstPart := filepath.Join(aws.Home, "multipart-first")
+	lastPart := filepath.Join(aws.Home, "multipart-last")
+	if err := os.WriteFile(firstPart, largePayload[:5<<20], 0600); err != nil {
+		t.Fatal(err)
+	}
+	resumeKey, cleanupKey := "resumed-upload", "abandoned-upload"
+	createUpload := func(objectKey string) string {
+		t.Helper()
+		var result struct{ UploadId string }
+		out := call(first.ObjectStorage.Doors[1], "create-multipart-upload", "--bucket", bucket, "--key", objectKey)
+		if err := json.Unmarshal(out, &result); err != nil || result.UploadId == "" {
+			t.Fatalf("real AWS initiation omitted its ID: %v %q", err, out)
+		}
+		return result.UploadId
+	}
+	putPart := func(objectKey, id, number, file string) string {
+		t.Helper()
+		var result struct{ ETag string }
+		out := call(first.ObjectStorage.Doors[1], "upload-part", "--bucket", bucket, "--key", objectKey,
+			"--upload-id", id, "--part-number", number, "--body", file, "--checksum-algorithm", "CRC32")
+		if err := json.Unmarshal(out, &result); err != nil || result.ETag == "" {
+			t.Fatalf("real AWS part response omitted its opaque tag: %v %q", err, out)
+		}
+		return result.ETag
+	}
+	resumeID, cleanupID := createUpload(resumeKey), createUpload(cleanupKey)
+	firstTag := putPart(resumeKey, resumeID, "1", firstPart)
+	if err := os.WriteFile(lastPart, []byte("resume after restart"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	putPart(cleanupKey, cleanupID, "1", lastPart)
+	uploadInventory := func() []byte {
+		t.Helper()
+		return call(first.ObjectStorage.Doors[1], "list-multipart-uploads", "--bucket", bucket, "--no-paginate")
+	}
+	beforeUploads := uploadInventory()
+	var uploads struct {
+		Uploads []struct{ Key, UploadId string }
+	}
+	if err := json.Unmarshal(beforeUploads, &uploads); err != nil || len(uploads.Uploads) != 2 {
+		t.Fatalf("real AWS did not see two actual upload sessions: %v %q", err, beforeUploads)
+	}
+	beforeParts := call(first.ObjectStorage.Doors[1], "list-parts", "--bucket", bucket, "--key", resumeKey,
+		"--upload-id", resumeID, "--no-paginate")
+	var partInventory struct {
+		Parts []struct {
+			PartNumber int
+			ETag       string
+			Size       int64
+		}
+	}
+	if err := json.Unmarshal(beforeParts, &partInventory); err != nil || len(partInventory.Parts) != 1 ||
+		partInventory.Parts[0].Size != 5<<20 || partInventory.Parts[0].ETag != firstTag {
+		t.Fatalf("real AWS did not see the persisted nonempty part: %v %q", err, beforeParts)
+	}
 	download := func(objectKey string, expected []byte) {
 		t.Helper()
 		destination := filepath.Join(exo.Home, "download-"+objectKey)
@@ -335,6 +394,32 @@ func TestMountedS3OfficialAWSCLIBytes(t *testing.T) {
 	if after := exo.Run(t, "--output-format", "json", "storage", "list", "sos://"+bucket+"/"); !bytes.Equal(after, beforeObjects) {
 		t.Fatalf("actual Exo object inventory changed across restart: before=%q after=%q", beforeObjects, after)
 	}
+	if after := uploadInventory(); !bytes.Equal(after, beforeUploads) {
+		t.Fatalf("upload sessions changed across actual restart: before=%q after=%q", beforeUploads, after)
+	}
+	afterParts := call(first.ObjectStorage.Doors[1], "list-parts", "--bucket", bucket, "--key", resumeKey,
+		"--upload-id", resumeID, "--no-paginate")
+	if !bytes.Equal(afterParts, beforeParts) {
+		t.Fatalf("part metadata changed across actual restart: before=%q after=%q", beforeParts, afterParts)
+	}
+	lastTag := putPart(resumeKey, resumeID, "2", lastPart)
+	type completionPart struct {
+		ETag       string
+		PartNumber int
+	}
+	completion := struct{ Parts []completionPart }{[]completionPart{{firstTag, 1}, {lastTag, 2}}}
+	completionBody, err := json.Marshal(completion)
+	if err != nil {
+		t.Fatal(err)
+	}
+	completionFile := filepath.Join(aws.Home, "complete.json")
+	if err := os.WriteFile(completionFile, completionBody, 0600); err != nil {
+		t.Fatal(err)
+	}
+	call(first.ObjectStorage.Doors[1], "complete-multipart-upload", "--bucket", bucket, "--key", resumeKey,
+		"--upload-id", resumeID, "--multipart-upload", "file://"+completionFile)
+	resumedPayload := append(bytes.Clone(largePayload[:5<<20]), []byte("resume after restart")...)
+	getKey(first.ObjectStorage.Doors[1], resumeKey, resumedPayload)
 	exo.Run(t, "storage", "upload", input, "sos://"+bucket+"/after-restart")
 	getKey(first.ObjectStorage.Doors[1], "after-restart", []byte("other-provider-host-key"))
 	var live statusReport
@@ -362,6 +447,11 @@ func TestMountedS3OfficialAWSCLIBytes(t *testing.T) {
 	// Inspect only our private store while the owner is stopped: GET of the
 	// same cleaned key twice would otherwise masquerade as key preservation.
 	run("stop", "--addr", addr)
+	remainderDigest := sha256.Sum256(largePayload[5<<20:])
+	info, err := os.Stat(filepath.Join(root, "blobs", hex.EncodeToString(remainderDigest[:])))
+	if err != nil || info.Size() != int64(len(largePayload)-(5<<20)) {
+		t.Fatal("Exo did not leave the actual distinct multipart remainder bytes:", err)
+	}
 	store, err := objectstore.OpenWithLimit(t.Context(), root, 20<<20)
 	if err != nil {
 		t.Fatal(err)
@@ -390,9 +480,9 @@ func TestMountedS3OfficialAWSCLIBytes(t *testing.T) {
 			t.Fatalf("independent inventory did not witness %d actual objects: %v %q", want, err, out)
 		}
 	}
-	checkInventory(4)
+	checkInventory(5)
 	deleted := exo.Run(t, "storage", "delete", "--force", "--recursive", "--verbose", "sos://"+bucket+"/")
-	for _, objectKey := range []string{key, exoKey, largeKey, "after-restart"} {
+	for _, objectKey := range []string{key, exoKey, largeKey, "after-restart", resumeKey} {
 		if !bytes.Contains(deleted, []byte(objectKey+"\n")) {
 			t.Fatalf("Exo did not report the actual deleted key %q: %q", objectKey, deleted)
 		}
@@ -429,7 +519,11 @@ func TestMountedS3OfficialAWSCLIBytes(t *testing.T) {
 	checkEmpty()
 	for _, door := range first.ObjectStorage.Doors {
 		if door.Provider == "exoscale" {
-			call(door, "delete-bucket", "--bucket", bucket)
+			if out := uploadInventory(); json.Unmarshal(out, &uploads) != nil || len(uploads.Uploads) != 1 ||
+				uploads.Uploads[0].UploadId != cleanupID {
+				t.Fatalf("dangling-session positive control was lost: %q", out)
+			}
+			exo.Run(t, "storage", "rb", "--force", "sos://"+bucket)
 			continue
 		}
 		call(door, "head-object", "--bucket", bucket, "--key", key)
@@ -440,9 +534,20 @@ func TestMountedS3OfficialAWSCLIBytes(t *testing.T) {
 	if guardHits.Load() != 1 {
 		t.Fatalf("official client reached the refusing egress proxy: delta=%d", guardHits.Load()-1)
 	}
+	run("stop", "--addr", addr)
+	stoppedAtEnd = true
+	finalStore, err := objectstore.OpenWithLimit(t.Context(), root, 20<<20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bucketErr := finalStore.HeadBucket(t.Context(), "exoscale/ch-gva-2/"+bucket)
+	if err := finalStore.Close(); err != nil || !errors.Is(bucketErr, objectstore.ErrBucketNotFound) {
+		t.Fatal("real Exo rb did not remove the actual bucket and its dangling session:", bucketErr, err)
+	}
 	t.Logf("Exo downloads before/after actual restart: small=%d bytes; multi-range=%d bytes sha256=%x",
 		len(payload), len(largePayload), sha256.Sum256(largePayload))
-	t.Log("Exo bulk-deleted four actual keys; independent AWS inventory empty across restart; other provider bytes retained")
+	t.Log("Exo multipart-uploaded >5 MiB; AWS part/session state survived restart and completed with identical bytes; Exo rb aborted a real dangling upload")
+	t.Log("Exo bulk-deleted five actual keys; independent AWS inventory empty across restart; other provider bytes retained")
 	t.Logf("actual feint pid %d -> %d; two same-port namespaces; preserved key; bytes=%d sha256=%s; stop/reopen/restart; proxy delta=0 (not a network namespace)",
 		first.PID, restarted.PID, len(payload), hex.EncodeToString(sum[:]))
 }

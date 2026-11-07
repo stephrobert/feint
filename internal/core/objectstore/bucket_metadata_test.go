@@ -135,7 +135,7 @@ func TestLegacyBucketMetadataUpgradeAndValidation(t *testing.T) {
 	if err := reopened.SetBucketMetadata(t.Context(), "bucket", "key", "value"); err != nil {
 		t.Fatal(err)
 	}
-	if reopened.state.Version != 3 {
+	if reopened.state.Version != storeVersion {
 		t.Fatal("write did not upgrade metadata version")
 	}
 	if _, err := reopened.HeadObject(t.Context(), "bucket", "key"); err != nil {

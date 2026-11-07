@@ -17,18 +17,27 @@ HTTP proxy. AWS retrieval proves the uploaded binary bytes and SHA-256 survive
 actual restart. Real Exo downloads also preserve a 6,340,608-byte object across
 multiple HTTP ranges. ListObjectsV2 exposes actual persisted modification dates;
 legacy undated objects must be overwritten before their listing can be served.
-Private byte metadata v3 reads v1/v2 without inventing dates; successful mutations
-upgrade it, and older binaries cannot read v3.
+Exo now uploads that fixture through real multipart. AWS session/part inventories
+survive restart, resume and complete with identical bytes; Exo bucket removal
+aborts a real dangling session. Private byte metadata v4 reads v1..v3 without
+inventing dates; successful mutations upgrade it, and older binaries cannot
+read v4. Rollback requires a pre-upgrade copy of the whole owned store.
 Exo also bulk-deletes actual unversioned keys; AWS independently confirms the
 empty inventory survives restart while the other provider's bytes remain.
 DeleteObjects requires a verified transport checksum and closed XML, bounded to
 1000 keys and 8 MiB. Store failures return an explicit whole-request Feint refusal,
 not fabricated per-key cloud errors; immutable blobs remain retained.
+Multipart assembly has the same configured object limit as simple PUT
+(256 MiB default). Retained parts and assembly share the blob quota (1 GiB
+default), including peak reservation; abort is not GC. Opaque SHA-256 part tags
+are not generic object ETags. Completion Location consumers are not certified;
+same-key pagination markers require a live session. Exo's bucket remover does
+not paginate uploads, so removal beyond 1000 sessions is not certified.
 This does not implement bucket virtual hosts, DNS/TLS
 interception or a complete Exoscale lifecycle; use a dedicated shell because
 its S3 environment replaces proxy settings.
 Complete Exoscale bucket workflows, ListObjects v1, owner requests, writable tags/public ACLs,
-version histories, multipart, ETags, checkpoint/reset and hardcoded Terraform
+version histories, multipart copy, generic ETags, checkpoint/reset and hardcoded Terraform
 redirection remain unsupported.
 No MinIO service or dependency is used by this implementation.
 

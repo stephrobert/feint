@@ -60,6 +60,7 @@ type bucket struct {
 	Generation string            `json:"generation"`
 	Objects    map[string]Object `json:"objects"`
 	Metadata   map[string]string `json:"metadata,omitempty"`
+	Uploads    map[string]Upload `json:"uploads,omitempty"`
 }
 
 type manifest struct {
@@ -190,7 +191,7 @@ func (s *Store) DeleteBucket(ctx context.Context, name string) error {
 	if err != nil {
 		return err
 	}
-	if len(b.Objects) != 0 {
+	if len(b.Objects) != 0 || len(b.Uploads) != 0 {
 		return ErrBucketNotEmpty
 	}
 	next := s.clone()
@@ -401,7 +402,8 @@ func (s *Store) lookup(name string) (*bucket, error) {
 func (s *Store) clone() manifest {
 	next := manifest{Format: s.state.Format, Version: storeVersion, Buckets: make(map[string]*bucket)}
 	for name, b := range s.state.Buckets {
-		next.Buckets[name] = &bucket{Generation: b.Generation, Objects: maps.Clone(b.Objects), Metadata: maps.Clone(b.Metadata)}
+		next.Buckets[name] = &bucket{Generation: b.Generation, Objects: maps.Clone(b.Objects),
+			Metadata: maps.Clone(b.Metadata), Uploads: maps.Clone(b.Uploads)}
 	}
 	return next
 }

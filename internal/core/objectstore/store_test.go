@@ -753,7 +753,7 @@ func TestManifestIsClosedVersionedAndValidated(t *testing.T) {
 	}
 	for _, body := range []string{
 		`null`, `{}`, `{"format":"operator","version":1,"buckets":{}}`,
-		`{"format":"feint-objectstore","version":4,"buckets":{}}`,
+		fmt.Sprintf(`{"format":"feint-objectstore","version":%d,"buckets":{}}`, storeVersion+1),
 		`{"format":"feint-objectstore","version":1,"buckets":null}`,
 		`{"format":"feint-objectstore","version":1,"buckets":{"b":null}}`,
 		`{"format":"feint-objectstore","version":1,"buckets":{"b":{"generation":"","objects":{}}}}`,
@@ -820,7 +820,7 @@ func TestFailedOpenReleasesOwnershipLock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(index, []byte(`{"format":"feint-objectstore","version":4,"buckets":{}}`), 0o600); err != nil {
+	if err := os.WriteFile(index, []byte(fmt.Sprintf(`{"format":"feint-objectstore","version":%d,"buckets":{}}`, storeVersion+1)), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if broken, err := Open(t.Context(), path); !errors.Is(err, ErrCorrupt) || broken != nil {

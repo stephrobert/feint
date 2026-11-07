@@ -95,7 +95,7 @@ var rules = []rule{
 		Path:     "internal/providers/exoscale/object_storage.go",
 		Why:      "declared SOS dialect and configurable endpoint variables, outside control-plane SDK coverage",
 		Runs:     []string{"conformance:s3", "conformance:s3:mounted"},
-		Unproven: "AWS CLI byte operations, not a complete exo lifecycle, bucket-usage API or multipart support",
+		Unproven: "pinned AWS/exo bytes and multipart resume/abort, not normal Exo bucket creation or the native bucket-usage API",
 	},
 	{
 		Path: "internal/providers/scaleway/",
@@ -254,15 +254,15 @@ var rules = []rule{
 	},
 	{
 		Path:     "internal/core/objectstore/",
-		Why:      "neutral persisted bytes, dates and transactional deletions used by the S3 component and real emulator process",
+		Why:      "neutral persisted bytes, dates, multipart sessions and transactional deletions used by the real emulator process",
 		Runs:     []string{"conformance:s3", "conformance:s3:mounted"},
 		Unproven: "complete provider-client lifecycles, checkpoint/reset, power-loss recovery and network filesystem locking",
 	},
 	{
 		Path:     "internal/s3/",
-		Why:      "bounded S3 prefix/host dispatch, listing/ranges/bulk deletion, private Scaleway buckets and official-client proof",
+		Why:      "bounded S3 prefix/host dispatch, multipart, listing/ranges/bulk deletion and official-client proof",
 		Runs:     []string{"conformance:s3", "conformance:s3:mounted"},
-		Unproven: "one AWS/scw/exo version, not complete Exoscale lifecycles, public ACLs, version histories, TLS interception, cloud virtual hosts, ETags, multipart or public stacks",
+		Unproven: "one AWS/scw/exo version, not complete Exoscale lifecycles, public ACLs, version histories, TLS interception, cloud virtual hosts, generic ETags or public stacks",
 	},
 	{
 		Path:     "internal/conformancetest/",

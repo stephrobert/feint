@@ -55,7 +55,7 @@ description = "Prove the unmounted path-style S3 component with AWS CLI 2.32.17 
 run = "go test -race -tags=conformance ./internal/s3 -run '^TestOfficialAWSCLIBytes$' -count=1 -v"
 
 [tasks."conformance:s3:mounted"]
-description = "Prove AWS/scw bytes, listing and host-routed exo 1.95.1 upload/range download/bulk deletion across actual restart"
+description = "Prove AWS/scw/exo bytes, multipart resume/abort, listing/ranges and bulk deletion across actual restart"
 run = "go test -race -tags=conformance ./internal/cli -run '^TestMountedS3OfficialAWSCLIBytes$' -count=1 -v"
 
 [tasks."conformance:s3:exo:endpoint"]
