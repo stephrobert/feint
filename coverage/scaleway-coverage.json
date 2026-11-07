@@ -1,9 +1,9 @@
 {
   "provider": "scaleway",
-  "total": 546,
+  "total": 548,
   "implemented": 204,
   "declined": 340,
-  "unknown": 2,
+  "unknown": 4,
   "orphans": null,
   "products": [
     {
@@ -132,17 +132,17 @@
     },
     {
       "product": "lb",
-      "total": 107,
+      "total": 109,
       "implemented": 43,
       "declined": 64,
-      "unknown": 0,
+      "unknown": 2,
       "versions": [
         {
           "version": "v1",
-          "total": 107,
+          "total": 109,
           "implemented": 43,
           "declined": 64,
-          "unknown": 0
+          "unknown": 2
         }
       ]
     },
@@ -254,10 +254,10 @@
     },
     {
       "group": "lb",
-      "total": 107,
+      "total": 109,
       "implemented": 43,
       "declined": 64,
-      "unknown": 0
+      "unknown": 2
     },
     {
       "group": "marketplace",
@@ -2843,6 +2843,12 @@
       "status": "implemented"
     },
     {
+      "operation": "lb/v1/ZonedAPI.AttachIpamIP",
+      "product": "lb",
+      "version": "v1",
+      "status": "unknown"
+    },
+    {
       "operation": "lb/v1/ZonedAPI.AttachPrivateNetwork",
       "product": "lb",
       "version": "v1",
@@ -3107,6 +3113,12 @@
       "reason": "subscribers are an alerting channel, and an emulator whose balancer never degrades has no event to deliver: a subscription recorded here would be a promise nothing can keep; the list is served since #666, and it is empty, for the same reason",
       "version": "v1",
       "status": "declined"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.TransferToIpam",
+      "product": "lb",
+      "version": "v1",
+      "status": "unknown"
     },
     {
       "operation": "lb/v1/ZonedAPI.UnsubscribeFromLB",

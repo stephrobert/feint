@@ -15,6 +15,8 @@
   ],
   "unknown": [
     "baremetal/v1/API.UpdateServerCommitment",
-    "baremetal/v1/API.UpgradeServerCommitment"
+    "baremetal/v1/API.UpgradeServerCommitment",
+    "lb/v1/ZonedAPI.AttachIpamIP",
+    "lb/v1/ZonedAPI.TransferToIpam"
   ]
 }
