@@ -1,12 +1,12 @@
 {
-  "generated_at": "2026-11-08T04:19:56Z",
+  "generated_at": "2026-11-09T04:22:03Z",
   "project": "feint",
-  "total_binary_downloads": 4523,
+  "total_binary_downloads": 4537,
   "latest_release": "v0.14.0",
   "platforms": {
     "darwin-amd64": 35,
     "darwin-arm64": 51,
-    "linux-amd64": 4393,
+    "linux-amd64": 4407,
     "linux-arm64": 44
   },
   "versions": {
@@ -14,29 +14,29 @@
     "v0.10.0": 265,
     "v0.11.0": 18,
     "v0.12.0": 431,
-    "v0.12.1": 780,
-    "v0.13.0": 2642,
-    "v0.14.0": 14,
+    "v0.12.1": 781,
+    "v0.13.0": 2647,
+    "v0.14.0": 18,
     "v0.2.0": 10,
     "v0.3.0": 6,
-    "v0.3.1": 10,
+    "v0.3.1": 11,
     "v0.3.2": 2,
     "v0.3.3": 2,
     "v0.4.0": 5,
-    "v0.4.1": 10,
+    "v0.4.1": 11,
     "v0.5.0": 5,
-    "v0.6.0": 11,
+    "v0.6.0": 12,
     "v0.7.0": 75,
     "v0.7.1": 6,
     "v0.7.2": 5,
     "v0.7.3": 43,
     "v0.8.0": 99,
-    "v0.9.0": 73
+    "v0.9.0": 74
   },
   "recent": {
-    "downloads_1d": 7,
-    "downloads_30d": 1631,
-    "downloads_7d": 228
+    "downloads_1d": 14,
+    "downloads_30d": 1641,
+    "downloads_7d": 175
   },
   "adoption": {
     "v0.10.0": {
@@ -78,7 +78,7 @@
   "active_old_releases": [
     {
       "version": "v0.13.0",
-      "downloads_in_window": 197,
+      "downloads_in_window": 136,
       "window_days": 7
     },
     {
@@ -97,7 +97,7 @@
       "window_days": 7
     },
     {
-      "version": "v0.3.2",
+      "version": "v0.3.3",
       "downloads_in_window": 1,
       "window_days": 7
     },
@@ -107,17 +107,32 @@
       "window_days": 7
     },
     {
+      "version": "v0.3.1",
+      "downloads_in_window": 1,
+      "window_days": 7
+    },
+    {
+      "version": "v0.3.2",
+      "downloads_in_window": 1,
+      "window_days": 7
+    },
+    {
       "version": "v0.10.0",
       "downloads_in_window": 1,
       "window_days": 7
     },
     {
-      "version": "v0.3.3",
+      "version": "v0.4.0",
       "downloads_in_window": 1,
       "window_days": 7
     },
     {
-      "version": "v0.4.0",
+      "version": "v0.4.1",
+      "downloads_in_window": 1,
+      "window_days": 7
+    },
+    {
+      "version": "v0.6.0",
       "downloads_in_window": 1,
       "window_days": 7
     },
@@ -138,6 +153,11 @@
     },
     {
       "version": "v0.12.0",
+      "downloads_in_window": 1,
+      "window_days": 7
+    },
+    {
+      "version": "v0.9.0",
       "downloads_in_window": 1,
       "window_days": 7
     }
