@@ -430,7 +430,7 @@ reason that outlived its cause.
 - `ipam` — 1 operation — no official client calls it: the CLI has no detach subcommand, and the provider detaches by deleting the NIC that carries the address
 - `vpc` — 1 operation — no official client asks for the flat list: `scw vpc` has no subnet subcommand, and the Terraform provider reads the subnets a private network publishes inline through GetPrivateNetwork
 
-### Declined on purpose (340)
+### Declined on purpose (342)
 
 Operations this pack knowingly does not serve, and why. Declining is a
 decision the drift gate records, which is what separates it from having
@@ -469,6 +469,7 @@ are in `coverage/`, one artefact per provider.
 - `lb` — 53 operations — the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI
 - `lb` — 6 operations — subscribers are an alerting channel, and an emulator whose balancer never degrades has no event to deliver: a subscription recorded here would be a promise nothing can keep; the list is served since #666, and it is empty, for the same reason
 - `lb` — 4 operations — nothing here terminates TLS: a certificate served by this emulator would be an ID over key material that signs nothing, and the Let's Encrypt half issues against domains this emulator does not hold; the list is served since #666, and it is empty, because that is what a balancer here holds
+- `lb` — 2 operations — the IPAM bridge for a balancer's addresses, and no client this project drives calls it: `scw lb` carries no IPAM subcommand and the Terraform provider references neither method, both measured 2026-11-09 against a positive control; the pack attaches private networks and serves ipam/v1, so this is an absent caller rather than an absent capability, and the first client measured on either path reopens it
 - `lb` — 1 operation — the Terraform provider reconciles a frontend's ACLs one by one — CreateACL, ListACLs, UpdateACL, DeleteACL, measured in its services/lb/frontend.go — and never calls the bulk set
 - `marketplace` — 6 operations — the global image index spans every image Scaleway publishes in every zone, and the emulator answers from a small fixed table that would either list images it cannot boot or claim the catalogue is six entries long
 - `marketplace` — 1 operation — the CLI resolves its default image through ListLocalImages, which is served, so a per-id lookup would be a second door onto the same fixed table

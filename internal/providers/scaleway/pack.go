@@ -1046,6 +1046,38 @@ func (p *Pack) Declined() []emulator.Decline {
 		// removed rather than reworded, as TestEveryUndrivenOperationSaysWhy
 		// requires of a reason that outlived its cause.
 
+		// The IPAM bridge for a balancer's addresses, arrived upstream between
+		// the baseline of 2026-10-28 and the scan of 2026-11-09:
+		//
+		//   POST /lb/v1/zones/{zone}/lbs/{id}/attach-ipam-ip   -> LB
+		//   POST /lb/v1/zones/{zone}/ips/{id}/transfer-to-ipam -> IpamIP
+		//
+		// Declined on the measured absence of a caller, and NOT on any claim that
+		// the emulator could not do it: that argument would not survive its own
+		// neighbours, which is the lesson #762 left on MigrateLB. This pack
+		// already attaches things to a balancer (AttachPrivateNetwork,
+		// DetachPrivateNetwork) and already serves ipam/v1, so serving these two
+		// would be ordinary work.
+		//
+		// What is missing is a client. Measured on 2026-11-09:
+		//
+		//   `scw lb` has no IPAM subcommand at all, under `lb` or under `ip`
+		//   scaleway/terraform-provider-scaleway calls neither method
+		//
+		// The second measurement was taken with a positive control first, because
+		// an empty code search is indistinguishable from a broken one:
+		// AttachPrivateNetwork and MigrateLB both resolve in that repository, so
+		// the two empty results are an absence rather than an outage.
+		//
+		// Serving them anyway is the mistake #803 named on SCIM: a route no client
+		// can reach still counts as implemented in
+		// coverage/scaleway-coverage.json, and a coverage number that counts an
+		// unreachable route is the one thing this project cannot afford. The first
+		// client measured on either path reopens the entry.
+		emulator.Because("the IPAM bridge for a balancer's addresses, and no client this project drives calls it: `scw lb` carries no IPAM subcommand and the Terraform provider references neither method, both measured 2026-11-09 against a positive control; the pack attaches private networks and serves ipam/v1, so this is an absent caller rather than an absent capability, and the first client measured on either path reopens it",
+			"lb/v1/ZonedAPI.AttachIpamIP",
+			"lb/v1/ZonedAPI.TransferToIpam"),
+
 		emulator.Because("nothing here terminates TLS: a certificate served by this emulator would be an ID over key material that signs nothing, and the Let's Encrypt half issues against domains this emulator does not hold; the list is served since #666, and it is empty, because that is what a balancer here holds",
 			"lb/v1/ZonedAPI.CreateCertificate",
 			"lb/v1/ZonedAPI.GetCertificate",
