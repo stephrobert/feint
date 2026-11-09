@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "provider": "outscale",
+  "region": "eu-west-2",
+  "observed_at": "2026-11-09",
+  "client": "octl v0.0.32 with -v, which prints the signed request and the raw response",
+  "provenance": "User-authorized temporary bucket on the operator's own OOS account, created and deleted inside one script whose cleanup runs from a trap. No object was ever written into it. The account held 0 buckets before and 0 after, verified twice. Credentials never passed through the harness: octl reads ~/.osc/config.json itself and that file stays behind its deny rule. The authorization was for this measurement; a second run was NOT made, because OOS throttled after these calls and two more shapes are not worth further creations on a paid account.",
+  "why_signed_requests_were_necessary": "An anonymous GET cannot measure these. A bucket that does not exist answers NoSuchBucket to everything, including ?cors=, so the 'this configuration is absent' shape only comes from a bucket that exists and has none. And an unsigned GET on a private bucket answers AccessDenied rather than the absence. That is why this corpus needed the client and `-v`, where the NoSuchBucket corpus beside it needed neither.",
+  "instrument_control": "octl -v was proved locally FIRST, against the emulator's already-recorded Exoscale CORS shape, and it printed the full response body. An instrument that shows nothing locally shows nothing on a paid account either, and that check cost no cloud call.",
+  "redaction": "The owner's canonical ID and DisplayName are the account's identity and are NOT reproduced: DisplayName is the account number. Both are replaced below by the local fixture the emulator already uses. Request identifiers are kept where they show a SHAPE (OOS answers the same value in x-amz-request-id and <RequestId>), and they name no resource.",
+  "incomplete": "Two of the four discovery answers are missing: GetBucketOwnershipControls and GetBucketTagging. The first run's output filter was too narrow to capture them, and the second run was refused by throttling. They are NOT guessed here, and the Outscale profile therefore does not declare them — BucketConfiguration stays off on that door until all four are recorded.",
+  "exchanges": [
+    {
+      "operation": "GetBucketAcl",
+      "method": "GET",
+      "query": "acl=",
+      "status": 200,
+      "headers": {
+        "content-type": "application/xml",
+        "x-amz-request-id": "<kept in the measurement, elided here: it names nothing>"
+      },
+      "body_with_identity_replaced": "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><AccessControlPolicy><Owner><ID>LOCAL_FIXTURE_OWNER_ID</ID><DisplayName>LOCAL_FIXTURE_OWNER</DisplayName></Owner><AccessControlList><Grant><Grantee xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:type=\"CanonicalUser\"><ID>LOCAL_FIXTURE_OWNER_ID</ID><DisplayName>LOCAL_FIXTURE_OWNER</DisplayName></Grantee><Permission>FULL_CONTROL</Permission></Grant></AccessControlList></AccessControlPolicy>",
+      "shape_notes": [
+        "standalone=\"yes\" in the XML declaration, which neither of the other two dialects carries on this answer.",
+        "A single FULL_CONTROL grant to the owner, so a fresh bucket is private.",
+        "DisplayName is the ACCOUNT NUMBER, not a human name."
+      ]
+    },
+    {
+      "operation": "GetBucketCors",
+      "method": "GET",
+      "query": "cors=",
+      "status": 404,
+      "headers": {
+        "content-type": "application/xml"
+      },
+      "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Error><Code>NoSuchCORSConfiguration</Code><Message>The CORS configuration does not exist</Message><Resource></Resource><RequestId>REDACTED_RESPONSE_ID</RequestId></Error>",
+      "shape_notes": [
+        "NO final period on the message. Exoscale's recorded answer to the same question HAS one ('The CORS configuration does not exist.'), so copying that dialect here would be wrong by one character.",
+        "<Resource> present and EMPTY, and a <RequestId>, exactly as in the NoSuchBucket envelope recorded beside this file — so that is OOS's error envelope generally, not a quirk of one code.",
+        "No <BucketName>, again consistent with the NoSuchBucket recording and unlike both neighbours."
+      ]
+    }
+  ]
+}
