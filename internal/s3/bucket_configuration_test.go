@@ -82,7 +82,8 @@ func TestBucketPrivateACLTagsAndScopedListing(t *testing.T) {
 	var missing missingBucketError
 	if w.Code != http.StatusNotFound || xml.Unmarshal(w.Body.Bytes(), &missing) != nil ||
 		missing.Code != "NoSuchTagSet" || missing.Message != "The TagSet does not exist" ||
-		missing.BucketName != "bucket" || missing.RequestID == "" || missing.RequestID != missing.HostID {
+		missing.BucketName == nil || *missing.BucketName != "bucket" ||
+		missing.RequestID == "" || missing.RequestID != missing.HostID {
 		t.Fatal("absent tags do not follow the recorded cloud error:", w.Code, w.Body.String())
 	}
 }

@@ -1,0 +1,34 @@
+{
+  "package": "./internal/s3/",
+  "mutations": [
+    {
+      "label": "the OOS envelope loses its XML declaration, which is the half of the recording a reader would assume rather than check: Scaleway has none, so copying Scaleway here looks right and is wrong",
+      "file": "internal/s3/server.go",
+      "find": "\tif s.cfg.MissingBucket == OutscaleMissingBucket {\n\t\tbody = append([]byte(strings.TrimSuffix(xml.Header, \"\\n\")), body...)\n\t}",
+      "replace": "\tif s.cfg.MissingBucket == OutscaleMissingBucket && false {\n\t\tbody = append([]byte(strings.TrimSuffix(xml.Header, \"\\n\")), body...)\n\t}",
+      "test": "TestMissingBucketFollowsMeasuredErrorDialects"
+    },
+    {
+      "label": "the OOS branch falls through to the Exoscale one, so Resource is omitted instead of present-and-empty and a BucketName appears that the producer does not send: the single likeliest shortcut, since the two dialects agree on the final period and the declaration",
+      "file": "internal/s3/server.go",
+      "find": "\tcase OutscaleMissingBucket:",
+      "replace": "\tcase OutscaleMissingBucket + 100:",
+      "test": "TestMissingBucketFollowsMeasuredErrorDialects"
+    },
+    {
+      "label": "the two response identifiers are derived apart, where the recorded answer carried the same value in x-amz-id-2 and x-amz-request-id",
+      "file": "internal/s3/server.go",
+      "find": "\tcase OutscaleMissingBucket:\n\t\t// One identifier, not two: the recorded answer carried the same value\n\t\t// in x-amz-id-2 and x-amz-request-id, and in <RequestId>.\n\t\thostID = id",
+      "replace": "\tcase OutscaleMissingBucket:\n\t\t// One identifier, not two: the recorded answer carried the same value\n\t\t// in x-amz-id-2 and x-amz-request-id, and in <RequestId>.\n\t\thostID = id\n\t\thostID = rand.Text()",
+      "test": "TestMissingBucketFollowsMeasuredErrorDialects"
+    },
+    {
+      "label": "a fourth shape is admitted by range rather than by name, so adding a constant without an envelope ships a provider whose errors are whatever the default branch happens to render (the constructor's allow-list, asserted by TestUploadHeaderValidationAndConstructor)",
+      "file": "internal/s3/server.go",
+      "find": "\tswitch cfg.MissingBucket {\n\tcase ScalewayMissingBucket, ExoscaleMissingBucket, OutscaleMissingBucket:\n\tdefault:\n\t\treturn nil, errors.New(\"s3: select a measured missing-bucket response shape\")\n\t}",
+      "replace": "\tswitch cfg.MissingBucket {\n\tcase ScalewayMissingBucket, ExoscaleMissingBucket, OutscaleMissingBucket, OutscaleMissingBucket + 1:\n\tdefault:\n\t\treturn nil, errors.New(\"s3: select a measured missing-bucket response shape\")\n\t}",
+      "test": "TestUploadHeaderValidationAndConstructor"
+    }
+  ],
+  "note": "The subject is the OOS door of #850, and the envelope it answers for an absent bucket. Outscale's OOS is S3 — octl storage api lists S3's own operation names, and osc-sdk-go's pkg/oos is built on aws-sdk-go-v2/service/s3 with smithy errors — so there was no proprietary dialect to invent. There WAS an envelope to measure, and the three differences from its neighbours are exactly what no reading of a document would have produced: <Resource> present and EMPTY where Scaleway fills it and Exoscale omits it, NO <BucketName> where both others carry it, and one identifier answered in both x-amz-id-2 and x-amz-request-id where the others derive them apart. Recorded by an anonymous GET on a name that does not exist (docs/evidence/outscale-oos-missing-bucket.json), which sends no signature, is attributed to no account, creates nothing and is billed to nobody: the user's account was offered for this and deliberately not used. The first two mutations are the shortcuts a maintainer would actually take — drop the declaration because Scaleway has none, or let the branch fall through to Exoscale because the two agree on the period — and both are caught by comparing the emitted envelope against the recording rather than against a hand-written expectation. The fourth leaves the two dialect branches alone and widens the constructor's allow-list instead, because a range check there is how a fourth provider would ship with whatever the default branch renders."
+}

@@ -296,6 +296,11 @@ func TestUploadHeaderValidationAndConstructor(t *testing.T) {
 		func(c *Config) { c.MaxObjectBytes = 1<<63 - 1 },
 		func(c *Config) { c.Region = "x\r\nInjected" },
 		func(c *Config) { c.MissingBucket = 0 },
+		// A shape past the last measured one. The allow-list in New must
+		// refuse it by NAME: a range check would admit the day somebody
+		// adds a constant and forgets the envelope, and the provider would
+		// ship with whatever the default branch happens to render.
+		func(c *Config) { c.MissingBucket = OutscaleMissingBucket + 1 },
 		func(c *Config) { c.Log = nil },
 	} {
 		cfg := s.cfg
@@ -311,14 +316,26 @@ func TestUploadHeaderValidationAndConstructor(t *testing.T) {
 
 func TestMissingBucketFollowsMeasuredErrorDialects(t *testing.T) {
 	s, _ := fixture(t)
-	for _, shape := range []MissingBucketShape{ScalewayMissingBucket, ExoscaleMissingBucket} {
+	for _, shape := range []MissingBucketShape{
+		ScalewayMissingBucket, ExoscaleMissingBucket, OutscaleMissingBucket,
+	} {
 		file := "exoscale-no-such-bucket.xml"
-		if shape == ScalewayMissingBucket {
+		switch shape {
+		case ScalewayMissingBucket:
 			file = "scaleway-no-such-bucket.xml"
+		case OutscaleMissingBucket:
+			file = "outscale-no-such-bucket.xml"
 		}
 		// Real anonymous HTTPS GET responses recorded 2026-11-06T20:33:53Z
-		// at s3.fr-par.scw.cloud and sos-ch-gva-2.exo.io. Response identifiers
-		// are redacted and a trailing newline added; fields remain recorded.
+		// at s3.fr-par.scw.cloud and sos-ch-gva-2.exo.io, and 2026-11-09 at
+		// oos.eu-west-2.outscale.com. Response identifiers are redacted and a
+		// trailing newline added; fields remain recorded.
+		//
+		// The Outscale one is why Resource and BucketName are pointers: it
+		// carries <Resource></Resource> present-and-empty and NO BucketName,
+		// which a string with `omitempty` cannot tell from Exoscale omitting
+		// the element. This loop is what proves it, because it re-marshals the
+		// recording and compares it to what the server emits.
 		recording, err := os.ReadFile(filepath.Join("testdata", file))
 		if err != nil {
 			t.Fatal(err)
@@ -327,7 +344,21 @@ func TestMissingBucketFollowsMeasuredErrorDialects(t *testing.T) {
 		if err := xml.Unmarshal(recording, &observed); err != nil {
 			t.Fatal("cannot decode real producer response", err)
 		}
-		if observed.Code != "NoSuchBucket" || observed.BucketName == "" {
+		// The recording must decode into the boundary type, and it must carry
+		// the field its own dialect carries. Outscale's answer has no
+		// BucketName at all, so demanding one of every dialect would have made
+		// this check reject a faithful recording.
+		switch {
+		case observed.Code != "NoSuchBucket":
+			t.Fatal("recording did not decode into the boundary type", observed)
+		case shape == OutscaleMissingBucket:
+			if observed.BucketName != nil {
+				t.Fatal("the Outscale recording grew a BucketName", observed)
+			}
+			if observed.Resource == nil || *observed.Resource != "" {
+				t.Fatal("the Outscale recording lost its present-and-empty Resource", observed)
+			}
+		case observed.BucketName == nil || *observed.BucketName == "":
 			t.Fatal("recording did not decode into the boundary type", observed)
 		}
 		s.cfg.MissingBucket = shape
@@ -338,35 +369,90 @@ func TestMissingBucketFollowsMeasuredErrorDialects(t *testing.T) {
 			t.Fatal(err)
 		}
 		observed.BucketName = emitted.BucketName
-		if shape == ScalewayMissingBucket {
-			observed.RequestID, observed.HostID, observed.Resource = emitted.RequestID, emitted.HostID, "/missing"
+		switch shape {
+		case ScalewayMissingBucket:
+			resource := "/missing"
+			observed.RequestID, observed.HostID, observed.Resource = emitted.RequestID, emitted.HostID, &resource
 			if emitted.RequestID != emitted.HostID {
 				t.Fatal("recorded Scaleway identifiers were equal", emitted)
+			}
+		case OutscaleMissingBucket:
+			// Only the identifier is substituted. Resource is NOT, because
+			// present-and-empty is the measured shape and copying the emitted
+			// value would let the server define what it is compared against —
+			// which is the one way this comparison could stop measuring.
+			observed.RequestID = emitted.RequestID
+			if emitted.Resource == nil || *emitted.Resource != "" {
+				t.Fatal("the Outscale envelope lost its present-and-empty Resource", emitted)
+			}
+			if emitted.BucketName != nil {
+				t.Fatal("the Outscale envelope grew a BucketName", emitted)
 			}
 		}
 		want, err := xml.Marshal(observed)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if shape == ExoscaleMissingBucket {
+		// Both dialects whose recording carries the declaration carry it here.
+		if shape == ExoscaleMissingBucket || shape == OutscaleMissingBucket {
 			want = append([]byte(strings.TrimSuffix(xml.Header, "\n")), want...)
 		}
 		if body != string(want) {
 			t.Fatal("response differs from the actual producer envelope", body, string(want))
 		}
 		if w.Code != 404 || w.Header().Get("Content-Type") != "application/xml" ||
-			!strings.Contains(body, "<Code>NoSuchBucket</Code>") || !strings.Contains(body, "<BucketName>missing</BucketName>") {
+			!strings.Contains(body, "<Code>NoSuchBucket</Code>") {
 			t.Fatal(w.Code, body, w.Header())
 		}
-		if shape == ScalewayMissingBucket {
+		// The bucket name is asserted per dialect rather than of all three, and
+		// the Outscale branch asserts its ABSENCE, which is stricter than the
+		// blanket Contains this replaced: that one demanded
+		// <BucketName>missing</BucketName> of every envelope, so it would have
+		// rejected a faithful Outscale answer and, worse, would have passed a
+		// wrong one that added the element.
+		if shape == OutscaleMissingBucket {
+			if strings.Contains(body, "<BucketName>") {
+				t.Fatal("the Outscale envelope names a bucket its producer does not", body)
+			}
+			if !strings.Contains(body, "<Resource></Resource>") {
+				t.Fatal("the Outscale envelope lost the empty Resource element", body)
+			}
+			// Measured: the producer answered the same value in both headers.
+			if id2 := w.Header().Get("X-Amz-Id-2"); id2 == "" || id2 != w.Header().Get("X-Amz-Request-Id") {
+				t.Fatal("Outscale answers one identifier in both headers", w.Header())
+			}
+			if w.Header().Get("X-Amzn-Request-Id") != "" {
+				t.Fatal("the Outscale envelope grew Exoscale's extra identifier header", w.Header())
+			}
+		} else if !strings.Contains(body, "<BucketName>missing</BucketName>") {
+			t.Fatal(w.Code, body, w.Header())
+		}
+		// One branch per dialect, each asserting what its own producer carries
+		// AND what it does not. The last two used to share an `else` whose
+		// shape was Exoscale's: no declaration prefix was allowed to be absent,
+		// and <RequestId> had to be absent. Outscale carries both the prefix
+		// and a RequestId, so that `else` rejected a faithful answer — and an
+		// `else` that covered two dialects quietly claims to cover every one
+		// that comes later.
+		switch shape {
+		case ScalewayMissingBucket:
 			if strings.HasPrefix(body, "<?xml") || !strings.Contains(body, "<RequestId>") ||
 				!strings.Contains(body, "<Resource>/missing</Resource>") ||
 				!strings.Contains(body, "<Message>The specified bucket does not exist</Message>") {
 				t.Fatal(body)
 			}
-		} else if !strings.HasPrefix(body, "<?xml") || strings.Contains(body, "<RequestId>") ||
-			!strings.Contains(body, "<Message>The specified bucket does not exist.</Message>") {
-			t.Fatal(body)
+		case ExoscaleMissingBucket:
+			if !strings.HasPrefix(body, "<?xml") || strings.Contains(body, "<RequestId>") ||
+				strings.Contains(body, "<Resource>") ||
+				!strings.Contains(body, "<Message>The specified bucket does not exist.</Message>") {
+				t.Fatal(body)
+			}
+		case OutscaleMissingBucket:
+			if !strings.HasPrefix(body, "<?xml") || !strings.Contains(body, "<RequestId>") ||
+				strings.Contains(body, "<HostId>") ||
+				!strings.Contains(body, "<Message>The specified bucket does not exist.</Message>") {
+				t.Fatal(body)
+			}
 		}
 	}
 }

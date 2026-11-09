@@ -250,8 +250,15 @@ func (s *Server) bucketConfiguration(w http.ResponseWriter, r *http.Request, nam
 		id := rand.Text()
 		w.Header().Set("X-Amz-Request-Id", id)
 		w.Header().Set("X-Amz-Id-2", id)
+		// Addressed rather than inlined: missingBucketError's Resource and
+		// BucketName became pointers so the Outscale envelope could render
+		// <Resource></Resource> present-and-empty, which `omitempty` on a
+		// string cannot express. This answer is unchanged — both fields are
+		// filled here, as the recording for it has them.
+		resource := "/" + name
 		s.writeXML(w, r, http.StatusNotFound, missingBucketError{Code: "NoSuchTagSet",
-			Message: "The TagSet does not exist", RequestID: id, HostID: id, Resource: "/" + name, BucketName: name})
+			Message: "The TagSet does not exist", RequestID: id, HostID: id,
+			Resource: &resource, BucketName: &name})
 	default:
 		s.refuse(w, r, http.StatusNotImplemented, "bucket configuration operation is not implemented", nil)
 	}

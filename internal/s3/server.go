@@ -38,6 +38,25 @@ const (
 	ScalewayMissingBucket MissingBucketShape = iota + 1
 	// ExoscaleMissingBucket follows the anonymous ch-gva-2 GET recording.
 	ExoscaleMissingBucket
+	// OutscaleMissingBucket follows the anonymous eu-west-2 GET recording of
+	// 2026-11-09, kept at docs/evidence/outscale-oos-missing-bucket.json.
+	//
+	// It is a third envelope rather than a reuse of either, and the differences
+	// are exactly the kind nothing but a recording settles:
+	//
+	//	<Resource> is PRESENT and EMPTY — Scaleway fills it with /<bucket>,
+	//	                                 Exoscale omits the element entirely
+	//	<BucketName> is ABSENT        — both others carry it
+	//	x-amz-id-2 EQUALS x-amz-request-id — the others derive them apart
+	//	no X-Amzn-Request-Id          — unlike Exoscale
+	//	final period on the message   — like Exoscale, unlike Scaleway
+	//
+	// The recording cost nothing and touched no account: an anonymous GET on a
+	// name that does not exist sends no signature, so it is attributed to
+	// nobody, creates nothing and is billed to nobody. `server: nginx/1.20.0`
+	// on that answer is also worth keeping in mind — OOS is Outscale's own
+	// implementation, not AWS S3, so its envelope is theirs to differ in.
+	OutscaleMissingBucket
 )
 
 // Config requires an explicit region, byte bound, measured error shape and log.
@@ -84,7 +103,12 @@ func New(store *objectstore.Store, cfg Config) (*Server, error) {
 	if cfg.MaxObjectBytes <= 0 || cfg.MaxObjectBytes > (math.MaxInt64-(64<<10))/2 {
 		return nil, errors.New("s3: a positive representable upload byte bound is required")
 	}
-	if cfg.MissingBucket != ScalewayMissingBucket && cfg.MissingBucket != ExoscaleMissingBucket {
+	// An allow-list, not a range check: `cfg.MissingBucket <= OutscaleMissingBucket`
+	// would silently admit a fourth shape the day somebody adds the constant and
+	// forgets the envelope, which is the one way this guard can rot.
+	switch cfg.MissingBucket {
+	case ScalewayMissingBucket, ExoscaleMissingBucket, OutscaleMissingBucket:
+	default:
 		return nil, errors.New("s3: select a measured missing-bucket response shape")
 	}
 	for feature, response := range cfg.AbsentConfigurations {
@@ -428,23 +452,44 @@ func (s *Server) refuse(w http.ResponseWriter, r *http.Request, status int, mess
 // These fields and their order follow the two anonymous GET controls from
 // phase 0, not a synthetic XML fixture. No other cloud error is inferred.
 type missingBucketError struct {
-	XMLName    xml.Name `xml:"Error"`
-	Code       string
-	Message    string
-	RequestID  string `xml:"RequestId,omitempty"`
-	HostID     string `xml:"HostId,omitempty"`
-	Resource   string `xml:",omitempty"`
-	BucketName string
+	XMLName   xml.Name `xml:"Error"`
+	Code      string
+	Message   string
+	RequestID string `xml:"RequestId,omitempty"`
+	HostID    string `xml:"HostId,omitempty"`
+	// Resource and BucketName are pointers because three states have to be
+	// told apart, and `omitempty` on a string can only express two.
+	//
+	// Outscale answers <Resource></Resource>: the element is PRESENT and its
+	// text is EMPTY. With `string,omitempty` that is indistinguishable from
+	// Exoscale, which omits the element altogether, and encoding/xml would drop
+	// it. A nil pointer is omitted, a pointer to "" renders the empty element.
+	//
+	// BucketName is the mirror case: Scaleway and Exoscale both carry it,
+	// Outscale does not, and it used to have no `omitempty` at all so every
+	// envelope carried it whether the provider does or not.
+	Resource   *string `xml:"Resource,omitempty"`
+	BucketName *string `xml:"BucketName,omitempty"`
 }
 
 func (s *Server) missingBucket(w http.ResponseWriter, r *http.Request, bucket string) {
 	id, hostID := rand.Text(), rand.Text()
-	wire := missingBucketError{Code: "NoSuchBucket", Message: "The specified bucket does not exist", BucketName: bucket}
-	if s.cfg.MissingBucket == ScalewayMissingBucket {
+	wire := missingBucketError{Code: "NoSuchBucket", Message: "The specified bucket does not exist"}
+	switch s.cfg.MissingBucket {
+	case ScalewayMissingBucket:
 		hostID = id
-		wire.RequestID, wire.HostID, wire.Resource = id, hostID, "/"+bucket
-	} else {
+		resource := "/" + bucket
+		wire.RequestID, wire.HostID, wire.Resource, wire.BucketName = id, hostID, &resource, &bucket
+	case OutscaleMissingBucket:
+		// One identifier, not two: the recorded answer carried the same value
+		// in x-amz-id-2 and x-amz-request-id, and in <RequestId>.
+		hostID = id
+		empty := ""
 		wire.Message += "."
+		wire.RequestID, wire.Resource = id, &empty
+	default:
+		wire.Message += "."
+		wire.BucketName = &bucket
 	}
 	body, err := xml.Marshal(wire)
 	if err != nil {
@@ -454,6 +499,9 @@ func (s *Server) missingBucket(w http.ResponseWriter, r *http.Request, bucket st
 	if s.cfg.MissingBucket == ExoscaleMissingBucket {
 		body = append([]byte(strings.TrimSuffix(xml.Header, "\n")), body...)
 		w.Header().Set("X-Amzn-Request-Id", id)
+	}
+	if s.cfg.MissingBucket == OutscaleMissingBucket {
+		body = append([]byte(strings.TrimSuffix(xml.Header, "\n")), body...)
 	}
 	w.Header().Set("X-Amz-Request-Id", id)
 	w.Header().Set("X-Amz-Id-2", hostID)

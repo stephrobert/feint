@@ -117,11 +117,30 @@ func TestS3DeclarationsRejectUnknownMalformedAndDuplicateDoors(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, value := range []string{"", "scaleway", "scaleway/fr-par,scaleway/fr-par", "outscale/eu-west-2",
+	// "outscale/eu-west-2" used to be in this list, as the provider without a
+	// door. It has one since the OOS envelope was measured, so keeping it here
+	// would assert an absence that is no longer true — and a test that encodes
+	// a gap keeps failing for the right reason only until the gap closes.
+	//
+	// Every other entry is a malformed or unknown declaration and stays: the
+	// empty string, a provider with no region, a duplicate, an unknown
+	// provider, an upper-cased region, a third path segment, and a traversal
+	// attempt. The duplicate case now also matters for Outscale, which is why
+	// one of its own is below.
+	for _, value := range []string{"", "scaleway", "scaleway/fr-par,scaleway/fr-par",
+		"outscale/eu-west-2,outscale/eu-west-2", "outscale/EU-WEST-2", "outscale/../eu-west-2",
 		"unknown/fr-par", "scaleway/FR-PAR", "scaleway/fr-par/extra", "scaleway/../fr-par"} {
 		if _, err := storageProfiles(srv.Packs(), value); err == nil {
 			t.Fatalf("invalid or unsupported declaration accepted: %q", value)
 		}
+	}
+	// And the door itself is accepted, which is the half this test would
+	// otherwise not cover: a guard that only ever refuses passes every refusal
+	// case and breaks the product.
+	oos, err := storageProfiles(srv.Packs(), "outscale/eu-west-2")
+	if err != nil || len(oos) != 1 || oos[0].Provider != "outscale" ||
+		oos[0].CloudHost != "oos.eu-west-2.outscale.com" {
+		t.Fatalf("the measured OOS door was refused or mis-declared: %+v %v", oos, err)
 	}
 	profiles, err := storageProfiles(srv.Packs(), defaultS3Doors)
 	if err != nil || len(profiles) != 2 {
