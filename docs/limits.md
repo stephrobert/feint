@@ -37,11 +37,44 @@ This does not implement bucket virtual hosts, DNS/TLS
 interception or a complete Exoscale lifecycle; use a dedicated shell because
 its S3 environment replaces proxy settings.
 Complete Exoscale bucket workflows, ListObjects v1, owner requests, writable tags/public ACLs,
-version histories, multipart copy, generic ETags, checkpoint/reset and hardcoded Terraform
-redirection remain unsupported.
+version histories, multipart copy, generic ETags and checkpoint/reset remain
+unsupported. Hardcoded Terraform redirection no longer belongs on that list:
+`feint run` reaches it, measured, and the section below says how and what it
+still does not cover.
 No MinIO service or dependency is used by this implementation.
 
-### Why Scaleway Terraform is still not redirected
+### How Scaleway Terraform is reached, and why the DNS half was never needed
+
+**The premise of the refusal below fell on 2026-11-09, and it is kept here
+because the reasoning is the useful part.** It held that redirecting the
+provider needs *DNS interception plus a TLS certificate*, priced the certificate
+half as cheap and the DNS half as neither cheap nor safe, and concluded on that
+split. The split was right. The requirement was not.
+
+An HTTP forward proxy needs no DNS at all: the client puts the hostname in its
+own CONNECT line, so the name arrives as data rather than as a lookup to be
+subverted. `feint run` terminates that CONNECT with an authority minted for the
+one run, re-originates the request to the local door, and refuses every host it
+was not told about. No resolver, no `/etc/hosts`, no system trust store, no
+privilege. The expensive half of the blocker did not have to be paid because it
+did not exist.
+
+Measured on the published provider 2.82.0, host network, no sudo:
+`TestScalewayTerraformStorageThroughFeintRunOnTheHostNetwork` completes apply,
+reads **139,264 identical bytes** back from the local byte store by sha256, gets
+an empty second plan and a complete teardown.
+
+What it still does not cover: the witness needs a provider mirror, so it is not
+run on a pull request and the capability is a measurement you reproduce rather
+than a gate — `capability.go` therefore carries no row for it, since its matrix
+admits only control-plane rows proven by the conformance workflow. OpenTofu is
+untested on this path. And `feint env --s3` still cannot help, because variables
+cannot reach a client that builds its endpoint in code; that is a limit of
+`env`, not of the emulator.
+
+The original reasoning follows.
+
+### Why Scaleway Terraform was called not redirectable
 
 Scaleway Object Storage is S3-compatible, so emulating it is not the hard part
 (MinIO does it already). The obstacle is **how clients reach it**.

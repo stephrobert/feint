@@ -129,7 +129,13 @@ func envCommand(args []string, stdout, stderr io.Writer) int {
 			}
 		}
 		if !*unset {
-			fmt.Fprintln(stderr, "note: S3 supports simple bytes and private non-versioned Scaleway buckets; Exoscale ancillary workflows and hardcoded Terraform endpoints are not certified.")
+			// The hardcoded-endpoint half of this note went away when `feint
+			// run` was measured (#849): these variables cannot redirect a
+			// client that builds its endpoint in code, but that is now a
+			// limit of `env`, not of the emulator, so the note points at the
+			// command instead of calling the path uncertified.
+			fmt.Fprintln(stderr, "note: S3 supports simple bytes and private non-versioned Scaleway buckets; Exoscale ancillary workflows are not certified.")
+			fmt.Fprintln(stderr, "note: a client that builds its S3 endpoint in code ignores these variables; `feint run -- <command>` lands it on the local door instead.")
 			if env.Vars["HTTP_PROXY"] != "" {
 				fmt.Fprintln(stderr, "note: S3 host doors replace this shell's proxy settings with the local non-forwarding emulator. Use a dedicated shell; env --s3 --unset removes them, it does not restore previous values.")
 			}
