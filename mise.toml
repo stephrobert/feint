@@ -677,7 +677,8 @@ chmod 0700 "$conformance_objects"
 trap 'rm -rf "$conformance_objects"' EXIT
 ./feint start --addr $FEINT_ADDR --vm ${FEINT_VM:-off} --contracts contracts \
   --projects default,platform-prod --timeout 60s \
-  --objectstore "$conformance_objects/objects"
+  --objectstore "$conformance_objects/objects" \
+  --s3-doors scaleway/fr-par,exoscale/ch-dk-2,exoscale/ch-gva-2
 trap './feint stop --addr $FEINT_ADDR >/dev/null 2>&1 || true; rm -rf "$conformance_objects"' EXIT
 tools/conformance/scaleway/scw-cli.sh "http://$FEINT_ADDR"
 tools/conformance/scaleway/terraform.sh "http://$FEINT_ADDR"

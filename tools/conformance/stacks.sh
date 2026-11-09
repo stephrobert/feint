@@ -107,6 +107,13 @@ run_stack() { # name
       export EXOSCALE_API_ENDPOINT="$ENDPOINT/v2"
       export EXOSCALE_ZONE="${EXOSCALE_ZONE:-ch-dk-2}"
       export TF_VAR_zone="$EXOSCALE_ZONE"
+      # The SOS door, so the stack's bucket is created against LOCAL object
+      # storage rather than left out. The bucket is `count = 0` without this
+      # variable, which is how the stack stays appliable for a reader whose
+      # emulator serves no door — and also how this leg would pass while
+      # proving nothing, if the variable were forgotten here. The assertion
+      # after the apply is what makes that impossible to forget silently.
+      export TF_VAR_sos_endpoint="$ENDPOINT/_feint/s3/exoscale/$EXOSCALE_ZONE"
       ;;
     *)
       VARS=(-var "endpoint=$ENDPOINT")
@@ -134,6 +141,25 @@ run_stack() { # name
   "$TF" apply -no-color -auto-approve ${VARS[@]+"${VARS[@]}"} >/dev/null \
     || fail "$name: apply failed"
   ok "applied"
+
+  # The bucket of the Exoscale stack is `count = 0` when TF_VAR_sos_endpoint is
+  # empty, which is how the stack stays appliable for a reader whose emulator
+  # serves no door. It is also how this leg would pass while proving nothing,
+  # so the inventory is asked rather than assumed: a bucket that is in the
+  # LOCAL door's listing cannot have been created anywhere else.
+  #
+  # Proved to bite: with the export above emptied, this leg fails naming the
+  # door it looked in.
+  if [ "$name" = exoscale ]; then
+    local inventory
+    inventory="$(curl -fsS --max-time 20 "$ENDPOINT/_feint/s3/exoscale/$EXOSCALE_ZONE/" || true)"
+    case "$inventory" in
+      *"<Name>platform-assets</Name>"*)
+        ok "the SOS bucket is in the local door's inventory" ;;
+      *)
+        fail "$name: platform-assets is absent from the local door at $ENDPOINT/_feint/s3/exoscale/$EXOSCALE_ZONE/ — either TF_VAR_sos_endpoint was not exported, so the bucket was left out, or it was created somewhere this emulator cannot see" ;;
+    esac
+  fi
 
   # The assertion that separates a test from a demonstration. Both defects this
   # file's header names were caught here rather than by the apply.

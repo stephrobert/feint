@@ -51,6 +51,20 @@ terraform {
       # the Scaleway fixture is pinned exactly too (#257).
       version = "0.72.0"
     }
+    # SOS is S3, and the Exoscale provider has almost no grip on it: its only
+    # storage resource is `exoscale_sos_bucket_policy`, which does not create a
+    # bucket and whose three verbs this emulator answers 501 (no recorded
+    # policy shape, and this project does not invent formats). So the bucket
+    # below is driven the way Exoscale users actually drive it in Terraform,
+    # through the AWS provider pointed at `sos_endpoint`.
+    #
+    # Pinned exactly, for the reason the Exoscale pin above records at length:
+    # a floating constraint resolved to two different versions under the two
+    # engines on 2026-09-14, both reporting success (#778).
+    aws = {
+      source  = "hashicorp/aws"
+      version = "6.72.0"
+    }
   }
 }
 
@@ -62,6 +76,15 @@ variable "zone" {
 variable "pool_size" {
   type    = number
   default = 2
+}
+
+# The SOS door, handed in by `feint up` from feint.yaml, where the emulator's
+# address is written once and substituted with ${feint.endpoint}. A stack that
+# spelled the address itself would carry it twice.
+variable "sos_endpoint" {
+  type        = string
+  description = "the local Object Storage door; empty leaves the bucket out"
+  default     = ""
 }
 
 # No endpoint attribute: the provider has none. It reads EXOSCALE_API_ENDPOINT,
@@ -366,4 +389,61 @@ output "template_id" {
 output "nlb_address" {
   # TEST-NET-1, and routed nowhere on purpose: see docs/limits.md.
   value = exoscale_nlb.front.ip_address
+}
+
+# ---------------------------------------------------------------------------
+# Object storage, through the provider Exoscale users actually use for it
+# ---------------------------------------------------------------------------
+#
+# This is the SOS-dependent half of #850's criteria: a stack reaching LOCAL
+# object storage instead of the real endpoint. It goes through the AWS provider
+# because the Exoscale provider has no bucket resource at all — measured on
+# 0.72.0, whose only storage resource is `exoscale_sos_bucket_policy`.
+#
+# Unlike the control plane above, nothing is intercepted here: SOS honours
+# `sos_endpoint`, so the redirection is configuration. `feint run` is for the
+# clients that build their endpoint in code, and this is not one of them.
+#
+# WHY NO `aws_s3_object` HERE, and it is a measured refusal rather than an
+# oversight. The object applies and its bytes land in the local store — sha256
+# identical, verified — but every later plan wants to update it in place,
+# because `aws_s3_object` compares the ETag it computed with `filemd5` against
+# the one a read returns, and this emulator returns none. That is deliberate:
+# internal/s3/multipart.go states the position, the SDK defines an ETag as an
+# opaque entity tag rather than an MD5, and the multipart tags here identify
+# verified SHA-256 content. Serving an MD5 on simple PUT would mean persisting
+# it, which is a v5 byte format older binaries could not read. docs/limits.md
+# carries the measurement, and a permanent diff in an example is worse than an
+# example that stops where the proof stops.
+
+provider "aws" {
+  region     = var.zone
+  access_key = "EXOxxxxxxxxxxxxxxxxxxxx"
+  secret_key = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+
+  # Every one of these keeps the provider from leaving for AWS itself: without
+  # them it validates credentials, resolves an account id and reads the
+  # instance metadata service, none of which exists here and none of which this
+  # emulator serves.
+  skip_credentials_validation = true
+  skip_requesting_account_id  = true
+  skip_region_validation      = true
+  skip_metadata_api_check     = true
+
+  # The door is a path prefix, not a host, so virtual-host addressing would ask
+  # for <bucket>.127.0.0.1 and resolve nowhere.
+  s3_use_path_style = true
+
+  endpoints {
+    s3 = var.sos_endpoint
+  }
+}
+
+resource "aws_s3_bucket" "assets" {
+  count  = var.sos_endpoint == "" ? 0 : 1
+  bucket = "platform-assets"
+}
+
+output "assets_bucket" {
+  value = one(aws_s3_bucket.assets[*].bucket)
 }

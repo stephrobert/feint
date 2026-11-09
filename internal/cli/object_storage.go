@@ -20,6 +20,19 @@ import (
 	"github.com/stephrobert/feint/internal/s3"
 )
 
+// defaultS3Doors is what a reader gets with --objectstore and no door list.
+//
+// TWO doors, one per provider that has a recorded dialect, and the count is the
+// constraint rather than the content: a second Exoscale region here makes
+// `feint env exoscale --s3` ambiguous, so it answers "multiple S3 regions are
+// enabled; select one with --s3-region" to somebody who asked for nothing
+// unusual. Measured by adding exoscale/ch-dk-2 and watching three tests of the
+// env surface fail at once.
+//
+// The conformance starters arm their own wider list, because they drive a stack
+// in another zone; see tools/conformance's
+// TestEveryConformanceEmulatorArmsTheSameObjectStore for what keeps the three
+// of them in step.
 const defaultS3Doors = "scaleway/fr-par,exoscale/ch-gva-2"
 
 type objectStorageFlags struct {

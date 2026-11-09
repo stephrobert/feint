@@ -32,9 +32,34 @@ runtime:
   images:
     - ubuntu/24.04
 
+# Object storage, asked for rather than assumed: writing bytes is a side effect
+# on the operator's disk, which is why `storage.directory` is absent by default
+# exactly as `runtime.mode` is.
+#
+# The door and the variable below name the same prefix twice by necessity — one
+# arms the emulator, the other points the engine at it — and
+# TestEveryDeclaredStorageEndpointNamesADeclaredDoor refuses the two drifting
+# apart. The ADDRESS is written once, in `emulator.addr`, and substituted.
+#
+# NOT a path inside this repository, and that is the object store's own guard
+# rather than a preference: it refuses a parent directory writable by the group
+# without the sticky bit (internal/core/objectstore/files.go, "writable storage
+# parent requires sticky protection"). A checkout is commonly 775, so a path in
+# here would work for one operator's umask and fail for another's — which is
+# the worst possible property for an example. /tmp is 1777 everywhere.
+storage:
+  directory: /tmp/feint-exoscale-sos
+  doors:
+    - exoscale/ch-dk-2
+
 iac:
   engine: terraform
   directory: .
+  vars:
+    # SOS honours this endpoint, so no interception is needed here: the AWS
+    # provider that drives the bucket takes it as configuration. The zone must
+    # match `var.zone` of main.tf and the door above.
+    sos_endpoint: ${feint.endpoint}/_feint/s3/exoscale/ch-dk-2
 
 ready:
   - http:/v2/instance

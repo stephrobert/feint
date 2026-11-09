@@ -444,6 +444,15 @@ func startArgs(decl *environment.File) []string {
 	if len(decl.Cloud.Projects) > 0 {
 		args = append(args, "--projects", strings.Join(decl.Cloud.Projects, ","))
 	}
+	// Object storage, and only when the file asked for it: writing bytes is a
+	// side effect on the operator's disk, so it follows `runtime.mode` rather
+	// than being armed for every stack that does not need it.
+	if decl.Storage.Directory != "" {
+		args = append(args, "--objectstore", decl.Resolve(decl.Storage.Directory))
+		if len(decl.Storage.Doors) > 0 {
+			args = append(args, "--s3-doors", strings.Join(decl.Storage.Doors, ","))
+		}
+	}
 	return args
 }
 

@@ -122,7 +122,8 @@ chmod 0700 "$objects"
 trap 'rm -rf "$objects"' EXIT
 ./feint start --addr "$addr" --vm "$vm" --contracts contracts \
   --projects default,platform-prod --timeout 60s \
-  --objectstore "$objects/objects"
+  --objectstore "$objects/objects" \
+  --s3-doors scaleway/fr-par,exoscale/ch-dk-2,exoscale/ch-gva-2
 trap './feint stop --addr '"$addr"' >/dev/null 2>&1 || true; rm -rf "$objects"' EXIT
 
 case "$leg" in

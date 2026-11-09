@@ -1,0 +1,27 @@
+{
+  "package": "./internal/cli/",
+  "mutations": [
+    {
+      "label": "a declaration that asks for object storage no longer gets it, so the stack's bucket falls to `count = 0` and the conformance leg passes while proving nothing about local storage — which is exactly the failure mode the inventory assertion in stacks.sh exists to make impossible",
+      "file": "internal/cli/up.go",
+      "find": "\tif decl.Storage.Directory != \"\" {",
+      "replace": "\tif decl.Storage.Directory != \"\" && false {",
+      "test": "TestStartArgsArmsTheByteStoreOnlyWhenDeclared"
+    },
+    {
+      "label": "object storage is armed for EVERY declaration, so `feint up` writes bytes on the disk of a reader who never mentioned one. The silent half of the same guard, and the one a careless fix would break: `runtime.mode` is absent by default for this very reason",
+      "file": "internal/cli/up.go",
+      "find": "\tif decl.Storage.Directory != \"\" {",
+      "replace": "\tif decl.Storage.Directory != \"\" || true {",
+      "test": "TestStartArgsArmsTheByteStoreOnlyWhenDeclared"
+    },
+    {
+      "label": "the declared doors stop reaching the command line, so the emulator serves the CLI's default list and the stack's ch-dk-2 bucket lands on a prefix nobody mounted. A 404 there reads as a broken emulator rather than as a door that was asked for and dropped",
+      "file": "internal/cli/up.go",
+      "find": "\t\tif len(decl.Storage.Doors) > 0 {",
+      "replace": "\t\tif len(decl.Storage.Doors) > 0 && false {",
+      "test": "TestStartArgsArmsTheByteStoreOnlyWhenDeclared"
+    }
+  ],
+  "note": "The subject is #850's criterion that an Exoscale SOS-dependent stack reach LOCAL object storage, and the pieces `up` needed for it: a `storage.*` block in feint.yaml, armed only when asked.\n\nWhy the second mutation matters as much as the first. Writing bytes is a side effect on the operator's disk, which is why `storage.directory` is absent by default exactly as `runtime.mode` is — a fix that armed storage unconditionally would make `feint up` create a byte store for a reader who never mentioned one. The guard has two directions and a mutation for each.\n\nMeasured on the way here, and both findings are in docs/limits.md rather than only in a commit message. The Exoscale provider has NO bucket resource (0.72.0: its only storage resource is `exoscale_sos_bucket_policy`, which does not create a bucket and whose three verbs this emulator answers 501), so the bucket goes through the AWS provider pointed at `sos_endpoint` — which is what Exoscale users write. And there is no `aws_s3_object` beside it: the object applies and its bytes land locally, sha256 identical, but every later plan wants to update it in place because it compares the ETag a read returns against `filemd5` and this emulator returns none, on PUT, HEAD and GET alike. Serving an MD5 would mean a v5 byte format older binaries could not read, and a permanent diff in an example teaches a reader that drift is normal here.\n\nTwo guards here are asserted and NOT falsified, for the reason recorded in hardcoded-endpoint-row-is-owned.json: the harness requires every name in `find` to survive into `replace`, and neither a door list in a shell script nor a YAML endpoint can satisfy that. They are TestEveryDeclaredStorageEndpointNamesADeclaredDoor, which joins `storage.doors` to the `iac.vars` endpoint, and the door-list parity across the three conformance starters. The inventory assertion in stacks.sh WAS proved to bite by hand: with its variable emptied, the leg fails naming the door it looked in."
+}

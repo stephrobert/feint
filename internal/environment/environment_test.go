@@ -150,6 +150,10 @@ runtime:
     - ubuntu/24.04
 snapshot:
   load: fixture
+storage:
+  directory: objects
+  doors:
+    - exoscale/ch-dk-2
 iac:
   engine: opentofu
   directory: terraform

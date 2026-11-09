@@ -114,6 +114,11 @@ func TestEveryConformanceEmulatorDeclaresTheSameProjects(t *testing.T) {
 // seeing it fail, which is the cheaper of the two ways.
 var armsObjectStore = regexp.MustCompile(`--objectstore[=\s]\S+`)
 
+// declaresDoors reads the door list. It must not match `--objectstore-budget-mib`
+// or any other flag merely starting with the same letters, which `[=\s]` is what
+// prevents — the same care armsObjectStore needs for `--objectstore-budget-mib`.
+var declaresDoors = regexp.MustCompile(`--s3-doors[=\s]\S+`)
+
 // TestEveryConformanceEmulatorArmsTheSameObjectStore is the same property as
 // the test above, for the flag that repeated its defect.
 //
@@ -147,6 +152,10 @@ func TestEveryConformanceEmulatorArmsTheSameObjectStore(t *testing.T) {
 		{name: "--objectstore", pattern: armsObjectStore,
 			why: "exoscale/v2.list-sos-buckets-usage answers 503 without it while its schema " +
 				"declares a 200 body, so the probe reports a route answering the wrong shape"},
+		{name: "--s3-doors", pattern: declaresDoors,
+			why: "examples/stacks/exoscale creates its bucket in ch-dk-2, which the CLI's own " +
+				"default does not serve — and widening that default instead made `feint env " +
+				"exoscale --s3` ambiguous for every reader, which is worse"},
 	} {
 		found := 0
 		for _, file := range projectStarters {
@@ -178,6 +187,38 @@ func TestEveryConformanceEmulatorArmsTheSameObjectStore(t *testing.T) {
 		// pattern matching nothing would pass this file however wrong it got.
 		if found == 0 {
 			t.Fatalf("%s was found in none of the starters, so this test measured nothing", flag.name)
+		}
+		// And for a flag carrying a LIST, presence is not enough: three
+		// starters each naming a different set of doors is the shape that
+		// passes on the leg that matches and fails on the others, which reads
+		// as a flake rather than as a declaration nobody kept — the argument
+		// the projects test above makes in the same words.
+		if flag.name == "--s3-doors" {
+			var first, firstFile string
+			for _, file := range projectStarters {
+				source, err := os.ReadFile(file)
+				if err != nil {
+					t.Fatalf("read %s: %v", file, err)
+				}
+				for _, line := range strings.Split(string(source), "\n") {
+					trimmed := strings.TrimSpace(line)
+					if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+						continue
+					}
+					m := flag.pattern.FindString(line)
+					if m == "" {
+						continue
+					}
+					value := strings.TrimLeft(strings.TrimPrefix(m, "--s3-doors"), "= \t")
+					if first == "" {
+						first, firstFile = value, file
+					} else if value != first {
+						t.Errorf("%s declares %s %q and %s declares %q: one emulator per leg, two door lists",
+							file, flag.name, value, firstFile, first)
+					}
+					break
+				}
+			}
 		}
 	}
 }

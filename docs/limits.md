@@ -33,6 +33,46 @@ default), including peak reservation; abort is not GC. Opaque SHA-256 part tags
 are not generic object ETags. Completion Location consumers are not certified;
 same-key pagination markers require a live session. Exo's bucket remover does
 not paginate uploads, so removal beyond 1000 sessions is not certified.
+### A SOS bucket in Terraform, and why no object beside it
+
+`examples/stacks/exoscale` creates a bucket against the local SOS door, which
+is #850's criterion that a SOS-dependent stack reach local storage. Nothing is
+intercepted for it: SOS honours `sos_endpoint`, so the redirection is
+configuration, and `feint run` is for clients that build their endpoint in code.
+
+It goes through the **AWS provider**, because the Exoscale provider has no
+bucket resource. Measured on 0.72.0: its only storage resource is
+`exoscale_sos_bucket_policy`, which does not create a bucket, and whose three
+verbs this emulator answers 501 — no policy shape is recorded, and this project
+does not invent formats. The AWS provider pointed at the door is also what
+Exoscale users actually write.
+
+**There is no `aws_s3_object` in that stack, and the reason is measured.** The
+object applies and its bytes land in the local store, sha256 identical. But
+every later plan then wants to update it in place:
+
+```text
+~ resource "aws_s3_object" "index" {
+    + etag = "ff010b1a42027160f88b26c8834cbb3e"
+```
+
+`aws_s3_object` compares the ETag a read returns against the one it computed
+with `filemd5`, and this emulator returns none — on PUT, on HEAD or on GET,
+verified on all three. That is the position `internal/s3/multipart.go` states:
+the SDK defines an ETag as an opaque entity tag rather than an MD5, and the
+multipart tags here identify verified SHA-256 content. Serving an MD5 on simple
+PUT would mean persisting it, which is a v5 byte format older binaries could
+not read, so the choice was between that migration and an example carrying a
+permanent diff. A permanent diff in an example is worse: it teaches a reader
+that drift is normal here.
+
+So the bucket is driven and the object is not, and `tools/conformance/stacks.sh`
+asserts the bucket is in the LOCAL door's inventory after the apply — a bucket
+listed there cannot have been created anywhere else. That assertion exists
+because the stack's bucket is `count = 0` without `TF_VAR_sos_endpoint`: the
+leg would otherwise pass while proving nothing, and it was proved to bite with
+that variable emptied.
+
 This does not implement bucket virtual hosts, DNS/TLS
 interception or a complete Exoscale lifecycle; use a dedicated shell because
 its S3 environment replaces proxy settings.

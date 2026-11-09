@@ -271,15 +271,19 @@ var rules = []rule{
 		Unproven: "the proxy is not a network namespace and does not constrain arbitrary clients which ignore it",
 	},
 	{
-		Path:     "internal/cli/object_storage.go",
-		Why:      "S3 activation, discovery and actual-process persistence",
-		Runs:     []string{"conformance:s3:mounted"},
-		Unproven: "complete provider CLI lifecycles, declarative feint.yaml storage configuration and hardcoded Terraform endpoints",
-		Cites: []claim{{
-			About:  "declarative feint.yaml storage configuration",
-			In:     "internal/cli/up.go",
-			Absent: []string{"--objectstore", "--s3-doors"},
-		}},
+		Path: "internal/cli/object_storage.go",
+		Why:  "S3 activation, discovery and actual-process persistence",
+		// The second leg since the declaration grew `storage.*`: `up` now arms
+		// the byte store from feint.yaml, and tools/conformance/stacks.sh is
+		// what drives a stack through it.
+		Runs:     []string{"conformance:s3:mounted", "conformance:leg -- terraform"},
+		Unproven: "complete provider CLI lifecycles and hardcoded Terraform endpoints",
+		// The claim that used to live here said feint.yaml carried no
+		// declarative storage configuration, and cited the ABSENCE of
+		// `--objectstore` and `--s3-doors` from up.go as its evidence. Both are
+		// there now, and this file's own gate caught the stale sentence rather
+		// than letting it age — which is the mechanism working, so the sentence
+		// went instead of the gate.
 	},
 	{
 		Path:     "internal/cli/object_storage_conformance_test.go",
