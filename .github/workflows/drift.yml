@@ -226,6 +226,20 @@ jobs:
     permissions:
       contents: write        # push the branch
       pull-requests: write   # open the PR
+    env:
+      # How this job pushes without a token in .git/config. git calls the helper
+      # when the remote asks for credentials, and the helper echoes GH_TOKEN
+      # from its own environment: the secret is never written to a file, and
+      # never appears in a command line where `ps` would expose it. The literal
+      # ${GH_TOKEN} below is expanded by the helper's shell, not by the step's,
+      # which is the whole point.
+      #
+      # Proved before it was written, in a throwaway repository with a known
+      # token value: `git credential fill` returns username=x-access-token and
+      # the token; the string passed to -c carries the literal `${GH_TOKEN}` and
+      # not its value; and no file under .git holds the token, with
+      # .git/config left carrying an empty `[credential]` section.
+      GIT_CRED_HELPER: '!f() { echo username=x-access-token; echo "password=${GH_TOKEN}"; }; f'
     steps:
       - name: Harden runner
         uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
@@ -234,19 +248,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # Kept, and stated rather than left to the default. This job pushes a
-          # branch, so it needs the credentials checkout leaves behind. The risk
-          # that setting matters for — a token captured into an uploaded
-          # artifact — does not apply here: this job downloads an artifact and
-          # uploads none.
+          # This job PUSHES a branch, which is why this checkout used to keep its
+          # credentials: `git push` reads them from .git/config. They do not have
+          # to live there. The push step below supplies the token through the
+          # credential helper above, which reads it from the environment, so the
+          # secret never touches a file on disk and the branch is still pushed.
           #
-          # It used to say "the one job in the repository that pushes a branch".
-          # It is not: corpus-cloud.yml's `propose` job does the same, for the
-          # same reason, and plumber named both the first time its
-          # checkoutMustNotPersistCredentials control was allowed to run
-          # (2026-11-09). Neither is silenced — see .plumber.yaml — so the two
-          # ISSUE-307 findings here are deliberate and visible.
-          persist-credentials: true
+          # Plumber ISSUE-307: a token left in .git/config is latent until a
+          # later step packs .git into an artefact. The comment here used to
+          # argue that the risk did not apply because this job uploads nothing —
+          # true today, and an argument that has to be re-made by whoever adds
+          # the first upload. The helper removes the finding instead of
+          # accepting it, which is the shape pavois settled on for the same
+          # control.
+          persist-credentials: false
 
       # Into the workspace root, not into coverage/: the artifact now carries
       # coverage/, README.md and docs/ with their paths, so it unpacks over the
@@ -278,7 +293,11 @@ jobs:
           # info" — that is, every week the previous pull request was still open,
           # which is the normal case for triage.
           git fetch origin "+refs/heads/$branch:refs/remotes/origin/$branch" || true
-          git push --force-with-lease origin "$branch"
+          # An empty credential.helper first, to drop anything configured
+          # system-wide, then ours. The fetch above needs none: this repository
+          # is public and reads anonymously.
+          git -c credential.helper= -c "credential.helper=${GIT_CRED_HELPER}" \
+              push --force-with-lease origin "$branch"
           if [ -n "$(gh pr list --head "$branch" --json number --jq '.[0].number')" ]; then
             echo "a pull request is already open on $branch; the push above updated it"
             exit 0

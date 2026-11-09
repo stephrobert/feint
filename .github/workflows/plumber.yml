@@ -115,7 +115,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: tools/ci/pin-freshness.sh getplumber/plumber "${PLUMBER_VERSION}"
 
-      # --min-points 94, which is the score measured with every control active,
+      # --min-points 98, which is the score measured with every control active,
       # and the paragraph that stood here is gone because it had become the
       # thing this repository has a rule against.
       #
@@ -128,27 +128,75 @@ jobs:
       # comment is not a plan.
       #
       # Measured on 2026-11-09 with plumber 0.7.23 and the overlay policy, in a
-      # clone with the GitHub origin:
+      # clone with the GitHub origin. Twice, because the first measurement was
+      # taken before the two fixable findings were fixed:
       #
-      #   22 controls passed, 1 skipped (workflowMustIncludeRequiredActions,
-      #   the only one disabled on purpose), 3 findings, score 94/100 (A)
+      #   22 controls passed, 1 skipped, 3 findings  -> 94/100
+      #   22 controls passed, 1 skipped, 1 finding   -> 98/100  (this)
       #
-      # The three are ISSUE-307, LOW and latent, on the two `propose` jobs that
-      # must keep their checkout credentials to push a branch and on a checkout
-      # inside google/osv-scanner-action's reusable workflow. .plumber.yaml says
-      # why none is silenced. 100 is therefore not reachable without switching a
-      # control off, which is why the number here is 94 and not an aspiration.
+      # The three were ISSUE-307, LOW and latent: a token left in .git/config
+      # becomes a leak only if a later step packs .git into an artefact. Two of
+      # them were the `propose` jobs of drift.yml and corpus-cloud.yml, and the
+      # first reading of this file said they could not be fixed without moving
+      # the secret to another file on the same runner — satisfying the scanner
+      # and reducing nothing. That was wrong: a credential helper that reads the
+      # token from its own environment removes the finding AND the file, and
+      # pavois had already settled on exactly that shape. Both now use it, worth
+      # +2 each, measured.
       #
-      # 94 and not --min-score A on purpose: A spans 90-100, so a new control
+      # The one that remains is a checkout inside google/osv-scanner-action's
+      # reusable workflow, line 78 of their file. Not ours to set, so 100 needs
+      # that dependency replaced by the verified binary this repository uses for
+      # actionlint, poutine, zizmor and plumber itself. That is its own change
+      # with its own measurement, and until it lands the honest threshold is 98.
+      #
+      # Points and not --min-score A on purpose: A spans 90-100, so a new control
       # finding something worth four points would stay green under the letter.
-      # On the points, any loss reds and gets triaged. If a finding here is
+      # On the points, any loss reds and gets triaged. If a finding here is ever
       # accepted, this number moves WITH the reason written beside it.
       - name: Plumber
         env:
-          # Fine-grained PAT, Administration + Metadata read. Without it the
-          # branch-protection collector returns an empty branch list and
+          # Fine-grained PAT, Administration + Metadata read. Without a LIVE one
+          # the branch-protection collector returns an empty branch list and
           # branchMustBeProtected emits nothing — the degraded contract
           # .plumber.yaml documents, which reads exactly like a pass.
+          #
+          # "Reads exactly like a pass" stopped being a warning and became a
+          # measurement on 2026-11-09. This secret was last set on 2026-07-30
+          # and had gone dead; every run of this job was answering
+          # `A 100.0/100, ✓ Branch must be protected` over a token GitHub
+          # refuses. Reproduced locally on the two versions, same repository,
+          # same policy, a well-formed token GitHub rejects:
+          #
+          #   0.4.22 -> ✓ Branch must be protected, PASSED, A 100.0/100
+          #   0.7.23 -> INCOMPLETE, score withheld, "repo is not visible"
+          #
+          # 0.7.23 added the probe that tells the two apart
+          # (control/task_github.go:426, github/GitHubRepoVisible): the
+          # per-branch endpoints swallow 401 and 404 alike, so zero branches is
+          # ambiguous, and its own comment says an invisible repo "reads as a
+          # vacuous branch-protection pass (caught empirically)". So the red this
+          # job now shows is not a regression, it is the first true answer it has
+          # given since the token lapsed, and the date of that lapse is not
+          # recoverable from the logs — a silent instrument cannot say when it
+          # went silent.
+          #
+          # Rotating this secret is what makes the job green again. Nothing in
+          # the repository can do it, and nothing should paper over it: a gate
+          # that passes without its credential is the defect, not the symptom.
           GH_TOKEN: ${{ secrets.ADMIN_READ_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.ADMIN_READ_TOKEN }}
-        run: plumber analyze --min-points 94 --score-push
+          # PLUMBER_METADATA_TOKEN is deliberately NOT set here, and the reason
+          # is a measurement rather than an omission. The 48 × ISSUE-716 that
+          # accompanied the dead token looked like a second, separate credential
+          # gap — plumber's README documents that variable for exactly this
+          # symptom. Measured on 2026-11-09, same repository, three runs:
+          #
+          #   GH_TOKEN invalid, no metadata token        -> 48 × ISSUE-716
+          #   GH_TOKEN invalid, metadata token VALID     -> 48 × ISSUE-716
+          #   GH_TOKEN valid,   no metadata token        ->  0
+          #
+          # So the 48 were the live token's absence all along, and wiring a
+          # second credential would have added a knob that changes nothing. It
+          # was written, measured, and removed before it shipped.
+        run: plumber analyze --min-points 98 --score-push

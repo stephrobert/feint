@@ -83,21 +83,36 @@ github:
       namePatterns:
         - main
 
-# ## The findings that remain, and why they are not silenced
+# ## The one finding that remains, and why it is not silenced
 #
-# `plumber analyze` reports three ISSUE-307 (LOW, latent) for
-# checkoutMustNotPersistCredentials. None is silenced, because that control has
-# no per-job exemption, only `enabled`, and disabling it to hide three known
-# cases would switch the check off for every future workflow too. Deliberately
-# left visible:
+# `plumber analyze` reports ONE ISSUE-307 (LOW, latent) for
+# checkoutMustNotPersistCredentials, and it is not silenced: that control takes
+# only `enabled`, with no per-job exemption, so hiding one known case would
+# switch the check off for every future workflow too.
 #
-#   - drift.yml and corpus-cloud.yml, job `propose` in both: they push a branch,
-#     so they keep the credentials checkout leaves behind. Each downloads an
-#     artifact and uploads none, which is the risk the setting exists for, and
-#     both say so at the step.
-#   - osv-scanner.yml: the checkout is inside google/osv-scanner-action's
-#     reusable workflow, line 78 of their file. Not ours to set.
+# It is osv-scanner.yml, and the checkout is inside
+# google/osv-scanner-action's reusable workflow, line 78 of their file. Not ours
+# to set. Reaching 100 means replacing that dependency with the verified binary
+# this repository already uses for actionlint, poutine, zizmor and plumber —
+# which is the shape pavois settled on for the same control, having found
+# aquasecurity/setup-trivy persisting a token the same way. Its own change, its
+# own measurement.
 #
-# So the gate threshold in plumber.yml is set on what was measured with every
-# control active, not on 100. A gate whose threshold is aspirational is a gate
-# that reds on every run and then gets removed.
+# There were three. The two others were the `propose` jobs of drift.yml and
+# corpus-cloud.yml, and this file previously argued they could not be fixed:
+# they push a branch, so they needed what checkout leaves in .git/config, and
+# the only alternatives moved the secret to another file on the same runner —
+# satisfying the scanner and reducing nothing.
+#
+# That was wrong, and the correction is worth recording because the wrong
+# version was the comfortable one. A credential helper that reads the token from
+# its own environment removes the finding AND the file: git calls it when the
+# remote asks, the literal ${GH_TOKEN} reaches argv instead of its value, and
+# nothing is written to disk. Proved in a throwaway repository with a known
+# token before it was written into either workflow. +2 points each, measured:
+# 94 -> 98.
+#
+# So the threshold in plumber.yml is 98, the score measured with every control
+# active. A gate whose threshold is aspirational is a gate that reds on every
+# run and then gets removed; one set above what was measured is the same gate
+# with better intentions.
