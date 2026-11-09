@@ -264,8 +264,14 @@ func (r *Runner) call(ctx context.Context, client *http.Client, step Step, pool 
 	status, decoded, err := r.exchange(ctx, client, step, path, "", body)
 	result.Status = status
 	var refused refusal
+	var declined unavailable
 	switch {
 	case err == nil:
+	case errors.As(err, &declined):
+		// Skipped, not failed, and the reason is carried rather than invented:
+		// the message names the pack that declared it.
+		result.Skipped = declined.Error()
+		return result
 	case errors.As(err, &refused):
 		result.Refused = true
 		result.RefusalUnread = refused.unread
@@ -373,6 +379,17 @@ type refusal struct {
 
 func (refusal) Error() string { return "refused" }
 
+// unavailable is an operation the emulator declared it is not serving in this
+// configuration, told apart from a cloud answer by the marker rather than by
+// the status. It is a SKIP and not a refusal: a refusal is read against the
+// contract's declared error shape, and there is no error shape to read here —
+// the operation would have answered 200 had the service been armed.
+type unavailable struct{ pack string }
+
+func (u unavailable) Error() string {
+	return "the " + u.pack + " pack declares this operation unavailable in this configuration"
+}
+
 // exchange makes one HTTP call and decodes what came back. A 4xx returns a
 // refusal carrying the error-shape verdict; any other status returns the
 // decoded body, nil when there is none.
@@ -402,6 +419,25 @@ func (r *Runner) exchange(ctx context.Context, client *http.Client, step Step, p
 	raw, err := io.ReadAll(res.Body)
 	if err != nil {
 		return res.StatusCode, nil, fmt.Errorf("read body: %w", err)
+	}
+	// A 5xx the emulator MARKS as its own refusal is not a route answering the
+	// wrong shape, and the distinction is #477's: the marker exists because a
+	// status cannot carry "this is the emulator refusing" on its own.
+	//
+	// Narrow on purpose, and the narrowness is the point. Only 5xx, so every
+	// 4xx keeps going through readRefusal exactly as before and no existing
+	// count moves. And only MARKED answers, so the deliberate 5xx a fault
+	// injects — which carries no marker — is still measured. Without both
+	// conditions this would be a blanket excuse for server errors, which is the
+	// opposite of what a probe is for.
+	//
+	// What this serves is the one leg no flag can reach: the shipped container,
+	// run with no override. Everywhere else the starters arm the service, and
+	// tools/conformance's TestEveryConformanceEmulatorArmsTheSameObjectStore keeps them in step —
+	// this is not a substitute for arming it.
+	// TestAMarkedServiceRefusalIsSkippedAndAnUnmarkedOneIsNot holds both halves.
+	if res.StatusCode >= 500 && res.Header.Get(emulator.NotEmulatedHeader) != "" {
+		return res.StatusCode, nil, unavailable{pack: res.Header.Get(emulator.NotEmulatedHeader)}
 	}
 	if res.StatusCode >= 400 && res.StatusCode < 500 {
 		return res.StatusCode, nil, r.readRefusal(raw)

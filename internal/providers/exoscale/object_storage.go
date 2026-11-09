@@ -32,6 +32,20 @@ type sosBucketUsage struct {
 
 func (p *Pack) listSOSBucketsUsage(w http.ResponseWriter, r *http.Request) {
 	if p.env.Objects == nil {
+		// The out-of-band marker #477 introduced, for its own reason: this is
+		// the emulator refusing an operation, not a cloud answering, and a
+		// status alone cannot carry that fact. A reader that only sees 503
+		// cannot tell "the operator did not arm --objectstore" from "the
+		// service is broken", and the probe proved it: it builds its request
+		// from the operation's schema, that schema declares a 200 body, so it
+		// reported a route answering the wrong shape on every run without the
+		// flag — four CI jobs, with nothing saying the answer was a refusal.
+		//
+		// This does not excuse the flag being missing. The three conformance
+		// starters arm it, and tools/conformance's TestEveryConformanceEmulatorArmsTheSameObjectStore
+		// keeps them in step. The marker is for the one leg no flag reaches,
+		// the shipped container run with no override.
+		w.Header().Set(emulator.NotEmulatedHeader, p.Name())
 		writeError(w, http.StatusServiceUnavailable, "Object Storage is disabled; start with --objectstore")
 		return
 	}
