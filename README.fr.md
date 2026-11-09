@@ -592,6 +592,7 @@ Terraform de qui que ce soit.
 | --- | --- |
 | `feint coverage` | la surface amont servie, déclinée ou non triée |
 | `feint proxy` | enregistre ce qu'un vrai client et un vrai cloud se disent, identifiants masqués |
+| `feint run` | lance une commande dont l'endpoint cloud est codé en dur en la faisant atterrir sur cet émulateur, sans privilège et sans toucher au système |
 | `feint transcript` | lit un enregistrement : quoi servir ensuite, quelle forme, ce que l'émulateur omet |
 | `feint replay` | rejoue un enregistrement contre un émulateur qui tourne et rapporte, opération par opération, ce qui diverge |
 | `feint corpus` | rejoue les corpus committés contre un émulateur neuf et échoue sur une divergence avec ce que le vrai cloud a répondu |

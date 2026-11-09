@@ -17,6 +17,19 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Added
 
+- **`feint run`** (#849): runs one command with a client whose cloud endpoint is
+  compiled in landing on this emulator, with no privilege, no network namespace
+  and no system mutation. It takes **no hostname**, and that is the safety
+  property: the mounted S3 doors come from the emulator's own report and each
+  door's cloud authority from the pack in this binary, so the only possible
+  targets are doors that exist. An operator typing a hostname is an operator
+  able to mistype it, and a mistyped cloud host is not intercepted but
+  *resolved* — the run leaves for a third party and looks like it worked. Every
+  other host is refused rather than tunnelled, the authority lives in a
+  directory the run creates and removes, the four variables are set on the child
+  alone, and credentials that are not this repository's public fakes are refused
+  because the emulator checks no signature. CLI surface 28.
+
 - **Object Storage release groundwork** (#850, #858): ordinary Exo bucket
   creation/show/removal and native usage now use recorded default discovery
   errors and the actual published byte inventory. The native inventory is

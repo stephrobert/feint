@@ -249,7 +249,7 @@ const (
 // TestTheFrozenSurfacesStillMatchTheirFixture, and a fixture regenerated
 // without bumping this constant fails TestASurfaceChangeDemandsItsVersionBump.
 // The procedure for a deliberate change is in RELEASING.md ("Frozen surfaces").
-const cliSurfaceVersion = 27
+const cliSurfaceVersion = 28
 
 // Run executes one command and returns the process exit code.
 func Run(args []string, stdout, stderr io.Writer) int {
@@ -276,6 +276,8 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		return probeCommand(args[2:], stdout, stderr)
 	case "proxy":
 		return proxyCommand(args[2:], stdout, stderr)
+	case "run":
+		return runCommand(args[2:], stdout, stderr)
 	case "transcript":
 		return transcriptCommand(args[2:], stdout, stderr)
 	case "replay":
@@ -527,6 +529,25 @@ Usage:
                     docs/proxy.md says what each costs, as does
                     --expose-to-network, which puts this port and the account
                     behind it on the network.
+
+  feint run        [--endpoint http://127.0.0.1:4599] [--addr 127.0.0.1:0]
+                    [--unsafe-real-credentials] -- <command> [args...]
+                    Run one command with a client whose cloud endpoint is
+                    compiled in landing on this emulator instead. It asks the
+                    emulator which S3 doors it mounted, takes each door's cloud
+                    authority from the pack in this binary, and intercepts
+                    exactly those. No hostname is typed, which is the safety
+                    property rather than a convenience: a mistyped cloud host
+                    is not intercepted, it is resolved, so the run would leave
+                    for a third party and look like it worked. Every other host
+                    is refused rather than tunnelled. Nothing outlives the
+                    child — the authority lives in a directory this run creates
+                    and removes, and the variables are set on the child alone,
+                    never on your shell, /etc/hosts or a system trust store.
+                    Needs no privilege. Credentials that are not this
+                    repository's public fakes are refused, because the emulator
+                    checks no signature: real keys prove nothing here and one
+                    wrong door would put them on the wire.
 
   feint transcript <recording.jsonl> [--shape OP [--against emu.jsonl]]
                    [--sanitise corpus.jsonl --contract contracts/<provider>.json]

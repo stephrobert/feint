@@ -1,0 +1,41 @@
+{
+  "package": "./internal/cli/",
+  "mutations": [
+    {
+      "label": "the fail-closed credential refusal is neutralised, so a run carrying the operator's real keys proceeds: the emulator checks no signature, so those keys buy nothing and one wrong door would put them on the wire to a third party",
+      "file": "internal/cli/run.go",
+      "find": "\tif offenders := realCredentials(os.Environ()); len(offenders) != 0 && !*unsafe {",
+      "replace": "\tif offenders := realCredentials(os.Environ()); len(offenders) != 0 && !*unsafe && false {",
+      "test": "TestRunRefusesCredentialsThatAreNotKnownFakesByNameOnly"
+    },
+    {
+      "label": "the refusal reports the VALUE beside the name, which is the accident the refusal exists to prevent: this output lands in a terminal, a CI log and a bug report, so a credential printed once is a credential disclosed everywhere that text travels",
+      "file": "internal/cli/run.go",
+      "find": "\t\t\toffenders = append(offenders, name)",
+      "replace": "\t\t\toffenders = append(offenders, name+\"=\"+value)",
+      "test": "TestRunRefusesCredentialsThatAreNotKnownFakesByNameOnly"
+    },
+    {
+      "label": "a door whose pack declares no measured cloud authority is accepted, so the command builds its interception around an empty hostname and fails talking about transports instead of about the door the operator mounted",
+      "file": "internal/cli/run.go",
+      "find": "\t\tif profile.CloudHost == \"\" {",
+      "replace": "\t\tif profile.CloudHost == \"\" && false {",
+      "test": "TestRunRefusesADoorWithNoMeasuredAuthority"
+    },
+    {
+      "label": "a doorless emulator is accepted, so the operator who forgot --objectstore reads an error about door tokens rather than the two flags to add. The refusal's job is not to stop the run — storageProfiles would stop it anyway — it is to say what to start",
+      "file": "internal/cli/run.go",
+      "find": "\tif !report.Enabled || len(report.Doors) == 0 {",
+      "replace": "\tif (!report.Enabled || len(report.Doors) == 0) && false {",
+      "test": "TestRunRefusesAnEmulatorWithNoDoorAndSaysWhatToStart"
+    },
+    {
+      "label": "the signal stops being relayed to the child, so Ctrl-C leaves the client running under a proxy whose process is going away. The test catches this on the EXIT CODE, not on the leftover file: the deferred removal runs either way, and a child that never receives the signal sleeps out and reports success",
+      "file": "internal/cli/run.go",
+      "find": "\t\t\t\t_ = p.Signal(sig)",
+      "replace": "\t\t\t\tif false {\n\t\t\t\t\t_ = p.Signal(sig)\n\t\t\t\t}",
+      "test": "TestRunRemovesItsAuthorityAfterASignal"
+    }
+  ],
+  "note": "The subject is `feint run` (#849): landing a client whose cloud endpoint is compiled in on the local emulator, with no sudo, no network namespace and no system mutation. Measured, not assumed: the published Scaleway Terraform provider honours HTTP_PROXY, HTTPS_PROXY and SSL_CERT_FILE, which is why the witness in object_storage_terraform_conformance_test.go uses its namespace as an ESCAPE CHECK rather than as the mechanism. The command therefore needs nothing privileged.\n\nThe design decision these mutations guard is that the command takes NO hostname. An earlier draft took `--forward host=target`, and the operator typing the hostname is the operator able to mistype it — a mistyped cloud host is not intercepted, it is resolved, so the run leaves for a third party carrying whatever credentials it holds, and the failure is silent because a request that reached the real cloud looks exactly like one that worked. Instead the mounted doors come from the emulator (GET /_feint/s3, validated by fetchS3) and each door's cloud authority comes from the pack in this binary, which is also the split s3.Profile requires: an instance fact may come from a report, a wire dialect may not. The set of possible targets is therefore the set of doors that exist, and there is no spelling of this command that sends traffic off loopback.\n\nMutation 5 carries the correction of a comment this file got wrong first: it claimed the file check held the signal relay. It does not, because the deferred removal runs regardless. Writing that down was necessary — a test believed for the wrong reason is the defect this repository measures most often."
+}

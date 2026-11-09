@@ -19,6 +19,20 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Ajouté
 
+- **`feint run`** (#849) : lance une commande dont l'endpoint cloud est codé en
+  dur en la faisant atterrir sur cet émulateur, sans privilège, sans namespace
+  réseau et sans toucher au système. Elle ne prend **aucun nom d'hôte**, et
+  c'est la propriété de sûreté : les portes S3 montées viennent du rapport de
+  l'émulateur, l'autorité cloud de chaque porte vient du pack présent dans ce
+  binaire, donc les seules cibles possibles sont des portes qui existent. Un
+  opérateur qui tape un nom d'hôte est un opérateur capable de le taper de
+  travers, et un hôte cloud mal orthographié n'est pas intercepté mais
+  *résolu* : le tir part chez un tiers et ressemble à un tir réussi. Tout autre
+  hôte est refusé plutôt que tunnelisé, l'autorité vit dans un répertoire que le
+  tir crée et supprime, les quatre variables ne sont posées que sur l'enfant, et
+  des identifiants qui ne sont pas les faux publics du dépôt sont refusés
+  puisque l'émulateur ne vérifie aucune signature. Surface CLI 28.
+
 - **Le socle de livraison Object Storage** (#850, #858) : création normale,
   lecture et suppression de bucket Exo, usage natif issu des octets publiés et
   erreurs de découverte enregistrées. L'inventaire natif est

@@ -997,6 +997,7 @@ These answer *how close to the real cloud is this*, and they are the subject of
 |---|---|
 | `feint coverage` | compare the upstream API surface with what the packs serve |
 | `feint proxy` | sit between a real client and a real cloud and record every exchange, credentials redacted |
+| `feint run` | run one command with its compiled-in cloud endpoint landing on this emulator, without privilege and without touching the system |
 | `feint transcript` | read a recording: what to serve next, what a response must look like, what the emulator omits |
 | `feint replay` | reissue a recording at a running emulator and report, operation by operation, what diverged |
 | `feint corpus` | replay every committed corpus against a fresh emulator and fail on a divergence from what the real cloud answered |
