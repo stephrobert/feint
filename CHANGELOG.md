@@ -30,6 +30,31 @@ what this project is judged on: **a response shape a client can observe**, and
   alone, and credentials that are not this repository's public fakes are refused
   because the emulator checks no signature. CLI surface 28.
 
+  Proved with the client, not with curl: the published Scaleway provider 2.82.0
+  completes apply through `feint run` on the **host network**, with no sudo and
+  no namespace, and **139,264 identical bytes** are read back from the local
+  byte store by sha256, followed by an empty second plan and a complete
+  teardown. `TestScalewayTerraformStorageThroughFeintRunOnTheHostNetwork` is
+  that witness, and it refuses to run inside a namespace, because a pass
+  obtained in one would prove the namespace's containment rather than the
+  command's.
+
+  Two limits the measurement moved. The virtual-host form `<bucket>.<authority>`
+  is intercepted as well as the bare one, since a path-style probe passes while
+  every bucket request a real client makes would be refused; the widening only
+  affects what is intercepted, as the transport still refuses a leading label
+  that is not a valid bucket name. And **`AWS_CA_BUNDLE` is stripped rather than
+  set**, including from an inherited environment: the provider fails its apply
+  with `unable to add custom RootCAs HTTPClient, has no WithTransportOptions`
+  when it is present, and `SSL_CERT_FILE` already covers every Go client.
+
+- **`feint doctor` reports leftover interception authorities** (#849), and tells
+  a leftover from a run in flight by the owning PID each run records. A run in
+  progress legitimately owns such a directory, so a check that only reported
+  their existence would warn on every correct use. A leftover is a warning, not
+  a failure: it holds a public certificate in an owner-only directory, so it
+  leaks nothing and blocks nothing.
+
 - **Object Storage release groundwork** (#850, #858): ordinary Exo bucket
   creation/show/removal and native usage now use recorded default discovery
   errors and the actual published byte inventory. The native inventory is

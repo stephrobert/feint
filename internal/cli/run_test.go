@@ -2,14 +2,25 @@ package cli
 
 import (
 	"bytes"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
+	"fmt"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stephrobert/feint/internal/core/emulator"
+	"github.com/stephrobert/feint/internal/core/objectstore"
 	"github.com/stephrobert/feint/internal/providers/scaleway"
 	"github.com/stephrobert/feint/internal/s3"
 )
@@ -216,4 +227,364 @@ func TestRunKeepsItsAuthorityOwnerOnly(t *testing.T) {
 	if !strings.Contains(stdout.String(), "ca.pem") {
 		t.Fatalf("the child could not name its own authority: %q", stdout.String())
 	}
+}
+
+// deadPID returns a process identifier that has certainly exited and been
+// reaped, which is what a leftover directory's owner file holds.
+func deadPID(t *testing.T) int {
+	t.Helper()
+	cmd := exec.Command("true")
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("could not produce an exited process: %v", err)
+	}
+	return cmd.Process.Pid
+}
+
+func writeRunDir(t *testing.T, root, name string, pid int) {
+	t.Helper()
+	dir := filepath.Join(root, name)
+	if err := os.Mkdir(dir, 0o700); err != nil {
+		t.Fatalf("create %s: %v", dir, err)
+	}
+	if pid == 0 {
+		return
+	}
+	if err := os.WriteFile(filepath.Join(dir, runOwnerFile),
+		[]byte(fmt.Sprintln(pid)), 0o600); err != nil {
+		t.Fatalf("write the owner file: %v", err)
+	}
+}
+
+// TestDoctorTellsALeftoverAuthorityFromARunInFlight is cited by
+// checkLeftoverRunAuthorities, and the distinction is the whole reason the
+// check exists: a healthy `feint run` owns one of these directories for as long
+// as its child lives, so a check that merely reported their existence would
+// warn on every correct use.
+func TestDoctorTellsALeftoverAuthorityFromARunInFlight(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("TMPDIR", root)
+	if os.TempDir() != root {
+		t.Skipf("this platform does not take TMPDIR, so the scan cannot be pointed at a fixture")
+	}
+
+	if c := checkLeftoverRunAuthorities(); c.state != verdictOK ||
+		!strings.Contains(c.title, "no interception authority") {
+		t.Fatalf("an empty directory did not read as clean: %+v", c)
+	}
+
+	// A run in flight: this test's own process owns it, and it must NOT be
+	// reported as something to remove.
+	writeRunDir(t, root, runDirPrefix+"live", os.Getpid())
+	live := checkLeftoverRunAuthorities()
+	if live.state != verdictOK || !strings.Contains(live.title, "in flight") {
+		t.Fatalf("a live run was reported as a leftover: %+v", live)
+	}
+	if live.fix != "" {
+		t.Fatalf("a live run was given something to fix: %q", live.fix)
+	}
+
+	// A leftover: an owner that has exited.
+	writeRunDir(t, root, runDirPrefix+"dead", deadPID(t))
+	stale := checkLeftoverRunAuthorities()
+	if stale.state != verdictWarn {
+		t.Fatalf("a leftover was not reported as a warning: %+v", stale)
+	}
+	if !strings.Contains(stale.detail, runDirPrefix+"dead") {
+		t.Fatalf("the leftover is not named: %+v", stale)
+	}
+	if strings.Contains(stale.detail, runDirPrefix+"live") &&
+		!strings.Contains(stale.detail, "left alone") {
+		t.Fatalf("the live run was listed among the leftovers: %+v", stale)
+	}
+
+	// An owner file an older version never wrote counts as dead, which is the
+	// direction that gets a leftover removed rather than hidden.
+	writeRunDir(t, root, runDirPrefix+"ownerless", 0)
+	if c := checkLeftoverRunAuthorities(); !strings.Contains(c.detail, runDirPrefix+"ownerless") {
+		t.Fatalf("a directory with no owner file was not reported: %+v", c)
+	}
+}
+
+// TestDoctorSeesARunInFlightAsItsOwner joins the two halves, and nothing else
+// does: TestDoctorTellsALeftoverAuthorityFromARunInFlight writes its own
+// fixtures, so it would still pass if `feint run` stopped recording an owner
+// altogether. This drives a real run and asks the diagnostic about it while the
+// child is alive, which is the only arrangement that proves the producer and
+// the check agree on both the prefix and the owner file.
+func TestDoctorSeesARunInFlightAsItsOwner(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("TMPDIR", root)
+	if os.TempDir() != root {
+		t.Skipf("this platform does not take TMPDIR, so the run cannot be pointed at a fixture")
+	}
+	server := reportServer(t, door("scaleway", "fr-par"))
+	profiles, err := runProfiles(server.URL)
+	if err != nil {
+		t.Fatalf("discovery failed: %v", err)
+	}
+
+	release := filepath.Join(root, "release")
+	done := make(chan error, 1)
+	var stdout, stderr syncBuffer
+	go func() {
+		_, err := runChild(server.URL, "127.0.0.1:0", profiles,
+			[]string{"sh", "-c", `while [ ! -f "$0" ]; do sleep 0.02; done`, release},
+			false, &stdout, &stderr)
+		done <- err
+	}()
+	defer func() {
+		if err := os.WriteFile(release, nil, 0o600); err != nil {
+			t.Errorf("release the child: %v", err)
+		}
+		if err := <-done; err != nil {
+			t.Errorf("the run failed: %v (%q)", err, stderr.String())
+		}
+	}()
+
+	// Wait for the run to own its directory, then ask the diagnostic.
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		c := checkLeftoverRunAuthorities()
+		if strings.Contains(c.title, "in flight") {
+			if c.state != verdictOK {
+				t.Fatalf("a run in flight was not reported as healthy: %+v", c)
+			}
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("the diagnostic never saw the run in flight; last verdict: %+v", c)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+// TestRunInterceptsBucketsAddressedAsSubdomains is cited by runChild, and it
+// exists because the first proof of this command missed the case entirely: curl
+// against the bare authority is path-style, so it passed while every
+// virtual-host bucket request — the form Terraform uses — would have been
+// refused and never tunnelled.
+//
+// It goes THROUGH the proxy on purpose. A first draft asserted the receipt text
+// and the transport's routing, and neither touches the forward's allow-list:
+// the mutation that drops the wildcard would have left it green. So this drives
+// a real HTTPS request across the CONNECT, with the run's own authority, which
+// is the only arrangement where the allow-list is the thing under test.
+func TestRunInterceptsBucketsAddressedAsSubdomains(t *testing.T) {
+	door := door("scaleway", "fr-par")
+	store, objects := doorServer(t, door)
+	defer func() {
+		if err := store.Close(); err != nil {
+			t.Errorf("close the byte store: %v", err)
+		}
+	}()
+	profiles, err := runProfiles(objects.URL)
+	if err != nil {
+		t.Fatalf("discovery failed: %v", err)
+	}
+
+	release := filepath.Join(t.TempDir(), "release")
+	done := make(chan error, 1)
+	var stdout, stderr syncBuffer
+	go func() {
+		_, err := runChild(objects.URL, "127.0.0.1:0", profiles,
+			[]string{"sh", "-c", `while [ ! -f "$0" ]; do sleep 0.02; done`, release},
+			false, &stdout, &stderr)
+		done <- err
+	}()
+	defer func() {
+		if err := os.WriteFile(release, nil, 0o600); err != nil {
+			t.Errorf("release the child: %v", err)
+		}
+		if err := <-done; err != nil {
+			t.Errorf("the run failed: %v (%q)", err, stderr.String())
+		}
+	}()
+
+	proxyURL, ca := awaitReceipt(t, &stdout)
+	pem, err := os.ReadFile(ca) //nolint:gosec // the path this run printed
+	if err != nil {
+		t.Fatalf("read the run's authority: %v", err)
+	}
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(pem) {
+		t.Fatal("the run's authority is not a usable certificate pool")
+	}
+	client := &http.Client{Timeout: 15 * time.Second, Transport: &http.Transport{
+		Proxy:           http.ProxyURL(proxyURL),
+		TLSClientConfig: &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12},
+	}}
+	defer client.CloseIdleConnections()
+
+	// The subject: a bucket addressed as a subdomain reaches the door and the
+	// door answers about that bucket. 404 NoSuchBucket is a door answer; a
+	// refused CONNECT is a transport error and never a status.
+	for _, probe := range []struct {
+		url    string
+		status int
+	}{
+		{url: "https://s3.fr-par.scw.cloud/", status: http.StatusOK},
+		{url: "https://feint-terraform-storage.s3.fr-par.scw.cloud/", status: http.StatusNotFound},
+	} {
+		request, err := http.NewRequestWithContext(t.Context(), http.MethodGet, probe.url, nil)
+		if err != nil {
+			t.Fatalf("build %s: %v", probe.url, err)
+		}
+		response, err := client.Do(request)
+		if err != nil {
+			t.Fatalf("%s never reached the door: %v", probe.url, err)
+		}
+		body, readErr := io.ReadAll(io.LimitReader(response.Body, 4<<10))
+		if err := response.Body.Close(); err != nil {
+			t.Errorf("close %s: %v", probe.url, err)
+		}
+		if readErr != nil {
+			t.Fatalf("read %s: %v", probe.url, readErr)
+		}
+		if response.StatusCode != probe.status {
+			t.Fatalf("%s answered %d, want %d: %s", probe.url, response.StatusCode, probe.status, body)
+		}
+	}
+
+	// An authority of another region stays refused: the widening is one label
+	// under a declared door, never a second door.
+	request, err := http.NewRequestWithContext(t.Context(), http.MethodGet,
+		"https://s3.nl-ams.scw.cloud/", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response, err := client.Do(request); err == nil {
+		_ = response.Body.Close()
+		t.Fatal("an undeclared region was served; it must be refused, never tunnelled")
+	}
+}
+
+// awaitReceipt reads the proxy address and authority path out of the receipt,
+// which is also the only place they are published — the run owns both.
+func awaitReceipt(t *testing.T, stdout *syncBuffer) (*url.URL, string) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		for _, line := range strings.Split(stdout.String(), "\n") {
+			rest, ok := strings.CutPrefix(line, "feint run: proxy on ")
+			if !ok {
+				continue
+			}
+			address, authority, split := strings.Cut(rest, ", authority at ")
+			if !split {
+				continue
+			}
+			parsed, err := url.Parse(strings.TrimSpace(address))
+			if err != nil {
+				t.Fatalf("the receipt names an unusable proxy %q: %v", address, err)
+			}
+			return parsed, strings.TrimSpace(authority)
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("the run printed no receipt: %q", stdout.String())
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+// doorServer mounts a real S3 door over a private byte store, so a request that
+// crosses the proxy is answered by the thing `feint run` exists to reach.
+func doorServer(t *testing.T, d s3.Door) (*objectstore.Store, *httptest.Server) {
+	t.Helper()
+	root := t.TempDir()
+	if err := os.Chmod(root, 0o700); err != nil {
+		t.Fatalf("restrict the byte store: %v", err)
+	}
+	store, err := objectstore.OpenWithLimit(t.Context(), filepath.Join(root, "bytes"), 16<<20)
+	if err != nil {
+		t.Fatalf("open the byte store: %v", err)
+	}
+	packs, err := packsFor(emulator.DefaultEnv())
+	if err != nil {
+		t.Fatalf("build the packs: %v", err)
+	}
+	profiles, err := storageProfiles(packs, d.Provider+"/"+d.Region)
+	if err != nil {
+		t.Fatalf("profile for %s/%s: %v", d.Provider, d.Region, err)
+	}
+	handler, err := s3.Mount(http.NotFoundHandler(), store, profiles, 1<<20,
+		slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err != nil {
+		t.Fatalf("mount the door: %v", err)
+	}
+	server := httptest.NewServer(handler)
+	t.Cleanup(server.Close)
+	return store, server
+}
+
+// TestRunGivesTheChildOnlyTheFourMeasuredVariables is cited by runChild, and it
+// is a list rather than a shape check because the list is the measurement.
+//
+// The variable it is really about is the one that is ABSENT. An earlier draft
+// also set AWS_CA_BUNDLE, reasoning that an S3 client would want it. The
+// published Scaleway provider 2.82.0 then failed its apply with "unable to add
+// custom RootCAs HTTPClient, has no WithTransportOptions, *http.Client": it
+// hands the SDK a prebuilt *http.Client, so a CA bundle the SDK is asked to
+// install has nowhere to go. Removing it made the same apply complete, with
+// 139,264 identical bytes landing in the local byte store. A Go client already
+// trusts SSL_CERT_FILE through crypto/x509, so the variable bought nothing and
+// broke the one client this command exists for.
+func TestRunGivesTheChildOnlyTheFourMeasuredVariables(t *testing.T) {
+	server := reportServer(t, door("scaleway", "fr-par"))
+	profiles, err := runProfiles(server.URL)
+	if err != nil {
+		t.Fatalf("discovery failed: %v", err)
+	}
+	// Set in the PARENT, which is the case that matters: an operator whose
+	// shell carries it would otherwise hand it to the child, and its bundle
+	// does not contain this run's authority under any value.
+	t.Setenv("AWS_CA_BUNDLE", "/etc/ssl/certs/ca-certificates.crt")
+	var stdout, stderr bytes.Buffer
+	// The child reports the environment it was actually given.
+	code, err := runChild(server.URL, "127.0.0.1:0", profiles,
+		[]string{"sh", "-c", "env"}, false, &stdout, &stderr)
+	if err != nil || code != 0 {
+		t.Fatalf("run failed: code %d, %v, %q", code, err, stderr.String())
+	}
+	given := make(map[string]string)
+	for _, line := range strings.Split(stdout.String(), "\n") {
+		if name, value, ok := strings.Cut(line, "="); ok {
+			given[name] = value
+		}
+	}
+	for _, name := range []string{"HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"} {
+		if !strings.HasPrefix(given[name], "http://127.0.0.1:") {
+			t.Fatalf("%s is %q, not a loopback proxy", name, given[name])
+		}
+	}
+	for _, name := range []string{"NO_PROXY", "no_proxy"} {
+		if !strings.Contains(given[name], "127.0.0.1") {
+			t.Fatalf("%s does not exempt the emulator: %q", name, given[name])
+		}
+	}
+	if !strings.HasSuffix(given["SSL_CERT_FILE"], "ca.pem") {
+		t.Fatalf("SSL_CERT_FILE is %q", given["SSL_CERT_FILE"])
+	}
+	if value, set := given["AWS_CA_BUNDLE"]; set {
+		t.Fatalf("AWS_CA_BUNDLE is set to %q; the Scaleway provider 2.82.0 fails its apply when it is", value)
+	}
+}
+
+// syncBuffer is a writer the test can read WHILE the run is still writing to
+// it. A plain bytes.Buffer is not that, and -race says so: awaitReceipt polls
+// stdout for the receipt line while runChild's goroutine is appending to it.
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (s *syncBuffer) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.buf.Write(p)
+}
+
+func (s *syncBuffer) String() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.buf.String()
 }

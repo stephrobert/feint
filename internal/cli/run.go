@@ -149,6 +149,15 @@ func runProfiles(endpoint string) ([]s3.Profile, error) {
 	return profiles, nil
 }
 
+// runDirPrefix and runOwnerFile are shared with `feint doctor`, which is the
+// only reason they are constants: a diagnostic that hunts for leftovers by
+// re-spelling the producer's naming scheme is a diagnostic that goes blind the
+// day the scheme changes, and nothing fails to say so.
+const (
+	runDirPrefix = "feint-run-"
+	runOwnerFile = "owner.pid"
+)
+
 // credentialVariables are the names whose values this command refuses to pass
 // on unless they are known fakes. Names, not patterns: a pattern like *_KEY
 // would catch SSH_AUTH_SOCK's neighbours and refuse runs for no reason, and a
@@ -199,6 +208,31 @@ func realCredentials(environ []string) []string {
 	return offenders
 }
 
+// withoutCABundle drops AWS_CA_BUNDLE from an inherited environment.
+//
+// Removing rather than emptying, because an empty value is not an absent one:
+// a client that reads the variable would be asked to load a bundle from "",
+// which is a different failure with the same cause.
+//
+// This is the one place the command edits what the operator already had, and
+// the reason is that inheriting it cannot help under any value. Pointing at the
+// station's own bundle makes a client reject this run's authority, since that
+// bundle does not contain it; pointing anywhere else is no better. Measured on
+// the published Scaleway provider 2.82.0, the failure is not even a TLS error
+// but "unable to add custom RootCAs HTTPClient, has no WithTransportOptions,
+// *http.Client", which sends the reader looking at the wrong layer entirely.
+// SSL_CERT_FILE, which crypto/x509 reads, covers every Go client without it.
+func withoutCABundle(environ []string) []string {
+	kept := make([]string, 0, len(environ))
+	for _, pair := range environ {
+		if name, _, ok := strings.Cut(pair, "="); ok && name == "AWS_CA_BUNDLE" {
+			continue
+		}
+		kept = append(kept, pair)
+	}
+	return kept
+}
+
 // runChild mounts the forward, mints the CA, runs the command and removes both.
 func runChild(endpoint, addr string, profiles []s3.Profile, command []string, unsafe bool,
 	stdout, stderr io.Writer,
@@ -210,9 +244,24 @@ func runChild(endpoint, addr string, profiles []s3.Profile, command []string, un
 	if err != nil {
 		return 0, err
 	}
-	hosts := make([]string, 0, len(profiles))
+	// Two authorities per door, and the second one is not a convenience: S3
+	// clients address a bucket as <bucket>.<authority>, which is the form
+	// Terraform uses, so a door declared only by its bare authority is a door
+	// no real client reaches. A path-style check does NOT catch this, and did
+	// not — the first proof of this command used curl against the bare host and
+	// passed while every bucket request would have been refused.
+	//
+	// The single-level wildcard is the forward's own feature (forward.go:69) and
+	// it is as wide as a certificate's: one label, never two. What keeps it
+	// honest is that the wildcard only decides what is INTERCEPTED; where each
+	// request then goes is LocalTransport's decision, and it re-derives the
+	// bucket from the authority and refuses a name that is not a valid bucket
+	// (local_transport.go, "invalid virtual-host bucket"). So widening the
+	// allow-list here cannot widen what is served.
+	// TestRunInterceptsBucketsAddressedAsSubdomains holds it.
+	hosts := make([]string, 0, 2*len(profiles))
 	for _, profile := range profiles {
-		hosts = append(hosts, profile.CloudHost)
+		hosts = append(hosts, profile.CloudHost, "*."+profile.CloudHost)
 	}
 
 	authority, err := proxy.MintAuthority()
@@ -234,7 +283,7 @@ func runChild(endpoint, addr string, profiles []s3.Profile, command []string, un
 	// reads back, which is the defect this repository measures most often.
 	// TestRunKeepsItsAuthorityOwnerOnly drives it through the child, which is
 	// where the permissions actually matter.
-	dir, err := os.MkdirTemp("", "feint-run-")
+	dir, err := os.MkdirTemp("", runDirPrefix)
 	if err != nil {
 		return 0, fmt.Errorf("create the run's private directory: %w", err)
 	}
@@ -246,6 +295,15 @@ func runChild(endpoint, addr string, profiles []s3.Profile, command []string, un
 	caPath := filepath.Join(dir, "ca.pem")
 	if err := authority.WriteCA(caPath); err != nil {
 		return 0, fmt.Errorf("write the run's authority: %w", err)
+	}
+	// The owning PID, so `feint doctor` can tell a LEFTOVER from a run in
+	// flight. Without it the diagnostic #849 asks for could only ever say "a
+	// directory exists", which is true of every healthy run and therefore
+	// decides nothing — a warning nobody can act on is the kind of diagnostic
+	// people stop reading, and doctor.go says so in its own header.
+	if err := os.WriteFile(filepath.Join(dir, runOwnerFile),
+		[]byte(fmt.Sprintln(os.Getpid())), 0o600); err != nil {
+		return 0, fmt.Errorf("record the run's owner: %w", err)
 	}
 	info, err := os.Stat(dir)
 	if err != nil {
@@ -286,8 +344,8 @@ func runChild(endpoint, addr string, profiles []s3.Profile, command []string, un
 	// somebody who interrupts the run.
 	fmt.Fprintf(stdout, "feint run: proxy on %s, authority at %s\n", proxyURL, caPath)
 	for _, profile := range profiles {
-		fmt.Fprintf(stdout, "  https://%s -> %s%s (TLS terminated with the run's own authority)\n",
-			profile.CloudHost, endpoint, s3.DoorPath(profile.Provider, profile.Region))
+		fmt.Fprintf(stdout, "  https://%s and https://<bucket>.%s -> %s%s (TLS terminated with the run's own authority)\n",
+			profile.CloudHost, profile.CloudHost, endpoint, s3.DoorPath(profile.Provider, profile.Region))
 	}
 	fmt.Fprintln(stdout, "  every other host is refused, never tunnelled")
 	if unsafe {
@@ -296,17 +354,28 @@ func runChild(endpoint, addr string, profiles []s3.Profile, command []string, un
 
 	child := exec.Command(command[0], command[1:]...) //nolint:gosec // the operator's own command, explicit argv, no shell
 	child.Stdin, child.Stdout, child.Stderr = os.Stdin, stdout, stderr
-	child.Env = append(os.Environ(),
+	child.Env = append(withoutCABundle(os.Environ()),
 		"HTTP_PROXY="+proxyURL, "HTTPS_PROXY="+proxyURL,
 		"http_proxy="+proxyURL, "https_proxy="+proxyURL,
 		// The emulator itself must not go through the proxy, or a request to it
 		// would be intercepted by the thing forwarding to it.
 		"NO_PROXY=127.0.0.1,localhost", "no_proxy=127.0.0.1,localhost",
+		// SSL_CERT_FILE and nothing else, and the "nothing else" is measured.
+		//
+		// It is read by crypto/x509 itself, so every Go client honours it
+		// without knowing this command exists — which covers the three official
+		// CLIs and the Terraform providers alike. That is what the existing
+		// witness measured, and it sets exactly these four variables.
+		//
+		// An earlier draft also set AWS_CA_BUNDLE, on the reasoning that an S3
+		// client would want it. The Scaleway provider 2.82.0 then failed its
+		// apply with "unable to add custom RootCAs HTTPClient, has no
+		// WithTransportOptions, *http.Client": it hands the SDK a prebuilt
+		// *http.Client, and a CA bundle the SDK is asked to install on it has
+		// nowhere to go. The variable bought nothing — a Go client already
+		// trusts SSL_CERT_FILE — and cost the one client this feature exists
+		// for. TestRunGivesTheChildOnlyTheFourMeasuredVariables holds the list.
 		"SSL_CERT_FILE="+caPath,
-		// Measured on the Terraform witness: the provider honours HTTPS_PROXY
-		// and SSL_CERT_FILE, which is why this command needs no network
-		// namespace and no privilege at all.
-		"AWS_CA_BUNDLE="+caPath,
 	)
 
 	// A signal reaches the child and the cleanup still runs. Without this,

@@ -473,6 +473,56 @@ sudo -n unshare --net -- sh -c \
 rm "$testbin"
 ```
 
+## The mirror witness: the same trip with no privilege
+
+`TestScalewayTerraformStorageThroughFeintRunOnTheHostNetwork` is the other half,
+and the two are only worth having together. It **refuses to run inside a
+namespace**, because a pass obtained in one would prove nothing about the
+command: the namespace itself would be doing the containment. It answers the
+question #849 actually asks, which is whether an operator can get there on the
+host network, with no privilege and no change to the machine.
+
+It drives `feint run`, which takes no hostname. The mounted doors come from the
+emulator's own report and each door's cloud authority from the pack in the
+binary, so the only possible targets are doors that exist. Run it against a
+provider mirror, never a plugin cache at the same path:
+
+```bash
+mkdir -p /tmp/tf-mirror /tmp/tf-seed
+printf 'terraform {\n  required_providers {\n    scaleway = {\n      source = "scaleway/scaleway"\n      version = "= 2.82.0"\n    }\n  }\n}\n' > /tmp/tf-seed/main.tf
+(cd /tmp/tf-seed && terraform providers mirror -platform=linux_amd64 /tmp/tf-mirror)
+FEINT_TF_PLUGIN_DIR=/tmp/tf-mirror go test -tags=conformance ./internal/cli \
+  -run '^TestScalewayTerraformStorageThroughFeintRunOnTheHostNetwork$' -count=1 -v
+```
+
+**Not `TF_PLUGIN_CACHE_DIR` pointing at that same directory.** The first run
+then unpacks into the mirror and every later run fails with `cannot install
+existing provider directory to itself`. This witness was green once and red the
+second time for exactly that reason, which is a witness that proves nothing on a
+machine that has already run it.
+
+Measured on the published provider 2.82.0, host network, no sudo: apply
+complete, **139,264 identical bytes** read back from the local byte store by
+sha256, an empty second plan, a complete teardown, and the bucket inventory back
+to empty. The byte digest is the proof rather than the apply's exit code: a
+request that went anywhere else cannot produce it, and the real cloud would
+refuse these deliberately public fake credentials long before storing anything.
+
+Two findings the command carries from that measurement:
+
+- **`AWS_CA_BUNDLE` is stripped, not set.** An earlier draft set it, reasoning
+  that an S3 client would want it; the provider then failed its apply with
+  `unable to add custom RootCAs HTTPClient, has no WithTransportOptions,
+  *http.Client`, because it hands its SDK a prebuilt client. `SSL_CERT_FILE`,
+  which `crypto/x509` reads, covers every Go client. The variable is also
+  removed from an inherited environment, since the station's own bundle cannot
+  contain a freshly minted authority.
+- **The virtual-host form must be intercepted too.** A path-style probe passes
+  while every `<bucket>.<authority>` request, the form Terraform uses, is
+  refused and never tunnelled. The allow-list therefore carries a single-level
+  wildcard per door, and it only widens what is intercepted: `LocalTransport`
+  still refuses a leading label that is not a valid bucket name.
+
 The witness checks an unreachable external address, apply, an empty second
 plan, **122,880 identical bytes**, byte-store close/reopen, another empty plan,
 destroy and explicit owned GC. This is the storage-shaped bucket/object graph,

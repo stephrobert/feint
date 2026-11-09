@@ -33,6 +33,32 @@ change ni l'un ni l'autre a sa place dans `git log`.
   des identifiants qui ne sont pas les faux publics du dépôt sont refusés
   puisque l'émulateur ne vérifie aucune signature. Surface CLI 28.
 
+  Prouvé avec le client, pas avec curl : le provider Scaleway publié 2.82.0
+  termine son apply à travers `feint run` sur le **réseau de l'hôte**, sans sudo
+  et sans namespace, et **139 264 octets identiques** sont relus depuis
+  l'octet-store local par sha256, suivis d'un second plan vide et d'une
+  destruction complète. `TestScalewayTerraformStorageThroughFeintRunOnTheHostNetwork`
+  est ce témoin, et il refuse de tourner dans un namespace : un succès obtenu
+  là-dedans prouverait le confinement du namespace, pas celui de la commande.
+
+  Deux limites que la mesure a déplacées. La forme virtual-host
+  `<bucket>.<autorité>` est interceptée en plus de la forme nue, car une sonde
+  en path-style passe alors que toute requête de bucket d'un vrai client serait
+  refusée ; l'élargissement ne porte que sur ce qui est intercepté, le transport
+  refusant toujours un premier label qui n'est pas un nom de bucket valide. Et
+  **`AWS_CA_BUNDLE` est retiré au lieu d'être posé**, y compris d'un
+  environnement hérité : le provider échoue sur
+  `unable to add custom RootCAs HTTPClient, has no WithTransportOptions`
+  lorsqu'elle est présente, et `SSL_CERT_FILE` couvre déjà tout client Go.
+
+- **`feint doctor` signale les autorités d'interception restées en place**
+  (#849), et distingue un reste d'un tir en cours grâce au PID que chaque tir
+  enregistre. Un tir en cours possède légitimement un tel répertoire, donc un
+  contrôle qui se bornerait à signaler leur existence avertirait à chaque usage
+  correct. Un reste est un avertissement et non un échec : il contient un
+  certificat public dans un répertoire lisible par son seul propriétaire, donc
+  il ne fuit rien et ne bloque rien.
+
 - **Le socle de livraison Object Storage** (#850, #858) : création normale,
   lecture et suppression de bucket Exo, usage natif issu des octets publiés et
   erreurs de découverte enregistrées. L'inventaire natif est

@@ -3,6 +3,7 @@ package cli
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -12,6 +13,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/stephrobert/feint/internal/core/machine"
@@ -59,6 +61,7 @@ func doctor(args []string, stdout, stderr io.Writer) int {
 	}
 	checks = append(checks, checkRuntime(ctx, *vm)...)
 	checks = append(checks, checkLeftoverDHCP())
+	checks = append(checks, checkLeftoverRunAuthorities())
 	checks = append(checks, checkClients()...)
 	checks = append(checks, checkEnvHazards()...)
 	checks = append(checks, checkStackHazards()...)
@@ -591,4 +594,86 @@ func firstLine(s string) string {
 		s = s[:i]
 	}
 	return strings.TrimSpace(s)
+}
+
+// checkLeftoverRunAuthorities reports the interception authorities `feint run`
+// left on disk, which is the leftover detection #849 asks this command for.
+//
+// The verdict distinguishes a leftover from a run in flight, and that is the
+// whole design. A healthy `feint run` owns such a directory for as long as its
+// child lives, so reporting "a directory exists" would warn on every correct
+// use and decide nothing — the kind of diagnostic this file's own header says
+// people stop running. So each directory records its owning PID, and this reads
+// it back: a live owner is reported as a run in progress, a dead one as a
+// leftover to remove.
+//
+// A leftover is a warn and not a fail, deliberately: the only thing it holds is
+// a public certificate inside an owner-only directory, so it leaks nothing and
+// blocks nothing. What it costs is disk and puzzlement, which is a warning's
+// job. The contrast with checkLeftoverDHCP is the point of both: that one fails
+// because the next run DIES on the address block it holds.
+//
+// TestDoctorTellsALeftoverAuthorityFromARunInFlight fails without this.
+func checkLeftoverRunAuthorities() check {
+	entries, err := os.ReadDir(os.TempDir())
+	if err != nil {
+		return check{title: "could not look for leftover interception authorities",
+			state: verdictWarn, detail: err.Error()}
+	}
+	var stale, live []string
+	for _, entry := range entries {
+		if !entry.IsDir() || !strings.HasPrefix(entry.Name(), runDirPrefix) {
+			continue
+		}
+		path := filepath.Join(os.TempDir(), entry.Name())
+		if runOwnerAlive(path) {
+			live = append(live, entry.Name())
+			continue
+		}
+		stale = append(stale, entry.Name())
+	}
+	switch {
+	case len(stale) == 0 && len(live) == 0:
+		return check{title: "no interception authority of `feint run` outlives its command",
+			state:  verdictOK,
+			detail: "checked: " + runDirPrefix + "* directories under " + os.TempDir() + "; a run of another user is not visible here, and none is readable by this one"}
+	case len(stale) == 0:
+		return check{title: fmt.Sprintf("%d `feint run` command(s) in flight own an interception authority", len(live)),
+			state:  verdictOK,
+			detail: strings.Join(live, "; ") + " — each belongs to a live process and goes when its command returns"}
+	default:
+		detail := strings.Join(stale, "; ")
+		if len(live) != 0 {
+			detail += fmt.Sprintf(" (and %d more owned by a live run, left alone)", len(live))
+		}
+		return check{title: fmt.Sprintf("%d interception authority directory(ies) outlived their `feint run`", len(stale)),
+			state:  verdictWarn,
+			detail: detail,
+			fix:    "each holds a public certificate in an owner-only directory, so it leaks nothing; remove them with `rm -rf " + filepath.Join(os.TempDir(), runDirPrefix) + "*` once no run is in flight"}
+	}
+}
+
+// runOwnerAlive answers whether the process that created this directory is
+// still running. An unreadable or malformed owner file counts as DEAD, which is
+// the useful direction: the alternative would hide a leftover written by an
+// older version behind a missing file, and a leftover reported wrongly as live
+// is a leftover nobody removes.
+func runOwnerAlive(dir string) bool {
+	raw, err := os.ReadFile(filepath.Join(dir, runOwnerFile)) //nolint:gosec // a path this command composed from TempDir and its own prefix
+	if err != nil {
+		return false
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(string(raw)))
+	if err != nil || pid <= 0 {
+		return false
+	}
+	process, err := os.FindProcess(pid)
+	if err != nil {
+		return false
+	}
+	// Signal 0 asks the kernel the question without delivering anything, and is
+	// the portable way to do it. A process this user may not signal answers
+	// EPERM rather than ESRCH, and that is still alive.
+	err = process.Signal(syscall.Signal(0))
+	return err == nil || errors.Is(err, os.ErrPermission)
 }
