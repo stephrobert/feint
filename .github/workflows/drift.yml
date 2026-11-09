@@ -234,11 +234,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # Kept, and stated rather than left to the default. This is the one job
-          # in the repository that pushes a branch, so it needs the credentials
-          # checkout leaves behind. The risk that setting matters for — a token
-          # captured into an uploaded artifact — does not apply here: this job
-          # downloads an artifact and uploads none.
+          # Kept, and stated rather than left to the default. This job pushes a
+          # branch, so it needs the credentials checkout leaves behind. The risk
+          # that setting matters for — a token captured into an uploaded
+          # artifact — does not apply here: this job downloads an artifact and
+          # uploads none.
+          #
+          # It used to say "the one job in the repository that pushes a branch".
+          # It is not: corpus-cloud.yml's `propose` job does the same, for the
+          # same reason, and plumber named both the first time its
+          # checkoutMustNotPersistCredentials control was allowed to run
+          # (2026-11-09). Neither is silenced — see .plumber.yaml — so the two
+          # ISSUE-307 findings here are deliberate and visible.
           persist-credentials: true
 
       # Into the workspace root, not into coverage/: the artifact now carries
