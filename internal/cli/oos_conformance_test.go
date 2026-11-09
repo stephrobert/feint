@@ -3,7 +3,11 @@
 package cli
 
 import (
+	"crypto/rand"
+	"crypto/sha256"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -127,4 +131,44 @@ func TestMountedOOSOfficialOctl(t *testing.T) {
 		t.Fatalf("asking for an absent bucket changed the inventory: %v %s", err, out)
 	}
 	t.Logf("  ok: refused as a failure, and the inventory is untouched")
+
+	// 4. Bytes, which is what #850 means by "PUT bytes [...] GET bytes": the
+	//    object store holds what the client sent, and the client gets the same
+	//    bytes back out. Random, not text, because a byte path that passes
+	//    through a conversion shows nothing on printable input.
+	t.Log("- bytes through the door, out and back, compared by digest")
+	payload := make([]byte, 4096)
+	if _, err := rand.Read(payload); err != nil {
+		t.Fatal(err)
+	}
+	sent := filepath.Join(t.TempDir(), "payload.bin")
+	if err := os.WriteFile(sent, payload, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	octl.Run(t, "--no-upgrade", "storage", "api", "PutObject",
+		"--Bucket", bucket, "--Key", "probe.bin", "--Body", sent)
+
+	// -O, and it is not a convenience. `storage object download` without an
+	// output file HANGS rather than printing to stdout: measured, the call did
+	// not return and had to be killed. And `api GetObject` is not the way
+	// either, with or without -o raw — it answers the operation's JSON with
+	// `"Body": {}`, 1032 bytes of envelope and none of the object, so a test
+	// comparing its output would compare metadata and call it bytes.
+	//
+	// The key is POSITIONAL on this subcommand, not --Key. Three wrong forms
+	// preceded this one.
+	back := filepath.Join(t.TempDir(), "back.bin")
+	octl.Run(t, "--no-upgrade", "-O", back, "storage", "object", "download",
+		"--bucket", bucket, "probe.bin")
+	got, err := os.ReadFile(back)
+	if err != nil {
+		t.Fatalf("the download wrote no file: %v", err)
+	}
+	if len(got) != len(payload) {
+		t.Fatalf("the object came back as %d bytes, not %d", len(got), len(payload))
+	}
+	if sha256.Sum256(got) != sha256.Sum256(payload) {
+		t.Fatal("the object came back with the right length and the wrong bytes")
+	}
+	t.Logf("  ok: %d bytes round-tripped, sha256 identical", len(got))
 }
