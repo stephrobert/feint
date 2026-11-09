@@ -1,0 +1,114 @@
+{
+  "package": "./internal/s3",
+  "mutations": [
+    {
+      "label": "recorded absence responses alias caller configuration",
+      "file": "internal/s3/server.go",
+      "find": "cfg.AbsentConfigurations = maps.Clone(cfg.AbsentConfigurations)",
+      "replace": "cfg.AbsentConfigurations = func() map[string]AbsentConfiguration { _ = maps.Clone(cfg.AbsentConfigurations); return cfg.AbsentConfigurations }()",
+      "test": "TestRecordedAbsentConfigurationChecksBucketAndClonesProfile"
+    },
+    {
+      "label": "private ACL writes accept public permissions",
+      "file": "internal/s3/bucket_configuration.go",
+      "find": "if len(values) != 1 || values[0] != \"private\" {",
+      "replace": "if (len(values) != 1 || values[0] != \"private\") && false {",
+      "test": "TestPrivateBucketACLWriteRefusesAnythingButTheRecordedDefault"
+    },
+    {
+      "label": "private ACL writes discard a policy body",
+      "file": "internal/s3/bucket_configuration.go",
+      "find": "if err != nil || len(body) != 0 {",
+      "replace": "if err != nil || (len(body) != 0 && false) {",
+      "test": "TestPrivateBucketACLWriteRefusesAnythingButTheRecordedDefault"
+    },
+    {
+      "label": "object discovery discards duplicate or nonempty query features",
+      "file": "internal/s3/bucket_configuration.go",
+      "find": "if feature != \"\" || len(values) != 1 || values[0] != \"\" || (name != \"acl\" && name != \"tagging\") {",
+      "replace": "if (feature != \"\" || len(values) != 1 || values[0] != \"\" || (name != \"acl\" && name != \"tagging\")) && false {",
+      "test": "TestObjectDiscoveryIsPrivateEmptyAndChecksExistence"
+    },
+    {
+      "label": "object configuration silently ignores a Range",
+      "file": "internal/s3/bucket_configuration.go",
+      "find": "if len(r.Header.Values(\"Range\")) != 0 {",
+      "replace": "if len(r.Header.Values(\"Range\")) != 0 && false {",
+      "test": "TestObjectDiscoveryIsPrivateEmptyAndChecksExistence"
+    },
+    {
+      "label": "missing objects receive successful ACL and tag discovery",
+      "file": "internal/s3/bucket_configuration.go",
+      "find": "if _, err := s.store.HeadObject(r.Context(), s.name(bucket), key); err != nil {",
+      "replace": "if _, err := s.store.HeadObject(r.Context(), s.name(bucket), key); err != nil && false {",
+      "test": "TestObjectDiscoveryIsPrivateEmptyAndChecksExistence"
+    },
+    {
+      "label": "legacy listings accept V2 cursor parameters",
+      "file": "internal/s3/list.go",
+      "find": "if !legacyListQuery(q) {",
+      "replace": "if !legacyListQuery(q) && false {",
+      "test": "TestLegacyListingUsesPlainMarkersAndSharedInventory"
+    },
+    {
+      "label": "redirected cloud requests allow cleartext or alternate ports",
+      "file": "internal/s3/local_transport.go",
+      "find": "if r.URL == nil || r.URL.Scheme != \"https\" || r.URL.User != nil ||\n\t\t(r.URL.Port() != \"\" && r.URL.Port() != \"443\") || r.URL.Fragment != \"\" {",
+      "replace": "if (r.URL == nil || r.URL.Scheme != \"https\" || r.URL.User != nil ||\n\t\t(r.URL.Port() != \"\" && r.URL.Port() != \"443\") || r.URL.Fragment != \"\") && false {",
+      "test": "TestLocalTransportPreservesCloudBucketAndLiteralKeyWithoutFallback"
+    },
+    {
+      "label": "undeclared cloud authorities acquire a forwarding target",
+      "file": "internal/s3/local_transport.go",
+      "find": "if !found {",
+      "replace": "if !found && false {",
+      "test": "TestLocalTransportPreservesCloudBucketAndLiteralKeyWithoutFallback"
+    },
+    {
+      "label": "virtual hosts accept invalid bucket syntax",
+      "file": "internal/s3/local_transport.go",
+      "find": "if !bucketName(prefix) {",
+      "replace": "if !bucketName(prefix) && false {",
+      "test": "TestLocalTransportPreservesCloudBucketAndLiteralKeyWithoutFallback"
+    },
+    {
+      "label": "native usage substitutes success for disabled storage",
+      "package": "./internal/providers/exoscale",
+      "file": "internal/providers/exoscale/object_storage.go",
+      "find": "writeError(w, http.StatusServiceUnavailable, \"Object Storage is disabled; start with --objectstore\")",
+      "replace": "writeError(w, http.StatusOK, \"Object Storage is disabled; start with --objectstore\")",
+      "test": "TestSOSUsageRefusesDisabledStorageAndLegacyDates"
+    },
+    {
+      "label": "native usage serves malformed scopes and invented legacy dates",
+      "package": "./internal/providers/exoscale",
+      "file": "internal/providers/exoscale/object_storage.go",
+      "find": "if !valid || !publishedZone(zone) || name == \"\" || strings.Contains(name, \"/\") || dateErr != nil {",
+      "replace": "if (!valid || !publishedZone(zone) || name == \"\" || strings.Contains(name, \"/\") || dateErr != nil) && false {",
+      "test": "TestSOSUsageRefusesDisabledStorageAndLegacyDates|TestSOSUsageReportsOnlyPublishedScopedBytesAndRefusesMalformedScopes"
+    },
+    {
+      "label": "native usage includes another provider's byte inventory",
+      "package": "./internal/providers/exoscale",
+      "file": "internal/providers/exoscale/object_storage.go",
+      "find": "if !ours {",
+      "replace": "if !ours && false {",
+      "test": "TestSOSUsageReportsOnlyPublishedScopedBytesAndRefusesMalformedScopes"
+    },
+    {
+      "label": "any target is admitted, so a transport built on 192.0.2.1, on a name rather than a literal, on https, on a port-less host, or carrying credentials, a path, a query or a fragment is accepted and the redirection can leave the loopback",
+      "file": "internal/s3/local_transport.go",
+      "find": "\tif base.Scheme != \"http\" || ip == nil || !ip.IsLoopback() || base.Port() == \"\" ||\n\t\tbase.User != nil || (base.Path != \"\" && base.Path != \"/\") || base.RawQuery != \"\" || base.Fragment != \"\" {",
+      "replace": "\tif (base.Scheme != \"http\" || ip == nil || !ip.IsLoopback() || base.Port() == \"\" ||\n\t\tbase.User != nil || (base.Path != \"\" && base.Path != \"/\") || base.RawQuery != \"\" || base.Fragment != \"\") && false {",
+      "test": "TestLocalTransportRejectsUnsafeTargetsAndOverlappingDeclarations"
+    },
+    {
+      "label": "overlapping cloud authorities are admitted, so one provider's declaration can shadow another's bucket namespace and the map decides by iteration order which door a request reaches",
+      "file": "internal/s3/local_transport.go",
+      "find": "\t\t\tif host == profile.CloudHost || strings.HasSuffix(host, \".\"+profile.CloudHost) ||\n\t\t\t\tstrings.HasSuffix(profile.CloudHost, \".\"+host) {",
+      "replace": "\t\t\tif (host == profile.CloudHost || strings.HasSuffix(host, \".\"+profile.CloudHost) ||\n\t\t\t\tstrings.HasSuffix(profile.CloudHost, \".\"+host)) && false {",
+      "test": "TestLocalTransportRejectsUnsafeTargetsAndOverlappingDeclarations"
+    }
+  ],
+  "note": "The subject is the shared S3 discovery slice of #850, and the two last mutations are the ones this spec was missing. The three that precede them all drive the ACCEPTING path of LocalTransport (TestLocalTransportPreservesCloudBucketAndLiteralKeyWithoutFallback): that a declared authority keeps its dotted virtual-host bucket and its literally escaped key, and that an undeclared one is refused before any dial. None touched the two refusals in NewLocalTransport itself, which is where the blast radius lives: a transport that accepts a non-loopback target forwards cloud-shaped requests off the machine, and one that accepts overlapping authorities lets map iteration order decide which provider's door a bucket reaches. Both are conservative mutations, the whole condition kept and suffixed with `&& false`, because the harness refuses a mutation that drops a name and a dropped name fails the package for the wrong reason. The test they bite already existed and already covered eight unsafe targets, four ambiguous declarations and the accepting IPv6 loopback case."
+}

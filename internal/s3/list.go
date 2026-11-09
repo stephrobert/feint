@@ -24,6 +24,32 @@ type listOptions struct {
 	max                                       int
 }
 
+func legacyListQuery(q url.Values) bool {
+	for key := range q {
+		switch key {
+		case "prefix", "delimiter", "max-keys", "marker", "encoding-type", "x-id":
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+func parseLegacyListOptions(q url.Values) (listOptions, error) {
+	if !legacyListQuery(q) {
+		return listOptions{}, errors.New("legacy listing does not accept ListObjectsV2 parameters")
+	}
+	normalized := make(url.Values, len(q)+1)
+	for key, values := range q {
+		if key == "marker" {
+			key = "start-after"
+		}
+		normalized[key] = values
+	}
+	normalized.Set("list-type", "2")
+	return parseListOptions(normalized)
+}
+
 func listQueryKey(key string) bool {
 	switch key {
 	case "list-type", "prefix", "delimiter", "max-keys", "continuation-token", "start-after", "encoding-type", "fetch-owner", "x-id":
@@ -126,6 +152,21 @@ type listResult struct {
 	Prefixes  []listedPrefix `xml:"CommonPrefixes"`
 }
 
+type legacyListResult struct {
+	XMLName   xml.Name       `xml:"ListBucketResult"`
+	Namespace string         `xml:"xmlns,attr"`
+	Name      string         `xml:"Name"`
+	Prefix    string         `xml:"Prefix"`
+	Marker    string         `xml:"Marker"`
+	Next      string         `xml:"NextMarker,omitempty"`
+	Delimiter string         `xml:"Delimiter,omitempty"`
+	MaxKeys   int            `xml:"MaxKeys"`
+	Truncated bool           `xml:"IsTruncated"`
+	Encoding  string         `xml:"EncodingType,omitempty"`
+	Objects   []listedObject `xml:"Contents"`
+	Prefixes  []listedPrefix `xml:"CommonPrefixes"`
+}
+
 func listText(value, encoding string) (string, error) {
 	if encoding == "url" {
 		return strings.ReplaceAll(url.QueryEscape(value), "+", "%20"), nil
@@ -140,6 +181,10 @@ func listText(value, encoding string) (string, error) {
 
 func (s *Server) listObjects(w http.ResponseWriter, r *http.Request, bucket string, q url.Values) {
 	options, err := parseListOptions(q)
+	legacy := s.cfg.ListObjectsV1 && !q.Has("list-type")
+	if legacy {
+		options, err = parseLegacyListOptions(q)
+	}
 	if err != nil {
 		s.refuse(w, r, http.StatusBadRequest, "invalid S3 listing", err)
 		return
@@ -211,7 +256,7 @@ func (s *Server) listObjects(w http.ResponseWriter, r *http.Request, bucket stri
 		result.Objects = append(result.Objects, listedObject{Key: text,
 			Modified: obj.Modified.UTC().Format(time.RFC3339Nano), Size: obj.Size, StorageClass: "STANDARD"})
 	}
-	if result.Truncated {
+	if result.Truncated && !legacy {
 		raw, err := json.Marshal(listCursor{Scope: s.listScope(bucket, options), After: names[options.max-1]})
 		if err != nil {
 			s.refuse(w, r, http.StatusInternalServerError, "S3 listing cursor encoding failed", err)
@@ -219,7 +264,21 @@ func (s *Server) listObjects(w http.ResponseWriter, r *http.Request, bucket stri
 		}
 		result.Next = base64.RawURLEncoding.EncodeToString(raw)
 	}
-	raw, err := xml.Marshal(result)
+	var wire any = result
+	if legacy {
+		next := ""
+		if result.Truncated {
+			next, err = listText(names[options.max-1], options.encoding)
+			if err != nil {
+				s.refuse(w, r, http.StatusBadRequest, "S3 listing marker cannot be encoded", err)
+				return
+			}
+		}
+		wire = legacyListResult{Namespace: result.Namespace, Name: result.Name, Prefix: result.Prefix,
+			Marker: result.After, Next: next, Delimiter: result.Delimiter, MaxKeys: result.MaxKeys,
+			Truncated: result.Truncated, Encoding: result.Encoding, Objects: result.Objects, Prefixes: result.Prefixes}
+	}
+	raw, err := xml.Marshal(wire)
 	if err != nil {
 		s.refuse(w, r, http.StatusInternalServerError, "S3 listing encoding failed", err)
 		return

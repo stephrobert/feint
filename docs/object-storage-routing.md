@@ -92,9 +92,10 @@ The configured-client door must be proved against clients that actually support
 the chosen endpoint prefix. If a client rejects it, revisit this decision rather
 than quietly add a second port or change its workload.
 
-Cloud virtual hosts, TLS interception, hardcoded Scaleway Terraform endpoints,
-checkpoint/reset, garbage collection and public-stack certification remain
-later work. The synthetic HTTP host slice is described below.
+The sections below preserve the sequence of measured slices. The final sections
+describe the current Exoscale discovery, isolated Terraform witness and neutral
+byte checkpoints. Coordinated resource/byte reset, a user-facing isolated run
+command and public-stack certification remain later work.
 
 ## Implemented mounted slice
 
@@ -171,7 +172,8 @@ ancillary operations and missing-object cloud errors still receive explicit
 Feint refusals. Multipart is measured separately below; ordinary object reads
 still do not advertise ETags.
 The snapshot-import route still records an intention rather than reading these
-bytes. Object Storage 1.0 and hardcoded Terraform redirection are not delivered.
+bytes. Object Storage 1.0 is not delivered; the isolated Terraform storage
+witness below now intercepts its hardcoded S3 endpoint.
 
 ## Measured Scaleway bucket workflow
 
@@ -219,9 +221,9 @@ index. Existing bytes, generations and quotas remain unchanged. Legacy buckets
 without a stored creation date receive an explicit listing refusal rather
 than an invented date. Resource snapshots still do not own this metadata.
 
-Complete Exoscale bucket creation, the native bucket-usage API, and full Object
-Storage 1.0 remain separate follow-up work. Multipart inventory and bucket
-removal now operate on real sessions, as measured below.
+Normal Exoscale creation and native usage are now measured below. Full Object
+Storage 1.0 remains separate work. Multipart inventory and bucket removal
+operate on real sessions.
 
 ## Exoscale prefix incompatibility measured
 
@@ -266,7 +268,7 @@ exo storage upload input.bin sos://existing-bucket/key
 eval "$(feint env exoscale --s3 --unset)"
 ```
 
-The bucket must already exist. Normal Exoscale bucket creation, download and
+For this initial upload-only slice, the bucket had to exist. Creation, download and
 cleanup workflows are **not** certified by this upload proof.
 
 For Exoscale, `env --s3` selects the live declared authority and exports upper/lower-case
@@ -418,6 +420,78 @@ copy, optional checksum negotiation beyond the measured requests and provider
 cloud-error dialects remain explicit Feint refusals, not invented successes.
 
 `tools/falsify/specs/s3-multipart.json` replays the input, scope, bound and
-transactional-publication checks. Full Object Storage 1.0, native Exoscale usage,
-ACL/CORS/ownership discovery, public stacks and TLS/Terraform interception remain
-outside this delivery.
+transactional-publication checks. The following slices add default discovery,
+native usage and a bounded Terraform witness. Full Object Storage 1.0 and
+public-stack certification remain outside this delivery.
+
+## Ordinary Exoscale bucket lifecycle and native usage
+
+`mise run conformance:s3:mounted` now runs ordinary `exo storage mb` and
+`storage show`, then upload/list/download and bucket removal. Default private
+ACL, missing CORS (404) and missing ownership controls (**400**, not 404) follow
+the seven-exchange, user-authorized empty-bucket recording in
+[exoscale-sos-empty-bucket.json](./evidence/exoscale-sos-empty-bucket.json).
+That temporary cloud bucket was deleted; the ongoing witnesses use fake keys.
+Setting writes remain refused, not invented successes.
+
+`GET /v2/sos-buckets-usage` reports persisted creation dates and logical
+published object sizes from the same neutral store. It excludes retained blobs
+and unpublished upload parts. Disabled storage and malformed legacy metadata
+produce explicit errors. The mounted witness compares `exo storage show` and
+native usage across process restart, and proves native inventory empty after
+removal. Its native control plane and S3 door both use `ch-gva-2`; this does not
+certify a mismatched zone configuration.
+
+## Isolated Scaleway Terraform storage witness
+
+The official **Scaleway provider 2.82.0** ignores `SCW_S3_ENDPOINT` in its S3
+client and uses cloud-shaped HTTPS virtual hosts. `s3.LocalTransport` maps only
+declared authorities to an explicit loopback emulator; unknown hosts never dial.
+The existing proxy supplies a temporary CA and exact-SNI leaves. Dotted bucket
+names and literal encoded keys are held by transport tests; the Terraform
+witness uses an explicitly allowed bucket hostname.
+
+Recorded private bucket ACL writes, absent CORS/object-lock/lifecycle errors,
+ListObjects v1 and object private-ACL/empty-tag reads follow the pinned provider's
+[official object cassette](https://github.com/scaleway/terraform-provider-scaleway/blob/731e3dce545df08853ea490cd144de10b3216492/internal/services/object/testdata/object-basic.cassette.yaml).
+The Scaleway ACL identity names the first declared local project (the default
+project if none was declared). This is a single storage-tenant model, not IAM.
+Public ACLs, tag writes and object-version histories remain refused.
+
+`TestScalewayTerraformStorageInIsolatedNetwork` requires a disposable Linux
+network namespace with **only loopback up**, and refuses root execution.
+Download the published provider outside that namespace first; point
+`FEINT_TF_PLUGIN_DIR` at its installed provider directory. Then:
+
+```bash
+testbin="$(mktemp)"
+go test -c -tags=conformance ./internal/cli -o "$testbin"
+cd internal/cli
+sudo -n unshare --net -- sh -c \
+  'ip link set lo up && exec setpriv --reuid="$1" --regid="$2" --init-groups env PATH="$3" FEINT_TF_PLUGIN_DIR="$4" "$5" -test.run=^TestScalewayTerraformStorageInIsolatedNetwork$ -test.v -test.timeout=5m' \
+  sh "$(id -u)" "$(id -g)" "$PATH" "$FEINT_TF_PLUGIN_DIR" "$testbin"
+rm "$testbin"
+```
+
+The witness checks an unreachable external address, apply, an empty second
+plan, **122,880 identical bytes**, byte-store close/reopen, another empty plan,
+destroy and explicit owned GC. This is the storage-shaped bucket/object graph,
+not a certified Flatcar image: the qcow2-named payload is arbitrary test bytes.
+There is no provider fork, global hosts/DNS/CA change or cloud-capable fallback.
+The proxy is a test harness, **not a shipped `feint run` command**.
+
+## Neutral byte checkpoints and explicit GC
+
+The neutral store now exposes durable named save/reset/delete checkpoints and
+explicit collection. Checkpoints preserve complete byte manifests and upload
+sessions in the same owned root. Exclusive checkpoint/reset/GC operations block
+active mutations; collection preserves current and checkpoint-referenced blobs,
+with deduplication/hardlink accounting.
+
+Race tests and `tools/falsify/specs/objectstore-checkpoints.json` hold this
+library slice. Readers can delay exclusive operations; quota accounting excludes
+unlinked files still held open by a reader. Failed GC can have partially collected
+unreferenced files and reports the error. Malformed checkpoints require repair.
+These checkpoints are neither portable exports nor coordinated control-plane/
+runtime snapshots. The CLI's resource snapshots still omit object bytes; #853
+is not complete.

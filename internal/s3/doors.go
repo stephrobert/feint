@@ -29,12 +29,19 @@ const UploadReadTimeout = 30 * time.Second
 // Profile is a provider's declared wire dialect and client environment names.
 // Variables stay local to the composition root, never taken from an HTTP report.
 type Profile struct {
-	Provider            string
-	Region              string
-	MissingBucket       MissingBucketShape
-	Variables           []string
-	RegionVariable      string
-	BucketConfiguration bool
+	Provider             string
+	Region               string
+	MissingBucket        MissingBucketShape
+	Variables            []string
+	RegionVariable       string
+	BucketConfiguration  bool
+	AbsentConfigurations map[string]AbsentConfiguration
+	ObjectDiscovery      bool
+	ListObjectsV1        bool
+	OwnerID              string
+	PrivateACLWrite      bool
+	// CloudHost is the measured authority used by clients ignoring endpoints.
+	CloudHost string
 	// HostEndpoint selects the host door for clients that discard path prefixes.
 	HostEndpoint bool
 }
@@ -131,7 +138,9 @@ func mount(next http.Handler, store *objectstore.Store, profiles []Profile, maxO
 		}
 		server, err := New(store, Config{Region: p.Region, MaxObjectBytes: maxObjectBytes,
 			MissingBucket: p.MissingBucket, Namespace: p.Provider + "/" + p.Region, Log: log,
-			BucketConfiguration: p.BucketConfiguration})
+			BucketConfiguration: p.BucketConfiguration, AbsentConfigurations: p.AbsentConfigurations,
+			ObjectDiscovery: p.ObjectDiscovery, ListObjectsV1: p.ListObjectsV1, OwnerID: p.OwnerID,
+			PrivateACLWrite: p.PrivateACLWrite})
 		if err != nil {
 			return nil, err
 		}

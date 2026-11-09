@@ -36,7 +36,7 @@ func SCW(t *testing.T, base Client, endpoint string) Client {
 	}
 	client.Env = append(client.Env, "PATH="+filepath.Dir(binary)+":/usr/bin:/bin",
 		"SCW_S3_ENDPOINT="+endpoint, "SCW_API_URL="+api.String(), "SCW_INSECURE=true", "SCW_CACHE_DIR="+cache)
-	for key, value := range fakeCredentials(t) {
+	for key, value := range FakeCredentials(t) {
 		if key != "SCW_API_URL" {
 			client.Env = append(client.Env, key+"="+value)
 		}

@@ -55,7 +55,7 @@ description = "Prove the unmounted path-style S3 component with AWS CLI 2.32.17 
 run = "go test -race -tags=conformance ./internal/s3 -run '^TestOfficialAWSCLIBytes$' -count=1 -v"
 
 [tasks."conformance:s3:mounted"]
-description = "Prove AWS/scw/exo bytes, multipart resume/abort, listing/ranges and bulk deletion across actual restart"
+description = "Prove AWS/scw/exo bytes, normal Exo bucket/native usage, multipart and cleanup across actual restart"
 run = "go test -race -tags=conformance ./internal/cli -run '^TestMountedS3OfficialAWSCLIBytes$' -count=1 -v"
 
 [tasks."conformance:s3:exo:endpoint"]
@@ -633,9 +633,38 @@ tools/conformance/guard.sh leftovers "${FEINT_VM:-off}"
 # it filters by `name=default` and is unchanged by the second name; what the
 # second one buys is the case #572 is about, which no unit test can reach: `scw`
 # and the Terraform provider resolving a project whose name is not `default`.
+#
+# --objectstore, and it is the probe that needs it rather than any client suite
+# here. `exoscale/v2.list-sos-buckets-usage` reads the byte inventory and answers
+# 503 "Object Storage is disabled" without one, so the probe — which builds its
+# request from the operation's own schema, and that schema declares a 200 body —
+# counted it as a route answering the wrong shape. It is the whole reason this
+# task went red the first time the operation was mounted.
+#
+# Three alternatives were measured and rejected:
+#   - declaring the probe axis Unearnable: a lie. The axis CAN be earned; it
+#     needs a directory. TestAnUnearnableAxisIsNotAlreadyEarned would bite.
+#   - declaring the 503 in the contract: a worse lie. Exoscale's API documents no
+#     such answer; the 503 is this emulator's own refusal, and putting it in the
+#     provider's description would make the contract describe an API nobody has.
+#   - teaching the probe to skip the route: it would sub-declare the axis in
+#     coverage/evidence.json for an operation that is in fact served and checkable.
+#
+# A private directory under the run's own temporary root, so this costs what a
+# mktemp costs and leaves nothing behind. 0700 because the store refuses a root
+# whose writable parent carries no sticky bit, and it is right to: a store under
+# a world-writable parent can be swapped underneath it.
+#
+# Checked before widening the task: nothing under tools/conformance/ asserts the
+# absence of object storage. The 503s that grep finds there are fault injections
+# on ListServers, ReadNets and list-instances, unrelated to this.
+conformance_objects="$(mktemp -d)"
+chmod 0700 "$conformance_objects"
+trap 'rm -rf "$conformance_objects"' EXIT
 ./feint start --addr $FEINT_ADDR --vm ${FEINT_VM:-off} --contracts contracts \
-  --projects default,platform-prod --timeout 60s
-trap './feint stop --addr $FEINT_ADDR >/dev/null 2>&1 || true' EXIT
+  --projects default,platform-prod --timeout 60s \
+  --objectstore "$conformance_objects/objects"
+trap './feint stop --addr $FEINT_ADDR >/dev/null 2>&1 || true; rm -rf "$conformance_objects"' EXIT
 tools/conformance/scaleway/scw-cli.sh "http://$FEINT_ADDR"
 tools/conformance/scaleway/terraform.sh "http://$FEINT_ADDR"
 tools/conformance/outscale/octl.sh "http://$FEINT_ADDR"

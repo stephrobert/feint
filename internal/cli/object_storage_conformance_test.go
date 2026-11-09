@@ -39,7 +39,7 @@ func TestMountedS3OfficialAWSCLIBytes(t *testing.T) {
 		t.Fatalf("local proxy control did not record its refusal: %v hits=%d", err, guardHits.Load())
 	}
 	aws := conformancetest.AWS(t, guard.URL, "")
-	aws.Env = append(aws.Env, "AWS_REQUEST_CHECKSUM_CALCULATION=when_required")
+	aws.Env = append(aws.Env, "AWS_REQUEST_CHECKSUM_CALCULATION=when_required", "FEINT_EXOSCALE_ZONE=ch-gva-2")
 	binary := filepath.Join(t.TempDir(), "feint")
 	buildCtx, cancelBuild := context.WithTimeout(t.Context(), 2*time.Minute)
 	build := exec.CommandContext(buildCtx, "go", "build", "-o", binary, "../../cmd/feint")
@@ -183,22 +183,6 @@ func TestMountedS3OfficialAWSCLIBytes(t *testing.T) {
 		}
 	}
 	get := func(door s3.Door, expected []byte) { getKey(door, key, expected) }
-	for i, door := range first.ObjectStorage.Doors {
-		if door.Provider == "scaleway" {
-			bucketCall("create", true)
-		} else {
-			call(door, "create-bucket", "--bucket", bucket)
-		}
-		if i == 1 {
-			if err := os.WriteFile(input, []byte("separate-sos-scope"), 0600); err != nil {
-				t.Fatal(err)
-			}
-		}
-		call(door, "put-object", "--bucket", bucket, "--key", key, "--body", input,
-			"--content-type", "application/octet-stream", "--checksum-algorithm", "CRC32")
-	}
-	get(first.ObjectStorage.Doors[0], payload)
-	get(first.ObjectStorage.Doors[1], []byte("separate-sos-scope"))
 	// Use each client's exact exported environment, without evaluating shell text.
 	var exoVars map[string]string
 	hostSCW := scw
@@ -242,6 +226,33 @@ func TestMountedS3OfficialAWSCLIBytes(t *testing.T) {
 	}
 	hostSCW.Run(t, "-o", "json", "object", "bucket", "delete", "feint-host-scw", "region=fr-par")
 	exo := conformancetest.EXO(t, aws, exoVars)
+	beforeExoBucket := exo.Run(t, "-O", "json", "storage", "mb", "--zone", "ch-gva-2", "sos://"+bucket)
+	var discovery struct {
+		Name            string `json:"name"`
+		Zone            string `json:"zone"`
+		CORS            []any  `json:"cors"`
+		ObjectOwnership string `json:"objectOwnership"`
+	}
+	if err := json.Unmarshal(beforeExoBucket, &discovery); err != nil || discovery.Name != bucket ||
+		discovery.Zone != "ch-gva-2" || discovery.ObjectOwnership != "BucketOwnerEnforced" || len(discovery.CORS) != 0 {
+		t.Fatalf("ordinary Exo creation/discovery did not reflect the actual private bucket: %v %q", err, beforeExoBucket)
+	}
+	for i, door := range first.ObjectStorage.Doors {
+		if door.Provider == "scaleway" {
+			bucketCall("create", true)
+		}
+		initial := payload
+		if i == 1 {
+			initial = []byte("separate-sos-scope")
+		}
+		if err := os.WriteFile(input, initial, 0600); err != nil {
+			t.Fatal(err)
+		}
+		call(door, "put-object", "--bucket", bucket, "--key", key, "--body", input,
+			"--content-type", "application/octet-stream", "--checksum-algorithm", "CRC32")
+	}
+	get(first.ObjectStorage.Doors[0], payload)
+	get(first.ObjectStorage.Doors[1], []byte("separate-sos-scope"))
 	if err := os.WriteFile(input, payload, 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -361,6 +372,17 @@ func TestMountedS3OfficialAWSCLIBytes(t *testing.T) {
 	if !foundLarge {
 		t.Fatal("actual Exo listing omitted size/date of the uploaded object:", string(beforeObjects))
 	}
+	beforeNativeUsage := exo.Run(t, "-O", "json", "storage", "list", "--zone", "ch-gva-2")
+	var nativeUsage []struct {
+		Name, Zone, Created string
+		Size                int64
+	}
+	expectedUsage := int64(len("separate-sos-scope") + len(payload) + len(largePayload))
+	if err := json.Unmarshal(beforeNativeUsage, &nativeUsage); err != nil || len(nativeUsage) != 1 ||
+		nativeUsage[0].Name != bucket || nativeUsage[0].Zone != "ch-gva-2" ||
+		nativeUsage[0].Created == "" || nativeUsage[0].Size != expectedUsage {
+		t.Fatalf("native Exo usage is not derived from the actual published bytes: %v %q", err, beforeNativeUsage)
+	}
 	// A same-name object in the other provider is a positive isolation control.
 	if err := os.WriteFile(input, []byte("other-provider-host-key"), 0600); err != nil {
 		t.Fatal(err)
@@ -394,6 +416,12 @@ func TestMountedS3OfficialAWSCLIBytes(t *testing.T) {
 	if after := exo.Run(t, "--output-format", "json", "storage", "list", "sos://"+bucket+"/"); !bytes.Equal(after, beforeObjects) {
 		t.Fatalf("actual Exo object inventory changed across restart: before=%q after=%q", beforeObjects, after)
 	}
+	if after := exo.Run(t, "-O", "json", "storage", "show", "sos://"+bucket); !bytes.Equal(after, beforeExoBucket) {
+		t.Fatalf("ordinary Exo bucket discovery changed across restart: before=%q after=%q", beforeExoBucket, after)
+	}
+	if after := exo.Run(t, "-O", "json", "storage", "list", "--zone", "ch-gva-2"); !bytes.Equal(after, beforeNativeUsage) {
+		t.Fatalf("native Exo usage changed across restart: before=%q after=%q", beforeNativeUsage, after)
+	}
 	if after := uploadInventory(); !bytes.Equal(after, beforeUploads) {
 		t.Fatalf("upload sessions changed across actual restart: before=%q after=%q", beforeUploads, after)
 	}
@@ -424,7 +452,7 @@ func TestMountedS3OfficialAWSCLIBytes(t *testing.T) {
 	getKey(first.ObjectStorage.Doors[1], "after-restart", []byte("other-provider-host-key"))
 	var live statusReport
 	if err := json.Unmarshal(run("status", "--addr", addr, "--format", "json"), &live); err != nil ||
-		live.ObjectStorage == nil || live.ObjectStorage.HTTPRequests["http://"+first.ObjectStorage.Doors[1].Host+" 200"] != 4 {
+		live.ObjectStorage == nil || live.ObjectStorage.HTTPRequests["http://"+first.ObjectStorage.Doors[1].Host+" 200"] != 6 {
 		t.Fatalf("actual Exo HEAD/PUT after restart did not traverse its declared host: %+v %v", live.ObjectStorage, err)
 	}
 	download(exoKey, payload)
@@ -524,6 +552,9 @@ func TestMountedS3OfficialAWSCLIBytes(t *testing.T) {
 				t.Fatalf("dangling-session positive control was lost: %q", out)
 			}
 			exo.Run(t, "storage", "rb", "--force", "sos://"+bucket)
+			if out := exo.Run(t, "-O", "json", "storage", "list", "--zone", "ch-gva-2"); json.Unmarshal(out, &nativeUsage) != nil || len(nativeUsage) != 0 {
+				t.Fatalf("native Exo usage retained the deleted bucket: %q", out)
+			}
 			continue
 		}
 		call(door, "head-object", "--bucket", bucket, "--key", key)

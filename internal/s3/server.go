@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
 	"math"
 	"net"
 	"net/http"
@@ -52,6 +53,17 @@ type Config struct {
 	// BucketConfiguration enables the measured private, non-versioned bucket
 	// workflow, independently of the missing-bucket error dialect.
 	BucketConfiguration bool
+	// AbsentConfigurations declares measured errors for unwritten bucket settings.
+	// These settings have no write support and cannot silently become configured.
+	AbsentConfigurations map[string]AbsentConfiguration
+	// ObjectDiscovery admits measured private ACL and empty-tag reads only.
+	ObjectDiscovery bool
+	// ListObjectsV1 admits the recorded legacy listing alongside ListObjectsV2.
+	ListObjectsV1 bool
+	// OwnerID is the declared local tenant's canonical ACL identity.
+	OwnerID string
+	// PrivateACLWrite admits the recorded empty-body private bucket ACL write.
+	PrivateACLWrite bool
 	// Set only by the explicit host-door composition, not by direct callers.
 	endpointHost string
 }
@@ -75,10 +87,18 @@ func New(store *objectstore.Store, cfg Config) (*Server, error) {
 	if cfg.MissingBucket != ScalewayMissingBucket && cfg.MissingBucket != ExoscaleMissingBucket {
 		return nil, errors.New("s3: select a measured missing-bucket response shape")
 	}
+	for feature, response := range cfg.AbsentConfigurations {
+		if (feature != "cors" && feature != "ownershipControls" && feature != "object-lock" && feature != "lifecycle") ||
+			response.Status < 400 || response.Status > 499 ||
+			response.Code == "" || !headerValue(response.Code) || !headerValue(response.Message) {
+			return nil, errors.New("s3: invalid measured absent bucket configuration")
+		}
+	}
+	cfg.AbsentConfigurations = maps.Clone(cfg.AbsentConfigurations)
 	return &Server{store: store, cfg: cfg}, nil
 }
 
-// ServeHTTP implements bucket PUT/HEAD/DELETE, ListObjectsV2, DeleteObjects and object
+// ServeHTTP implements bucket PUT/HEAD/DELETE, declared object listings, DeleteObjects and object
 // PUT/GET/HEAD/DELETE, including single-byte-range GETs.
 // Other features get an explicit Feint refusal, never a successful empty stub
 // or an invented cloud XML error. Signatures and credentials are never logged.
@@ -108,20 +128,22 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rawBucket, rawKey, _ := strings.Cut(strings.TrimPrefix(r.URL.EscapedPath(), "/"), "/")
-	listing := r.Method == http.MethodGet && rawKey == "" && query.Get("list-type") == "2"
+	listing := r.Method == http.MethodGet && rawKey == "" &&
+		(query.Get("list-type") == "2" || (s.cfg.ListObjectsV1 && legacyListQuery(query)))
 	bulkDelete := r.Method == http.MethodPost && rawKey == "" && query.Has("delete")
 	multipart := query.Has("uploads") || query.Has("uploadId")
 	for key := range query {
 		if multipart && multipartQueryKey(key) {
 			continue
 		}
-		if listing && listQueryKey(key) {
+		if listing && (listQueryKey(key) || key == "marker") {
 			continue
 		}
 		if bulkDelete && key == "delete" {
 			continue
 		}
-		if key != "x-id" && (!s.cfg.BucketConfiguration || (key != "versioning" && key != "acl" && key != "tagging")) {
+		_, absent := s.cfg.AbsentConfigurations[key]
+		if key != "x-id" && (!s.cfg.BucketConfiguration || (key != "versioning" && key != "acl" && key != "tagging" && !absent)) {
 			s.refuse(w, r, http.StatusNotImplemented, "S3 query features are not implemented", nil)
 			return
 		}
@@ -175,6 +197,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if query.Has("versioning") || query.Has("acl") || query.Has("tagging") {
+		if s.cfg.ObjectDiscovery && r.Method == http.MethodGet && !query.Has("versioning") {
+			s.objectConfiguration(w, r, bucket, key, query)
+			return
+		}
 		s.refuse(w, r, http.StatusNotImplemented, "bucket configuration queries require a bucket, not an object", nil)
 		return
 	}

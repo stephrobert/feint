@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "provider": "exoscale",
+  "region": "ch-gva-2",
+  "observed_at": "2026-11-07",
+  "client": "exo 1.95.1 (7aaf76d0b13b8e10a343ec88c9cb03116f09b4c1)",
+  "provenance": "User-authorized temporary empty bucket, current account used only internally by exo; scoped TLS recorder allowed only that bucket. Seven exchanges, zero drops, zero out-of-scope forwards. DELETE 204 witnessed. No object or other resource written.",
+  "redaction": "Identity values, request identifiers and authentication removed before persistence. XML below retains recorded protocol members, with canonical owner identity replaced by a local fixture; it is not an unmodified wire transcript.",
+  "exchanges": [
+    {"method": "PUT", "query": "", "status": 200, "body": ""},
+    {
+      "method": "GET",
+      "query": "acl=",
+      "status": 200,
+      "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><AccessControlPolicy xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\"><Owner><ID>REDACTED</ID><DisplayName>REDACTED</DisplayName></Owner><AccessControlList><Grant><Grantee xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:type=\"CanonicalUser\"><ID>REDACTED</ID><DisplayName>REDACTED</DisplayName></Grantee><Permission>FULL_CONTROL</Permission></Grant></AccessControlList></AccessControlPolicy>"
+    },
+    {
+      "method": "GET",
+      "query": "cors=",
+      "status": 404,
+      "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Error><Code>NoSuchCORSConfiguration</Code><Message>The CORS configuration does not exist.</Message><BucketName>feint-measured-bucket</BucketName></Error>"
+    },
+    {
+      "method": "GET",
+      "query": "ownershipControls=",
+      "status": 400,
+      "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Error><Code>OwnershipControlsNotFoundError</Code><Message>The bucket ownership controls were not found</Message></Error>"
+    },
+    {"method": "HEAD", "query": "", "status": 403, "body": "", "note": "Unsigned discovery; region header present. This is not evidence of authenticated access refusal."},
+    {"method": "GET", "query": "uploads=", "status": 200, "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><ListMultipartUploadsResult xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\"><Bucket>feint-measured-bucket</Bucket><MaxUploads>1000</MaxUploads><IsTruncated>false</IsTruncated></ListMultipartUploadsResult>"},
+    {"method": "DELETE", "query": "", "status": 204, "body": ""}
+  ]
+}

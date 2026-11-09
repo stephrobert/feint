@@ -769,6 +769,34 @@ exoc -Q compute anti-affinity-group delete conformance-aag --force >/dev/null \
 prove_end "$span"
 ok "security group and anti-affinity group deleted"
 
+# The native SOS inventory, which is the one route of this pack no client drove.
+#
+# `exo storage list` calls ListSOSBucketsUsage — exoscale/cli
+# cmd/storage/storage_list.go, read 2026-11-09 — so the route has a client and
+# does not belong in Route.Undriven. Before this assertion the operation sat at
+# driven:false in coverage/evidence.json and
+# TestEveryUndrivenOperationSaysWhy demanded either a reason or a client. The
+# reason would have been false, and "not wired up yet" is not a reason to
+# decline (#859 states that in as many words).
+#
+# It needs no new endpoint: /v2/sos-buckets-usage is on the v2 API that
+# EXOSCALE_API_ENDPOINT above already redirects. What it does need is the byte
+# inventory, so `mise run conformance` starts the emulator with --objectstore;
+# without it the route answers 503 and the probe counted that as a wrong shape.
+#
+# An empty list is the whole assertion, and deliberately so. This emulator has
+# no bucket at this point, and the honest answer to "what do my buckets weigh"
+# is then an empty inventory rather than a catalogue. #858 asks for values
+# derived from real buckets, not a fictional one, and a zero-length answer over
+# zero buckets is that derivation at its smallest.
+echo "- the native SOS inventory answers for the buckets that exist"
+usage="$(exoc -O json storage list)" || fail "storage list rejected: $usage"
+printf '%s' "$usage" | jq -e 'type == "array"' >/dev/null \
+  || fail "the SOS inventory is not a list: $usage"
+printf '%s' "$usage" | jq -e 'length == 0' >/dev/null \
+  || fail "the SOS inventory invented $(printf '%s' "$usage" | jq 'length') bucket(s) where none exist: $usage"
+ok "an empty inventory over zero buckets, derived rather than catalogued"
+
 # Every answer above was also checked against Exoscale's own API description,
 # because the emulator validates itself when --contracts is set. A field they do
 # not declare fails the request rather than reaching the client.

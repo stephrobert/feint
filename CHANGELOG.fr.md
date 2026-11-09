@@ -19,6 +19,21 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Ajouté
 
+- **Le socle de livraison Object Storage** (#850, #858) : création normale,
+  lecture et suppression de bucket Exo, usage natif issu des octets publiés et
+  erreurs de découverte enregistrées. L'inventaire natif est
+  `exoscale/v2.list-sos-buckets-usage`, un refus retiré : il répond à
+  `GET /v2/sos-buckets-usage` depuis les mêmes octets publiés plutôt que depuis
+  un catalogue, `exo storage list` le pilote (le client appelle
+  ListSOSBucketsUsage), et il répond toujours 503 sans `--objectstore`, parce
+  que l'inventaire d'un inventaire absent n'est pas zéro.
+  Terraform Scaleway 2.82.0 passe apply,
+  plans vides, réouverture du store, GET identique de 122 880 octets, destroy
+  et GC explicite en namespace réseau limité à loopback, via interception TLS
+  ciblée. C'est un harnais, pas `feint run` ni une certification de stack entière.
+  Les checkpoints d'octets neutres conservent le multipart et protègent le GC ;
+  le reset coordonné CLI/plan de contrôle/runtime reste à finir.
+
 - **Le multipart persistant, prouvé avec Exo/AWS réels** (#856) :
   exo 1.95.1 téléverse 6 340 608 octets en multipart ; AWS vérifie l'assemblage,
   reprend les parties après redémarrage réel et termine un autre objet.
@@ -26,9 +41,9 @@ change ni l'un ni l'autre a sa place dans `git log`.
   Le format privé v4 lit v1..v3 ; un retour à un ancien binaire demande une copie
   complète du store avant migration. L'assemblage garde la limite du PUT simple ;
   parties et assemblage partagent le quota, et l'abandon n'est pas du GC.
-  Les tags SHA-256 opaques ne promettent pas des ETag génériques. Création normale
-  de bucket Exo, usage natif, erreurs cloud mixtes et Object Storage 1.0 complet
-  restent hors de cette preuve.
+  Les tags SHA-256 opaques ne promettent pas des ETag génériques. La tranche
+  suivante ajoute création Exo normale et usage natif ; erreurs cloud mixtes et
+  Object Storage 1.0 complet restent hors de cette preuve.
 
 - **La suppression en lot Exo, mesurée** (#856) : exo 1.95.1 supprime quatre
   vraies clés ; AWS vérifie l'inventaire vide après redémarrage et les octets

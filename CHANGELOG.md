@@ -17,6 +17,21 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Added
 
+- **Object Storage release groundwork** (#850, #858): ordinary Exo bucket
+  creation/show/removal and native usage now use recorded default discovery
+  errors and the actual published byte inventory. The native inventory is
+  `exoscale/v2.list-sos-buckets-usage`, a refusal withdrawn: it answers
+  `GET /v2/sos-buckets-usage` from the same published bytes rather than a
+  catalogue, `exo storage list` drives it (the client calls
+  ListSOSBucketsUsage), and it still answers 503 without `--objectstore`
+  because an inventory of an inventory that does not exist is not zero.
+  Scaleway Terraform 2.82.0
+  completes apply, empty plans, byte-store reopen, identical 122,880-byte GET,
+  destroy and explicit GC in a loopback-only namespace through scoped TLS
+  interception. This is a test harness, not `feint run` or full-stack certification.
+  Neutral named byte checkpoints preserve multipart sessions and protect GC
+  references; coordinated CLI/control-plane/runtime reset remains unfinished.
+
 - **Persistent multipart, proved with real Exo/AWS clients** (#856):
   exo 1.95.1 multipart-uploads 6,340,608 bytes; AWS verifies assembled bytes,
   resumes persisted parts after actual restart and completes another object.
@@ -24,8 +39,9 @@ what this project is judged on: **a response shape a client can observe**, and
   Private metadata v4 reads v1..v3; older binaries need a pre-upgrade whole-store
   copy for rollback. Assembly uses the simple-PUT limit; retained parts and
   assembly share the blob quota, and abort is not GC. Opaque SHA-256 part tags
-  are not generic ETags. Normal Exo bucket creation, native usage, mixed per-key
-  cloud errors and full Object Storage 1.0 remain outside this proof.
+  are not generic ETags. The newer slice above adds normal Exo creation and
+  native usage; mixed per-key cloud errors and full Object Storage 1.0 remain
+  outside this proof.
 
 - **Measured Exo bulk deletion** (#856): exo 1.95.1 deletes four actual keys;
   AWS independently checks the empty inventory across restart and untouched

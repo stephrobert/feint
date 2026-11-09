@@ -25,6 +25,33 @@ const (
 	bucketCreated    = "s3.created"
 )
 
+// AbsentConfiguration is a recorded, provider-facing error for an unwritten
+// setting. It does not grant support for writing that setting.
+type AbsentConfiguration struct {
+	Status     int
+	Code       string
+	Message    string
+	BucketName bool
+	RequestIDs bool
+	Resource   bool
+}
+
+// BucketCreationTime reads the date persisted by bucket creation. A legacy
+// bucket with no date is an error, never assigned a fabricated current time.
+func BucketCreationTime(metadata map[string]string) (time.Time, error) {
+	return time.Parse(time.RFC3339Nano, metadata[bucketCreated])
+}
+
+type absentConfigurationError struct {
+	Code       string
+	Message    string
+	BucketName string   `xml:",omitempty"`
+	RequestID  string   `xml:"RequestId,omitempty"`
+	HostID     string   `xml:"HostId,omitempty"`
+	Resource   string   `xml:",omitempty"`
+	XMLName    xml.Name `xml:"Error"`
+}
+
 // Bucket configuration remains separate from object upload header support.
 // Only the measured create defaults and versioning checksum are admitted.
 func (s *Server) bucketHeaders(r *http.Request, query url.Values, bucket bool) (*http.Request, error) {
@@ -32,6 +59,14 @@ func (s *Server) bucketHeaders(r *http.Request, query url.Values, bucket bool) (
 		return r, nil
 	}
 	checked := r.Clone(r.Context())
+	if s.cfg.PrivateACLWrite && query.Has("acl") {
+		values := r.Header.Values("X-Amz-Acl")
+		if len(values) != 1 || values[0] != "private" {
+			return nil, errors.New("only the private bucket canned ACL is supported")
+		}
+		checked.Header.Del("X-Amz-Acl")
+		return checked, nil
+	}
 	if query.Has("versioning") {
 		checked.Header.Del("Content-MD5")
 		return checked, nil
@@ -152,7 +187,32 @@ func (s *Server) bucketConfiguration(w http.ResponseWriter, r *http.Request, nam
 		s.storeError(w, r, name, err)
 		return
 	}
+	if missing, ok := s.cfg.AbsentConfigurations[feature]; ok && r.Method == http.MethodGet {
+		response := absentConfigurationError{Code: missing.Code, Message: missing.Message}
+		if missing.BucketName {
+			response.BucketName = name
+		}
+		if missing.RequestIDs {
+			id := rand.Text()
+			response.RequestID, response.HostID = id, id
+			w.Header().Set("X-Amz-Request-Id", id)
+			w.Header().Set("X-Amz-Id-2", id)
+		}
+		if missing.Resource {
+			response.Resource = "/" + name
+		}
+		s.writeXML(w, r, missing.Status, response)
+		return
+	}
+
 	switch {
+	case feature == "acl" && r.Method == http.MethodPut && s.cfg.PrivateACLWrite:
+		body, err := configurationBody(w, r)
+		if err != nil || len(body) != 0 {
+			s.refuse(w, r, http.StatusNotImplemented, "only empty-body private bucket ACL writes are implemented", err)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
 	case feature == "versioning" && r.Method == http.MethodPut:
 		body, readErr := configurationBody(w, r)
 		if readErr != nil {
@@ -197,6 +257,40 @@ func (s *Server) bucketConfiguration(w http.ResponseWriter, r *http.Request, nam
 	}
 }
 
+func (s *Server) objectConfiguration(w http.ResponseWriter, r *http.Request, bucket, key string, query url.Values) {
+	feature := ""
+	for name, values := range query {
+		if name == "x-id" {
+			continue
+		}
+		if feature != "" || len(values) != 1 || values[0] != "" || (name != "acl" && name != "tagging") {
+			s.refuse(w, r, http.StatusBadRequest, "one empty object discovery query is required", nil)
+			return
+		}
+		feature = name
+	}
+	if len(r.Header.Values("Range")) != 0 {
+		s.refuse(w, r, http.StatusNotImplemented, "Range requires object bytes, not object configuration", nil)
+		return
+	}
+	if _, err := s.store.HeadObject(r.Context(), s.name(bucket), key); err != nil {
+		s.storeError(w, r, bucket, err)
+		return
+	}
+	if feature == "acl" {
+		owner := s.bucketOwner()
+		s.writeXML(w, r, http.StatusOK, accessControlPolicy{Owner: owner, Grant: aclGrant{
+			Grantee: aclGrantee{Type: "CanonicalUser", XSI: "http://www.w3.org/2001/XMLSchema-instance",
+				ID: owner.ID, DisplayName: owner.DisplayName}, Permission: "FULL_CONTROL",
+		}})
+		return
+	}
+	s.writeXML(w, r, http.StatusOK, struct {
+		XMLName xml.Name `xml:"http://s3.amazonaws.com/doc/2006-03-01/ Tagging"`
+		TagSet  struct{}
+	}{})
+}
+
 // These paths, namespaces and the canonical private grant follow the official
 // v2.62.0 create cassette. The owner is a stable local identity, not cloud IAM.
 type bucketOwner struct {
@@ -223,6 +317,9 @@ type accessControlPolicy struct {
 }
 
 func (s *Server) bucketOwner() bucketOwner {
+	if s.cfg.OwnerID != "" {
+		return bucketOwner{DisplayName: "feint", ID: s.cfg.OwnerID}
+	}
 	sum := sha256.Sum256([]byte("feint-local-owner/" + s.cfg.Namespace))
 	return bucketOwner{DisplayName: "feint", ID: hex.EncodeToString(sum[:])}
 }
@@ -256,7 +353,7 @@ func (s *Server) listBuckets(w http.ResponseWriter, r *http.Request) {
 		}
 		metadata := inventory[name]
 		created := metadata[bucketCreated]
-		if _, err := time.Parse(time.RFC3339Nano, created); err != nil || !bucketName(wireName) {
+		if _, err := BucketCreationTime(metadata); err != nil || !bucketName(wireName) {
 			s.refuse(w, r, http.StatusNotImplemented, "legacy bucket listing has no measured creation metadata", err)
 			return
 		}

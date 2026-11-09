@@ -34,7 +34,7 @@ func AWS(t *testing.T, proxy, ca string) Client {
 	if err := os.Chmod(home, 0700); err != nil { //nolint:gosec // a private directory, not a file
 		t.Fatal(err)
 	}
-	fake := fakeCredentials(t)
+	fake := FakeCredentials(t)
 	cli := Client{Path: binary, Home: home, Env: []string{
 		"HOME=" + home, "PATH=" + filepath.Dir(binary) + ":/usr/bin:/bin",
 		"XDG_STATE_HOME=" + home, "XDG_RUNTIME_DIR=" + home,
@@ -56,7 +56,8 @@ func AWS(t *testing.T, proxy, ca string) Client {
 	return cli
 }
 
-func fakeCredentials(t *testing.T) map[string]string {
+// FakeCredentials reads the single public-fake credential fixture.
+func FakeCredentials(t *testing.T) map[string]string {
 	t.Helper()
 	creds, err := os.ReadFile("../../tools/conformance/scaleway/fake-credentials.env")
 	if err != nil {

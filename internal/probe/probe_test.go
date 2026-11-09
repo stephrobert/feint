@@ -4,12 +4,14 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/stephrobert/feint/internal/contract"
 	"github.com/stephrobert/feint/internal/core/emulator"
+	"github.com/stephrobert/feint/internal/core/objectstore"
 	"github.com/stephrobert/feint/internal/probe"
 	"github.com/stephrobert/feint/internal/providers/exoscale"
 	"github.com/stephrobert/feint/internal/providers/outscale"
@@ -45,6 +47,46 @@ func runProbe(t *testing.T, provider string) probe.Report {
 
 	env := emulator.DefaultEnv()
 	env.Contracts = map[string]*contract.Doc{provider: doc}
+
+	// The byte inventory is wired, and that is a decision rather than a
+	// convenience.
+	//
+	// Routes that read it answer 503 "Object Storage is disabled" without it, and
+	// the probe counts a 503 to a request built from the operation's own schema
+	// as a failure — correctly, because the contract declares a 200 body there.
+	// `exoscale/v2.list-sos-buckets-usage` failed exactly that way the first time
+	// it was probed.
+	//
+	// Skipping the route instead would have been the easier fix and the wrong
+	// one. The repository skips what it cannot look at: a machine runtime is a
+	// side effect on the operator's host, so `--vm` stays off by default and a
+	// check that needs it abstains. A byte inventory is none of that. It is a
+	// directory, it costs a t.TempDir(), and the probe's whole purpose is to
+	// prove the shape of what a route answers. An operation whose only probe
+	// result is "skipped" is an operation nothing checks.
+	//
+	// TestEveryRouteAnswersItsContract fails on list-sos-buckets-usage without
+	// these three lines.
+	// 0700 on the parent, which the store insists on: it refuses a root whose
+	// writable parent carries no sticky bit, and a bare t.TempDir() is exactly
+	// that. The guard is right — a store under a world-writable parent can be
+	// swapped underneath it — so the test satisfies it rather than working
+	// around it, the same way the Exoscale and CLI storage tests do.
+	root := t.TempDir()
+	if err := os.Chmod(root, 0o700); err != nil {
+		t.Fatalf("restrict the byte inventory's parent: %v", err)
+	}
+	objects, err := objectstore.Open(t.Context(), filepath.Join(root, "objects"))
+	if err != nil {
+		t.Fatalf("open the byte inventory the probe needs: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := objects.Close(); err != nil {
+			t.Errorf("close the byte inventory: %v", err)
+		}
+	})
+	env.Objects = objects
+
 	pack := packOf(t, provider, env)
 
 	srv, err := emulator.NewServer(env, pack)

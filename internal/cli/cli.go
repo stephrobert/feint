@@ -1174,6 +1174,7 @@ func serve(args []string, stdout io.Writer) (result error) {
 		return err
 	}
 	if objects != nil {
+		env.Objects = objects
 		defer func() {
 			if err := objects.Close(); err != nil {
 				result = errors.Join(result, fmt.Errorf("close object storage: %w", err))

@@ -130,8 +130,8 @@
     {
       "label": "legacy buckets receive an invented listing date",
       "file": "internal/s3/bucket_configuration.go",
-      "find": "if _, err := time.Parse(time.RFC3339Nano, created); err != nil || !bucketName(wireName) {",
-      "replace": "if _, err := time.Parse(time.RFC3339Nano, created); (err != nil || !bucketName(wireName)) && false {",
+      "find": "if _, err := BucketCreationTime(metadata); err != nil || !bucketName(wireName) {",
+      "replace": "if _, err := BucketCreationTime(metadata); (err != nil || !bucketName(wireName)) && false {",
       "test": "TestRestoredBucketConfigurationIsRevalidated"
     },
     {
