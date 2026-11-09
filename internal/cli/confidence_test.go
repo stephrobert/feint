@@ -118,3 +118,72 @@ func slugOf(heading string) string {
 	}
 	return b.String()
 }
+
+// TestTheHardcodedEndpointRowIsOwnedByAnInstrument is #850's criterion 59 as a
+// control rather than as a promise.
+//
+// That criterion asks for "a generated/bounded capability statement, not
+// hand-edited marketing prose". The row cannot be GENERATED from
+// capabilityMatrix: that matrix admits one axis, a client against a pack, and
+// this is a different one — a data-plane capability for a pair already marked
+// supported on the control plane. Widening it for one row would mean a new mode
+// and a new proof kind, and capability.go records why that is the wrong move
+// (#644 deleted a proof kind precisely because no row rested on it, leaving a
+// resolver nobody exercised).
+//
+// So the row is BOUNDED instead, which is the other half of the criterion and
+// the part that actually prevents the defect. The claim and the instrument are
+// tied: the row may say "opt-in" only while the conformance workflow runs the
+// witness that establishes it, and the witness must exist. Delete the job, or
+// rename the test, and this fails — which is what "a sentence nobody owns
+// cannot be contradicted" was asking for.
+func TestTheHardcodedEndpointRowIsOwnedByAnInstrument(t *testing.T) {
+	const witness = "TestScalewayTerraformStorageThroughFeintRunOnTheHostNetwork"
+	root := repoRoot(t)
+
+	page, err := os.ReadFile(filepath.Join(root, "docs", "confidence.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var row string
+	for _, line := range strings.Split(string(page), "\n") {
+		if strings.Contains(line, "Hardcoded Scaleway Terraform Object Storage endpoints") {
+			row = line
+			break
+		}
+	}
+	if row == "" {
+		t.Fatal("docs/confidence.md no longer carries the hardcoded-endpoint row; if the subject is gone, this control goes with it")
+	}
+	if strings.Contains(row, "**no**") {
+		// Nothing more to check: a refusal needs no instrument, and the row
+		// below is about what a CLAIM costs.
+		return
+	}
+
+	if !strings.Contains(row, witness) {
+		t.Fatalf("the row claims a capability without naming the witness that establishes it:\n%s", row)
+	}
+	workflow, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "conformance.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(workflow), witness) {
+		t.Fatalf("docs/confidence.md claims the hardcoded-endpoint path while conformance.yml no longer runs %s: "+
+			"the claim would rest on a measurement nobody takes", witness)
+	}
+	source, err := os.ReadFile(filepath.Join(root, "internal", "cli", "run_terraform_conformance_test.go"))
+	if err != nil {
+		t.Fatalf("the witness file the row and the workflow both name is unreadable: %v", err)
+	}
+	if !strings.Contains(string(source), "func "+witness+"(") {
+		t.Fatalf("%s is named by the row and by the workflow and defined nowhere: `go test -run` on a name that "+
+			"matches nothing exits 0, so this would be a green job proving nothing", witness)
+	}
+	// The row must say what it does NOT cover. The witness is not the whole
+	// story — OpenTofu is untested on this path — and a capability row that
+	// only lists what works is the brochure this page exists to avoid.
+	if !strings.Contains(strings.ToLower(row), "opentofu") {
+		t.Fatalf("the row claims the path without naming what it leaves out:\n%s", row)
+	}
+}
