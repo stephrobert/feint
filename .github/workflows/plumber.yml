@@ -115,45 +115,52 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: tools/ci/pin-freshness.sh getplumber/plumber "${PLUMBER_VERSION}"
 
-      # --min-points 98, which is the score measured with every control active,
-      # and the paragraph that stood here is gone because it had become the
-      # thing this repository has a rule against.
+      # --min-points 100, the binary's own default, and it is a measurement
+      # rather than an aspiration — which is the whole difference from the
+      # paragraph that used to stand here.
       #
-      # It said: "Tighten to --min-points 100 once the first green CI run
-      # confirms the score on the pinned version, and delete this paragraph when
-      # you do." It sat unchanged for three months. The threshold was never
+      # That paragraph said: "Tighten to --min-points 100 once the first green CI
+      # run confirms the score on the pinned version, and delete this paragraph
+      # when you do." It sat unchanged for three months. The threshold was never
       # tightened, and the score it cited — A, 100.0/100, 2026-07-30 — had been
-      # taken with plumber 0.4.12 against a policy that enumerated 19 of the
-      # controls that version knew. A comment is not a control, and a TODO in a
-      # comment is not a plan.
+      # taken with plumber 0.4.12 against a policy enumerating 19 of the controls
+      # that version knew, over a PAT that had since died. A comment is not a
+      # control, and a TODO in a comment is not a plan.
       #
       # Measured on 2026-11-09 with plumber 0.7.23 and the overlay policy, in a
-      # clone with the GitHub origin. Twice, because the first measurement was
-      # taken before the two fixable findings were fixed:
+      # clone with the GitHub origin, three times — because each number was taken
+      # before the next finding was removed:
       #
-      #   22 controls passed, 1 skipped, 3 findings  -> 94/100
-      #   22 controls passed, 1 skipped, 1 finding   -> 98/100  (this)
+      #   22 controls passed, 1 skipped, 3 findings ->  94/100
+      #   22 controls passed, 1 skipped, 1 finding  ->  98/100
+      #   23 controls passed, 1 skipped, 0 findings -> 100/100  (this)
       #
-      # The three were ISSUE-307, LOW and latent: a token left in .git/config
-      # becomes a leak only if a later step packs .git into an artefact. Two of
-      # them were the `propose` jobs of drift.yml and corpus-cloud.yml, and the
-      # first reading of this file said they could not be fixed without moving
-      # the secret to another file on the same runner — satisfying the scanner
-      # and reducing nothing. That was wrong: a credential helper that reads the
-      # token from its own environment removes the finding AND the file, and
-      # pavois had already settled on exactly that shape. Both now use it, worth
-      # +2 each, measured.
+      # All three findings were ISSUE-307, LOW and latent: a token left in
+      # .git/config becomes a leak only once a later step packs .git into an
+      # artefact. Each was removed rather than excused, and the order matters
+      # because the first reading of this file declared two of them unfixable:
       #
-      # The one that remains is a checkout inside google/osv-scanner-action's
-      # reusable workflow, line 78 of their file. Not ours to set, so 100 needs
-      # that dependency replaced by the verified binary this repository uses for
-      # actionlint, poutine, zizmor and plumber itself. That is its own change
-      # with its own measurement, and until it lands the honest threshold is 98.
+      #   drift.yml, corpus-cloud.yml — the `propose` jobs push a branch, so they
+      #     were said to need what checkout leaves behind, every alternative
+      #     merely moving the secret to another file on the same runner. Wrong: a
+      #     credential helper reading the token from its own environment removes
+      #     the finding AND the file. +2 each.
+      #   osv-scanner.yml — the checkout was inside google/osv-scanner-action's
+      #     reusable workflow, line 78 of their file, and genuinely not ours to
+      #     set. So the dependency went: the verified binary replaces it, which
+      #     is the pattern every other scanner here already follows. +2.
+      #
+      # The 23rd passing control is checkoutMustNotPersistCredentials itself: it
+      # was failing, so it never appeared among the passed, and the count moves
+      # the moment its last finding goes. Measured by diffing the passed-control
+      # lists before and after, because the first version of this comment
+      # guessed a different control and guessed wrong.
       #
       # Points and not --min-score A on purpose: A spans 90-100, so a new control
       # finding something worth four points would stay green under the letter.
       # On the points, any loss reds and gets triaged. If a finding here is ever
-      # accepted, this number moves WITH the reason written beside it.
+      # accepted, this number moves WITH the reason written beside it — and the
+      # three above are what accepting one looks like when it is not necessary.
       - name: Plumber
         env:
           # Fine-grained PAT, Administration + Metadata read. Without a LIVE one
@@ -199,4 +206,4 @@ jobs:
           # So the 48 were the live token's absence all along, and wiring a
           # second credential would have added a knob that changes nothing. It
           # was written, measured, and removed before it shipped.
-        run: plumber analyze --min-points 98 --score-push
+        run: plumber analyze --min-points 100 --score-push
