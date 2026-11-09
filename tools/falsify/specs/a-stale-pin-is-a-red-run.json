@@ -1,0 +1,34 @@
+{
+  "package": "./tools/ci/",
+  "mutations": [
+    {
+      "label": "the minor comparison always holds, so a pin three minor series behind reports 'patch only, no action required' and exits 0 — the exact silence plumber sat in from 0.4.22 to 0.7.23",
+      "file": "tools/ci/pin-freshness.sh",
+      "find": "if [ \"${pinned%.*}\" = \"${latest%.*}\" ]; then",
+      "replace": "if [ \"${pinned%.*}\" = \"${latest%.*}\" ] || true; then",
+      "test": "TestPinFreshness"
+    },
+    {
+      "label": "an unreadable upstream is reported as a pass, so a rate-limited or renamed repository reads as 'nothing moved' — the failure mode measured seven times in this repository",
+      "file": "tools/ci/pin-freshness.sh",
+      "find": "  echo \"pin-freshness: could not read the latest release of ${repo}: ${raw}\" >&2\n  exit 1",
+      "replace": "  echo \"pin-freshness: could not read the latest release of ${repo}: ${raw}\" >&2\n  exit 0",
+      "test": "TestPinFreshness"
+    },
+    {
+      "label": "a tag that is not a dotted version is compared anyway, so 'nightly' against '0.7.23' answers something instead of refusing",
+      "file": "tools/ci/pin-freshness.sh",
+      "find": "    echo \"pin-freshness: ${repo} answered tag '${raw}', which is not a dotted version\" >&2\n    exit 1",
+      "replace": "    echo \"pin-freshness: ${repo} answered tag '${raw}', which is not a dotted version\" >&2\n    exit 0",
+      "test": "TestPinFreshness"
+    },
+    {
+      "label": "the empty pin passes, so a renamed or deleted PLUMBER_VERSION compares '' against a real version and sends somebody looking for a release that is already current",
+      "file": "tools/ci/pin-freshness.sh",
+      "find": "  echo \"pin-freshness: the pinned version is empty; nothing to compare\" >&2\n  exit 1",
+      "replace": "  echo \"pin-freshness: the pinned version is empty; nothing to compare\" >&2\n  exit 0",
+      "test": "TestPinFreshnessRefusesAnEmptyPin"
+    }
+  ],
+  "note": "The subject is the pin that went stale in silence. plumber was pinned at 0.4.22 on 2026-07-30 and was still at 0.4.22 on 2026-11-09, three minor series behind, and nothing in the repository could say so: a version literal in a workflow has no way of knowing it has gone stale. The cost was not the version number. .plumber.yaml enumerated its controls by hand, and an enumerated control map is exhaustive, so the 33 controls plumber added between 0.4 and 0.7 were absent, absent means disabled, and the badge read 100/100 over 19 of 52 controls. With every control active the score is 89/100, and 94 once the one action nobody had authorised is authorised. The verdict is on the MINOR series rather than the patch because plumber shipped 0.7.16 through 0.7.23 in ten days: a patch-level gate reds on most weekly runs and is removed within a month, which is the --no-verify argument CLAUDE.md makes about hooks arriving through a scanner. Mutation 1 is the one that matters — it restores exactly the silence that let three minor series pass — and the other three are the ways 'we could not look' can be made to read as 'nothing moved'."
+}

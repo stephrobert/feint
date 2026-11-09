@@ -37,6 +37,19 @@ jobs:
     # what makes the environment a boundary rather than a label: without it
     # any branch could declare `environment: Prod` and read the secret.
     environment: Prod
+    # One copy of the version, read by the install step and by the staleness
+    # check below. Two copies would be the defect #749 had just finished
+    # removing from the golangci-lint and ruff pins: a version written twice
+    # drifts, and the failure is silent in the worst direction.
+    #
+    # Moved 0.4.22 -> 0.7.23 on 2026-11-09. 0.4.22 was pinned on 2026-07-30 and
+    # sat here three months while upstream shipped three minor series; nothing
+    # in the repository could say so, because a literal in a workflow has no way
+    # of knowing it has gone stale. What that cost is measured in .plumber.yaml:
+    # 33 of 52 controls absent from an enumerated policy written against the old
+    # surface, while the badge read 100/100.
+    env:
+      PLUMBER_VERSION: "0.7.23"
     permissions:
       contents: read
       # OIDC, and it is what makes the README badge trustworthy: the score is
@@ -61,8 +74,6 @@ jobs:
       # `gh attestation verify` is the stronger check to add when the repository
       # has a token to spend on it.
       - name: Install plumber (verified release binary)
-        env:
-          PLUMBER_VERSION: "0.4.22"
         run: |
           set -euo pipefail
           workdir="$(mktemp -d)"
@@ -74,26 +85,125 @@ jobs:
           sudo install -m 0755 "${workdir}/${asset}" /usr/local/bin/plumber
           plumber version
 
-      # --min-score B, and the reason is now measured rather than guessed. An
-      # audit ran this exact binary against a clone with a GitHub origin and got
-      # **B, 85/100, with a HIGH finding passing**: zizmorcore/zizmor-action was
-      # missing from the trustedGithubActions list in .plumber.yaml, so the job
-      # whose business is trust policy was itself flagged. That list is fixed.
+      # The pin does not drift silently any more.
       #
-      # Measured again on 2026-07-30, once the remote existed and the action was
-      # replaced by the release binary above: **A, 100.0/100, zero findings at
-      # every severity**. That was with plumber 0.4.12 locally, not the 0.4.22
-      # this job installs, which is the only reason the threshold is still B.
-      # **Tighten to --min-points 100 (the binary's default) once the first green
-      # CI run confirms the score on the pinned version**, and delete this
-      # paragraph when you do. A gate whose threshold nobody revisited is a gate
-      # that drifts back to decoration.
+      # On the MINOR series, not the patch, and that bound is a measurement
+      # rather than a taste: plumber shipped 0.7.16 through 0.7.23 in ten days,
+      # so a gate on the patch level would red on most weekly runs and be
+      # removed within a month — the `--no-verify` argument CLAUDE.md makes
+      # about hooks, arriving through a scanner. A minor behind is the shape
+      # that actually hurt: three of them turned an exhaustive policy into a
+      # score over a shrinking subset.
+      #
+      # It reds rather than warns, because this job already runs weekly and
+      # nothing else reads a warning. It reds on the schedule and on dispatch
+      # only: a release published between a push and its merge is the world
+      # moving, not this repository breaking, and blocking main on it would be
+      # the "us, or the world?" confusion runtime-proof.yml exists to avoid.
+      #
+      # The decision lives in tools/ci/pin-freshness.sh and not in this block,
+      # for the reason night-report.sh states: a `run:` block cannot be executed
+      # off GitHub Actions, and this repository has audited cases of CI fixes
+      # that existed only as comments. It exits 2 on a stale pin, the
+      # repository's drift code, and 1 when it could not read upstream — "we
+      # could not look" is never reported as "nothing moved".
+      # TestPinFreshness drives all eight branches; the script is nothing
+      # without it.
+      - name: The pinned version is still the current minor
+        if: github.event_name != 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: tools/ci/pin-freshness.sh getplumber/plumber "${PLUMBER_VERSION}"
+
+      # --min-points 100, the binary's own default, and it is a measurement
+      # rather than an aspiration — which is the whole difference from the
+      # paragraph that used to stand here.
+      #
+      # That paragraph said: "Tighten to --min-points 100 once the first green CI
+      # run confirms the score on the pinned version, and delete this paragraph
+      # when you do." It sat unchanged for three months. The threshold was never
+      # tightened, and the score it cited — A, 100.0/100, 2026-07-30 — had been
+      # taken with plumber 0.4.12 against a policy enumerating 19 of the controls
+      # that version knew, over a PAT that had since died. A comment is not a
+      # control, and a TODO in a comment is not a plan.
+      #
+      # Measured on 2026-11-09 with plumber 0.7.23 and the overlay policy, in a
+      # clone with the GitHub origin, three times — because each number was taken
+      # before the next finding was removed:
+      #
+      #   22 controls passed, 1 skipped, 3 findings ->  94/100
+      #   22 controls passed, 1 skipped, 1 finding  ->  98/100
+      #   23 controls passed, 1 skipped, 0 findings -> 100/100  (this)
+      #
+      # All three findings were ISSUE-307, LOW and latent: a token left in
+      # .git/config becomes a leak only once a later step packs .git into an
+      # artefact. Each was removed rather than excused, and the order matters
+      # because the first reading of this file declared two of them unfixable:
+      #
+      #   drift.yml, corpus-cloud.yml — the `propose` jobs push a branch, so they
+      #     were said to need what checkout leaves behind, every alternative
+      #     merely moving the secret to another file on the same runner. Wrong: a
+      #     credential helper reading the token from its own environment removes
+      #     the finding AND the file. +2 each.
+      #   osv-scanner.yml — the checkout was inside google/osv-scanner-action's
+      #     reusable workflow, line 78 of their file, and genuinely not ours to
+      #     set. So the dependency went: the verified binary replaces it, which
+      #     is the pattern every other scanner here already follows. +2.
+      #
+      # The 23rd passing control is checkoutMustNotPersistCredentials itself: it
+      # was failing, so it never appeared among the passed, and the count moves
+      # the moment its last finding goes. Measured by diffing the passed-control
+      # lists before and after, because the first version of this comment
+      # guessed a different control and guessed wrong.
+      #
+      # Points and not --min-score A on purpose: A spans 90-100, so a new control
+      # finding something worth four points would stay green under the letter.
+      # On the points, any loss reds and gets triaged. If a finding here is ever
+      # accepted, this number moves WITH the reason written beside it — and the
+      # three above are what accepting one looks like when it is not necessary.
       - name: Plumber
         env:
-          # Fine-grained PAT, Administration + Metadata read. Without it the
-          # branch-protection collector returns an empty branch list and
+          # Fine-grained PAT, Administration + Metadata read. Without a LIVE one
+          # the branch-protection collector returns an empty branch list and
           # branchMustBeProtected emits nothing — the degraded contract
           # .plumber.yaml documents, which reads exactly like a pass.
+          #
+          # "Reads exactly like a pass" stopped being a warning and became a
+          # measurement on 2026-11-09. This secret was last set on 2026-07-30
+          # and had gone dead; every run of this job was answering
+          # `A 100.0/100, ✓ Branch must be protected` over a token GitHub
+          # refuses. Reproduced locally on the two versions, same repository,
+          # same policy, a well-formed token GitHub rejects:
+          #
+          #   0.4.22 -> ✓ Branch must be protected, PASSED, A 100.0/100
+          #   0.7.23 -> INCOMPLETE, score withheld, "repo is not visible"
+          #
+          # 0.7.23 added the probe that tells the two apart
+          # (control/task_github.go:426, github/GitHubRepoVisible): the
+          # per-branch endpoints swallow 401 and 404 alike, so zero branches is
+          # ambiguous, and its own comment says an invisible repo "reads as a
+          # vacuous branch-protection pass (caught empirically)". So the red this
+          # job now shows is not a regression, it is the first true answer it has
+          # given since the token lapsed, and the date of that lapse is not
+          # recoverable from the logs — a silent instrument cannot say when it
+          # went silent.
+          #
+          # Rotating this secret is what makes the job green again. Nothing in
+          # the repository can do it, and nothing should paper over it: a gate
+          # that passes without its credential is the defect, not the symptom.
           GH_TOKEN: ${{ secrets.ADMIN_READ_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.ADMIN_READ_TOKEN }}
-        run: plumber analyze --min-score B --score-push
+          # PLUMBER_METADATA_TOKEN is deliberately NOT set here, and the reason
+          # is a measurement rather than an omission. The 48 × ISSUE-716 that
+          # accompanied the dead token looked like a second, separate credential
+          # gap — plumber's README documents that variable for exactly this
+          # symptom. Measured on 2026-11-09, same repository, three runs:
+          #
+          #   GH_TOKEN invalid, no metadata token        -> 48 × ISSUE-716
+          #   GH_TOKEN invalid, metadata token VALID     -> 48 × ISSUE-716
+          #   GH_TOKEN valid,   no metadata token        ->  0
+          #
+          # So the 48 were the live token's absence all along, and wiring a
+          # second credential would have added a knob that changes nothing. It
+          # was written, measured, and removed before it shipped.
+        run: plumber analyze --min-points 100 --score-push

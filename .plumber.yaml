@@ -1,492 +1,122 @@
-# Plumber configuration — trust policy over the pipeline's third-party
-# components. Read by the `plumber` job in .github/workflows/workflow-security.yml.
+# Plumber trust policy over the pipeline's third-party components: what may be
+# used, from whom, pinned how. Read by the `plumber` job in
+# .github/workflows/plumber.yml.
 #
-# Only the `github:` section is kept. The generated template also carries a
-# `gitlab:` one, 517 lines of controls for a forge this project does not use; it
-# was dropped rather than carried, because a policy nobody applies reads as a
-# policy in force. `plumber config validate` accepts the file without it, which
-# is how that was established rather than assumed.
+# This file is an OVERLAY, not a full policy, and that is the whole point.
 #
-# Reference: https://github.com/getplumber/plumber/blob/main/.plumber.yaml
-# Regenerate the full template with: plumber config generate
+# ## Why it changed shape
+#
+# The previous version enumerated every control by hand, 492 lines of them, and
+# an enumerated `github.controls` map is EXHAUSTIVE: a control Plumber ships
+# after the file is written is not "default-enabled", it is **absent**, and
+# absent means disabled. Measured on 2026-11-09 against plumber 0.7.23:
+#
+#   52 GitHub controls in the catalogue
+#   19 declared in this file
+#   33 absent, and therefore off
+#
+# Six of them were reported as "Skipped (disabled in configuration)" while only
+# ONE was actually disabled on purpose here. The score the badge showed was
+# 100/100; with every control active it is 89/100. That is the exact failure
+# mode this repository has a rule about: a number that measures a shrinking
+# subset reads identically to a number that measures everything.
+#
+# `extends: plumber:default` inherits the baseline AND every control added to it
+# later, so a new control arrives enabled and is triaged by a red run rather
+# than by nobody. What follows is only what is deliberately changed.
+#
+# See the effective result with `plumber config resolve`, and the deltas with
+# `plumber config diff`. Never `plumber config generate` over this file: it
+# writes the full template and the decisions below go with it.
+#
+# ## What is NOT here any more, and why that is safe
+#
+# The `gitlab:` section. It was 517 lines of controls for a forge this project
+# does not use, and the previous file had already dropped it; `plumber config
+# slim` wants to write it back as a wall of `enabled: false`. Under `extends`
+# that is unnecessary: plumber resolves the provider from the git remote, and a
+# GitHub repository never evaluates the GitLab controls.
+#
+# The curated action allowlist. The old file carried its own copy of Plumber's
+# list, 11 entries, and set `minimumStars: 0`, which disarms the star threshold
+# entirely. Measured: of those 11, **ten are covered by the baseline**
+# (step-security, ossf, google, anchore, sigstore, docker x3, and actions/ and
+# github/ through `trustGithubOfficialActions`). Only one is not, and it is
+# below.
 
+extends: plumber:default
 version: "2.0"
-
-# Plumber Score publishing is controlled by your CI pipeline, not this file:
-# set the `score-push` input on the Plumber GitHub Action / GitLab component
-# (or pass --score-push / PLUMBER_ANALYZE_SCORE_PUSH). Publishing happens ONLY
-# in CI (it needs a CI-native OIDC id-token, so a local run never publishes and
-# can't spoof another repo's badge). Docs: https://getplumber.io/docs/plumber-score
-# To target a self-hosted score service, uncomment and set the endpoint:
-# score:
-#   endpoint: https://score.example.com
 
 github:
   controls:
-    # ===========================================
-    # Actions must be pinned by commit SHA
-    # ===========================================
-    # Flags workflow steps whose `uses:` reference is not a 40-character
-    # commit SHA. Tag/branch refs (v4, main) are mutable: if the action's
-    # maintainer is compromised or retags a release, the caller workflow
-    # silently runs new code with its secrets. This is the vector behind
-    # the March 2025 tj-actions/changed-files compromise (CVE-2025-30066).
+    # softprops/action-gh-release is the one action here that no baseline rule
+    # clears, and the control is working as intended: it refuses to decide on
+    # our behalf and asks for the decision in writing. Here it is.
     #
-    # The default trustedOwners list exempts first-party (`actions/*`,
-    # `github/*`) actions so the initial signal on a fresh repo stays
-    # focused on the third-party surface. Pair with Dependabot
-    # (`version-update-strategy: sha-and-version`) to keep pins fresh.
-    actionsMustBePinnedByCommitSha:
-      enabled: true
-      # Action-owner prefixes exempt from the pin-by-SHA requirement.
-      # Only list owners already inside the workflow's trust boundary.
-      trustedOwners:
-        - actions
-        - github
-
-    # ===========================================
-    # Actions must come from authorized sources
-    # ===========================================
-    # Restrict which `uses:` action sources are allowed. Every third-
-    # party action runs with the caller workflow's token and secrets, so
-    # limiting actions to vetted owners shrinks the supply-chain surface.
+    # It publishes the release with its assets (release.yml), which is the step
+    # RELEASING.md's promise rests on: the binaries, their checksums, the
+    # signature and the provenance go out together, or the release keeps that
+    # promise in appearance only. It is pinned by commit SHA
+    # (efb35369e0ad2afab669f228072c1b0d510eae64, v3.0.3), so the pin bounds what
+    # a compromise of that repository could do to this one.
+    #
+    # Scoped to this one action rather than `softprops/*`, and
+    # includePlumberDefaults keeps the curated list underneath rather than
+    # replacing it, which is the mistake the previous file made.
     githubActionMustComeFromAuthorizedSources:
-      enabled: true
-      # Trust the first-party GitHub-owned actions (actions/*, github/*)
-      # that any workflow already executes implicitly. Defaults to true.
-      trustGithubOfficialActions: true
-      # Trust actions whose owner is the same org/user as the scanned
-      # repository — an org's own actions are inside its trust boundary.
-      # Defaults to true.
-      trustSameOrgActions: true
-      # When > 0, also trust any action whose upstream repository has at
-      # least this many GitHub stars. Catches rename/re-creation squats
-      # where a once-trusted name is re-registered with no history.
-      # Requires GitHub API access; 0 disables the star check.
-      minimumStars: 0
-      # Allowlist of trusted action sources. Each entry is either an
-      # exact `owner/repo` or an `owner/*` wildcard for a whole org.
-      # Every third-party action this repository runs, one line each. The list
-      # is the whole of it: an action that appears in a workflow and not here
-      # fails the analysis, which is the point — a new action is a decision,
-      # not a diff.
-      #
-      # It is checked by running plumber, never by reading it. An audit ran the
-      # binary for real and got a HIGH on the very job whose business is trust
-      # policy: zizmorcore/zizmor-action was missing here. That entry is gone
-      # again, and for a better reason — zizmor is now installed as a release
-      # binary with its SLSA provenance verified, like the three other scanners,
-      # so the file that guards the trust boundary no longer widens it.
+      includePlumberDefaults: true
       trustedGithubActions:
-        - step-security/harden-runner # runner egress monitoring, first step of every job
-        - ossf/scorecard-action # OpenSSF Scorecard
-        - google/osv-scanner-action # vulnerability scan against OSV
-        - anchore/sbom-action # CycloneDX SBOM (Syft)
-        - sigstore/cosign-installer # keyless signing of release artefacts
-        - trufflesecurity/trufflehog # secret scan
-        - softprops/action-gh-release # release publication
-        - docker/setup-buildx-action # multi-arch builder for the release image
-        - docker/login-action # ghcr.io login before the release image push
-        - docker/build-push-action # build and push of the release image
+        - softprops/action-gh-release
 
-    # ===========================================
-    # Container images must not use forbidden tags
-    # ===========================================
-    # Same control as GitLab; values are GitHub-side. Pinning by digest
-    # protects against tag-retag supply-chain attacks. The forbidden tag
-    # list catches the common cases of mutable references.
-    containerImageMustNotUseForbiddenTags:
-      enabled: true
-      tags:
-        - latest
-        - dev
-        - development
-        - staging
-        - main
-        - master
-      # When true, ALL images must be pinned by digest (e.g.,
-      # alpine@sha256:...). Takes precedence over the forbidden tags
-      # list — any image not using an immutable digest reference is
-      # flagged.
-      containerImagesMustBePinnedByDigest: true
-
-    # ===========================================
-    # Pipeline must not use Docker-in-Docker
-    # ===========================================
-    # Workflows on GitHub-hosted runners that spin up `docker:dind`
-    # services have the same privilege-escalation risk as on GitLab.
-    # detectInsecureDaemon also flags plaintext DOCKER_HOST and empty
-    # DOCKER_TLS_CERTDIR values.
-    pipelineMustNotUseDockerInDocker:
-      enabled: true
-      detectInsecureDaemon: true
-
-    # ===========================================
-    # Pipeline must not execute unverified scripts
-    # ===========================================
-    # Same control as GitLab (ISSUE-411). Scans every workflow `run:` step
-    # for pipe-to-shell, download-then-exec, redirect-then-exec, and Megalodon-
-    # style base64 obfuscation. Maps to OWASP CICD-SEC-3 / CICD-SEC-8.
-    pipelineMustNotExecuteUnverifiedScripts:
-      enabled: true
-      trustedUrls: []
-      # - https://internal-artifacts.example.com/*
-
-    # ===========================================
-    # Reusable workflows must not inherit secrets
-    # ===========================================
-    # Detects `jobs.<name>.secrets: inherit` calls. Inherit forwards
-    # every secret visible to the caller — repo, organisation,
-    # environment — to the reusable workflow regardless of what it
-    # actually needs. Use an explicit secrets map instead.
-    reusableWorkflowsMustNotInheritSecrets:
-      enabled: true
-
-    # ===========================================
-    # Security jobs must not be weakened
-    # ===========================================
-    # Jobs matching the security-scanner naming patterns must not be
-    # neutralised via `continue-on-error: true` (mapped to the same
-    # IR field as GitLab's allow_failure: true) or manual-dispatch-only
-    # triggers. The pattern set covers the GitHub-native scanners
-    # users actually run — `codeql`, `dependency-review`, `trufflehog`,
-    # `gitleaks`, `osv-scanner`, plus generic fallbacks like
-    # `*scan*`, `*audit*`, `*security*` so SAST jobs named with
-    # project-specific prefixes still match.
-    securityJobsMustNotBeWeakened:
-      enabled: true
-      # How patterns are matched
-      # ────────────────────────
-      # Each pattern is a glob (`*` matches any substring) compared
-      # against the job name plumber builds for every job in your
-      # workflows. That name is:
-      #
-      #     <workflow filename, .yml/.yaml stripped>/<job id in YAML>
-      #
-      # Examples:
-      #   .github/workflows/codeql-analysis.yml + jobs.analyze
-      #       -> codeql-analysis/analyze
-      #   .github/workflows/ci.yml             + jobs.lint
-      #       -> ci/lint
-      #   .github/workflows/workflow.yml       + jobs.my-sast
-      #       -> workflow/my-sast
-      #
-      # The namespace exists so two workflow files defining a job
-      # with the same id do not collide. Patterns can target whichever
-      # part of that name is stable for your repo:
-      #   "*<token>*"           token anywhere in the name (resilient)
-      #   "<workflow>/*"        every job in one workflow file
-      #   "*/<jobid>"           specific job id, any workflow
-      #   "<workflow>/<jobid>"  exact match, no wildcard
-      #
-      # The defaults below ship wildcard-wrapped because plumber does
-      # not know your repo's workflow-file convention. If your jobs
-      # follow a known layout you can drop the wildcards for tighter
-      # matching.
-      securityJobPatterns:
-        - "*codeql*"
-        - "*dependency-review*"
-        - "*trufflehog*"
-        - "*gitleaks*"
-        - "*osv-scanner*"
-        - "*-sast"
-        - "*-sast-*"
-        - "*-scan"
-        - "*scan*"
-        - "*-security"
-        - "*-security-*"
-        - "*-audit"
-        - "*-audit-*"
-        # Real-world slash-form examples (commented; uncomment / adapt
-        # to your repo for a tighter match than the wildcards above).
-        # Format reminder: <workflow-filename-without-extension>/<job-id>.
-        #
-        # - codeql-analysis/analyze              # GitHub's default CodeQL template
-        # - dependency-review/dependency-review  # GitHub's default Dependency Review template
-        # - security/gitleaks                    # gitleaks job in security.yml
-        # - security/trufflehog                  # trufflehog job in security.yml
-        # - security/*                           # every job in security.yml
-        # - "*/sast"                             # any job named "sast", any workflow
-        # - ci/semgrep-sast                      # exact match, no wildcard
-      allowFailureMustBeFalse:
-        enabled: true
-      rulesMustNotBeRedefined:
-        enabled: true
-      whenMustNotBeManual:
-        enabled: true
-
-    # ===========================================
-    # Workflow must not inject user input in scripts
-    # ===========================================
-    # Catches the canonical script-injection class: `${{ github.event.* }}`
-    # / `${{ github.head_ref }}` / `${{ github.actor }}` interpolated
-    # directly into a `run:` shell. Attacker-controlled values like PR
-    # title or branch name can break out of the intended string and
-    # execute arbitrary commands with the job's secrets. Bind through
-    # `env:` first, then reference the env var from the shell.
-    workflowMustNotInjectUserInputInScripts:
-      enabled: true
-
-    # ===========================================
-    # Workflow must not write untrusted content to $GITHUB_ENV / $GITHUB_PATH
-    # ===========================================
-    # Flags a `run:` step that writes an attacker-controlled expression
-    # (${{ github.event.* }} / ${{ github.head_ref }}) into $GITHUB_ENV or
-    # $GITHUB_PATH. Both files are sticky: every later step inherits the
-    # variable or PATH entry, so an injected NODE_OPTIONS (or a front-loaded
-    # PATH directory) hijacks later steps. Critical under pull_request_target /
-    # workflow_run. Bind the value through `env:` and reference the shell
-    # variable on the redirect line.
-    workflowMustNotWriteUntrustedContentToGitHubEnv:
-      enabled: true
-
-    # ===========================================
-    # Workflow must not use dangerous triggers
-    # ===========================================
-    # Flags `pull_request_target` and `workflow_run` triggers, which
-    # run with the base repository's secrets while being influenceable
-    # by an unprivileged caller. Combined with any user-content
-    # checkout this becomes a direct exfiltration path (CVE-2025-30066).
-    # Use the standard `pull_request` trigger unless secrets are
-    # required.
-    workflowMustNotUseDangerousTriggers:
-      enabled: true
-
-    # ===========================================
-    # pull_request_target must not check out PR head
-    # ===========================================
-    # Flags a workflow triggered by `pull_request_target` that checks
-    # out the pull-request head (github.event.pull_request.head.sha or
-    # github.head_ref). Base-repo secrets and fork-controlled code then
-    # run together, which is the tj-actions / CVE-2025-30066 vector.
-    # Keep fork code under a plain `pull_request` trigger instead.
-    pullRequestTargetMustNotCheckoutHead:
-      enabled: true
-
-    # ===========================================
-    # Workflows must declare permissions
-    # ===========================================
-    # Workflows without an explicit `permissions:` block fall back to
-    # the repo-wide GITHUB_TOKEN default — often `contents: write` or
-    # `read-all`. Declaring `permissions: { contents: read }` at the
-    # workflow level enforces least-privilege regardless of the repo
-    # default.
-    workflowsMustDeclarePermissions:
-      enabled: true
-
-    # ===========================================
-    # Branch must be protected (project governance)
-    # ===========================================
-    # The first project-governance control on the GitHub path. Every
-    # other shipping rule is pipeline-governance (workflow content);
-    # this one inspects repository settings via the GitHub branch-
-    # protection API. Requires a token with `repo` scope (classic
-    # PAT) or "Administration: read" (fine-grained PAT) — content-
-    # only read access is NOT enough. Without scope the collector
-    # returns an empty branch list and the rule emits no findings,
-    # same degraded contract as missing API auth elsewhere.
+    # Repository governance; needs a token with Administration:read and abstains
+    # without one, which is why the plumber job carries ADMIN_READ_TOKEN.
+    #
+    # `main` and nothing else, where the old file listed main, master,
+    # release/*, production and dev. Four of those five do not exist here, and
+    # listing a branch pattern that does not exist is not free: on 2026-10-26 a
+    # release branch named `release/0.14.0` matched `release/*`, was unprotected
+    # because nothing protects a branch created minutes earlier, and reddened
+    # this job. The branch was renamed to chore/release-0-14-0 to get the run
+    # green. A pattern nobody intends to protect turns a trust gate into an
+    # obstacle course, and the next person reaches for --no-verify.
     branchMustBeProtected:
-      enabled: true
-      defaultMustBeProtected: true
       namePatterns:
         - main
-        - master
-        - release/*
-        - production
-        - dev
-      allowForcePush: false
-      codeOwnerApprovalRequired: false
 
-    # ============================================================================
-    # Workflows must include required actions
-    # ============================================================================
-    # Asserts that every workflow file under .github/workflows/
-    # collectively references a set of required actions or reusable
-    # workflows. The GitHub counterpart of
-    # pipelineMustIncludeComponent / pipelineMustIncludeTemplate on
-    # the GitLab side.
-    #
-    # GitHub has two ways to "include" something external; the
-    # control treats both the same so you do not have to declare
-    # which is which:
-    #
-    #   Step-level action:
-    #     steps:
-    #       - uses: myorg/sast-scan@v2
-    #
-    #   Job-level reusable workflow call:
-    #     jobs:
-    #       security:
-    #         uses: myorg/policy/.github/workflows/scan.yml@v2
-    #
-    # Each required entry is an `owner/repo[/path]` string. Matching
-    # is ref-agnostic so bumping a pinned SHA does not invalidate
-    # the policy. A slash-guard prevents accidental prefix
-    # collisions: `myorg/sast-scan` matches
-    # `myorg/sast-scan@<anything>` and
-    # `myorg/sast-scan/sub@<anything>`, but NOT
-    # `myorg/sast-scan-fork@<anything>`.
-    #
-    # Two ways to define requirements (use one, not both):
-    #
-    # Option 1, Expression syntax ('required'):
-    #   A natural boolean expression using AND, OR, and parentheses.
-    #   AND binds tighter than OR, so "a AND b OR c" means
-    #   "(a AND b) OR c".
-    #
-    #   required: myorg/sast-scan AND myorg/dependency-review
-    #   required: (myorg/sast-scan AND myorg/secret-scan) OR myorg/full-security-suite
-    #
-    # Option 2, Array syntax ('requiredGroups'):
-    #   A list of groups using "OR of ANDs" logic:
-    #     - Each inner array = items that must ALL be present (AND)
-    #     - Outer array = only ONE group needs to be satisfied (OR)
-    #
-    #   requiredGroups:
-    #     - ["myorg/sast-scan", "myorg/dependency-review"]
-    #     - ["myorg/full-security-suite"]
-    #
-    # Disabled by default; opt in once your organization has settled
-    # on the action set every repo is expected to wire up.
-    workflowMustIncludeRequiredActions:
-      enabled: false
-      # required: myorg/sast-scan AND myorg/policy/.github/workflows/scan.yml
-      requiredGroups: []
-
-    # ===========================================
-    # Workflow must not grant write-all permissions
-    # ===========================================
-    # Flags workflows and jobs whose effective `permissions:` block is the
-    # literal `write-all` shortcut. write-all gives GITHUB_TOKEN every
-    # scope (contents, packages, deployments, id-token, …) at the same
-    # time, so any compromise in the workflow — a malicious dependency,
-    # a script-injection bug, a third-party action turning evil — gets
-    # to do anything the repo allows: push to main, publish releases,
-    # mint OIDC tokens for cloud accounts, mark deployments succeeded.
-    #
-    # Workflow-level `permissions: write-all` is propagated to every
-    # job by the GitHub Actions runner; the rule reads the per-job
-    # effective permissions, so a workflow-level grant is caught the
-    # same way as a job-level one.
-    #
-    # Scope: static `permissions:` in committed workflow YAML only.
-    # Flags the literal string shortcut `write-all` on a job's effective
-    # permissions (workflow-level `write-all` is propagated to every job).
-    #
-    # Does not flag: `permissions: { contents: write, … }` maps, `read-all`,
-    # or missing `permissions:` (see `workflowsMustDeclarePermissions` /
-    # ISSUE-801). Does not evaluate `${{ }}` expressions or permissions
-    # inside callee reusable-workflow files Plumber did not fetch.
-    #
-    # Pair with `workflowsMustDeclarePermissions` for the full story.
-    workflowMustNotGrantPermissionsWriteAll:
-      enabled: true
-
-    # ===========================================
-    # Actions must not use ambiguous tag/branch refs
-    # ===========================================
-    # Flags `uses: owner/repo@ref` references whose symbolic name resolves
-    # upstream as BOTH a tag and a branch (e.g. a tag `v1` kept alongside a
-    # long-lived `v1` branch). GitHub Actions resolves tags first, so the
-    # workflow runs the tagged commit today — but a tag deletion, rename, or
-    # a workflow typo silently switches which revision executes, and the
-    # reviewer cannot tell from the YAML alone. Pin to a 40-char commit SHA
-    # to remove the ambiguity.
-    #
-    # Scope: committed `.github/workflows/*.{yml,yaml}` only; step-level
-    # `uses: owner/repo@ref`. Requires GitHub API auth: the collector probes
-    # both the tag and branch namespaces, and without auth the rule abstains.
-    #
-    # Fail-safe: the finding fires only on a positive tag+branch double-hit;
-    # any probe failure leaves the ref unflagged (no false positive).
-    externalRefsMustNotCollide:
-      enabled: true
-
-    # ===========================================
-    # Actions must not reference archived repositories
-    # ===========================================
-    # Flags `uses: owner/repo@ref` references whose upstream repository
-    # is archived on GitHub. Archived repos no longer receive
-    # maintenance: open vulnerabilities stay open, dependency bumps
-    # stop, runtime compatibility regressions accumulate. Pinning by
-    # SHA does not save the caller — the last maintainer (or someone
-    # who later acquires the namespace) can still push new code under
-    # the original repository name.
-    #
-    # Scope: committed `.github/workflows/*.{yml,yaml}` only; step-level
-    # `uses: owner/repo@ref` (not reusable-workflow `jobs.*.uses`, not
-    # local `./.github/actions/*`). Requires GitHub API auth; without it
-    # the rule abstains (no finding).
-    #
-    # How it works: `GET /repos/{owner}/{repo}` → `archived` flag, one
-    # cached lookup per `owner/repo` (all refs share the same result).
-    #
-    # Does not see: callee reusable-workflow files, deleted/private repos
-    # (lookup may fail silently → abstain).
-    actionsMustNotBeArchived:
-      enabled: true
-
-    # ===========================================
-    # Actions must not carry known CVEs
-    # ===========================================
-    # Cross-references every `uses: owner/repo@ref` against the GitHub
-    # Advisory Database under the `actions` ecosystem. A positive hit
-    # means at least one published advisory targets the action's
-    # repository. This is the rule that catches the published-CVE
-    # supply-chain class — tj-actions/changed-files (CVE-2025-30066),
-    # reviewdog/action-setup (March 2025), unpatched versions of
-    # `actions/artifact`.
-    #
-    # Scope: committed `.github/workflows/*.{yml,yaml}` only; step-level
-    # `uses: owner/repo@ref` (not reusable-workflow `jobs.*.uses`, not
-    # `./.github/actions/*`, not `docker://`). Requires GitHub API auth
-    # (`gh` / GH_TOKEN); without it the rule abstains (no finding).
-    #
-    # How it works: one Advisory Database query per `owner/repo`
-    # (`ecosystem=actions`), cached. When the pinned ref resolves to a
-    # semver tag, Plumber filters advisories by `vulnerable_version_range`.
-    # A ref that cannot be resolved to a release version — a commit SHA
-    # with no matching release tag, or a mutable non-numeric tag such as
-    # `rc` / `main` / `latest` — abstains and surfaces a "could not verify"
-    # warning rather than matching every advisory for that repo. Upgrade
-    # past the fixed-in version and re-pin the SHA to clear the finding.
-    #
-    # Does not see: org/repo Variables, runtime `$GITHUB_ENV` writes, or
-    # actions nested inside composite actions you do not call directly.
-    actionsMustNotCarryKnownCVEs:
-      enabled: true
-
-    # ===========================================
-    # Pipeline must not enable debug trace
-    # ===========================================
-    # GitHub-side parallel of the GitLab `pipelineMustNotEnableDebugTrace`
-    # control. Flags workflows or jobs that set the GitHub Actions
-    # debug-trace toggles to a truthy value (`true`, `1`, `yes`).
-    #
-    # When `ACTIONS_STEP_DEBUG=true` or `ACTIONS_RUNNER_DEBUG=true`,
-    # the runner prints every environment variable (including masked
-    # secrets) and every internal action SDK call into the job log.
-    # The masking layer is bypassed for the dump itself, so any
-    # secret consumed by the workflow lands in plaintext in the run
-    # log and is then visible to anyone with `actions: read` on the
-    # repository, plus indefinitely on log artefacts.
-    #
-    # Scope: static `env:` in committed `.github/workflows/*.{yml,yaml}`.
-    # The collector merges workflow-, job-, and step-level `env:` into
-    # each job (step > job > workflow precedence on name collisions).
-    #
-    # Truthy values: `true`, `1`, `yes` (case-insensitive, trimmed).
-    # Variable names: case-insensitive match against `forbiddenVariables`.
-    #
-    # Also flags: `${{ }}` values on forbidden names in static `env:`
-    # (cannot verify off statically), and `run:` lines that write a
-    # forbidden name to `$GITHUB_ENV`. All ISSUE-203 findings are critical.
-    #
-    # Does not see: org/repo/environment Variables with no YAML reference,
-    # env inside callee reusable workflows Plumber did not fetch, or GitHub
-    # UI "Re-run with debug logging" (not in YAML).
-    pipelineMustNotEnableDebugTrace:
-      enabled: true
-      forbiddenVariables:
-        - ACTIONS_STEP_DEBUG
-        - ACTIONS_RUNNER_DEBUG
+# ## No finding is silenced here, and none remains
+#
+# 100/100, 23 controls passed, 1 skipped on purpose, zero findings — measured
+# 2026-11-09 with plumber 0.7.23 against this file. Worth stating plainly
+# because this repository knows what a 100 can hide: the previous one was taken
+# over 19 of 52 controls and a dead credential.
+#
+# It took three removals, and the order is the useful part, because the first
+# two were declared unfixable in this very file:
+#
+#   drift.yml, corpus-cloud.yml (ISSUE-307 ×2). Their `propose` jobs push a
+#     branch, so the argument went that they needed what checkout leaves in
+#     .git/config, every alternative merely moving the secret to another file on
+#     the same runner — satisfying the scanner and reducing nothing. Wrong, and
+#     comfortably so: a credential helper reading the token from its own
+#     environment removes the finding AND the file. git calls it when the remote
+#     asks, the literal ${GH_TOKEN} reaches argv instead of its value, nothing
+#     touches disk. Proved in a throwaway repository with a known token before
+#     being written into either workflow. 94 -> 98.
+#
+#   osv-scanner.yml (ISSUE-307 ×1). This one really was not ours: the checkout
+#     lived inside google/osv-scanner-action's reusable workflow, line 78 of
+#     their file. So the dependency went rather than the finding being excused.
+#     The verified binary replaces it, which is the pattern actionlint, poutine,
+#     zizmor and plumber itself already follow here, and the shape pavois
+#     settled on after finding aquasecurity/setup-trivy doing the same thing.
+#     98 -> 100.
+#
+# checkoutMustNotPersistCredentials takes only `enabled`, with no per-job
+# exemption, so none of the three could have been hidden without switching the
+# control off for every future workflow. That constraint is why they were fixed
+# instead, and it is a good constraint.
+#
+# The threshold in plumber.yml is therefore 100, which is the binary's default
+# and, for once, also the measurement. A gate set above what was measured is an
+# aspiration that reds every run until somebody removes it; a gate set below is
+# a number that stops meaning anything the day it is met.

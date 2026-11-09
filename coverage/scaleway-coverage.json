@@ -1,8 +1,8 @@
 {
   "provider": "scaleway",
-  "total": 546,
+  "total": 548,
   "implemented": 204,
-  "declined": 340,
+  "declined": 342,
   "unknown": 2,
   "orphans": null,
   "products": [
@@ -132,16 +132,16 @@
     },
     {
       "product": "lb",
-      "total": 107,
+      "total": 109,
       "implemented": 43,
-      "declined": 64,
+      "declined": 66,
       "unknown": 0,
       "versions": [
         {
           "version": "v1",
-          "total": 107,
+          "total": 109,
           "implemented": 43,
-          "declined": 64,
+          "declined": 66,
           "unknown": 0
         }
       ]
@@ -254,9 +254,9 @@
     },
     {
       "group": "lb",
-      "total": 107,
+      "total": 109,
       "implemented": 43,
-      "declined": 64,
+      "declined": 66,
       "unknown": 0
     },
     {
@@ -2843,6 +2843,13 @@
       "status": "implemented"
     },
     {
+      "operation": "lb/v1/ZonedAPI.AttachIpamIP",
+      "product": "lb",
+      "reason": "the IPAM bridge for a balancer's addresses, and no client this project drives calls it: `scw lb` carries no IPAM subcommand and the Terraform provider references neither method, both measured 2026-11-09 against a positive control; the pack attaches private networks and serves ipam/v1, so this is an absent caller rather than an absent capability, and the first client measured on either path reopens it",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
       "operation": "lb/v1/ZonedAPI.AttachPrivateNetwork",
       "product": "lb",
       "version": "v1",
@@ -3105,6 +3112,13 @@
       "operation": "lb/v1/ZonedAPI.SubscribeToLB",
       "product": "lb",
       "reason": "subscribers are an alerting channel, and an emulator whose balancer never degrades has no event to deliver: a subscription recorded here would be a promise nothing can keep; the list is served since #666, and it is empty, for the same reason",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.TransferToIpam",
+      "product": "lb",
+      "reason": "the IPAM bridge for a balancer's addresses, and no client this project drives calls it: `scw lb` carries no IPAM subcommand and the Terraform provider references neither method, both measured 2026-11-09 against a positive control; the pack attaches private networks and serves ipam/v1, so this is an absent caller rather than an absent capability, and the first client measured on either path reopens it",
       "version": "v1",
       "status": "declined"
     },
