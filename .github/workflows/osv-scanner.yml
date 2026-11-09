@@ -1,12 +1,41 @@
 name: OSV-Scanner
 
-# Scans for known vulnerabilities AND malicious packages (MAL-) via the OSV database. PR runs flag
-# what a change introduces; scheduled runs catch packages reclassified as malicious after the fact.
+# Scans for known vulnerabilities AND malicious packages (MAL-) via the OSV database. Pull-request
+# runs flag what the tree carries; scheduled runs catch packages reclassified as malicious after
+# the fact.
 #
-# feint has no external dependency today — that is deliberate, and go.sum does not exist. So this
-# scans almost nothing right now, and it is here anyway for two reasons: it covers the Go
-# toolchain and standard library, and it is the guard that turns "zero dependency" from a claim
-# into something checked the moment somebody adds one.
+# What it actually covers, measured 2026-11-09 rather than assumed: 27 packages across four
+# tracked files — tools/ci/commitizen-requirements.txt (16), uv.lock (9), tools/ci/uv-requirements.txt
+# (1) and go.mod (1). The comment here used to say it "scans almost nothing", on the strength of
+# feint having no external Go dependency and no go.sum. That is true of the Go side and wrong
+# about the job: the Python tooling is a real dependency set, and it is the one this scan is for.
+#
+# It stays even when that number is small, because it is the guard that turns "zero Go dependency"
+# from a claim into something checked the moment somebody adds one.
+#
+# ## Why the binary and not google's reusable workflows
+#
+# This workflow used to be two `uses:` of google/osv-scanner-action's reusable workflows. They run
+# their own actions/checkout WITHOUT persist-credentials: false, which leaves GITHUB_TOKEN in
+# .git/config inside a transitive workflow whose inputs we do not control (Plumber ISSUE-307, line
+# 78 of their file). It was the last finding keeping this repository's Plumber score at 98.
+#
+# Pinning the verified binary removes the finding instead of accepting it, and it is the pattern
+# every other scanner here already follows — actionlint, poutine, zizmor, trufflehog, plumber. It
+# is also what pavois settled on after finding aquasecurity/setup-trivy persisting a token the
+# same way.
+#
+# ## One behaviour deliberately changed
+#
+# google's PR workflow scans differentially: it compares the pull request against its base and
+# reports only what the change introduces. This scans the whole tree on every trigger, so a
+# pre-existing advisory reds a pull request that did not introduce it.
+#
+# That is the intended trade, not an oversight. A differential scan keeps a known advisory
+# invisible until somebody happens to touch the lockfile, and with 27 packages of development
+# tooling the fix is `uv lock --upgrade`, not an exemption. The cost is that one unfixed advisory
+# reds every pull request until it is fixed — which is the pressure this job exists to apply, and
+# it is bounded by the fact that nothing here ships those packages to a user.
 
 on:
   pull_request:
@@ -21,18 +50,58 @@ on:
 permissions: {}
 
 jobs:
-  scan-pr:
-    if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
+  osv-scan:
+    name: osv-scan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     permissions:
-      actions: read
-      security-events: write
       contents: read
-    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@b1d267aea5211fa648d9d442fa64b90dbdcbdd36 # v2.7.0
+      security-events: write   # upload the SARIF to Security > Code Scanning
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
 
-  scan-scheduled:
-    if: github.event_name == 'push' || github.event_name == 'schedule'
-    permissions:
-      actions: read
-      security-events: write
-      contents: read
-    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@b1d267aea5211fa648d9d442fa64b90dbdcbdd36 # v2.7.0
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The whole reason this workflow stopped delegating to a third-party
+          # reusable workflow: ours says false, theirs did not.
+          persist-credentials: false
+
+      # Same pattern as actionlint, poutine, zizmor and plumber: a verified
+      # release binary rather than an action. osv-scanner publishes
+      # osv-scanner_SHA256SUMS beside each asset, which is what this verifies.
+      - name: Install osv-scanner (verified release binary)
+        env:
+          OSV_SCANNER_VERSION: '2.7.0'
+        run: |
+          set -euo pipefail
+          workdir="$(mktemp -d)"
+          base="https://github.com/google/osv-scanner/releases/download/v${OSV_SCANNER_VERSION}"
+          asset="osv-scanner_linux_amd64"
+          tools/ci/fetch.sh "${base}/${asset}" "${workdir}/${asset}"
+          tools/ci/fetch.sh "${base}/osv-scanner_SHA256SUMS" "${workdir}/sums.txt"
+          (cd "${workdir}" && grep " ${asset}$" sums.txt | sha256sum -c -)
+          sudo install -m 0755 "${workdir}/${asset}" /usr/local/bin/osv-scanner
+          osv-scanner --version
+
+      # No continue-on-error, deliberately: this job's name matches the
+      # securityJobPatterns of .plumber.yaml, and weakening it is exactly what
+      # securityJobsMustNotBeWeakened exists to catch. A vulnerability makes
+      # this step exit non-zero and the job red, which is the point.
+      #
+      # --output-file, not --output: the latter is deprecated in 2.7.0 and says
+      # so on every run.
+      - name: Scan every tracked manifest and lockfile
+        run: osv-scanner scan source -r --format sarif --output-file results.sarif ./
+
+      # always(), because the SARIF is most useful on the run that found
+      # something, and that is the run where the step above failed.
+      - name: Upload the SARIF to Code Scanning
+        if: always()
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          sarif_file: results.sarif
+          category: osv-scanner

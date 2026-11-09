@@ -83,21 +83,40 @@ github:
       namePatterns:
         - main
 
-# ## The findings that remain, and why they are not silenced
+# ## No finding is silenced here, and none remains
 #
-# `plumber analyze` reports three ISSUE-307 (LOW, latent) for
-# checkoutMustNotPersistCredentials. None is silenced, because that control has
-# no per-job exemption, only `enabled`, and disabling it to hide three known
-# cases would switch the check off for every future workflow too. Deliberately
-# left visible:
+# 100/100, 23 controls passed, 1 skipped on purpose, zero findings — measured
+# 2026-11-09 with plumber 0.7.23 against this file. Worth stating plainly
+# because this repository knows what a 100 can hide: the previous one was taken
+# over 19 of 52 controls and a dead credential.
 #
-#   - drift.yml and corpus-cloud.yml, job `propose` in both: they push a branch,
-#     so they keep the credentials checkout leaves behind. Each downloads an
-#     artifact and uploads none, which is the risk the setting exists for, and
-#     both say so at the step.
-#   - osv-scanner.yml: the checkout is inside google/osv-scanner-action's
-#     reusable workflow, line 78 of their file. Not ours to set.
+# It took three removals, and the order is the useful part, because the first
+# two were declared unfixable in this very file:
 #
-# So the gate threshold in plumber.yml is set on what was measured with every
-# control active, not on 100. A gate whose threshold is aspirational is a gate
-# that reds on every run and then gets removed.
+#   drift.yml, corpus-cloud.yml (ISSUE-307 ×2). Their `propose` jobs push a
+#     branch, so the argument went that they needed what checkout leaves in
+#     .git/config, every alternative merely moving the secret to another file on
+#     the same runner — satisfying the scanner and reducing nothing. Wrong, and
+#     comfortably so: a credential helper reading the token from its own
+#     environment removes the finding AND the file. git calls it when the remote
+#     asks, the literal ${GH_TOKEN} reaches argv instead of its value, nothing
+#     touches disk. Proved in a throwaway repository with a known token before
+#     being written into either workflow. 94 -> 98.
+#
+#   osv-scanner.yml (ISSUE-307 ×1). This one really was not ours: the checkout
+#     lived inside google/osv-scanner-action's reusable workflow, line 78 of
+#     their file. So the dependency went rather than the finding being excused.
+#     The verified binary replaces it, which is the pattern actionlint, poutine,
+#     zizmor and plumber itself already follow here, and the shape pavois
+#     settled on after finding aquasecurity/setup-trivy doing the same thing.
+#     98 -> 100.
+#
+# checkoutMustNotPersistCredentials takes only `enabled`, with no per-job
+# exemption, so none of the three could have been hidden without switching the
+# control off for every future workflow. That constraint is why they were fixed
+# instead, and it is a good constraint.
+#
+# The threshold in plumber.yml is therefore 100, which is the binary's default
+# and, for once, also the measurement. A gate set above what was measured is an
+# aspiration that reds every run until somebody removes it; a gate set below is
+# a number that stops meaning anything the day it is met.

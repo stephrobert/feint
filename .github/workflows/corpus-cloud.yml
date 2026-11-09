@@ -185,6 +185,13 @@ jobs:
     permissions:
       contents: write        # push the branch
       pull-requests: write   # open the PR
+    env:
+      # The same credential helper drift.yml's `propose` uses, and for the same
+      # reason: git asks the helper when the remote wants credentials, the helper
+      # echoes GH_TOKEN from its own environment, and the secret reaches neither
+      # a file nor a command line. The literal ${GH_TOKEN} is expanded by the
+      # helper's shell, not by the step's.
+      GIT_CRED_HELPER: '!f() { echo username=x-access-token; echo "password=${GH_TOKEN}"; }; f'
     steps:
       - name: Harden runner
         uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
@@ -193,10 +200,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # The one thing this job does is push a branch, so it keeps the credentials checkout
-          # leaves behind. It downloads an artifact and uploads none, which is the risk that
-          # setting exists for.
-          persist-credentials: true
+          # This job pushes a branch, which is why it used to keep the credentials
+          # checkout leaves behind. It does not have to: the push below supplies the
+          # token through the helper above (Plumber ISSUE-307).
+          persist-credentials: false
 
       - name: Download the marked acceptance file
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -217,7 +224,10 @@ jobs:
           git add corpus/accepted.json
           git commit -m "chore(corpus): the cloud has moved under a committed recording"
           git fetch origin "+refs/heads/$branch:refs/remotes/origin/$branch" || true
-          git push --force-with-lease origin "$branch"
+          # An empty credential.helper first, to drop anything configured
+          # system-wide, then ours.
+          git -c credential.helper= -c "credential.helper=${GIT_CRED_HELPER}" \
+              push --force-with-lease origin "$branch"
           cat > "$RUNNER_TEMP/body.md" <<'BODY'
           A committed corpus was reissued at the provider it was recorded from and the
           answers had moved. The diff marks which file and how many findings; the run log
