@@ -58,6 +58,20 @@ run = "go test -race -tags=conformance ./internal/s3 -run '^TestOfficialAWSCLIBy
 description = "Prove AWS/scw/exo bytes, normal Exo bucket/native usage, multipart and cleanup across actual restart"
 run = "go test -race -tags=conformance ./internal/cli -run '^TestMountedS3OfficialAWSCLIBytes$' -count=1 -v"
 
+[tasks."conformance:s3:oos"]
+description = "Drive octl against the OOS door: empty listing, a created bucket found again, an absent one refused"
+# Its own task rather than a line in `conformance`, for the same reason
+# conformance:s3:mounted is: the object-store doors are opt-in, and the OOS one
+# is not even in the default --s3-doors, because no suite vouched for it until
+# this one. A task that needs octl installed also has no business reddening the
+# pass that must run with no client at all.
+#
+# The empty-listing expectation was compared against the real OOS — same octl,
+# same subcommand, `[]` on both sides — and so was the refusal, which octl
+# prints without its S3 code on the cloud exactly as it does here. Those
+# readings were one GET each, created nothing, and are recorded in the test.
+run = "go test -race -tags=conformance ./internal/cli -run '^TestMountedOOSOfficialOctl$' -count=1 -v"
+
 [tasks."conformance:s3:exo:endpoint"]
 description = "Measure exo 1.95.1 dropping configured S3 URL prefixes; not a successful byte lifecycle"
 run = "go test -race -tags=conformance ./internal/cli -run '^TestExoDropsConfiguredS3EndpointPrefix$' -count=1 -v"

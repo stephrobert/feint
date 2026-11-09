@@ -1,0 +1,27 @@
+{
+  "package": "./internal/s3/",
+  "mutations": [
+    {
+      "label": "the bucket listing goes back behind BucketConfiguration, so a door that declares no configuration shapes refuses the one gesture its client opens with — measured: octl got 400 'invalid bucket or object key' on the canonical bare endpoint",
+      "file": "internal/s3/server.go",
+      "find": "\tif rawBucket == \"\" && rawKey == \"\" &&\n\t\t(len(query) == 0 || (len(query) == 1 && len(query[\"x-id\"]) == 1)) &&",
+      "replace": "\tif rawBucket == \"\" && rawKey == \"\" && s.cfg.BucketConfiguration &&\n\t\t(len(query) == 0 || (len(query) == 1 && len(query[\"x-id\"]) == 1)) &&",
+      "test": "TestADoorWithoutConfigurationStillListsAndDatesItsBuckets"
+    },
+    {
+      "label": "the listing widens to any unrouted GET, accepting a query it never measured: the mirror risk of the line above, and the one a careless decoupling would ship",
+      "file": "internal/s3/server.go",
+      "find": "\t\t(len(query) == 0 || (len(query) == 1 && len(query[\"x-id\"]) == 1)) &&\n\t\tr.Method == http.MethodGet {",
+      "replace": "\t\t(len(query) == 0 || (len(query) >= 1 && len(query[\"x-id\"]) >= 1)) &&\n\t\tr.Method == http.MethodGet {",
+      "test": "TestADoorWithoutConfigurationStillListsAndDatesItsBuckets"
+    },
+    {
+      "label": "the creation date is written empty, so the door answers 200 to CreateBucket and 501 to the ListBuckets that follows: two gestures of one client disagreeing about one bucket. Every name is kept and evaluated; only the value is emptied, which is what the harness asks for",
+      "file": "internal/s3/server.go",
+      "find": "\t\t\tbucketCreated: time.Now().UTC().Format(time.RFC3339Nano),\n\t\t})\n\tcase http.MethodHead:",
+      "replace": "\t\t\tbucketCreated: time.Now().UTC().Format(time.RFC3339Nano)[:0],\n\t\t})\n\tcase http.MethodHead:",
+      "test": "TestADoorWithoutConfigurationStillListsAndDatesItsBuckets"
+    }
+  ],
+  "note": "The subject is the OOS door of #850 and the coupling that kept it from serving its client. ListBuckets lived behind Config.BucketConfiguration, and `git log -S` names the commit: 7c3e087, 'prove private Scaleway bucket lifecycle', which measured that provider's ACL, tagging and list shapes together. Opportunity, not meaning — the field's name says 'the configuration of a bucket' and it was read as 'this door may enumerate buckets'. It cost a real client: octl v0.0.32 reaches the door at exactly the canonical bare endpoint (GET /_feint/s3/outscale/eu-west-2/?x-id=ListBuckets, captured on the wire) and got 400, because the Outscale profile leaves that switch off on purpose — it also turns on discovery answers whose OOS shapes nobody has recorded. The same coupling held the creation date, so the branch without it created buckets the door's own listing then refused to show with 501 'legacy bucket listing has no measured creation metadata'. The condition was removed rather than replaced by a second flag, because a flag all three doors set to true is a constant wearing a switch's name. Mutation 2 is the mirror risk and the reason this is three mutations rather than one: a decoupling that widens the listing to any unrouted GET is as wrong as the gate was, and the test that catches both is the one asserting the CANONICAL bare endpoint."
+}

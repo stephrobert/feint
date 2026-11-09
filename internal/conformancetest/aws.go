@@ -89,6 +89,24 @@ func (c Client) Run(t *testing.T, args ...string) []byte {
 	return out
 }
 
+// Attempt runs the client and returns its output and its error instead of
+// failing the test, for the cases where the REFUSAL is the subject.
+//
+// Run cannot serve those: it calls t.Fatalf on a non-zero exit, so a test that
+// wants to assert "the client was told no" would have to pass for the wrong
+// reason — either by not running the case, or by reading a success as proof.
+// A refusal a suite cannot express is a refusal the emulator can stop sending
+// without anything noticing.
+func (c Client) Attempt(t *testing.T, args ...string) ([]byte, error) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, c.Path, args...) //nolint:gosec // pinned official client, explicit arguments, no shell
+	cmd.Env = c.Env
+	out, err := cmd.CombinedOutput()
+	return out, err
+}
+
 // ProbeProxyGuard sends a local CONNECT refusal control, never a cloud request.
 func ProbeProxyGuard(ctx context.Context, endpoint string) error {
 	proxy, err := url.Parse(endpoint)

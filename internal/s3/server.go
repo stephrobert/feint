@@ -187,8 +187,54 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.refuse(w, r, http.StatusNotImplemented, "S3 header feature is not implemented", err)
 		return
 	}
-	if rawBucket == "" && rawKey == "" && s.cfg.BucketConfiguration &&
-		(len(query) == 0 || (len(query) == 1 && query.Has("x-id"))) && r.Method == http.MethodGet {
+	// ListBuckets, and no longer behind BucketConfiguration.
+	//
+	// The two were coupled by opportunity rather than by meaning: `git log -S`
+	// puts the condition in 7c3e087, "prove private Scaleway bucket lifecycle",
+	// which measured that provider's ACL, tagging and list shapes in one go. So
+	// the gate said "this door serves bucket configuration" and was read as
+	// "this door may enumerate buckets", which are not the same claim — and the
+	// field's name says the first.
+	//
+	// It cost a real client. `octl storage bucket list` reaches the OOS door at
+	// exactly the canonical bare endpoint, measured on the wire:
+	//
+	//	GET /_feint/s3/outscale/eu-west-2/?x-id=ListBuckets
+	//
+	// and got 400 "invalid bucket or object key", because the Outscale profile
+	// leaves BucketConfiguration at its zero value — deliberately, since that
+	// switch also turns on discovery answers whose OOS shapes nobody has
+	// recorded. A door was refusing the one operation its client opens with, to
+	// avoid claiming five others.
+	//
+	// Nothing is widened for the other two: both already carried
+	// BucketConfiguration: true, so both already served this. The condition is
+	// removed rather than replaced by a second flag, because a flag all three
+	// doors set to true is a constant wearing a switch's name, and this
+	// repository prefers no guard to one that cannot fail.
+	//
+	// What stays narrow is everything else: the query must be empty or carry
+	// only x-id (which the AWS SDK appends), the method must be GET, and both
+	// the bucket and key must be absent. That is what makes this a listing
+	// rather than a catch-all for every unrouted GET.
+	//
+	// TestADoorWithoutConfigurationStillListsAndDatesItsBuckets is the control,
+	// and it is a different test from the one this comment first cited. The
+	// first version named the canonical-bare-endpoint test, which sounded
+	// right and covers none of this: all three mutations of
+	// tools/falsify/specs/oos-door-serves-its-listing.json stayed green against
+	// it. A spec aimed at a test that does not cover its subject proves nothing
+	// while looking exactly like proof.
+	// len(query["x-id"]) == 1, not just query.Has: len(query) counts KEYS, so
+	// `?x-id=ListBuckets&x-id=ListBuckets` is one key with two values and used
+	// to satisfy this. Found by the test below rather than reasoned about, and
+	// it is the same duplicate-parameter refusal
+	// TestBucketConfigurationRefusals/duplicate-query already holds one step
+	// over — a client that sends a parameter twice is a client whose intent is
+	// not established, and S3 itself does not define which value wins.
+	if rawBucket == "" && rawKey == "" &&
+		(len(query) == 0 || (len(query) == 1 && len(query["x-id"]) == 1)) &&
+		r.Method == http.MethodGet {
 		s.listBuckets(w, r)
 		return
 	}
@@ -273,7 +319,24 @@ func (s *Server) bucket(w http.ResponseWriter, r *http.Request, name string) {
 			s.refuse(w, r, http.StatusNotImplemented, "CreateBucket configuration is not implemented", readErr)
 			return
 		}
-		err = s.store.CreateBucket(r.Context(), s.name(name))
+		// With its creation date, like the branch above, and the split between
+		// the two branches is now only about the CreateBucketConfiguration
+		// BODY — which is what BucketConfiguration names.
+		//
+		// A creation date is a property of the bucket, not a configuration of
+		// it, and ListBuckets renders it: `listBuckets` refuses outright when
+		// the metadata is missing, with "legacy bucket listing has no measured
+		// creation metadata". So a door without BucketConfiguration used to
+		// create buckets that its own listing then refused to show — measured
+		// with octl against the OOS door, which answered 200 to CreateBucket
+		// and 501 to the ListBuckets that followed. Two gestures of the same
+		// client, disagreeing about the same bucket.
+		//
+		// TestMountedOOSOfficialOctl fails without this: its second step
+		// creates a bucket and expects the listing to find it.
+		err = s.store.CreateBucketWithMetadata(r.Context(), s.name(name), map[string]string{
+			bucketCreated: time.Now().UTC().Format(time.RFC3339Nano),
+		})
 	case http.MethodHead:
 		err = s.store.HeadBucket(r.Context(), s.name(name))
 	case http.MethodDelete:
