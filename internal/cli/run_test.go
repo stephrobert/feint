@@ -211,7 +211,12 @@ func TestRunKeepsItsAuthorityOwnerOnly(t *testing.T) {
 	}
 	var stdout, stderr bytes.Buffer
 	code, err := runChild(server.URL, "127.0.0.1:0", profiles,
-		[]string{"sh", "-c", `stat -c '%a %n' "$SSL_CERT_FILE" "$(dirname "$SSL_CERT_FILE")"`},
+		// POSIX only, and read rather than stat'd: `stat -c` is GNU, and the
+		// BSD stat on macOS rejected it, which failed this test on a property
+		// it was not measuring. `cat` to /dev/null proves the child can READ
+		// its authority (exit 0 below), and `ls -ld` prints the directory's
+		// mode the one way every Unix spells it.
+		[]string{"sh", "-c", `cat "$SSL_CERT_FILE" > /dev/null || exit 3; printf 'authority=%s\n' "$SSL_CERT_FILE"; ls -ld "$(dirname "$SSL_CERT_FILE")"`},
 		false, &stdout, &stderr)
 	if err != nil || code != 0 {
 		t.Fatalf("the child could not read its own authority: code %d, %v, %q", code, err, stderr.String())
@@ -221,8 +226,8 @@ func TestRunKeepsItsAuthorityOwnerOnly(t *testing.T) {
 	// still be READABLE by the client process. proxy.WriteCA writes 0644 for
 	// that second reason, deliberately; the privacy comes from the directory,
 	// and the authority's private key is never written at all.
-	if !strings.Contains(stdout.String(), "700 ") {
-		t.Fatalf("the child saw a directory mode other than 700: %q", stdout.String())
+	if !strings.Contains(stdout.String(), "drwx------") {
+		t.Fatalf("the child saw a directory mode other than owner-only: %q", stdout.String())
 	}
 	if !strings.Contains(stdout.String(), "ca.pem") {
 		t.Fatalf("the child could not name its own authority: %q", stdout.String())
