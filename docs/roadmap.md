@@ -9,11 +9,18 @@ What is *measured* rather than planned lives in [limits.md](limits.md), and how
 the pieces fit together in [architecture.md](architecture.md).
 
 
-## The order 0.11.0 is being worked in
+## The order 0.11.0 was worked in
 
-Frozen 2026-08-22. Thirteen issues remain, and they are not independent: two of
-them move the numbers the other eleven quote. The order below is the dependency,
-not a preference.
+Frozen 2026-08-22, and kept in the past tense deliberately: 0.11.0 shipped, and
+so did 0.12.0 to 0.15.0 after it. This heading read "is being worked in" for
+three releases, which is the same failure as a milestone titled after a
+published tag — a sentence nobody could notice was stale because nothing
+measured it. **The order being worked now is the 1.0 one, at the end of this
+page.**
+
+Thirteen issues remained at the freeze, and they were not independent: two of
+them moved the numbers the other eleven quoted. The order below is the
+dependency, not a preference.
 
 **1 — Make the measurement trustworthy. Blocking.**
 

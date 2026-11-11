@@ -943,8 +943,8 @@ what this emulator serves, declines on purpose, or has not triaged yet.
 
 #### Scaleway
 
-204 routes mounted. Of the 548 operations upstream declares: 37% served,
-62% declined on purpose, 0% untriaged.
+204 routes mounted. Of the 548 operations upstream declares in the 11 product(s)
+this scan covers: 37% served, 62% declined on purpose, 0% untriaged.
 
 | Group | Served | Declined | Untriaged | Upstream |
 |---|--:|--:|--:|--:|
@@ -961,8 +961,8 @@ what this emulator serves, declines on purpose, or has not triaged yet.
 
 #### Exoscale
 
-105 routes mounted. Of the 374 operations upstream declares: 28% served,
-71% declined on purpose, 0% untriaged.
+105 routes mounted. Of the 374 operations upstream declares in the 1 product(s)
+this scan covers: 28% served, 71% declined on purpose, 0% untriaged.
 
 | Group | Served | Declined | Untriaged | Upstream |
 |---|--:|--:|--:|--:|
@@ -979,8 +979,8 @@ what this emulator serves, declines on purpose, or has not triaged yet.
 
 #### Outscale
 
-100 routes mounted. Of the 263 operations upstream declares: 38% served,
-61% declined on purpose, 0% untriaged.
+100 routes mounted. Of the 263 operations upstream declares in the 2 product(s)
+this scan covers: 38% served, 61% declined on purpose, 0% untriaged.
 
 | Group | Served | Declined | Untriaged | Upstream |
 |---|--:|--:|--:|--:|
@@ -1024,14 +1024,25 @@ conformance run. The sequence and the state of every batch live in
 measurements that cut them (2026-07-30) are archived under
 [docs/history/](docs/history/), where a snapshot cannot read as the present.
 
-**Object storage is out of scope for now.** The Scaleway Terraform provider
-hardcodes `https://s3.<region>.scw.cloud`, so it needs DNS interception and TLS
-rather than an endpoint setting — and that is not theory: a surveyed stack's
-`CreateBucket` went to the real endpoint and got a 403 while everything else it
-did ran here (#262). Exoscale's `sos-endpoint` is served empty for the
-same reason: an invented address is a promise the emulator cannot keep. See
-[docs/limits.md](docs/limits.md), which states every limit that was measured
-rather than assumed.
+**Object storage is served since 0.15.0, and it is opt-in.** The reason it was
+out of scope for a year is worth keeping, because it is what the feature had to
+answer: the Scaleway Terraform provider hardcodes
+`https://s3.<region>.scw.cloud`, so an endpoint setting cannot redirect it — a
+surveyed stack's `CreateBucket` went to the real endpoint and got a 403 while
+everything else it did ran here (#262).
+
+What changed is that `feint run` terminates that host itself, with an authority
+it generates for the run alone, and **refuses any host it was not told about
+rather than tunnelling it**. On the published provider 2.82.0 that path reads
+139,264 identical bytes back out of the local byte store by sha256, with an
+empty second plan. It is opt-in because interception is a side effect on the
+machine that runs it, and because a client carrying real credentials is refused
+unless you say otherwise.
+
+Normal Exoscale bucket creation is still not certified (#858), and the
+multipart states are #856. [docs/confidence.md](docs/confidence.md) carries the
+row with its client versions, and [docs/limits.md](docs/limits.md) states every
+limit that was measured rather than assumed.
 
 ---
 

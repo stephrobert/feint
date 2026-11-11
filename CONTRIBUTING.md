@@ -312,8 +312,26 @@ the subject: `core`, `machine`, `conformance`. State: `blocked`, with the
 blocker named in the body. There is no `wontfix` label: the project's word for
 out of scope is a decline in the pack, with a reason.
 
-**Milestones** are the six waves of the roadmap's sequence — an order, not a
-schedule, so they carry no due dates.
+**Milestones** are themes, not versions, and they carry no due dates: an order,
+never a schedule. That sentence used to say "the six waves of the roadmap's
+sequence", which stopped being true at 0.9.0 and was still there two years of
+releases later — which is how two milestones came to be titled after published
+tags, `0.14.0` and `0.15.0`, while holding 19 and 10 open issues between them.
+
+So the rule is now checkable rather than described, and it is narrower than it
+first looks: **an open milestone never claims a version that is already
+tagged.** A milestone for work still ahead may carry its number — `1.0.0` is
+one, and it is the case where the tag should wait for the milestone rather than
+the reverse. What is refused is a statement about the past that the tags
+disprove. The second half is its mirror: the version being tagged must hold no
+open issue under its own name.
+
+`tools/release/milestone-gate.sh` asks both before a tag, and says so when it
+could not measure instead of refusing for a reason that is not about the
+repository. `tools/ci`'s `TestTheMilestoneGateRefusesAVersionOnAnOpenMilestone`
+is driven by the payload that asked for it, and
+`TestTheMilestoneGateAcceptsTheShippedShape` keeps the accepting half honest: a
+gate that refused every tag would pass the first test and teach `--no-verify`.
 
 `tools/issues/setup.sh` creates the labels and milestones (`--dry-run` shows
 what it would do); `tools/issues/batches/` holds the eighteen batch

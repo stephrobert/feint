@@ -1,0 +1,34 @@
+{
+ "package": "./tools/ci/",
+ "note": "The subject is the tracker agreeing with the tags. On 2026-11-11, with v0.14.0 and v0.15.0 both published, two OPEN milestones were titled after them and held 19 and 10 open issues; neither described what its release had shipped — 0.14.0 shipped drift triage and block import, 0.15.0 shipped `feint run` and the S3 data plane. Every minor from 0.9.0 to 0.13.0 has a closed, empty milestone, so the convention was real and these two broke it. `CONTRIBUTING.md` still said milestones were \"the six waves of the roadmap's sequence\", stale since 0.9.0, which is why nobody noticed: the sentence that would have caught it was itself out of date.\n\nThe titles were corrected by hand the same day. That fixes the state and not the cause, so these mutations are about the GATE: each is a shape that would look reasonable in review and would let the next release recreate it.\n\nThe third is the one worth reading twice, and it is the over-correction rather than the defect. The rule was first written as \"no version number on an open milestone\", which would have refused every tag from the day a 1.0 milestone was created — a milestone for work still AHEAD is legitimate, and is the one case where the tag should wait for the milestone rather than the reverse. A guard that refuses everything passes the attack and breaks the product, so both directions are mutated.\n\nThe coverage headline fixed in the same commit — it read \"Of the 548 operations upstream declares\" while the Scaleway scan covers 11 of that SDK's 56 products — has NO mutation here, deliberately. The clause is prose inside a format string, and every mutation that removes it also removes names this harness requires to survive; contriving one that satisfies the rule would measure the contrivance. What holds it is internal/cli's TestTheCoverageHeadlineNamesItsPopulation, which asserts the scoped phrase is present AND the unscoped one is gone, plus `feint docs --check`, which refuses a README the generator would not produce.",
+ "mutations": [
+  {
+   "label": "an open milestone claiming an already-published version stops being a finding, which restores the state of the repository on the day this gate was written: two releases out, two milestones claiming them, 29 open issues between them",
+   "file": "tools/release/milestone-gate.sh",
+   "find": "  if [ -n \"$claimed\" ] && git rev-parse \"v$claimed\" >/dev/null 2>&1; then",
+   "replace": "  if [ -n \"$claimed\" ] && git rev-parse \"v$claimed\" >/dev/null 2>&1 && false; then",
+   "test": "TestTheMilestoneGateRefusesAVersionOnAnOpenMilestone"
+  },
+  {
+   "label": "open work under the version being tagged stops being a finding, so a release ships while issues filed under its own number are still open. The narrower half of the same defect, and the one a renaming cannot fix",
+   "file": "tools/release/milestone-gate.sh",
+   "find": "  if printf '%s' \"$title\" | grep -Fq \"$NUMBER\" && [ \"$open\" != 0 ]; then",
+   "replace": "  if printf '%s' \"$title\" | grep -Fq \"$NUMBER\" && [ \"$open\" = 0 ]; then",
+   "test": "TestTheMilestoneGateRefusesAVersionOnAnOpenMilestone"
+  },
+  {
+   "label": "the tag check stops mattering, so ANY version-shaped title is refused whether or not it has shipped. This is the first draft of the rule, and it would have refused every tag from the day the 1.0 milestone was created: a gate that blocks the release it exists to authorise, which preflight.sh already carries a scar from",
+   "file": "tools/release/milestone-gate.sh",
+   "find": "  if [ -n \"$claimed\" ] && git rev-parse \"v$claimed\" >/dev/null 2>&1; then",
+   "replace": "  if [ -n \"$claimed\" ] && (git rev-parse \"v$claimed\" >/dev/null 2>&1 || true); then",
+   "test": "TestTheMilestoneGateRefusesAVersionOnAnOpenMilestone"
+  },
+  {
+   "label": "a gate that cannot measure reports the repository incoherent instead of saying so, so an absent `gh` refuses a tag for a reason that is not about the repository. preflight.sh paid for this distinction twice on its CI query, and the third exit code is the lesson",
+   "file": "tools/release/milestone-gate.sh",
+   "find": "if ! command -v gh >/dev/null 2>&1; then\n  echo \"gh is not installed, so no milestone was read\"\n  exit 2\nfi",
+   "replace": "if ! command -v gh >/dev/null 2>&1; then\n  echo \"gh is not installed, so no milestone was read\"\n  exit 1\nfi",
+   "test": "TestTheMilestoneGateSaysWhenItCouldNotMeasure"
+  }
+ ]
+}
