@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -592,4 +593,46 @@ func (s *syncBuffer) String() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.buf.String()
+}
+
+// TestEveryPublishedFakeIsAcceptedByRun is cited by acceptedFakes, and it is
+// the test the hand-written list did not have.
+//
+// The defect it holds was found by replaying a stranger's stack
+// (PhilippeChepy/platform, examples/stacks/surveyed.md): `feint env exoscale`
+// publishes EXOSCALE_API_KEY and EXOSCALE_API_SECRET, `feint run` refused both,
+// and the operator who followed the two commands' own notes was told their
+// credentials were real. The two lists were written apart and drifted by two
+// characters on one value and by a whole missing value on another.
+//
+// Asserted from the packs rather than from a copy of their values, because a
+// copy is exactly what drifted.
+func TestEveryPublishedFakeIsAcceptedByRun(t *testing.T) {
+	packs, err := packsFor(emulator.DefaultEnv())
+	if err != nil {
+		t.Fatalf("packs: %v", err)
+	}
+	seen := 0
+	for _, pack := range packs {
+		for name, value := range pack.Env(defaultEndpoint()).Vars {
+			if value == "" || !slices.Contains(credentialVariables, name) {
+				continue
+			}
+			seen++
+			if offenders := realCredentials([]string{name + "=" + value}); len(offenders) != 0 {
+				t.Errorf("%s publishes %s, and feint run calls it real: %v",
+					pack.Name(), name, offenders)
+			}
+		}
+	}
+	// A denominator, because a loop that iterates nothing passes silently and
+	// would have passed before the fix too.
+	if seen < 4 {
+		t.Fatalf("only %d published credential(s) examined; the packs stopped publishing them", seen)
+	}
+	// The refusing half, so this test cannot be satisfied by accepting
+	// everything: a value no pack publishes is still refused.
+	if offenders := realCredentials([]string{"SCW_SECRET_KEY=a-secret-no-pack-publishes-0001"}); len(offenders) != 1 {
+		t.Fatalf("an unpublished credential was not refused: %v", offenders)
+	}
 }

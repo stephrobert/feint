@@ -373,6 +373,37 @@ answered everything the modern provider sent.
   instance pool, the `local_file` behind it, and the one
   `exoscale_nlb_service` behind that: the service is blocked by the SOS
   branch, not by this emulator.
+- **Replayed 2026-11-11, `feat/850-object-storage-release@0691306`, through
+  `feint run`** — **the SOS branch reaches the local door**, which is what this
+  replay was for. Both backup buckets exist in the `exoscale/de-muc-1` door
+  (`my-own-paas-…-etcd-backups.de-muc-1` and `…-vault-backups.de-muc-1`) where
+  every earlier run took a 403 from the real `sos-de-muc-1.exo.io`. The aws
+  provider's endpoint is built in code
+  (`https://sos-${local.platform_backup_zone}.exo.io`), so nothing was
+  configured: `feint run` intercepted it.
+  **The control-plane half is not comparable with the August figures**, and the
+  reason is a guard added since: the repository's own `.terraform.lock.hcl`
+  pins `exoscale/exoscale` at **0.49.0**, below the v0.71.0 floor, so every
+  `/v2/` write is refused by user agent (#644). Seven resources applied, all
+  provider-agnostic (tls, random, local). That refusal did its job on a
+  stranger's stack: without it, half of this apply would have reached Exoscale
+  and billed.
+  **One gap found, and not invented away**: after creating a bucket, aws
+  provider 5.4.0 reads `GetBucketEncryption`, and the door answers 501. No
+  recording of that shape exists for SOS, so it is named here rather than
+  guessed — the same treatment as the two unrecorded OOS discovery shapes.
+  **Harness inputs**: `locals.tf` from the published `locals.tf.example` with
+  `platform_admin_networks` pinned instead of `"auto"` (the auto path calls
+  ipconfig.me, which `feint run` refuses because it is not a door), and the
+  public `exoscale_prefixes.json` seeded into the local `ch-dk-2` door, since
+  `data.http.exoscale_ip_addresses` reads it from
+  `exoscale-prefixes.sos-ch-dk-2.exo.io` — a virtual-host address that
+  `feint run` intercepts through its wildcard.
+  **A defect in feint, found here and fixed in the same branch**: the sequence
+  both commands document — eval `feint env exoscale`, then `feint run` — was
+  refused by its own binary, because `knownFakes` was a second hand-written
+  copy of the credentials the packs publish and had drifted from them. See
+  `acceptedFakes` and `TestEveryPublishedFakeIsAcceptedByRun`.
 
 ### 3. PhilippeChepy/terraform-exoscale-vault — applied after a recorded edit, fully green
 
@@ -578,6 +609,26 @@ platform entry.
   `CreateBucket` still routed by the provider to the real
   `s3.fr-par.scw.cloud` (403), Cloudflare external, `0 to change`,
   9 destroyed.
+- **Replayed 2026-11-11, `feat/850-object-storage-release@0691306`, through
+  `feint run`** — the first replay where this stack's Object Storage branch
+  does not leave the station. **11 applied** against every earlier run's 9:
+  `scaleway_object_bucket.flatcar` and `scaleway_object.flatcar_qcow2` now land
+  in the local `scaleway/fr-par` door instead of taking a 403 from the real
+  `s3.fr-par.scw.cloud`, and the uploaded qcow2 reads back **sha256-identical**
+  (65 536 bytes, `faef4dcf…`) through that door. Provider 2.91.0 under
+  `~> 2.0`, not the 2.x of August. Re-plan **`8 to add / 0 to change`**: the
+  bucket and the object round-trip, so `scaleway_object` carries no permanent
+  diff — unlike `aws_s3_object`, whose ETag comparison is documented in
+  docs/object-storage-routing.md.
+  **The chain now stops one resource later, and on a refusal whose stated
+  reason is no longer true**: `scaleway_instance_snapshot` with `import {}`
+  answers *"importing a snapshot reads Object Storage, which this emulator does
+  not serve"* (`internal/providers/scaleway/snapshots.go`), while the object it
+  would read is in the door, named by the request. The refusal is
+  unconditional; it predates the data plane.
+  **Destroy not measured.** The emulator was stopped before the teardown ran,
+  so this entry carries no destroy figure — recorded as missing rather than
+  assumed clean.
 
 ### 3. HealsCodes/ephemeral-devbox — applied in part
 

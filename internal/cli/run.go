@@ -170,14 +170,17 @@ var credentialVariables = []string{
 	"EXOSCALE_API_KEY", "EXOSCALE_API_SECRET",
 }
 
-// knownFakes are the deliberately public placeholders this repository ships,
-// and the only credential values `feint run` passes on without --unsafe.
+// knownFakes are deliberately public placeholders that no pack publishes, kept
+// as a hand-written list for the clients that carry their own.
 //
 // A list and not a shape test, because every shape test gets this wrong in the
 // expensive direction: "twenty identical characters" would admit a real key
 // that happens to repeat, and "looks random" would refuse the fakes. The cost
 // of the list is that a fake it does not know is refused, which is the harmless
 // direction — the operator sees exactly which variable and can use a known one.
+//
+// It is NOT the whole accepted set: see acceptedFakes, and the defect that
+// made the difference matter.
 var knownFakes = []string{
 	"AAAAAAAAAAAAAAAAAAAA",
 	"BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
@@ -187,17 +190,49 @@ var knownFakes = []string{
 	"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
 }
 
+// acceptedFakes is every credential value this binary itself tells an operator
+// to export, plus the hand-written knownFakes no pack publishes.
+//
+// Derived rather than listed, and the reason is measured. The two lists were
+// written separately and drifted: `feint env exoscale` published a 23-character
+// EXOSCALE_API_KEY and a 40-character secret, while knownFakes held a
+// 25-character key and neither secret. So the sequence both commands document —
+// eval `feint env`, then `feint run` — was refused by its own binary, naming
+// four variables the operator had never chosen. Found by replaying
+// PhilippeChepy/platform from examples/stacks/surveyed.md, not by a test, which
+// is why the fix removes the second list rather than correcting it.
+//
+// TestEveryPublishedFakeIsAcceptedByRun fails without this function.
+func acceptedFakes() []string {
+	accepted := slices.Clone(knownFakes)
+	packs, err := packsFor(emulator.DefaultEnv())
+	if err != nil {
+		// Fail closed: fewer accepted values means more refusals, and a
+		// refusal names the variable and offers --unsafe-real-credentials.
+		return accepted
+	}
+	for _, pack := range packs {
+		for name, value := range pack.Env(defaultEndpoint()).Vars {
+			if value != "" && slices.Contains(credentialVariables, name) {
+				accepted = append(accepted, value)
+			}
+		}
+	}
+	return accepted
+}
+
 // realCredentials names the credential variables carrying something other than
 // a known fake. Empty is the safe answer: no credentials set at all is a run
 // the emulator serves happily, since it checks no signature.
 func realCredentials(environ []string) []string {
+	accepted := acceptedFakes()
 	var offenders []string
 	for _, pair := range environ {
 		name, value, ok := strings.Cut(pair, "=")
 		if !ok || value == "" || !slices.Contains(credentialVariables, name) {
 			continue
 		}
-		if !slices.Contains(knownFakes, value) {
+		if !slices.Contains(accepted, value) {
 			// The NAME only. Printing the value would put a real credential in
 			// a terminal, a CI log and a bug report, which is the accident this
 			// refusal exists to prevent.
