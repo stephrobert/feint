@@ -550,7 +550,7 @@ running a stack they believe is sandboxed.
 
 | path | measured | what warns today |
 |---|---|---|
-| Scaleway Object Storage through Terraform: `scaleway_object_*` hardcodes `https://s3.<region>.scw.cloud` (top of this file) | live on a surveyed stack (#262, flatcar-k3s): `CreateBucket` at the real endpoint, 403 on fake credentials. Reproduced for #280 with egress cut to a dead proxy: **the same apply created its instance IP on this emulator and died on `Put "https://<bucket>.s3.fr-par.scw.cloud/"` — one run, half local, half not** | `feint doctor` and `feint env scaleway`, from the stack directory: the configuration's own text names the resource family |
+| Scaleway Object Storage through Terraform: `scaleway_object_*` hardcodes `https://s3.<region>.scw.cloud` (top of this file) | live on a surveyed stack (#262, flatcar-k3s): `CreateBucket` at the real endpoint, 403 on fake credentials. Reproduced for #280 with egress cut to a dead proxy: **the same apply created its instance IP on this emulator and died on `Put "https://<bucket>.s3.fr-par.scw.cloud/"` — one run, half local, half not** | `feint doctor` and `feint env scaleway`, from the stack directory: the configuration's own text names the resource family. **And since 0.15.0 it can be stopped rather than warned about**: `feint run` terminates that host itself, opt-in, and refuses any host it was not told about (below) |
 | an S3 state backend or an aws provider pointed at real object storage | three surveyed stacks: kubic (state on Object Storage, endpoint in `backend.conf`), eu-data-platform (state on `sos-ch-gva-2.exo.io`, inline), platform (aws provider at `sos-<zone>.exo.io`, 403 at the real endpoint) | the same scan, when the host is written in the `.tf` text — the kubic shape keeps its endpoint in a `backend.conf` the scan does not read, and stays invisible to it |
 | Outscale, `OSC_PROFILE` set: provider 1.1.x reads `~/.osc/config.json` and ignores `OSC_ENDPOINT_API` | #286, on 1.1.3: the plan left for `api.<region>.outscale.com` while the emulator received nothing | `feint doctor` and `feint env outscale`, since #286 — this one lives in the shell, not in the stack |
 | the Exoscale Terraform provider's split client, up to v0.70.0: egoscale v2 built with no endpoint option | #262/#284, section below: an apply splits between this emulator and the real cloud; fixed upstream in v0.71.0 and measured here (#644) | **the emulator itself refuses a provider below v0.71.0 by user agent, naming the floor**, and `feint env exoscale` names it too (#701) — the one escape that must pass through the front door to do damage, so the front door is where it is stopped |
@@ -580,8 +580,32 @@ reads SDK surfaces, not endpoint construction, so it will not see that one
 either. **In general, the escape is undetectable from inside the emulator, and
 an approximate guard would be worse than none: it would license exactly the
 belief it fails to protect.** What exists is a measured list, said as such,
-plus the one boundary that does not depend on the client cooperating — the
-network the run executes in.
+plus **two** boundaries that do not depend on the client cooperating: the
+network the run executes in, and the run owning the client's transport.
+
+### The second boundary: a run that refuses what it was not told about (#849)
+
+Since 0.15.0, `feint run` does not warn about the first row of that table — it
+closes it. The run stands a scoped forward proxy in front of the child, accepts
+the `CONNECT`, terminates TLS with an authority generated for that run alone,
+and **refuses any host it was not told about rather than tunnelling it**. The
+authority is owner-only and never installed durably; a client carrying real
+credentials is refused unless `--unsafe-real-credentials` says otherwise; and
+every rewritten host is named in the run receipt, so the locality claim is
+printed rather than assumed.
+
+Measured on the published Scaleway provider 2.82.0, on the host network, with
+no sudo and no namespace: apply complete, **139,264 identical bytes** read back
+from the local byte store by sha256, an empty second plan, a complete teardown.
+
+**It is opt-in, and that is the limit.** A client a run was not told about, or
+a client run outside `feint run` at all, is exactly as free to leave as the
+paragraph above says. What changed is that there is now a way to be sure, not
+that the default became safe — and the refusal is what makes the receipt worth
+reading: a transcript empty because nothing was attempted and a transcript
+empty because everything was caught are the same picture unless the instrument
+can show a full one, which `feint proxy --forward` did on provider v0.70.0 with
+57 hosts on the wire.
 
 ### Cutting egress, measured both ways
 
@@ -912,10 +936,10 @@ against the SDK's struct" that a recording rather than a document arbitrates.
 carries and the document does not declare — and the symmetric one does not exist
 yet.
 
-## Identifiers are not checked against anything
+## Identifiers are checked against nothing by default, and against your own catalogue when you declare one (#126)
 
-A create that names an image, a template or a machine type the emulator has never
-heard of **succeeds**. Scaleway answers 201 for an image UUID that exists
+By default, a create that names an image, a template or a machine type the
+emulator has never heard of **succeeds**. Scaleway answers 201 for an image UUID that exists
 nowhere, Outscale accepts `ami-99999999`, Exoscale accepts an invented template
 id. The real clouds refuse all three.
 
@@ -926,8 +950,16 @@ configuration that hardcodes a production image UUID — the most common way a t
 first points an existing Terraform at the emulator — would then fail on the one
 thing that has nothing to do with what they are testing.
 
-The cost is real and worth stating plainly: **a typo in an image id is not caught
-here, and will be caught in production.** Feint proves that a request is
+**Since #126 that cost is opt-out.** `--strict-catalog <file>` takes a declared
+catalogue and refuses a create naming an identifier outside it, in all three
+packs (`internal/providers/*/strict.go`); `feint status` prints the declaration
+so the mode is never silent. Unset — the default, and the compatibility mode —
+accepts any identifier, for the reason above. A declaration naming a kind no
+pack checks is itself refused, so a line in that file cannot read as enforced
+while checking nothing (`TestADeclarationNamingAKindNoPackChecksIsRefused`).
+
+The cost is real and worth stating plainly for the default: **a typo in an image
+id is not caught here, and will be caught in production.** Feint proves that a request is
 well-formed and that the response is shaped like the provider's, not that the
 resources it names exist.
 
@@ -1292,8 +1324,14 @@ for information that does not exist here.
 The states clients *check* are preserved: deleting a running server is refused
 with `transient_state`, because Terraform depends on that error.
 
-**Since #637 the default has an opt-out**, because the default has a cost that
-only a client author could find. A reboot's target state is the state it started
+**Two opt-outs exist, and both were asked for by a client author rather than
+designed.** Outscale volumes can be made to pass through `creating` before
+`available` under an eventual-consistency mode, which is what makes the 409 a
+snapshot of a still-creating volume meets reachable at all
+(`TestAVolumeIsCreatingThenAvailableUnderEventualConsistency`,
+`TestASnapshotOfAVolumeStillCreatingIsRefusedWithTheMeasuredConflict`). And
+since #637 the reboot has one, because the default has a cost that only a
+client author could find. A reboot's target state is the state it started
 from, so a waiter watching for `running` proves nothing: without task support the
 only signal is watching the machine *leave* its initial state, and this emulator
 answered `running` from the first read to the last. That made `reboot` the one
@@ -2740,11 +2778,19 @@ get there.
 
 `TestDryRunReachesNoHandler` holds the half that is served.
 
-## The Exoscale Terraform provider is refused, and why
+## The Exoscale Terraform provider has a floor, and below it the refusal stands
 
-`terraform apply` works against Scaleway here, through the provider's `api_url`
-attribute. It does not work against Exoscale, and the reason is not something
-this emulator can fix.
+**Terraform and OpenTofu drive the Exoscale pack since 2026-09-05, from the
+published provider v0.71.0, with no fork and no `dev_overrides`.** What remains
+is a floor rather than a refusal: the emulator reads the version out of the
+user agent the provider sets itself and refuses anything older, naming the
+floor. An agent it cannot read is **served** — the refusal targets a version
+measured in the act of splitting, not everything unfamiliar.
+
+This section used to say the provider was refused outright, and the body below
+is the measurement that made that true. It is kept because the floor is
+meaningless without it: a reader has to know what a provider below v0.71.0
+does before a version check reads as anything but friction.
 
 `exoscale/exoscale` 0.70.0 builds **two** clients in `pkg/provider/provider.go`:
 
@@ -2790,7 +2836,9 @@ it: `CreateClient`, `getClient`, and the plugin-framework provider's
 **So the emulator refuses that client**, by the user agent it sets itself
 (`Exoscale-Terraform-Provider/…`), with a message saying what is happening. Half
 serving it is the worst of the three outcomes: a half-success is
-indistinguishable from working until the invoice arrives.
+indistinguishable from working until the invoice arrives. That refusal is still
+live, and it is now a floor: it is what a configuration pinned below v0.71.0
+meets.
 
 **That was true of every published provider up to and including v0.70.0.
 Upstream fixed it in [#576][exo-576], released as **v0.71.0** on 2026-08-31,
