@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"slices"
@@ -157,6 +159,9 @@ func TestTheRunReceiptSaysTheSameThingInBothShapes(t *testing.T) {
 		},
 		Command: []string{"terraform", "apply"}, Calls: 256, CallsTruncated: true,
 		Stripped: []string{"OSC_PROFILE"}, Exit: 0, Cleanup: "clean",
+		Session: "feint-lab-4021", Runtime: "incus-ovn",
+		Capabilities: []string{"firewall", "isolation"},
+		RealCloud:    "no known escape observed",
 	}
 
 	var prose bytes.Buffer
@@ -165,7 +170,7 @@ func TestTheRunReceiptSaysTheSameThingInBothShapes(t *testing.T) {
 	for _, want := range []string{
 		"passed", "owned", "http://127.0.0.1:41235", "scaleway", "terraform apply",
 		"256", "window", "s3.fr-par.scw.cloud", "OSC_PROFILE", "clean",
-		"no known escape observed",
+		"no known escape observed", "incus-ovn", "isolation",
 	} {
 		if !strings.Contains(text, want) {
 			t.Errorf("the prose receipt never says %q:\n%s", want, text)
@@ -185,6 +190,20 @@ func TestTheRunReceiptSaysTheSameThingInBothShapes(t *testing.T) {
 	}
 	if !back.CallsTruncated {
 		t.Error("the JSON receipt lost the truncation flag, which is the fact that makes the count a window")
+	}
+	// The claim a reader cares about most must not be able to differ between
+	// the two shapes, which is why it is a field and not a sentence render()
+	// prints: the first version printed it as a literal and the JSON carried
+	// nothing at all.
+	if back.RealCloud != receipt.RealCloud {
+		t.Errorf("the JSON receipt says %q about the real cloud where the prose says %q",
+			back.RealCloud, receipt.RealCloud)
+	}
+	if back.Runtime != receipt.Runtime || len(back.Capabilities) != len(receipt.Capabilities) {
+		t.Errorf("the JSON receipt lost the runtime the emulator declared: %+v", back)
+	}
+	if back.Session != receipt.Session {
+		t.Errorf("the JSON receipt lost the lab's identity: %q", back.Session)
 	}
 	if back.Calls != receipt.Calls || back.Exit != receipt.Exit || back.Cleanup != receipt.Cleanup {
 		t.Errorf("the JSON receipt disagrees with the struct it came from: %+v", back)
@@ -282,7 +301,7 @@ func TestAnAttachedRunReturnsTheChildsCodeAndSaysItIsNotItsLab(t *testing.T) {
 		t.Run(probe.name, func(t *testing.T) {
 			var stdout, stderr bytes.Buffer
 			code := runCommand([]string{
-				"--endpoint", server.URL, "--json", "--", "sh", "-c", probe.script,
+				"--endpoint", server.URL, "--json", "-", "--", "sh", "-c", probe.script,
 			}, &stdout, &stderr)
 			if code != probe.expect {
 				t.Fatalf("the command answered %d where the child answered %d\nstderr: %s",
@@ -376,4 +395,139 @@ func TestARunRefusesAnEscapeNoDoorOfItsOwnWouldCatch(t *testing.T) {
 			t.Errorf("a directory with no Terraform file was interrogated anyway: %v", escapes)
 		}
 	})
+}
+
+// TestTheJSONReceiptGoesWhereItWasAskedFor is cited by writeReceipt.
+//
+// The path is the point. The first version wrote the JSON to stdout, and
+// replaying a surveyed stack made `terraform apply` print its plan into the
+// same stream: the receipt was unparseable exactly when the run was real. So
+// the default stream belongs to the command being run, and the receipt goes
+// where the caller says.
+func TestTheJSONReceiptGoesWhereItWasAskedFor(t *testing.T) {
+	receipt := runReceipt{
+		SchemaVersion: runReceiptSchemaVersion, Lab: "owned", Exit: 0,
+		Cleanup: "clean", RealCloud: "no known escape observed",
+	}
+
+	path := filepath.Join(t.TempDir(), "receipt.json")
+	var stdout bytes.Buffer
+	if err := writeReceipt(receipt, path, &stdout); err != nil {
+		t.Fatalf("write to a path: %v", err)
+	}
+	if stdout.Len() != 0 {
+		t.Errorf("a receipt asked for on disk also went to stdout: %q", stdout.String())
+	}
+	body, err := os.ReadFile(path) //nolint:gosec // a path this test made
+	if err != nil {
+		t.Fatalf("read it back: %v", err)
+	}
+	var back runReceipt
+	if err := json.Unmarshal(body, &back); err != nil {
+		t.Fatalf("the file is not the receipt: %v\n%s", err, body)
+	}
+	if back.RealCloud != receipt.RealCloud {
+		t.Errorf("the file lost a field: %+v", back)
+	}
+	// Owner-only, like everything else this run writes: a receipt names the
+	// lab and the command, and there is no reason for another account to read
+	// it.
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mode := info.Mode().Perm(); mode&^os.FileMode(0o600) != 0 {
+		t.Errorf("the receipt is %#o, wider than the 0600 it is written with", mode)
+	}
+
+	// A single dash is the caller saying their command is quiet.
+	var toStdout bytes.Buffer
+	if err := writeReceipt(receipt, "-", &toStdout); err != nil {
+		t.Fatalf("write to stdout: %v", err)
+	}
+	if !strings.Contains(toStdout.String(), "no known escape observed") {
+		t.Errorf("a dash wrote nothing to stdout: %q", toStdout.String())
+	}
+
+	// A path that cannot be opened is an error, not a silent skip: a suite
+	// reading the receipt afterwards would find nothing and blame the run.
+	if err := writeReceipt(receipt, filepath.Join(t.TempDir(), "no-such-dir", "r.json"), &stdout); err == nil {
+		t.Error("an unwritable path was accepted")
+	}
+}
+
+// TestTheReceiptReportsTheRuntimeTheEmulatorDeclares is cited by labHealth.
+//
+// From /_feint/health and not from the --runtime flag, which is the
+// repository's rule twice over: a capability is DECLARED by the driver and an
+// undeclared one counts as absent, and a receipt must report what the process
+// can prove rather than what the caller asked for. A run started with
+// `--runtime auto` on a host where OVN is missing would otherwise claim
+// isolation it does not have.
+func TestTheReceiptReportsTheRuntimeTheEmulatorDeclares(t *testing.T) {
+	health := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"machines":"incus-ovn","capabilities":` +
+			`{"isolation":true,"firewall":true,"address":false}}`))
+	}))
+	defer health.Close()
+
+	runtime, capabilities := labHealth(health.URL)
+	if runtime != "incus-ovn" {
+		t.Errorf("the receipt would report runtime %q", runtime)
+	}
+	// Only the declared ones, and sorted so a receipt does not shuffle between
+	// two runs of the same lab.
+	want := []string{"firewall", "isolation"}
+	if len(capabilities) != len(want) {
+		t.Fatalf("capabilities %v", capabilities)
+	}
+	for i, name := range want {
+		if capabilities[i] != name {
+			t.Errorf("capabilities %v, want %v", capabilities, want)
+		}
+	}
+
+	// A driver that said nothing, and a lab that cannot be reached, both
+	// answer empty rather than a guess: an empty row is visibly empty.
+	silent := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"machines":"off","capabilities":null}`))
+	}))
+	defer silent.Close()
+	if name, held := labHealth(silent.URL); name != "off" || len(held) != 0 {
+		t.Errorf("a silent driver answered %q %v", name, held)
+	}
+	if name, held := labHealth("http://127.0.0.1:1"); name != "" || held != nil {
+		t.Errorf("an unreachable lab answered %q %v", name, held)
+	}
+}
+
+// TestARuntimeNeedsALabThisCommandOwns is cited by nothing in the source and
+// is named here because the refusal it holds has no other witness: --runtime
+// configures the emulator at startup, and an emulator somebody else started is
+// already configured. Accepting the flag there would silently ignore it, which
+// is the shape of a flag that does nothing.
+func TestARuntimeNeedsALabThisCommandOwns(t *testing.T) {
+	server := reportServer(t, door("scaleway", "fr-par"))
+	var stdout, stderr bytes.Buffer
+	code := runCommand([]string{
+		"--endpoint", server.URL, "--runtime", "incus-ovn", "--", "true",
+	}, &stdout, &stderr)
+	if code != exitError {
+		t.Fatalf("--runtime with --endpoint was accepted (%d)", code)
+	}
+	for _, want := range []string{"--runtime incus-ovn", "--endpoint", "owns"} {
+		if !strings.Contains(stderr.String(), want) {
+			t.Errorf("the refusal does not mention %q: %s", want, stderr.String())
+		}
+	}
+	// And off is not refused, because off is the default and asks nothing of
+	// the host: a guard that refused the default would refuse every run.
+	stdout.Reset()
+	stderr.Reset()
+	if code := runCommand([]string{
+		"--endpoint", server.URL, "--runtime", "off", "--", "true",
+	}, &stdout, &stderr); code != exitOK {
+		t.Errorf("--runtime off was refused (%d): %s", code, stderr.String())
+	}
 }

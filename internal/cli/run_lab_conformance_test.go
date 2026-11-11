@@ -96,7 +96,7 @@ func TestARunOwnsItsLabAndLeavesNothing(t *testing.T) {
 	work, tmp := t.TempDir(), t.TempDir()
 
 	code, stdout, stderr := labRun(t, binary, work, tmp,
-		"run", "--json", "--provider", "scaleway", "--",
+		"run", "--json", "-", "--provider", "scaleway", "--",
 		"sh", "-c", `printf '%s' "$SCW_API_URL" > seen.txt`)
 	if code != 0 {
 		t.Fatalf("the run failed (%d)\nstdout:%s\nstderr:%s", code, stdout, stderr)
@@ -154,7 +154,7 @@ func TestARunKeepsAFailedLabOnlyWhenAsked(t *testing.T) {
 	t.Run("without the flag the lab goes, and the code is the child's", func(t *testing.T) {
 		work, tmp := t.TempDir(), t.TempDir()
 		code, stdout, stderr := labRun(t, binary, work, tmp,
-			"run", "--json", "--", "sh", "-c", "exit 3")
+			"run", "--json", "-", "--", "sh", "-c", "exit 3")
 		if code != 3 {
 			t.Fatalf("the child's exit 3 became %d\nstderr:%s", code, stderr)
 		}
@@ -176,7 +176,7 @@ func TestARunKeepsAFailedLabOnlyWhenAsked(t *testing.T) {
 	t.Run("with the flag it stays, and the follow-up command is printed", func(t *testing.T) {
 		work, tmp := t.TempDir(), t.TempDir()
 		code, stdout, stderr := labRun(t, binary, work, tmp,
-			"run", "--json", "--keep-on-failure", "--", "sh", "-c", "exit 3")
+			"run", "--json", "-", "--keep-on-failure", "--", "sh", "-c", "exit 3")
 		if code != 3 {
 			t.Fatalf("the child's exit 3 became %d\nstderr:%s", code, stderr)
 		}
@@ -230,7 +230,7 @@ func TestARunRemovesAMeasuredRerouteFromItsChild(t *testing.T) {
 	binary := feintBinary(t)
 	work, tmp := t.TempDir(), t.TempDir()
 
-	cmd := exec.CommandContext(t.Context(), binary, "run", "--json", "--",
+	cmd := exec.CommandContext(t.Context(), binary, "run", "--json", "-", "--",
 		"sh", "-c", `printf '%s' "${OSC_PROFILE-<absent>}" > seen.txt`)
 	cmd.Dir = work
 	cmd.Env = append(os.Environ(), "TMPDIR="+tmp, "OSC_PROFILE=production")

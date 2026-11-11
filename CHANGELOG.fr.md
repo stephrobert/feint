@@ -24,8 +24,10 @@ change ni l'un ni l'autre a sa place dans `git log`.
   `feint env`, lance la commande et arrête tout ce qu'il a démarré.
   `--provider` restreint les exports à un seul pack, `--keep-on-failure` laisse
   debout le laboratoire d'une exécution ratée et imprime la commande exacte pour
-  l'atteindre et le supprimer, et `--json` écrit le reçu sur la sortie standard,
-  où il est la seule chose écrite. Le code de sortie est celui de l'enfant.
+  l'atteindre et le supprimer, `--json <chemin>` écrit le reçu là où on le
+  demande, et `--runtime` demande à l'hôte un runtime de machines avant que
+  quoi que ce soit ne démarre, avec le refus qu'oppose `feint up`. Le code de
+  sortie est celui de l'enfant, et la sortie standard appartient à lui seul.
 - **Une exécution retire les variables qu'un pack a mesurées comme un retour
   vers le vrai cloud**, au lieu de seulement les écraser : `OSC_PROFILE` fait
   lire `~/.osc/config.json` au provider Outscale 1.1.x, qui ignore alors
@@ -35,9 +37,18 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Modifié
 
-- **`feint run` écrit sa prose sur la sortie d'erreur**, pour que la sortie
-  standard ne porte que le reçu. Rien ne lisait ce texte comme une donnée, et
-  `--json` aurait obligé à l'en retirer.
+- **`feint run` laisse la sortie standard à la commande qu'il lance.** Sa
+  propre prose part sur la sortie d'erreur et le reçu JSON dans un fichier.
+  Mesuré plutôt que raisonné : la première version écrivait le reçu sur la
+  sortie standard, et en rejouant une stack du registre, `terraform apply` y a
+  imprimé son plan, rendant le reçu illisible précisément quand l'exécution
+  était réelle.
+- **Une exécution refuse une fuite mesurée pour laquelle elle n'a pas de
+  porte**, avant que l'enfant ne démarre. Pas tous les dangers : ceux que les
+  packs signalent sont ceux que cette commande intercepte, donc la question est
+  de savoir si **cette** exécution monte une porte pour le pack qui l'a
+  signalé. Le reçu rapporte aussi le runtime et les capacités que l'émulateur
+  déclare, et non le mode demandé.
 
 ## [0.15.0] - 2026-11-11
 

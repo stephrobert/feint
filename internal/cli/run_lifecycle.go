@@ -48,6 +48,11 @@ type ownedLab struct {
 	addr     string
 	endpoint string
 	dir      string
+	// session is the lab's identity, #848's first required behaviour. It is
+	// the private directory's basename, which is already unique per run and
+	// already the thing an operator would have to name to clean up by hand.
+	// Inventing a second identifier would give two names to one lab.
+	session string
 }
 
 // freeLoopbackAddr answers an address nothing is listening on.
@@ -84,7 +89,7 @@ func freeLoopbackAddr() (string, error) {
 // machine-readable answer "without parsing prose", and a progress line on
 // stdout is prose.
 // TestARunOwnsItsLabAndLeavesNothing fails without this.
-func startOwnedLab(stderr io.Writer) (*ownedLab, error) {
+func startOwnedLab(mode string, stderr io.Writer) (*ownedLab, error) {
 	addr, err := freeLoopbackAddr()
 	if err != nil {
 		return nil, err
@@ -105,6 +110,7 @@ func startOwnedLab(stderr io.Writer) (*ownedLab, error) {
 
 	args := []string{
 		"--addr", addr,
+		"--vm", mode,
 		"--timeout", labReadyTimeout.String(),
 		"--objectstore", filepath.Join(dir, "objects"),
 	}
@@ -122,7 +128,8 @@ func startOwnedLab(stderr io.Writer) (*ownedLab, error) {
 		return nil, fmt.Errorf("the lab did not start on %s", addr)
 	}
 	fmt.Fprintf(stderr, "feint run: lab on http://%s\n", addr)
-	return &ownedLab{addr: addr, endpoint: "http://" + addr, dir: dir}, nil
+	return &ownedLab{addr: addr, endpoint: "http://" + addr, dir: dir,
+		session: filepath.Base(dir)}, nil
 }
 
 // close stops the lab and removes its bytes. Both halves are attempted even
@@ -277,13 +284,25 @@ func providerExports(endpoint, provider string) ([]string, []string, error) {
 // answer "without parsing prose", so both are written from the same struct and
 // neither is derived from the other's text.
 type runReceipt struct {
-	SchemaVersion int      `json:"schema_version"`
-	Lab           string   `json:"lab"`
-	Endpoint      string   `json:"endpoint"`
-	Providers     []string `json:"providers"`
-	Intercepted   []string `json:"intercepted"`
-	Command       []string `json:"command"`
-	Calls         int      `json:"calls"`
+	SchemaVersion int    `json:"schema_version"`
+	Lab           string `json:"lab"`
+	// Session names this lab, so that two runs on one machine are told apart
+	// in a log and a kept lab can be found again. Empty for an attached one:
+	// its identity is not this command's to give.
+	Session  string `json:"session"`
+	Endpoint string `json:"endpoint"`
+	// Runtime and Capabilities are read from the emulator's own /_feint/health
+	// rather than from the flag this command passed, which is #848's fifth
+	// behaviour and the repository's rule twice over: a capability is
+	// DECLARED by the driver, never deduced from a mode's name, and what the
+	// receipt reports must be what the process can prove rather than what the
+	// caller asked for.
+	Runtime      string   `json:"runtime"`
+	Capabilities []string `json:"capabilities"`
+	Providers    []string `json:"providers"`
+	Intercepted  []string `json:"intercepted"`
+	Command      []string `json:"command"`
+	Calls        int      `json:"calls"`
 	// CallsTruncated says the emulator's ring held everything it was asked
 	// for. Reported rather than hidden: a count silently capped at the ring
 	// size is a number a script would assert on without knowing it was a
@@ -292,6 +311,10 @@ type runReceipt struct {
 	Stripped       []string `json:"stripped"`
 	Exit           int      `json:"exit"`
 	Cleanup        string   `json:"cleanup"`
+	// RealCloud is a field and not a sentence render() prints, because the
+	// prose and the JSON must not be able to disagree about the one claim a
+	// reader of this receipt cares about most.
+	RealCloud string `json:"real_cloud"`
 }
 
 // runReceiptSchemaVersion is frozen from the first release, like the
@@ -345,12 +368,20 @@ func (r runReceipt) render(w io.Writer) {
 	if len(r.Stripped) != 0 {
 		row("stripped", strings.Join(r.Stripped, ", ")+" (measured to reroute clients)")
 	}
+	if r.Runtime != "" {
+		runtime := r.Runtime
+		if len(r.Capabilities) != 0 {
+			runtime += " (" + strings.Join(r.Capabilities, ", ") + ")"
+		}
+		row("runtime", runtime)
+	}
 	row("cleanup", r.Cleanup)
-	// Deliberately narrow wording. "no known escape observed" is what #848's
-	// own example prints and what this can honestly say: the doors are
-	// intercepted, the measured reroute variables are gone from the child, and
-	// nothing claims that an unmeasured path does not exist.
-	row("real cloud", "no known escape observed")
+	// Deliberately narrow wording, and a field rather than a literal here:
+	// "no known escape observed" is what #848's own example prints and what
+	// this can honestly say — the doors are intercepted, the measured reroute
+	// variables are gone from the child, and nothing claims that an unmeasured
+	// path does not exist.
+	row("real cloud", r.RealCloud)
 }
 
 // renderJSON writes the same receipt for a machine.
@@ -409,4 +440,69 @@ func stackEscapes(profiles []s3.Profile) []string {
 		}
 	}
 	return escapes
+}
+
+// writeReceipt puts the JSON receipt where the caller asked for it.
+//
+// A path rather than a stream, because stdout is the child's: a run whose
+// command prints anything at all would otherwise hand a reader a receipt with
+// a Terraform plan wrapped around it. `-` is still offered for the case where
+// the command is known to be quiet, and it is the caller saying so rather
+// than this command assuming it.
+//
+// TestTheJSONReceiptGoesWhereItWasAskedFor fails without this.
+func writeReceipt(receipt runReceipt, path string, stdout io.Writer) error {
+	if path == "-" {
+		return receipt.renderJSON(stdout)
+	}
+	file, err := os.OpenFile(filepath.Clean(path), os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
+	if err != nil {
+		return fmt.Errorf("open the receipt: %w", err)
+	}
+	if err := receipt.renderJSON(file); err != nil {
+		_ = file.Close()
+		return fmt.Errorf("write the receipt: %w", err)
+	}
+	if err := file.Close(); err != nil {
+		return fmt.Errorf("close the receipt: %w", err)
+	}
+	return nil
+}
+
+// labHealth reads what the emulator says about its own runtime.
+//
+// From /_feint/health and not from the flag this command passed, because a
+// capability is DECLARED by the driver and an undeclared one counts as absent
+// (machine.CapabilitiesOf). Reporting the mode name would tell a reader what
+// was asked for; this tells them what answered.
+//
+// Best effort, like the call count: a receipt is not worth failing a run that
+// otherwise passed, and an empty runtime row is visibly empty.
+//
+// TestTheReceiptReportsTheRuntimeTheEmulatorDeclares fails without this.
+func labHealth(endpoint string) (string, []string) {
+	client := &http.Client{Timeout: 5 * time.Second}
+	res, err := client.Get(strings.TrimSuffix(endpoint, "/") + "/_feint/health")
+	if err != nil {
+		return "", nil
+	}
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusOK {
+		return "", nil
+	}
+	var body struct {
+		Machines     string          `json:"machines"`
+		Capabilities map[string]bool `json:"capabilities"`
+	}
+	if err := json.NewDecoder(io.LimitReader(res.Body, 1<<20)).Decode(&body); err != nil {
+		return "", nil
+	}
+	held := make([]string, 0, len(body.Capabilities))
+	for name, declared := range body.Capabilities {
+		if declared {
+			held = append(held, name)
+		}
+	}
+	slices.Sort(held)
+	return body.Machines, held
 }

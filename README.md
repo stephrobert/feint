@@ -604,9 +604,19 @@ feint run: passed
   real cloud     no known escape observed
 ```
 
-`--json` writes that receipt as JSON on stdout, where it is the only thing
-written. `--keep-on-failure` leaves a failed run's lab up and prints the exact
-command to inspect and remove it. The exit code is your command's.
+`--json <path>` writes that receipt as JSON where you ask for it, because
+stdout belongs to your command: replaying a surveyed stack made
+`terraform apply` print its plan into the same stream, so the receipt was
+unparseable exactly when the run was real. `--keep-on-failure` leaves a failed
+run's lab up and prints the exact command to inspect and remove it. The exit
+code is your command's.
+
+`--runtime off|incus|incus-vm|incus-ovn|auto` asks the host for a machine
+runtime before anything starts, with the refusal `feint up` makes. `off` is the
+default, because starting containers is a side effect on your station. The
+receipt reports the runtime and the capabilities the emulator **declares**, not
+the mode you asked for: a run started with `auto` on a host without OVN would
+otherwise claim an isolation it does not have.
 
 Three refusals come with it. Credentials that are not this repository's public
 fakes are refused, because the emulator checks no signature: real keys prove
@@ -616,8 +626,8 @@ Outscale provider read `~/.osc/config.json` and ignore your endpoint entirely,
 so overriding does not help. And a Terraform configuration carrying a measured
 escape that this run has no door for is refused before your command starts.
 
-It starts no machine runtime: that is what `feint up` does, with the refusals a
-declaration carries.
+What it still does not do is bring up a declared environment: `feint up` reads
+`feint.yaml` and owns that, with the ready conditions and the engine.
 
 ---
 

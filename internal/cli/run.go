@@ -80,8 +80,9 @@ func runCommand(args []string, stdout io.Writer, stderr io.Writer) int {
 	endpoint := fs.String("endpoint", "", "attach to an emulator already running here, instead of starting one. Empty means this command owns the lab and stops it. Loopback HTTP(S) only")
 	provider := fs.String("provider", "", "resolve only this provider's client environment into the child; empty resolves every pack's")
 	addr := fs.String("addr", "127.0.0.1:0", "the proxy's listen address; the default takes a free loopback port and prints it")
+	runtimeMode := fs.String("runtime", "off", "the machine runtime the lab starts with: off, incus, incus-vm, incus-ovn, auto. Anything but off starts containers on this host, so it is asked for")
 	keep := fs.Bool("keep-on-failure", false, "when the child fails, leave the lab running and print how to reach and remove it")
-	asJSON := fs.Bool("json", false, "write the receipt as JSON on stdout instead of prose")
+	receiptPath := fs.String("json", "", "write the receipt as JSON to this path; `-` means stdout, which is only safe when the command itself is quiet")
 	unsafe := fs.Bool("unsafe-real-credentials", false, "allow the child to carry credentials that are not known fakes. The emulator never checks a signature, so this buys nothing and risks sending real keys to a third party")
 	if err := fs.Parse(args); err != nil {
 		return exitError
@@ -101,13 +102,29 @@ func runCommand(args []string, stdout io.Writer, stderr io.Writer) int {
 		return exitError
 	}
 
+	// The runtime, asked of the host before anything starts, which is `up`'s
+	// rule and for its reason: a refusal must fire with nothing running. The
+	// same seam answers, so the refusal says what `up`'s says.
+	if *endpoint != "" && *runtimeMode != "off" {
+		fmt.Fprintf(stderr, "feint run: --runtime %s needs a lab this command owns; --endpoint names one it does not\n", *runtimeMode)
+		fmt.Fprintln(stderr, "  Drop --endpoint to own the lab, or start that emulator with --vm yourself.")
+		return exitError
+	}
+	if *endpoint == "" {
+		if _, err := resolveRuntime(*runtimeMode, stderr); err != nil {
+			fmt.Fprintf(stderr, "feint run: %v\n", err)
+			fmt.Fprintf(stderr, "  `feint doctor --vm %s` reports the whole diagnosis, and --runtime off needs none of it.\n", *runtimeMode)
+			return exitError
+		}
+	}
+
 	// The lab. Owned when nothing was named, which is the default because
 	// #848's whole point is that Feint infrastructure leaves the user's
 	// mental model; attached when an endpoint is named, because a suite that
 	// already brought an emulator up with its own flags must not get a second.
 	target, owned := *endpoint, (*ownedLab)(nil)
 	if target == "" {
-		lab, err := startOwnedLab(stderr)
+		lab, err := startOwnedLab(*runtimeMode, stderr)
 		if err != nil {
 			fmt.Fprintf(stderr, "feint run: %v\n", err)
 			return exitError
@@ -164,10 +181,22 @@ func runCommand(args []string, stdout io.Writer, stderr io.Writer) int {
 	stripped := hazardVariables()
 	childEnv := childEnvironment{strip: stripped, set: exports}
 
+	// Counted before and after, so an ATTACHED lab's earlier traffic is not
+	// reported as this run's. The owned case starts at zero and the delta is
+	// the same number; the attached case is where a total would lie.
+	before, _ := callsSoFar(target)
+
 	code, runErr := runChild(target, *addr, profiles, command, *unsafe, childEnv, stdout, stderr)
 
 	// Read before the teardown, or there is nothing left to read.
-	calls, truncated := callsSoFar(target)
+	after, truncated := callsSoFar(target)
+	calls := after - before
+	if calls < 0 || truncated {
+		// A ring that wrapped makes the delta meaningless, and so does a
+		// restart. Report what was last seen and say it is a window.
+		calls, truncated = after, true
+	}
+	runtimeName, capabilities := labHealth(target)
 
 	cleanup := "not owned"
 	if owned != nil {
@@ -195,18 +224,26 @@ func runCommand(args []string, stdout io.Writer, stderr io.Writer) int {
 		intercepted = append(intercepted, profile.CloudHost)
 	}
 	receipt := runReceipt{
-		SchemaVersion: runReceiptSchemaVersion, Lab: labKind(owned), Endpoint: target,
+		SchemaVersion: runReceiptSchemaVersion, Lab: labKind(owned),
+		Session: labSession(owned), Endpoint: target,
+		Runtime: runtimeName, Capabilities: capabilities,
 		Providers: providers, Intercepted: intercepted, Command: command,
 		Calls: calls, CallsTruncated: truncated, Stripped: stripped,
 		Exit: code, Cleanup: cleanup,
+		RealCloud: "no known escape observed",
 	}
-	if *asJSON {
-		if err := receipt.renderJSON(stdout); err != nil {
+	// stdout belongs to the CHILD, and to nothing else. Measured rather than
+	// reasoned: the first version wrote the JSON receipt there, and replaying
+	// a surveyed stack made `terraform apply` print its plan into the same
+	// stream, so the receipt was unparseable exactly when the run was real.
+	// The prose goes to stderr beside the rest of this command's prose, and
+	// the JSON goes to a path the caller names.
+	receipt.render(stderr)
+	if *receiptPath != "" {
+		if err := writeReceipt(receipt, *receiptPath, stdout); err != nil {
 			fmt.Fprintf(stderr, "feint run: %v\n", err)
 			return exitError
 		}
-	} else {
-		receipt.render(stdout)
 	}
 	// The child's code, not this command's: a wrapper that swallowed a
 	// failing test would be worse than no wrapper.
@@ -228,6 +265,16 @@ func keepsTheLab(code int, runErr error, asked bool) bool {
 		return false
 	}
 	return code != exitOK || runErr != nil
+}
+
+// labSession names an owned lab, and deliberately nothing for an attached
+// one: its identity belongs to whoever started it, and inventing a second name
+// for it would put two names on one emulator.
+func labSession(owned *ownedLab) string {
+	if owned == nil {
+		return ""
+	}
+	return owned.session
 }
 
 // labKind names who owns the emulator, for a receipt a reader can act on.

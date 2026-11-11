@@ -249,7 +249,7 @@ const (
 // TestTheFrozenSurfacesStillMatchTheirFixture, and a fixture regenerated
 // without bumping this constant fails TestASurfaceChangeDemandsItsVersionBump.
 // The procedure for a deliberate change is in RELEASING.md ("Frozen surfaces").
-const cliSurfaceVersion = 29
+const cliSurfaceVersion = 30
 
 // Run executes one command and returns the process exit code.
 func Run(args []string, stdout, stderr io.Writer) int {
@@ -557,10 +557,14 @@ Usage:
                     the child rather than merely overridden. --provider narrows
                     the exports to one pack, --keep-on-failure leaves a failed
                     run's lab up and prints how to reach and remove it, and
-                    --json writes the receipt as JSON on stdout, where it is
-                    the only thing written. The exit code is the child's.
-                    It starts no machine runtime: that is what up does,
-                    refusals a declaration carries.
+                    --json writes the receipt as JSON to a path, or to
+                    stdout with a single dash; stdout otherwise belongs to
+                    your command alone. The exit code is the child's.
+                    --runtime asks the host for a machine runtime before
+                    anything starts, with the refusal up makes. off is the
+                    default: starting containers is a side effect on this
+                    station, so it is asked for, and it needs a lab this
+                    command owns.
 
   feint transcript <recording.jsonl> [--shape OP [--against emu.jsonl]]
                    [--sanitise corpus.jsonl --contract contracts/<provider>.json]

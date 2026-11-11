@@ -489,10 +489,21 @@ feint run: passed
   real cloud     no known escape observed
 ```
 
-`--json` écrit ce reçu en JSON sur la sortie standard, où il est la seule chose
-écrite. `--keep-on-failure` laisse debout le laboratoire d'une exécution ratée
-et imprime la commande exacte pour l'inspecter et le supprimer. Le code de
-sortie est celui de votre commande.
+`--json <chemin>` écrit ce reçu en JSON là où vous le demandez, parce que la
+sortie standard appartient à votre commande : en rejouant une stack du
+registre, `terraform apply` a imprimé son plan dans le même flux, et le reçu
+était donc illisible précisément quand l'exécution était réelle.
+`--keep-on-failure` laisse debout le laboratoire d'une exécution ratée et
+imprime la commande exacte pour l'inspecter et le supprimer. Le code de sortie
+est celui de votre commande.
+
+`--runtime off|incus|incus-vm|incus-ovn|auto` demande à l'hôte un runtime de
+machines avant que quoi que ce soit ne démarre, avec le refus que `feint up`
+oppose. `off` est le défaut, parce que démarrer des conteneurs est un effet de
+bord sur votre station. Le reçu rapporte le runtime et les capacités que
+l'émulateur **déclare**, et non le mode demandé : une exécution lancée en
+`auto` sur un hôte sans OVN prétendrait sinon à une isolation qu'elle n'a
+pas.
 
 Trois refus l'accompagnent. Des identifiants qui ne sont pas les faux publics
 de ce dépôt sont refusés, parce que l'émulateur ne vérifie aucune signature :
@@ -504,8 +515,9 @@ Outscale, qui ignore alors complètement votre endpoint, donc l'écraser ne sert
 laquelle ce lancement n'a aucune porte est refusée avant que votre commande ne
 démarre.
 
-Il ne démarre aucun runtime de machines : c'est le rôle de `feint up`, avec les
-refus qu'une déclaration porte.
+Ce qu'il ne fait toujours pas, c'est monter un environnement déclaré :
+`feint up` lit `feint.yaml` et s'en charge, avec les conditions de disponibilité
+et le moteur.
 
 ---
 
