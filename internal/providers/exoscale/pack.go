@@ -139,6 +139,7 @@ func operation(id string) string { return "exoscale/v2." + id }
 // Routes implements emulator.Pack.
 func (p *Pack) Routes() []emulator.Route {
 	return p.guardSplitClients([]emulator.Route{
+		{Method: "GET", Path: "/v2/sos-buckets-usage", Operation: operation("list-sos-buckets-usage"), Handler: p.listSOSBucketsUsage},
 		{Method: "GET", Path: "/v2/instance", Operation: operation("list-instances"), Handler: p.listInstances},
 		{Method: "POST", Path: "/v2/instance", Operation: operation("create-instance"), Handler: p.createInstance},
 		{Method: "GET", Path: "/v2/instance/{id}", Operation: operation("get-instance"), Handler: p.getInstance},
@@ -714,9 +715,8 @@ func (p *Pack) Declined() []emulator.Decline {
 			"exoscale/v2.update-user-role"),
 
 		// Simple Object Storage.
-		emulator.Because("object storage is refused across this project for a measured reason: clients build the S3 endpoint in code, so serving it needs DNS interception and a certificate, recorded in docs/limits.md; two surveyed stacks in fifteen ask for it (platform's backup buckets, eu-data-platform's Terraform state backend, 2026-08 — #284), and both leave for the real sos-<zone>.exo.io by that same self-resolution, the escape #280 exists to detect",
-			"exoscale/v2.get-sos-presigned-url",
-			"exoscale/v2.list-sos-buckets-usage"),
+		emulator.Because("signed public download URLs require authentication and externally reachable S3 authorities, neither of which the explicit local byte doors promise",
+			"exoscale/v2.get-sos-presigned-url"),
 
 		// The instance console and its passwords.
 		//

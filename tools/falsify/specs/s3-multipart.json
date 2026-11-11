@@ -1,0 +1,268 @@
+{
+  "package": "./internal/s3/",
+  "mutations": [
+    {
+      "label": "multipart inventory silently changes an XML-inexpressible prefix",
+      "file": "internal/s3/multipart_list.go",
+      "find": "prefixErr != nil || markerErr != nil",
+      "replace": "(prefixErr != nil && false) || markerErr != nil",
+      "test": "TestMultipartRefusalsPreserveDurableParts"
+    },
+    {
+      "label": "multipart inventory silently changes an XML-inexpressible marker",
+      "file": "internal/s3/multipart_list.go",
+      "find": "prefixErr != nil || markerErr != nil",
+      "replace": "prefixErr != nil || (markerErr != nil && false)",
+      "test": "TestMultipartRefusalsPreserveDurableParts"
+    },
+    {
+      "label": "multipart assembly trusts same-length corrupt part bytes",
+      "file": "internal/core/objectstore/files.go",
+      "find": "if n != obj.Size || hex.EncodeToString(hash.Sum(nil)) != obj.Digest {",
+      "replace": "if n != obj.Size || (hex.EncodeToString(hash.Sum(nil)) != obj.Digest && false) {",
+      "package": "./internal/core/objectstore/",
+      "test": "TestCorruptPartCannotPublishAssembledObject"
+    },
+    {
+      "label": "returned session metadata aliases live state",
+      "file": "internal/core/objectstore/upload.go",
+      "find": "upload.Metadata = maps.Clone(upload.Metadata)",
+      "replace": "if upload.Metadata == nil { upload.Metadata = maps.Clone(upload.Metadata) }",
+      "package": "./internal/core/objectstore/",
+      "test": "TestUploadPartsResumeAndCompleteWithoutAliasing"
+    },
+    {
+      "label": "returned part inventory aliases live state",
+      "file": "internal/core/objectstore/upload.go",
+      "find": "upload.Parts = maps.Clone(upload.Parts)",
+      "replace": "if upload.Parts == nil { upload.Parts = maps.Clone(upload.Parts) }",
+      "package": "./internal/core/objectstore/",
+      "test": "TestUploadPartsResumeAndCompleteWithoutAliasing"
+    },
+    {
+      "label": "session removal modifies live state before durable commit",
+      "file": "internal/core/objectstore/store.go",
+      "find": "Uploads: maps.Clone(b.Uploads)",
+      "replace": "Uploads: func() map[string]Upload { _ = maps.Clone(b.Uploads); return b.Uploads }()",
+      "package": "./internal/core/objectstore/",
+      "test": "TestUploadCompletionRefusalsPreserveSessionAndOldObject"
+    },
+    {
+      "label": "multipart silently accepts duplicate selectors",
+      "file": "internal/s3/multipart.go",
+      "find": "if !allowed[name] || len(values) != 1 ||",
+      "replace": "if !allowed[name] || (len(values) != 1 && false) ||",
+      "test": "TestMultipartRefusalsPreserveDurableParts"
+    },
+    {
+      "label": "multipart inventory silently accepts Range",
+      "file": "internal/s3/multipart.go",
+      "find": "if len(r.Header.Values(\"Range\")) != 0 {",
+      "replace": "if len(r.Header.Values(\"Range\")) != 0 && false {",
+      "test": "TestMultipartRefusalsPreserveDurableParts"
+    },
+    {
+      "label": "part Content-MD5 mismatches publish replacement metadata",
+      "file": "internal/s3/multipart.go",
+      "find": "if errors.Is(err, io.EOF) && base64.StdEncoding.EncodeToString(r.hash.Sum(nil)) != r.expected {",
+      "replace": "if errors.Is(err, io.EOF) && base64.StdEncoding.EncodeToString(r.hash.Sum(nil)) != r.expected && false {",
+      "test": "TestMultipartRefusalsPreserveDurableParts"
+    },
+    {
+      "label": "signed decimal part numbers are silently accepted",
+      "file": "internal/s3/multipart.go",
+      "find": "raw == \"\" || strings.IndexFunc(raw, func(r rune) bool { return r < '0' || r > '9' }) >= 0",
+      "replace": "raw == \"\" || (strings.IndexFunc(raw, func(r rune) bool { return r < '0' || r > '9' }) >= 0 && false)",
+      "test": "TestMultipartRefusalsPreserveDurableParts"
+    },
+    {
+      "label": "non-final parts smaller than 5 MiB complete",
+      "file": "internal/s3/multipart.go",
+      "find": "(i < len(refs)-1 && part.Size < 5<<20)",
+      "replace": "(i < len(refs)-1 && part.Size < 5<<20 && false)",
+      "test": "TestMultipartRefusalsPreserveDurableParts"
+    },
+    {
+      "label": "the uploaded part response loses its observed content tag",
+      "file": "internal/s3/multipart.go",
+      "find": "w.Header().Set(\"ETag\", partTag(part.Digest))",
+      "replace": "w.Header().Set(\"ETag\", partTag(part.Digest[:32]))",
+      "test": "TestMultipartLifecycleUsesRealPartsAndOpaqueTags"
+    },
+    {
+      "label": "completion XML accepts a foreign namespace",
+      "file": "internal/s3/multipart_xml.go",
+      "find": "if t.Name.Space != \"\" && t.Name.Space != s3XMLNamespace {",
+      "replace": "if t.Name.Space != \"\" && t.Name.Space != s3XMLNamespace && false {",
+      "test": "TestCompletionXMLClosedShape"
+    },
+    {
+      "label": "completion XML silently discards unknown attributes",
+      "file": "internal/s3/multipart_xml.go",
+      "find": "if len(stack) != 0 || attr.Name.Space != \"\" || attr.Name.Local != \"xmlns\" || attr.Value != s3XMLNamespace {",
+      "replace": "if (len(stack) != 0 || attr.Name.Space != \"\" || attr.Name.Local != \"xmlns\" || attr.Value != s3XMLNamespace) && false {",
+      "test": "TestCompletionXMLClosedShape"
+    },
+    {
+      "label": "completion XML accepts a trailing root",
+      "file": "internal/s3/multipart_xml.go",
+      "find": "if roots != 0 || t.Name.Local != \"CompleteMultipartUpload\" {",
+      "replace": "if (roots != 0 && false) || t.Name.Local != \"CompleteMultipartUpload\" {",
+      "test": "TestCompletionXMLClosedShape"
+    },
+    {
+      "label": "completion XML accepts signed part numbers",
+      "file": "internal/s3/multipart_xml.go",
+      "find": "if strings.IndexFunc(raw, func(r rune) bool { return r < '0' || r > '9' }) >= 0 {",
+      "replace": "if strings.IndexFunc(raw, func(r rune) bool { return r < '0' || r > '9' }) >= 0 && false {",
+      "test": "TestCompletionXMLClosedShape"
+    },
+    {
+      "label": "completion XML exceeds its part-number bound",
+      "file": "internal/s3/multipart_xml.go",
+      "find": "err != nil || part.Number < 1 || part.Number > 10000",
+      "replace": "err != nil || part.Number < 1 || (part.Number > 10000 && false)",
+      "test": "TestCompletionXMLClosedShape"
+    },
+    {
+      "label": "completion XML accepts malformed content tags",
+      "file": "internal/s3/multipart_xml.go",
+      "find": "if err != nil || len(digest) != sha256.Size {",
+      "replace": "if (err != nil || len(digest) != sha256.Size) && false {",
+      "test": "TestCompletionXMLClosedShape"
+    },
+    {
+      "label": "completion XML silently chooses among duplicate part numbers",
+      "file": "internal/s3/multipart_xml.go",
+      "find": "if numbers != 1 || tags != 1 ||",
+      "replace": "if (numbers != 1 && false) || tags != 1 ||",
+      "test": "TestCompletionXMLClosedShape"
+    },
+    {
+      "label": "completion XML silently chooses among duplicate content tags",
+      "file": "internal/s3/multipart_xml.go",
+      "find": "if numbers != 1 || tags != 1 ||",
+      "replace": "if numbers != 1 || (tags != 1 && false) ||",
+      "test": "TestCompletionXMLClosedShape"
+    },
+    {
+      "label": "empty completion is acknowledged",
+      "file": "internal/s3/multipart_xml.go",
+      "find": "if len(refs) == 0 || len(stack) != 0 {",
+      "replace": "if (len(refs) == 0 && false) || len(stack) != 0 {",
+      "test": "TestCompletionXMLClosedShape"
+    },
+    {
+      "label": "upload IDs authorize another logical object key",
+      "file": "internal/core/objectstore/upload.go",
+      "find": "if !ok || upload.Key != key {",
+      "replace": "if !ok || (upload.Key != key && false) {",
+      "package": "./internal/core/objectstore/",
+      "test": "TestUploadCompletionRefusalsPreserveSessionAndOldObject"
+    },
+    {
+      "label": "assembly ignores the exact observed part digest",
+      "file": "internal/core/objectstore/upload.go",
+      "find": "ref.Number <= previous || !ok || ref.Digest != part.Digest",
+      "replace": "ref.Number <= previous || !ok || (ref.Digest != part.Digest && false)",
+      "package": "./internal/core/objectstore/",
+      "test": "TestUploadCompletionRefusalsPreserveSessionAndOldObject"
+    },
+    {
+      "label": "assembly permits duplicate or descending part numbers",
+      "file": "internal/core/objectstore/upload.go",
+      "find": "ref.Number <= previous || !ok || ref.Digest != part.Digest",
+      "replace": "(ref.Number <= previous && false) || !ok || ref.Digest != part.Digest",
+      "package": "./internal/core/objectstore/",
+      "test": "TestUploadCompletionRefusalsPreserveSessionAndOldObject"
+    },
+    {
+      "label": "the assembled-object byte bound is ignored",
+      "file": "internal/core/objectstore/upload.go",
+      "find": "if part.Size > maxBytes-size {",
+      "replace": "if part.Size > maxBytes-size && false {",
+      "package": "./internal/core/objectstore/",
+      "test": "TestUploadCompletionRefusalsPreserveSessionAndOldObject"
+    },
+    {
+      "label": "a failed completion publishes its new object before commit",
+      "file": "internal/core/objectstore/upload.go",
+      "find": "delete(next.Buckets[name].Uploads, id)\n\tif err := s.commit(ctx, next); err != nil {",
+      "replace": "delete(next.Buckets[name].Uploads, id)\n\ts.state = next\n\tif err := s.commit(ctx, next); err != nil {",
+      "package": "./internal/core/objectstore/",
+      "test": "TestUploadCompletionRefusalsPreserveSessionAndOldObject"
+    },
+    {
+      "label": "completed sessions remain in the persisted inventory",
+      "file": "internal/core/objectstore/upload.go",
+      "find": "delete(next.Buckets[name].Uploads, id)\n\tif err := s.commit(ctx, next); err != nil {",
+      "replace": "if id == \"\\x00never\" { delete(next.Buckets[name].Uploads, id) }\n\tif err := s.commit(ctx, next); err != nil {",
+      "package": "./internal/core/objectstore/",
+      "test": "TestUploadPartsResumeAndCompleteWithoutAliasing"
+    },
+    {
+      "label": "bucket deletion ignores unfinished upload sessions",
+      "file": "internal/core/objectstore/store.go",
+      "find": "if len(b.Objects) != 0 || len(b.Uploads) != 0 {",
+      "replace": "if len(b.Objects) != 0 || (len(b.Uploads) != 0 && false) {",
+      "package": "./internal/core/objectstore/",
+      "test": "TestUploadQuotaAndAbortKeepRetainedBytes"
+    },
+    {
+      "label": "restored legacy versions admit session metadata",
+      "file": "internal/core/objectstore/manifest.go",
+      "find": "if state.Version < 4 && len(b.Uploads) != 0 {",
+      "replace": "if state.Version < 4 && len(b.Uploads) != 0 && false {",
+      "package": "./internal/core/objectstore/",
+      "test": "TestRestoredUploadMetadataIsClosedAndValidated"
+    },
+    {
+      "label": "restored sessions admit malformed identifiers",
+      "file": "internal/core/objectstore/upload.go",
+      "find": "}) >= 0 || upload.Created.IsZero()",
+      "replace": "}) >= 0 && false || upload.Created.IsZero()",
+      "package": "./internal/core/objectstore/",
+      "test": "TestRestoredUploadMetadataIsClosedAndValidated"
+    },
+    {
+      "label": "restored sessions invent an initiation date",
+      "file": "internal/core/objectstore/upload.go",
+      "find": "upload.Created.IsZero() || upload.Created.Year() < 1",
+      "replace": "(upload.Created.IsZero() || upload.Created.Year() < 1) && false",
+      "package": "./internal/core/objectstore/",
+      "test": "TestRestoredUploadMetadataIsClosedAndValidated"
+    },
+    {
+      "label": "restored sessions admit a missing parts map",
+      "file": "internal/core/objectstore/upload.go",
+      "find": "upload.Parts == nil || len(upload.Parts) > 10000",
+      "replace": "(upload.Parts == nil && false) || len(upload.Parts) > 10000",
+      "package": "./internal/core/objectstore/",
+      "test": "TestRestoredUploadMetadataIsClosedAndValidated"
+    },
+    {
+      "label": "restored part references permit path traversal digests",
+      "file": "internal/core/objectstore/upload.go",
+      "find": "!validDigest(part.Digest) || part.Size < 0",
+      "replace": "(!validDigest(part.Digest) && false) || part.Size < 0",
+      "package": "./internal/core/objectstore/",
+      "test": "TestRestoredUploadMetadataIsClosedAndValidated"
+    },
+    {
+      "label": "restored parts permit invalid part numbers",
+      "file": "internal/core/objectstore/upload.go",
+      "find": "if number < 1 || number > 10000 || !validDigest(part.Digest)",
+      "replace": "if (number < 1 && false) || number > 10000 || !validDigest(part.Digest)",
+      "package": "./internal/core/objectstore/",
+      "test": "TestRestoredUploadMetadataIsClosedAndValidated"
+    },
+    {
+      "label": "restored parts permit negative lengths",
+      "file": "internal/core/objectstore/upload.go",
+      "find": "!validDigest(part.Digest) || part.Size < 0 || part.Size == math.MaxInt64",
+      "replace": "!validDigest(part.Digest) || (part.Size < 0 && false) || part.Size == math.MaxInt64",
+      "package": "./internal/core/objectstore/",
+      "test": "TestRestoredUploadMetadataIsClosedAndValidated"
+    }
+  ]
+}

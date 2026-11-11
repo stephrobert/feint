@@ -1,0 +1,1 @@
+<Error><Code>NoSuchBucket</Code><Message>The specified bucket does not exist</Message><RequestId>REDACTED_RESPONSE_ID</RequestId><HostId>REDACTED_RESPONSE_ID</HostId><Resource>/feint-phase0-9b6bd212d7e34ceaa10827dc6e9b74ca</Resource><BucketName>feint-phase0-9b6bd212d7e34ceaa10827dc6e9b74ca</BucketName></Error>

@@ -13,7 +13,161 @@ Two kinds of change deserve their own line whatever their size, because they are
 what this project is judged on: **a response shape a client can observe**, and
 **a limit that moved**. A refactor that changes neither belongs in `git log`.
 
-## [Unreleased]
+## [0.15.0] - 2026-11-11
+
+### Added
+
+- **`feint run`** (#849): runs one command with a client whose cloud endpoint is
+  compiled in landing on this emulator, with no privilege, no network namespace
+  and no system mutation. It takes **no hostname**, and that is the safety
+  property: the mounted S3 doors come from the emulator's own report and each
+  door's cloud authority from the pack in this binary, so the only possible
+  targets are doors that exist. An operator typing a hostname is an operator
+  able to mistype it, and a mistyped cloud host is not intercepted but
+  *resolved* — the run leaves for a third party and looks like it worked. Every
+  other host is refused rather than tunnelled, the authority lives in a
+  directory the run creates and removes, the four variables are set on the child
+  alone, and credentials that are not this repository's public fakes are refused
+  because the emulator checks no signature. CLI surface 28.
+
+  Proved with the client, not with curl: the published Scaleway provider 2.82.0
+  completes apply through `feint run` on the **host network**, with no sudo and
+  no namespace, and **139,264 identical bytes** are read back from the local
+  byte store by sha256, followed by an empty second plan and a complete
+  teardown. `TestScalewayTerraformStorageThroughFeintRunOnTheHostNetwork` is
+  that witness, and it refuses to run inside a namespace, because a pass
+  obtained in one would prove the namespace's containment rather than the
+  command's.
+
+  Two limits the measurement moved. The virtual-host form `<bucket>.<authority>`
+  is intercepted as well as the bare one, since a path-style probe passes while
+  every bucket request a real client makes would be refused; the widening only
+  affects what is intercepted, as the transport still refuses a leading label
+  that is not a valid bucket name. And **`AWS_CA_BUNDLE` is stripped rather than
+  set**, including from an inherited environment: the provider fails its apply
+  with `unable to add custom RootCAs HTTPClient, has no WithTransportOptions`
+  when it is present, and `SSL_CERT_FILE` already covers every Go client.
+
+- **`feint doctor` reports leftover interception authorities** (#849), and tells
+  a leftover from a run in flight by the owning PID each run records. A run in
+  progress legitimately owns such a directory, so a check that only reported
+  their existence would warn on every correct use. A leftover is a warning, not
+  a failure: it holds a public certificate in an owner-only directory, so it
+  leaks nothing and blocks nothing.
+
+- **Object Storage release groundwork** (#850, #858): ordinary Exo bucket
+  creation/show/removal and native usage now use recorded default discovery
+  errors and the actual published byte inventory. The native inventory is
+  `exoscale/v2.list-sos-buckets-usage`, a refusal withdrawn: it answers
+  `GET /v2/sos-buckets-usage` from the same published bytes rather than a
+  catalogue, `exo storage list` drives it (the client calls
+  ListSOSBucketsUsage), and it still answers 503 without `--objectstore`
+  because an inventory of an inventory that does not exist is not zero.
+  Scaleway Terraform 2.82.0
+  completes apply, empty plans, byte-store reopen, identical 122,880-byte GET,
+  destroy and explicit GC in a loopback-only namespace through scoped TLS
+  interception. This is a test harness, not `feint run` or full-stack certification.
+  Neutral named byte checkpoints preserve multipart sessions and protect GC
+  references; coordinated CLI/control-plane/runtime reset remains unfinished.
+
+- **Persistent multipart, proved with real Exo/AWS clients** (#856):
+  exo 1.95.1 multipart-uploads 6,340,608 bytes; AWS verifies assembled bytes,
+  resumes persisted parts after actual restart and completes another object.
+  Exo bucket removal aborts a real dangling session before deleting the bucket.
+  Private metadata v4 reads v1..v3; older binaries need a pre-upgrade whole-store
+  copy for rollback. Assembly uses the simple-PUT limit; retained parts and
+  assembly share the blob quota, and abort is not GC. Opaque SHA-256 part tags
+  are not generic ETags. The newer slice above adds normal Exo creation and
+  native usage; mixed per-key cloud errors and full Object Storage 1.0 remain
+  outside this proof.
+
+- **Measured Exo bulk deletion** (#856): exo 1.95.1 deletes four actual keys;
+  AWS independently checks the empty inventory across restart and untouched
+  Scaleway bytes. DeleteObjects verifies transport checksums and closed XML
+  before one metadata transaction (1..1000 unversioned keys, 8 MiB XML).
+  Verbose/quiet results describe actual deletions. Blobs remain retained;
+  mixed per-key cloud errors and complete bucket-creation workflows remain
+  outside this measured slice.
+
+- **Measured Exo object listing and multi-range downloads** (#850):
+  exo 1.95.1 downloads 73,728-byte and 6,340,608-byte binary objects with exact
+  byte/SHA-256 and listing-date proof before/after actual restart. AWS independently
+  decodes two one-entry ListObjectsV2 pages. Single-byte-range GETs serve actual
+  offsets/lengths without whole-object checksums on partial bytes.
+  Private metadata v3 persists publication dates, reads v1/v2 without rewriting
+  them and upgrades on mutation; older binaries cannot read v3. Listing pages
+  containing legacy undated objects are explicitly refused until overwrite.
+  Generic ETags and complete Exoscale bucket-creation workflows remain unsupported.
+
+- **Same-port synthetic S3 hosts, proved with Exo uploads** (#850):
+  opt-in `serve/start --s3-host-doors` retains the prefix doors and serves
+  declared provider/region HTTP authorities through a local non-forwarding
+  proxy. Exo 1.95.1 uploads binary bytes; AWS verifies bytes/SHA-256 before
+  and after actual restart. Native routes, browser/peer guards, quotas and
+  namespace separation remain intact. Exoscale `env --s3` sets dedicated-shell
+  proxy variables; explicit `env --s3 --unset` removes them without restoring
+  prior values. Scaleway retains its measured prefix environment.
+  Status/doctor describe the hosts. S3 report schema is now **2** and the
+  CLI surface **27**. Full Exoscale workflows, cloud bucket virtual hosts
+  and TLS/Terraform interception remain unsupported.
+
+- **Measured Exoscale S3 prefix incompatibility** (#850):
+  `conformance:s3:exo:endpoint` proves that exo 1.95.1 removes the configured
+  URL prefix from both bucket discovery and object upload. This listener
+  deliberately refuses the PUT; it does not certify a byte lifecycle.
+  Prefixed mounted doors remain proved with AWS CLI/scw, not exo.
+
+- **Opt-in, persisted simple S3 bytes on the existing port** (#850):
+  `serve`/`start --objectstore`, `--s3-doors`, `--objectstore-budget-mib`
+  (1024 by default) and `--s3-object-limit-mib` (256 by default).
+  Declared provider/region prefixes preserve literal keys and separate
+  namespaces. `restart` preserves the absolute root and limits; resource
+  snapshots and cleanup do not own these bytes. AWS CLI 2.32.17 proves
+  byte/checksum identity through the real process before and after restart.
+  Complete `exo` lifecycles, ETag semantics, multipart and hardcoded
+  Terraform endpoints remain unsupported.
+- **Live S3 discovery, not an endpoint guessed while disabled** (#850):
+  `env --s3 [--s3-region]`, `doctor --s3`, explicit enabled/disabled/unknown
+  status, and independent `/_feint/s3` report schema **1**. HTTP response
+  counts do not inflate control-plane SDK coverage or client evidence.
+  The additive CLI surface is version **26**; existing exit codes and the
+  health schema stay unchanged. Ordinary `env --unset` also clears S3
+  endpoint variables offline.
+- **Measured private Scaleway bucket lifecycle** (#850): `scw` 2.62.0
+  `create/list/get/delete`, alongside verified AWS CLI bytes, survives actual
+  process restart. Region XML, bounded transport checksums, persisted
+  `Suspended` versioning, private canonical ACL and recorded `NoSuchTagSet`
+  are served; version histories, writable tags and public grants are refused.
+  S3 env endpoints omit the slash the SDK rejects; canonical bare bucket-list
+  roots are dispatched without redirects. Neutral private metadata version 2
+  reads version 1 and upgrades on mutation; older binaries cannot read it.
+
+- **An instance snapshot imports from Object Storage** (#850, #262):
+  `instance/v1/API.CreateSnapshot` takes `{bucket, key}` and reads the object
+  through the door of its own region, where it was refused outright before. The
+  snapshot takes the object's size and carries no base volume; an absent object
+  is refused, as upstream refuses it; and with no byte store armed the refusal
+  names `--objectstore` and `--s3-doors` rather than the limits page. block/v1's
+  import reads through the same code, which closes the divergence #807 recorded
+  in its own words. **A limit moved**: `docs/limits.md` says what is now served
+  and that the real API's dialect for a missing object is still unmeasured.
+- **`mise run vulncheck`**: govulncheck on demand against the pinned toolchain.
+  Not in `prepush`, and #865 says why: its verdict changes without a line of
+  this repository changing.
+
+### Fixed
+
+- **`feint run` accepted the fakes `feint env` publishes** (#849): the sequence
+  both commands document — eval `feint env`, then `feint run` — was refused by
+  its own binary, because the accepted list was a second hand-written copy of
+  the credentials the packs publish and had drifted from them by two characters
+  on one value and by a whole missing value on another. The list is derived from
+  the packs now, so the two cannot disagree again.
+- **An imported snapshot answered an empty base volume**, which the Scaleway
+  provider reads back as `volume_id "fr-par-1/"` and treats as
+  `forces replacement`, churning the snapshot and the image cut from it on
+  every plan. It answers null, and a surveyed third-party stack now applies
+  whole with an empty second plan.
 
 ## [0.14.0] - 2026-10-26
 

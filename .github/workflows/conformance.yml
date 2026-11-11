@@ -54,7 +54,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: '1.26.10'
+          go-version: '1.26.11'
           cache: false
 
       # No browser is installed here: the runner image ships Google Chrome, and
@@ -93,7 +93,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: '1.26.10'
+          go-version: '1.26.11'
           cache: false
 
       # The same build the release performs (static, trimmed), because the
@@ -208,7 +208,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: '1.26.10'
+          go-version: '1.26.11'
           # No go.sum to key a cache on: the zero-dependency rule keeps this module
           # dependency-free, and a pre-commit hook fails if the file ever
           # appears. Pointing the cache at it warned on every run and never
@@ -236,8 +236,21 @@ jobs:
           # version of #572 taught the two of them and left this one, and five
           # jobs went red at 44 s with "the declared project did not list under
           # its own name: []". Held by TestEveryConformanceEmulatorDeclaresTheSameProjects.
+          #
+          # --objectstore, for the probe rather than for any client suite:
+          # exoscale/v2.list-sos-buckets-usage reads the byte inventory and
+          # answers 503 without one, while its schema declares a 200 body, so
+          # the probe counts it as a route answering the wrong shape. Missing
+          # here while mise.toml had it is PR #605 to the letter -- two of
+          # three starters taught a flag -- and it cost four red jobs.
+          # TestEveryConformanceEmulatorArmsTheSameObjectStore holds it now.
+          objects="$(mktemp -d)"
+          chmod 0700 "$objects"
+          echo "FEINT_OBJECTS=${objects}" >> "$GITHUB_ENV"
           /tmp/feint start --addr 127.0.0.1:4599 --contracts contracts \
-            --projects default,platform-prod --timeout 60s
+            --projects default,platform-prod --timeout 60s \
+            --objectstore "${objects}/objects" \
+            --s3-doors scaleway/fr-par,exoscale/ch-dk-2,exoscale/ch-gva-2
           # The doorway step of the Outscale Terraform suite evals the real
           # output of `feint env` rather than restating it, so the script needs
           # the binary this job just built — the repo-root default it falls
@@ -550,8 +563,116 @@ jobs:
         if: always()
         run: /tmp/feint stop --addr 127.0.0.1:4599 || true
 
+      # The byte store is this job's own side effect on the runner, and a runner
+      # is reused. Removing it is the same discipline `feint run` follows for
+      # its authority: whatever a run creates, the run takes away.
+      - name: Remove the byte store
+        if: always()
+        run: rm -rf "${FEINT_OBJECTS:-/nonexistent}"
+
       - name: Dump the emulator state on failure
         if: failure()
         run: |
           curl -s http://127.0.0.1:4599/_feint/health || true
           curl -s http://127.0.0.1:4599/_feint/routes || true
+
+  # The hardcoded-endpoint path, driven by a real Terraform on the runner's own
+  # network. A job of its own rather than a leg of the matrix above, for the
+  # reason the page job gives: it needs something no other leg does, here a
+  # local mirror of the pinned provider.
+  #
+  # It exists so that the capability stops being a measurement somebody
+  # reproduces and becomes a gate. #850's criterion is a "generated/bounded
+  # capability statement, not hand-edited marketing prose", and a sentence can
+  # only be generated from an instrument that runs — which is what this is.
+  # capability.go's matrix admits a row only when the conformance workflow
+  # drives the pair, so without this job the row cannot honestly exist.
+  #
+  # The witness refuses to run inside a network namespace, deliberately: a pass
+  # obtained in one would prove the namespace's containment rather than the
+  # command's. A GitHub runner has eth0 beside lo, so it qualifies, and that is
+  # the whole point of running it here — this is an ordinary machine.
+  hardcoded-endpoint:
+    name: hardcoded endpoint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.26.11'
+          cache: false
+
+      # The workflow-level pin, same checksums as the other two jobs that
+      # install this client: one client, one version, wherever it is proved.
+      - name: Install Terraform
+        run: |
+          set -euo pipefail
+          workdir="$(mktemp -d)"
+          base="https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}"
+          asset="terraform_${TERRAFORM_VERSION}_linux_amd64.zip"
+          tools/ci/fetch.sh "${base}/${asset}" "${workdir}/${asset}"
+          tools/ci/fetch.sh "${base}/terraform_${TERRAFORM_VERSION}_SHA256SUMS" "${workdir}/sums"
+          (cd "${workdir}" && grep " ${asset}$" sums | sha256sum -c -)
+          sudo unzip -o "${workdir}/${asset}" terraform -d /usr/local/bin
+          terraform version
+
+      # A MIRROR, not a plugin cache, and not at the same path as either. The
+      # witness was green once and red the second time on a developer's machine
+      # because TF_PLUGIN_CACHE_DIR pointed at the -plugin-dir directory: the
+      # first run unpacks into the mirror and every later run fails with
+      # "cannot install existing provider directory to itself". A runner is
+      # fresh each time and would never have shown it, which is exactly why it
+      # is written down here.
+      #
+      # The provider version is the one the witness pins in its own
+      # configuration; it is deliberately not a workflow variable, because the
+      # measurement belongs to the test that makes the claim.
+      - name: Mirror the pinned Scaleway provider
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/tf-mirror" "${RUNNER_TEMP}/tf-seed"
+          version="$(grep -oE 'version = "= [0-9]+\.[0-9]+\.[0-9]+"' \
+            internal/cli/run_terraform_conformance_test.go | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')"
+          test -n "${version}"
+          printf 'terraform {\n  required_providers {\n    scaleway = {\n      source = "scaleway/scaleway"\n      version = "= %s"\n    }\n  }\n}\n' \
+            "${version}" > "${RUNNER_TEMP}/tf-seed/main.tf"
+          cd "${RUNNER_TEMP}/tf-seed"
+          terraform providers mirror -platform=linux_amd64 "${RUNNER_TEMP}/tf-mirror"
+
+      # The witness itself. It starts its own door and byte store, drives
+      # `feint run`, and proves the bytes by digest rather than by exit code:
+      # a request that went anywhere else cannot put them in the local store.
+      - name: Terraform reaches the local door through feint run
+        env:
+          FEINT_TF_PLUGIN_DIR: ${{ runner.temp }}/tf-mirror
+        run: |
+          go test -tags=conformance ./internal/cli \
+            -run '^TestScalewayTerraformStorageThroughFeintRunOnTheHostNetwork$' \
+            -count=1 -v -timeout 15m
+
+      # A leftover authority is this job's own leak if there is one, and the
+      # diagnostic that finds it is the one shipped for the purpose.
+      - name: No interception authority outlived the run
+        if: always()
+        run: |
+          set -uo pipefail
+          # doctor's own exit code is not the verdict here: it fails on any
+          # FAIL check, and this step asks one question only. So the report is
+          # captured, printed, and then searched.
+          go run ./cmd/feint doctor --vm off > doctor.txt 2>&1 || true
+          grep -A2 'interception authority' doctor.txt
+          if grep -q 'outlived their' doctor.txt; then
+            echo "this job left an interception authority behind" >&2
+            exit 1
+          fi

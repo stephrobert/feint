@@ -1,0 +1,20 @@
+{
+  "package": "./internal/probe/",
+  "mutations": [
+    {
+      "label": "the marker stops being required, so EVERY 5xx is skipped and the probe quietly stops reporting server errors — the one thing it exists for. Also silences the deliberate faults of faults.go, which carry no marker: a probe that skips them would report a clean run over an emulator failing on purpose",
+      "file": "internal/probe/probe.go",
+      "find": "\tif res.StatusCode >= 500 && res.Header.Get(emulator.NotEmulatedHeader) != \"\" {",
+      "replace": "\tif res.StatusCode >= 500 && (res.Header.Get(emulator.NotEmulatedHeader) != \"\" || true) {",
+      "test": "TestAMarkedServiceRefusalIsSkippedAndAnUnmarkedOneIsNot"
+    },
+    {
+      "label": "the narrowing widens from 5xx to 4xx, so a marked refusal the probe used to read against the contract's declared error shape becomes a skip. Every pack marks its own unrouted answers, so this would stop checking error dialects wholesale — the opposite of what #477's marker was for",
+      "file": "internal/probe/probe.go",
+      "find": "\tif res.StatusCode >= 500 && res.Header.Get(emulator.NotEmulatedHeader) != \"\" {",
+      "replace": "\tif res.StatusCode >= 400 && res.Header.Get(emulator.NotEmulatedHeader) != \"\" {",
+      "test": "TestAMarkedServiceRefusalIsSkippedAndAnUnmarkedOneIsNot"
+    }
+  ],
+  "note": "The subject is a measured false failure and the narrow fix for it. `exoscale/v2.list-sos-buckets-usage` reads the byte inventory and answers 503 without --objectstore, while its schema declares a 200 body, so the probe — which builds its request from the operation's own schema — reported a route answering the wrong shape. Four CI jobs went red on it (probe, image, fields, exo-cli) and nothing in the answer said the 503 was a refusal rather than a fault.\n\nThe fix reuses the out-of-band marker #477 introduced for exactly that distinction: a status cannot carry \"this is the emulator refusing rather than a cloud answering\". A MARKED 5xx becomes a skip.\n\nBoth mutations guard the NARROWNESS, because the narrowness is the whole of the safety. Mutation 1 drops the marker requirement and the probe stops reporting server errors at all. Mutation 2 widens 5xx to 4xx and the probe stops reading error dialects, since every pack marks its own unrouted answers. Either one buys a green by giving up what the instrument measures, which is the trade this repository exists to refuse.\n\nMeasured either way: without --objectstore the exoscale probe goes from 2 failed to 0, with 26 skipped becoming 28; WITH it, the route is driven — 100 probed against 98 — so no coverage was bought. That second number is the one that matters, and it is why this is a skip conditioned on a declaration rather than a route removed from the plan.\n\nAnd the marker is not an excuse for the flag being absent. Three conformance starters arm --objectstore and TestEveryConformanceEmulatorArmsTheSameObjectStore keeps them in step; this serves only the one leg no flag reaches, the shipped container run with no override. That parity test is asserted and not falsified here, for the reason recorded in hardcoded-endpoint-row-is-owned.json: the harness requires every name in `find` to survive into `replace`, and removing a flag from a shell script or a workflow cannot satisfy that."
+}

@@ -10,6 +10,7 @@ import (
 
 	"github.com/stephrobert/feint/internal/core/emulator"
 	"github.com/stephrobert/feint/internal/core/machine"
+	"github.com/stephrobert/feint/internal/s3"
 )
 
 // What is running, and how much of the real API it is standing in for.
@@ -57,17 +58,19 @@ type routeResponse struct {
 
 // statusReport is what status prints, and what --format json emits verbatim.
 type statusReport struct {
-	Running   bool             `json:"running"`
-	Addr      string           `json:"addr"`
-	PID       int              `json:"pid,omitempty"`
-	Started   string           `json:"started_at,omitempty"`
-	Stale     string           `json:"stale,omitempty"`
-	Log       string           `json:"log,omitempty"`
-	Machines  string           `json:"machines,omitempty"`
-	Resources int              `json:"resources,omitempty"`
-	Products  []productStatus  `json:"products,omitempty"`
-	Providers []providerStatus `json:"providers,omitempty"`
-	Contracts []string         `json:"contracts,omitempty"`
+	Running            bool             `json:"running"`
+	Addr               string           `json:"addr"`
+	PID                int              `json:"pid,omitempty"`
+	Started            string           `json:"started_at,omitempty"`
+	Stale              string           `json:"stale,omitempty"`
+	Log                string           `json:"log,omitempty"`
+	Machines           string           `json:"machines,omitempty"`
+	Resources          int              `json:"resources,omitempty"`
+	Products           []productStatus  `json:"products,omitempty"`
+	Providers          []providerStatus `json:"providers,omitempty"`
+	Contracts          []string         `json:"contracts,omitempty"`
+	ObjectStorage      *s3.Report       `json:"object_storage,omitempty"`
+	ObjectStorageError string           `json:"object_storage_error,omitempty"`
 }
 
 type providerStatus struct {
@@ -123,6 +126,17 @@ func status(args []string, stdout, stderr io.Writer) int {
 		if conf, confErr := fetchConformance(*addr); confErr == nil {
 			report.Contracts = conf.Contracts
 		}
+		target, storageErr := storageListenEndpoint(*addr)
+		var storage s3.Report
+		if storageErr == nil {
+			storage, storageErr = fetchS3(target)
+		}
+		if storageErr != nil {
+			report.ObjectStorageError = storageErr.Error()
+			fmt.Fprintf(stderr, "warning: object storage availability is unknown: %v\n", storageErr)
+		} else {
+			report.ObjectStorage = &storage
+		}
 	}
 	report.Products = coverageStatus(*coverageDir)
 
@@ -159,6 +173,22 @@ func writeStatusText(w io.Writer, r statusReport, health healthResponse) {
 		fmt.Fprintf(w, " (pid %d, since %s)", r.PID, r.Started)
 	}
 	fmt.Fprintln(w)
+	if r.ObjectStorageError != "" {
+		fmt.Fprintf(w, "  S3         unknown (%s)\n", r.ObjectStorageError)
+	} else if r.ObjectStorage != nil {
+		if !r.ObjectStorage.Enabled {
+			fmt.Fprintln(w, "  S3         disabled")
+		} else {
+			fmt.Fprintf(w, "  S3         %d door(s), %d retained/reserved blob bytes maximum, %d bytes per PUT\n",
+				len(r.ObjectStorage.Doors), r.ObjectStorage.MaxBlobBytes, r.ObjectStorage.MaxObjectBytes)
+			for _, door := range r.ObjectStorage.Doors {
+				fmt.Fprintf(w, "             %s\n", door.Path)
+				if door.Host != "" {
+					fmt.Fprintf(w, "             http://%s (local HTTP proxy, never forwarded)\n", door.Host)
+				}
+			}
+		}
+	}
 	if r.Stale != "" {
 		fmt.Fprintf(w, "  warning: %s\n", r.Stale)
 	}

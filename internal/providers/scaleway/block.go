@@ -676,6 +676,23 @@ func (p *Pack) importBlockSnapshotFromObjectStorage(w http.ResponseWriter, r *ht
 		return
 	}
 	project, _ := projectOf(textPtr(req.ProjectID))
+	// Size from the object when a byte store is armed, zero when none is.
+	// #807 documented the divergence this closes in as many words: "the real
+	// API refuses an object that does not exist, and this handler does not
+	// check the opt-in byte store". It does now, through the same reader the
+	// instance import uses — one behaviour, two products, written once,
+	// because this repository has already paid for the same lifecycle written
+	// twice and fixed on one side. Unarmed, the intention stands: that is
+	// #807's own contract, and nothing here can read bytes nobody serves.
+	// TestABlockImportRefusesAnObjectTheDoorDoesNotHold fails without this.
+	imported := uint64(0)
+	if p.env.Objects != nil {
+		size, ok := p.importedObjectSize(r.Context(), w, regionOfZone(zone), req.Bucket, req.Key)
+		if !ok {
+			return
+		}
+		imported = size
+	}
 	now := p.env.Now()
 	res := resource.New(p.env.NewID(), kindBlockSnapshot, resource.Tenant{Provider: Name, Project: project, Zone: zone}, "available", now)
 	res.Attrs = map[string]any{
@@ -685,10 +702,10 @@ func (p *Pack) importBlockSnapshotFromObjectStorage(w http.ResponseWriter, r *ht
 		// field is present and empty rather than absent — a client reading a
 		// snapshot gets the same shape whichever door made it.
 		"tags": []string{},
-		// No parent volume and no bytes: the snapshot was imported from an
-		// object this emulator does not hold, so it carries the inputs the
-		// client named and nothing it could not have observed.
-		"size":          uint64(0),
+		// No parent volume. The size is the object's when a door holds it, and
+		// zero when no byte store is armed: either way it is a number the
+		// client could have observed, never one invented here.
+		"size":          imported,
 		"zone":          zone,
 		"public":        false,
 		"parent_volume": nil,

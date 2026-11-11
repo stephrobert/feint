@@ -1,0 +1,184 @@
+{
+  "package": "./internal/s3/",
+  "mutations": [
+    {
+      "label": "empty first-page tokens from the real Exo downloader are refused",
+      "file": "internal/s3/list.go",
+      "find": "if len(options.token) > 4096 {",
+      "replace": "if len(options.token) > 4096 || (q.Has(\"continuation-token\") && options.token == \"\") {",
+      "test": "TestListingEmptyContinuationTokenStartsAtActualInventory"
+    },
+    {
+      "label": "listing options silently accept duplicates",
+      "file": "internal/s3/list.go",
+      "find": "!listQueryKey(key) || len(values) != 1",
+      "replace": "!listQueryKey(key) || (len(values) != 1 && false)",
+      "test": "TestListingRejectsInvalidQueriesAndCrossScopeCursors"
+    },
+    {
+      "label": "unimplemented owner and encoding options masquerade as supported",
+      "file": "internal/s3/list.go",
+      "find": "(q.Has(\"fetch-owner\") && q.Get(\"fetch-owner\") != \"false\")",
+      "replace": "(q.Has(\"fetch-owner\") && q.Get(\"fetch-owner\") != \"false\" && false)",
+      "test": "TestListingRejectsInvalidQueriesAndCrossScopeCursors"
+    },
+    {
+      "label": "listing key parameters exceed their UTF-8 byte bound",
+      "file": "internal/s3/list.go",
+      "find": "if len(value) > 1024 || !utf8.ValidString(value) {",
+      "replace": "if (len(value) > 1024 || !utf8.ValidString(value)) && false {",
+      "test": "TestListingRejectsInvalidQueriesAndCrossScopeCursors"
+    },
+    {
+      "label": "listing exceeds its maximum page bound",
+      "file": "internal/s3/list.go",
+      "find": "n > 1000",
+      "replace": "(n > 1000 && false)",
+      "test": "TestListingRejectsInvalidQueriesAndCrossScopeCursors"
+    },
+    {
+      "label": "listing cursors cross scope or prefix boundaries",
+      "file": "internal/s3/list.go",
+      "find": "cursor.Scope != s.listScope(bucket, options)",
+      "replace": "(cursor.Scope != s.listScope(bucket, options) && false)",
+      "test": "TestListingRejectsInvalidQueriesAndCrossScopeCursors"
+    },
+    {
+      "label": "cursor JSON silently accepts unknown fields",
+      "file": "internal/s3/list.go",
+      "find": "decoder.DisallowUnknownFields()",
+      "replace": "decoder.InputOffset()",
+      "test": "TestListingRejectsInvalidQueriesAndCrossScopeCursors"
+    },
+    {
+      "label": "cursor JSON accepts trailing documents",
+      "file": "internal/s3/list.go",
+      "find": "if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {",
+      "replace": "if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) && false {",
+      "test": "TestListingRejectsInvalidQueriesAndCrossScopeCursors"
+    },
+    {
+      "label": "cursor decoding silently replaces invalid UTF-8",
+      "file": "internal/s3/list.go",
+      "find": "if err != nil || !utf8.Valid(raw) {",
+      "replace": "if err != nil || (!utf8.Valid(raw) && false) {",
+      "test": "TestListingRejectsInvalidQueriesAndCrossScopeCursors"
+    },
+    {
+      "label": "cursor boundaries need not be nonempty and bounded",
+      "file": "internal/s3/list.go",
+      "find": "cursor.After == \"\" ||\n\t\tlen(cursor.After) > 1024",
+      "replace": "(cursor.After == \"\" && false) ||\n\t\t(len(cursor.After) > 1024 && false)",
+      "test": "TestListingRejectsInvalidQueriesAndCrossScopeCursors"
+    },
+    {
+      "label": "listing ignores its literal prefix",
+      "file": "internal/s3/list.go",
+      "find": "if !strings.HasPrefix(key, options.prefix) {",
+      "replace": "if !strings.HasPrefix(key, options.prefix) && false {",
+      "test": "TestListingPagesContainActualSortedObjectsAndPrefixes"
+    },
+    {
+      "label": "listing cursor fails to advance",
+      "file": "internal/s3/list.go",
+      "find": "if name > after {",
+      "replace": "if name > after || true {",
+      "test": "TestListingPagesContainActualSortedObjectsAndPrefixes"
+    },
+    {
+      "label": "delimiter grouping is lost",
+      "file": "internal/s3/list.go",
+      "find": "if options.delimiter != \"\" {",
+      "replace": "if options.delimiter != \"\" && false {",
+      "test": "TestListingPagesContainActualSortedObjectsAndPrefixes"
+    },
+    {
+      "label": "literal percent escapes are decoded twice",
+      "file": "internal/s3/list.go",
+      "find": "url.QueryEscape(value)",
+      "replace": "url.QueryEscape(strings.ReplaceAll(value, \"%2F\", \"/\"))",
+      "test": "TestListingPreservesEncodedKeysAndRefusesLossyXML"
+    },
+    {
+      "label": "XML silently replaces unsupported key characters",
+      "file": "internal/s3/list.go",
+      "find": "(c < 0x20 && c != '\\t' && c != '\\n' && c != '\\r') || c == 0xfffe || c == 0xffff",
+      "replace": "((c < 0x20 && c != '\\t' && c != '\\n' && c != '\\r') || c == 0xfffe || c == 0xffff) && false",
+      "test": "TestListingPreservesEncodedKeysAndRefusesLossyXML"
+    },
+    {
+      "label": "undated legacy objects are listed with invented dates",
+      "file": "internal/s3/list.go",
+      "find": "if obj.Modified.IsZero() {",
+      "replace": "if obj.Modified.IsZero() && false {",
+      "test": "TestListingRefusesUndatedLegacyObjectsWithoutBreakingTheirBytes"
+    },
+    {
+      "label": "range bytes are read from the beginning rather than the actual offset",
+      "file": "internal/s3/server.go",
+      "find": "body.Seek(offset, io.SeekStart)",
+      "replace": "body.Seek(offset*0, io.SeekStart)",
+      "test": "TestSingleByteRangesReturnOnlyTheirVerifiedBytes"
+    },
+    {
+      "label": "range Content-Length describes bytes not sent",
+      "file": "internal/s3/server.go",
+      "find": "strconv.FormatInt(length, 10)",
+      "replace": "strconv.FormatInt(length+1, 10)",
+      "test": "TestSingleByteRangesReturnOnlyTheirVerifiedBytes"
+    },
+    {
+      "label": "whole-object checksums are attached to partial bytes",
+      "file": "internal/s3/server.go",
+      "find": "status == http.StatusOK && !s.digestHeader(w, r, obj)",
+      "replace": "(status == http.StatusOK || true) && !s.digestHeader(w, r, obj)",
+      "test": "TestSingleByteRangesReturnOnlyTheirVerifiedBytes"
+    },
+    {
+      "label": "range ends exceed the actual blob size",
+      "file": "internal/s3/range.go",
+      "find": "end = min(end, size-1)",
+      "replace": "end = min(end, size+100)",
+      "test": "TestSingleByteRangesReturnOnlyTheirVerifiedBytes"
+    },
+    {
+      "label": "multiple ranges and unsupported units become other responses",
+      "file": "internal/s3/range.go",
+      "find": "if !strings.HasPrefix(value, \"bytes=\") || strings.Contains(value, \",\") {",
+      "replace": "if (!strings.HasPrefix(value, \"bytes=\") || strings.Contains(value, \",\")) && false {",
+      "test": "TestRangeRefusalsAreExplicitAndDoNotMasqueradeAsFullReads"
+    },
+    {
+      "label": "restored legacy formats admit version 3 dates",
+      "package": "./internal/core/objectstore/",
+      "file": "internal/core/objectstore/manifest.go",
+      "find": "if state.Version < 3 && !obj.Modified.IsZero() {",
+      "replace": "if state.Version < 3 && !obj.Modified.IsZero() && false {",
+      "test": "TestObjectModificationDatePersistsAndLegacyDatesAreNotInvented"
+    },
+    {
+      "label": "restored dates admit year zero",
+      "package": "./internal/core/objectstore/",
+      "file": "internal/core/objectstore/manifest.go",
+      "find": "if !obj.Modified.IsZero() && (obj.Modified.Year() < 1 || obj.Modified.Year() > 9999) {",
+      "replace": "if !obj.Modified.IsZero() && (obj.Modified.Year() < 1 || obj.Modified.Year() > 9999) && false {",
+      "test": "TestObjectModificationDatePersistsAndLegacyDatesAreNotInvented"
+    },
+    {
+      "label": "publication dates are returned but not persisted",
+      "package": "./internal/core/objectstore/",
+      "file": "internal/core/objectstore/store.go",
+      "find": "next.Buckets[name].Objects[key] = obj",
+      "replace": "next.Buckets[name].Objects[key] = obj\n\tundated := obj\n\tundated.Modified = time.Time{}\n\tnext.Buckets[name].Objects[key] = undated",
+      "test": "TestObjectModificationDatePersistsAndLegacyDatesAreNotInvented"
+    },
+    {
+      "label": "seeking verified readers ignores cancellation",
+      "package": "./internal/core/objectstore/",
+      "file": "internal/core/objectstore/files.go",
+      "find": "func (r *blobReader) Seek(offset int64, whence int) (int64, error) {\n\tif err := r.ctx.Err(); err != nil {",
+      "replace": "func (r *blobReader) Seek(offset int64, whence int) (int64, error) {\n\tif err := r.ctx.Err(); err != nil && false {",
+      "test": "TestVerifiedObjectReaderSeeksAndCancelsWithoutExposingFileMethods"
+    }
+  ]
+}

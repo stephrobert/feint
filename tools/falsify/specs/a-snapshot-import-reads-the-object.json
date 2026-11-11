@@ -1,0 +1,27 @@
+{
+  "package": "./internal/providers/scaleway/",
+  "note": "The subject is instance/v1 CreateSnapshot with {bucket, key}: the import path that was refused unconditionally while the emulator served no bytes, and whose refusal outlived its reason. Found by replaying ioandev/scaleway-flatcar-k3s (examples/stacks/surveyed.md, #262), whose image pipeline uploads a qcow2 through scaleway_object and then imports it: the upload landed in the local door and the import answered 'importing a snapshot reads Object Storage, which this emulator does not serve', naming the very object it had just stored. Eight of that stack's resources sit behind this one call, every one of them a plain dependency of the snapshot.\n\nWhat these mutations guard is that the fix did not become a rubber stamp. Serving the import is easy; serving it only when the object is really there, with the size the object really has, is the part that keeps a green run here from being a wrong disk there. The absence refusal borrows this route's own invalid_arguments envelope rather than inventing an upstream dialect, and docs/limits.md says that the real API's shape for a missing object is unmeasured.",
+  "mutations": [
+    {
+      "label": "the imported snapshot stops taking the object's size and falls back to the route's default, so a client that asked for a 65 536-byte image is told it has a 10 GB one. This is the half-success the project exists to avoid: green here, wrong disk there, and the size is the ONE fact about the imported object a client can check",
+      "file": "internal/providers/scaleway/snapshots.go",
+      "find": "\t\tsize = bytes",
+      "replace": "\t\tsize = bytes * 0",
+      "test": "TestASnapshotImportTakesTheSizeOfTheObjectItNames"
+    },
+    {
+      "label": "an object that is not in the door is imported anyway, which is the unconditional refusal's defect reflected: it used to refuse everything on a false premise, and this refuses nothing on an unchecked one. The real API refuses an object that does not exist, and a snapshot of bytes nobody has is exactly what the old refusal was right to prevent",
+      "file": "internal/providers/scaleway/snapshots.go",
+      "find": "\tobject, err := p.env.Objects.HeadObject(ctx, s3.StoreNamespace(Name, region)+\"/\"+bucket, key)\n\tif err != nil {",
+      "replace": "\tobject, err := p.env.Objects.HeadObject(ctx, s3.StoreNamespace(Name, region)+\"/\"+bucket, key)\n\tif err != nil && false {",
+      "test": "TestASnapshotImportIsRefusedWithoutTheObject"
+    },
+    {
+      "label": "the unarmed refusal stops naming the flags that arm a byte store and points at the limits page instead, which is the message this whole change exists to retire: it tells an operator that the emulator cannot do this, when in fact their own run was started without --objectstore and one flag would fix it. A refusal that cannot be acted on reads as a missing feature",
+      "file": "internal/providers/scaleway/snapshots.go",
+      "find": "\t\t\tHelpMessage: \"importing a snapshot reads Object Storage, and this run serves none: \" +\n\t\t\t\t\"start the emulator with --objectstore, and mount this region's door with \" +\n\t\t\t\t\"--s3-doors \" + Name + \"/\" + region})",
+      "replace": "\t\t\tHelpMessage: \"importing a snapshot reads Object Storage, which this emulator \" +\n\t\t\t\t\"does not serve; see docs/limits.md\" +\n\t\t\t\t\"\" + Name + \"\" + region})",
+      "test": "TestASnapshotImportIsRefusedWithoutTheObject"
+    }
+  ]
+}

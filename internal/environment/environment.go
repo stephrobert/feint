@@ -95,6 +95,18 @@ type File struct {
 		Load string
 	}
 
+	Storage struct {
+		// Directory holds the persisted bytes. Absent means no object storage
+		// at all, for the reason Runtime.Mode is absent by default: writing
+		// bytes is a side effect on the operator's disk, so it is asked for
+		// rather than assumed.
+		Directory string
+		// Doors are the provider/region prefixes served, the `--s3-doors`
+		// values. Empty with a Directory set takes the CLI's own default, which
+		// is the same arrangement every other flag here follows.
+		Doors []string
+	}
+
 	IaC struct {
 		Engine    string
 		Directory string
@@ -308,6 +320,7 @@ var branches = map[string]bool{
 	"emulator": true,
 	"runtime":  true,
 	"snapshot": true,
+	"storage":  true,
 	"iac":      true,
 }
 
@@ -462,6 +475,38 @@ var fields = []Field{
 				}
 			}
 			f.Runtime.Images = list
+			return nil
+		},
+	},
+	{
+		Path: "storage.directory", Takes: "a path", Default: "",
+		Doc: "Where an object-storage stack's bytes are kept. Absent means no object storage, for " +
+			"the reason `runtime.mode` is absent by default: writing bytes is a side effect on the " +
+			"operator's disk, so it is asked for rather than assumed. Resolved against this file, " +
+			"the way `emulator.state` is.",
+		ReadBy: []string{"up"},
+		assign: func(f *File, n node) error {
+			return scalarInto(n, &f.Storage.Directory)
+		},
+	},
+	{
+		Path: "storage.doors", Takes: "a list of provider/region", Default: "",
+		Doc: "The S3 doors served, as `--s3-doors` takes them. Empty with a `storage.directory` set " +
+			"leaves the CLI's own default in place. A door named here is what an `iac.vars` endpoint " +
+			"may point at, and TestEveryDeclaredStorageEndpointNamesADeclaredDoor refuses a stack " +
+			"whose variable names a door the file never asked for.",
+		ReadBy: []string{"up"},
+		assign: func(f *File, n node) error {
+			list, err := scalarList(n)
+			if err != nil {
+				return err
+			}
+			for _, name := range list {
+				if strings.Count(name, "/") != 1 {
+					return fmt.Errorf("%q is not a provider/region door", name)
+				}
+			}
+			f.Storage.Doors = list
 			return nil
 		},
 	},

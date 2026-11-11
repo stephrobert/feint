@@ -107,9 +107,24 @@ tools/conformance/guard.sh leftovers "$vm"
 # it filters by `name=default` and is unchanged by the second name; what the
 # second one buys is the case #572 is about, which no unit test can reach: `scw`
 # and the Terraform provider resolving a project whose name is not `default`.
+# --objectstore, for the probe rather than for any client suite here.
+# `exoscale/v2.list-sos-buckets-usage` reads the byte inventory and answers 503
+# "Object Storage is disabled" without one, so the probe -- which builds its
+# request from the operation's own schema, and that schema declares a 200 body --
+# counts it as a route answering the wrong shape.
+#
+# This line was missing while mise.toml had it, and that is PR #605 repeated to
+# the letter: two of three starters taught a flag, the third left out, a local
+# pass green by construction and four CI jobs red (probe, fields, exo-cli and
+# image). TestEveryConformanceEmulatorArmsTheSameObjectStore now holds it.
+objects="$(mktemp -d)"
+chmod 0700 "$objects"
+trap 'rm -rf "$objects"' EXIT
 ./feint start --addr "$addr" --vm "$vm" --contracts contracts \
-  --projects default,platform-prod --timeout 60s
-trap './feint stop --addr '"$addr"' >/dev/null 2>&1 || true' EXIT
+  --projects default,platform-prod --timeout 60s \
+  --objectstore "$objects/objects" \
+  --s3-doors scaleway/fr-par,exoscale/ch-dk-2,exoscale/ch-gva-2
+trap './feint stop --addr '"$addr"' >/dev/null 2>&1 || true; rm -rf "$objects"' EXIT
 
 case "$leg" in
   scw-cli)

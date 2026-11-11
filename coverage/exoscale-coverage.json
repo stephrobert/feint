@@ -1,23 +1,23 @@
 {
   "provider": "exoscale",
   "total": 374,
-  "implemented": 104,
-  "declined": 270,
+  "implemented": 105,
+  "declined": 269,
   "unknown": 0,
   "orphans": null,
   "products": [
     {
       "product": "exoscale",
       "total": 374,
-      "implemented": 104,
-      "declined": 270,
+      "implemented": 105,
+      "declined": 269,
       "unknown": 0,
       "versions": [
         {
           "version": "2.0.0",
           "total": 374,
-          "implemented": 104,
-          "declined": 270,
+          "implemented": 105,
+          "declined": 269,
           "unknown": 0
         }
       ]
@@ -118,8 +118,8 @@
     {
       "group": "sos",
       "total": 2,
-      "implemented": 0,
-      "declined": 2,
+      "implemented": 1,
+      "declined": 1,
       "unknown": 0
     }
   ],
@@ -1782,7 +1782,7 @@
     {
       "operation": "exoscale/v2.get-sos-presigned-url",
       "product": "exoscale",
-      "reason": "object storage is refused across this project for a measured reason: clients build the S3 endpoint in code, so serving it needs DNS interception and a certificate, recorded in docs/limits.md; two surveyed stacks in fifteen ask for it (platform's backup buckets, eu-data-platform's Terraform state backend, 2026-08 — #284), and both leave for the real sos-\u003czone\u003e.exo.io by that same self-resolution, the escape #280 exists to detect",
+      "reason": "signed public download URLs require authentication and externally reachable S3 authorities, neither of which the explicit local byte doors promise",
       "version": "2.0.0",
       "group": "sos",
       "status": "declined"
@@ -2126,10 +2126,9 @@
     {
       "operation": "exoscale/v2.list-sos-buckets-usage",
       "product": "exoscale",
-      "reason": "object storage is refused across this project for a measured reason: clients build the S3 endpoint in code, so serving it needs DNS interception and a certificate, recorded in docs/limits.md; two surveyed stacks in fifteen ask for it (platform's backup buckets, eu-data-platform's Terraform state backend, 2026-08 — #284), and both leave for the real sos-\u003czone\u003e.exo.io by that same self-resolution, the escape #280 exists to detect",
       "version": "2.0.0",
       "group": "sos",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.list-ssh-keys",

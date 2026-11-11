@@ -78,7 +78,25 @@ type rule struct {
 const prepushIsTheWholeGate = ""
 
 var rules = []rule{
+	{
+		Path:     "internal/cli/exo_endpoint_conformance_test.go",
+		Why:      "pinned Exoscale S3 addressing measurement, not a successful object lifecycle",
+		Runs:     []string{"conformance:s3:exo:endpoint"},
+		Unproven: "Exoscale byte lifecycles, mounted S3 host dispatch, multipart, native bucket usage and interception",
+	},
 	// ---------------------------------------------------------------- packs
+	{
+		Path:     "internal/providers/scaleway/object_storage.go",
+		Why:      "declared S3 dialect and configurable endpoint variables, outside control-plane SDK coverage",
+		Runs:     []string{"conformance:s3", "conformance:s3:mounted"},
+		Unproven: "AWS CLI bytes and private non-versioned scw buckets, not other bucket options or hardcoded Terraform S3 redirection",
+	},
+	{
+		Path:     "internal/providers/exoscale/object_storage.go",
+		Why:      "declared SOS dialect and configurable endpoint variables, outside control-plane SDK coverage",
+		Runs:     []string{"conformance:s3", "conformance:s3:mounted"},
+		Unproven: "pinned AWS/exo bytes and multipart resume/abort, not normal Exo bucket creation or the native bucket-usage API",
+	},
 	{
 		Path: "internal/providers/scaleway/",
 		Why:  "the Scaleway pack — routes, response shapes, errors",
@@ -233,6 +251,45 @@ var rules = []rule{
 			In:     "tools/conformance/environment/up.sh",
 			Absent: []string{"--state", "snapshot"},
 		}},
+	},
+	{
+		Path:     "internal/core/objectstore/",
+		Why:      "neutral persisted bytes, dates, multipart sessions and transactional deletions used by the real emulator process",
+		Runs:     []string{"conformance:s3", "conformance:s3:mounted"},
+		Unproven: "complete provider-client lifecycles, checkpoint/reset, power-loss recovery and network filesystem locking",
+	},
+	{
+		Path:     "internal/s3/",
+		Why:      "bounded S3 prefix/host dispatch, multipart, listing/ranges/bulk deletion and official-client proof",
+		Runs:     []string{"conformance:s3", "conformance:s3:mounted"},
+		Unproven: "one AWS/scw/exo version, not complete Exoscale lifecycles, public ACLs, version histories, TLS interception, cloud virtual hosts, generic ETags or public stacks",
+	},
+	{
+		Path:     "internal/conformancetest/",
+		Why:      "isolated pinned AWS/scw environments and non-forwarding egress control",
+		Runs:     []string{"conformance:s3", "conformance:s3:mounted"},
+		Unproven: "the proxy is not a network namespace and does not constrain arbitrary clients which ignore it",
+	},
+	{
+		Path: "internal/cli/object_storage.go",
+		Why:  "S3 activation, discovery and actual-process persistence",
+		// The second leg since the declaration grew `storage.*`: `up` now arms
+		// the byte store from feint.yaml, and tools/conformance/stacks.sh is
+		// what drives a stack through it.
+		Runs:     []string{"conformance:s3:mounted", "conformance:leg -- terraform"},
+		Unproven: "complete provider CLI lifecycles and hardcoded Terraform endpoints",
+		// The claim that used to live here said feint.yaml carried no
+		// declarative storage configuration, and cited the ABSENCE of
+		// `--objectstore` and `--s3-doors` from up.go as its evidence. Both are
+		// there now, and this file's own gate caught the stale sentence rather
+		// than letting it age — which is the mechanism working, so the sentence
+		// went instead of the gate.
+	},
+	{
+		Path:     "internal/cli/object_storage_conformance_test.go",
+		Why:      "the actual-process S3 client witness, excluded from ordinary unit tests",
+		Runs:     []string{"conformance:s3:mounted"},
+		Unproven: "complete provider CLI lifecycles and hardcoded Terraform endpoints",
 	},
 
 	// ------------------------------------------------------ what describes it

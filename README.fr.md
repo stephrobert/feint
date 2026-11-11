@@ -29,9 +29,9 @@
 > [!IMPORTANT]
 > **Ce qu'on peut pointer vers cet émulateur, et ce qu'on ne peut pas.**
 >
-> **Prouvé** : 383 des 408 opérations montées sont pilotées par un vrai client, à chaque pull request. `scw`, `octl`, `exo`, Terraform et OpenTofu tournent contre l'émulateur en CI, et les machines démarrent réellement : connexion ssh sur le compte par défaut de chaque provider, subnets isolés, pare-feu qui filtre. La chaîne complète est décrite dans [docs/conformance.md](docs/conformance.md).
+> **Prouvé** : 384 des 409 opérations montées sont pilotées par un vrai client, à chaque pull request. `scw`, `octl`, `exo`, Terraform et OpenTofu tournent contre l'émulateur en CI, et les machines démarrent réellement : connexion ssh sur le compte par défaut de chaque provider, subnets isolés, pare-feu qui filtre. La chaîne complète est décrite dans [docs/conformance.md](docs/conformance.md).
 >
-> **Pas prouvé** : quotas, prix, capacité réelle, validation des identifiants, authentification, cohérence à terme. Les 58 sections de [docs/limits.md](docs/limits.md) disent chacune ce qu'elle coûte. Un émulateur avec un seul compte implicite et aucune grille tarifaire devrait inventer ces chiffres, et quelqu'un agirait dessus.
+> **Pas prouvé** : quotas, prix, capacité réelle, validation des identifiants, authentification, cohérence à terme. Les 59 sections de [docs/limits.md](docs/limits.md) disent chacune ce qu'elle coûte. Un émulateur avec un seul compte implicite et aucune grille tarifaire devrait inventer ces chiffres, et quelqu'un agirait dessus.
 >
 > **Inconnu** : 25 opérations sont montées et n'ont jamais été pilotées par un client. Chacune dit pourquoi aucun client officiel ne l'atteint, à la route et dans [docs/routes.md](docs/routes.md). Elles sont comptées plutôt qu'escamotées, une par une, dans [coverage/evidence.json](coverage/evidence.json).
 >
@@ -104,18 +104,18 @@ terraform apply                  # le vrai provider Scaleway
 ```yaml
 services:
   feint:
-    image: ghcr.io/stephrobert/feint:v0.14.0
+    image: ghcr.io/stephrobert/feint:v0.15.0
     ports: ["4599:4599"]
 ```
 
-L'image ne sert que le plan de contrôle et ne porte aucun tag `latest` ; [docs/install.md](docs/install.md) donne la forme GitLab, la forme compose et la vérification de signature. Pour la tirer directement : `docker run --rm -p 127.0.0.1:4599:4599 ghcr.io/stephrobert/feint:v0.14.0`.
+L'image ne sert que le plan de contrôle et ne porte aucun tag `latest` ; [docs/install.md](docs/install.md) donne la forme GitLab, la forme compose et la vérification de signature. Pour la tirer directement : `docker run --rm -p 127.0.0.1:4599:4599 ghcr.io/stephrobert/feint:v0.15.0`.
 
 **Dans GitHub Actions, sans conteneur**, l'action du Marketplace :
 
 ```yaml
 - uses: stephrobert/setup-feint@v1
   with:
-    version: 0.14.0
+    version: 0.15.0
     provider: scaleway   # exporte ce dont le client officiel a besoin
 ```
 
@@ -142,7 +142,7 @@ feint serve
 #  feint dev listening on 127.0.0.1:4599
 #    scaleway  204 routes
 #    outscale  100 routes
-#    exoscale  104 routes
+#    exoscale  105 routes
 #    machines  none
 ```
 <!-- banner:end -->
@@ -592,6 +592,7 @@ Terraform de qui que ce soit.
 | --- | --- |
 | `feint coverage` | la surface amont servie, déclinée ou non triée |
 | `feint proxy` | enregistre ce qu'un vrai client et un vrai cloud se disent, identifiants masqués |
+| `feint run` | lance une commande dont l'endpoint cloud est codé en dur en la faisant atterrir sur cet émulateur, sans privilège et sans toucher au système |
 | `feint transcript` | lit un enregistrement : quoi servir ensuite, quelle forme, ce que l'émulateur omet |
 | `feint replay` | rejoue un enregistrement contre un émulateur qui tourne et rapporte, opération par opération, ce qui diverge |
 | `feint corpus` | rejoue les corpus committés contre un émulateur neuf et échoue sur une divergence avec ce que le vrai cloud a répondu |

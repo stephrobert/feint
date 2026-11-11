@@ -241,11 +241,15 @@ const (
 // in any answer. Two additions to two existing verbs; nothing was removed,
 // no exit code moved.
 //
+// Version 26 adds opt-in Object Storage flags to serve/start and live S3
+// discovery to env/doctor (#850); existing flags and exit codes stay unchanged.
+// Version 27 adds --s3-host-doors to serve/start, retaining prefix addressing.
+//
 // The surface itself is frozen in testdata/frozen/cli.json, compared by
 // TestTheFrozenSurfacesStillMatchTheirFixture, and a fixture regenerated
 // without bumping this constant fails TestASurfaceChangeDemandsItsVersionBump.
 // The procedure for a deliberate change is in RELEASING.md ("Frozen surfaces").
-const cliSurfaceVersion = 25
+const cliSurfaceVersion = 28
 
 // Run executes one command and returns the process exit code.
 func Run(args []string, stdout, stderr io.Writer) int {
@@ -272,6 +276,8 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		return probeCommand(args[2:], stdout, stderr)
 	case "proxy":
 		return proxyCommand(args[2:], stdout, stderr)
+	case "run":
+		return runCommand(args[2:], stdout, stderr)
 	case "transcript":
 		return transcriptCommand(args[2:], stdout, stderr)
 	case "replay":
@@ -346,6 +352,8 @@ Usage:
                     [--log-level info|debug] [--expose-to-network]
                     [--projects <name>[,<name>...]]
                     [--consistency immediate|eventual] [--strict-catalog <file>]
+                    [--objectstore <private-dir>] [--s3-doors <provider/region,...>]
+                    [--objectstore-budget-mib 1024] [--s3-object-limit-mib 256] [--s3-host-doors]
                     Serve the three emulated clouds on one port, in the
                     foreground. --expose-to-network is the only way off
                     loopback, and it disarms the anti-rebinding guard: this
@@ -358,6 +366,9 @@ Usage:
                     naming an image, a template or a machine type outside the
                     catalogue you declared, in each cloud's own error shape;
                     without it any identifier is accepted (docs/limits.md).
+                    Object Storage is opt-in, on the same port, through declared
+                    /_feint/s3/<provider>/<region>/ prefixes. Its private bytes
+                    are independent of --state; deletion retains blob charges.
 
   feint up         [--file feint.yaml] [--runtime off|incus|incus-vm|incus-ovn|auto]
                     [--timeout 2m] [--no-iac]
@@ -381,6 +392,8 @@ Usage:
                     [--cleanup] [--resolver <ip>] [--contracts <dir>] [--log-level info|debug]
                     [--projects <name>[,<name>...]] [--strict-catalog <file>]
                     [--timeout 30s] [--detach] [--foreground]
+                    [--objectstore <private-dir>] [--s3-doors <provider/region,...>]
+                    [--objectstore-budget-mib 1024] [--s3-object-limit-mib 256] [--s3-host-doors]
                     Same, detached: records the instance, waits until it
                     answers, prints where the log is. Refuses to adopt an
                     instance already running on that address. The serve flags
@@ -414,10 +427,11 @@ Usage:
   feint logs       [--addr :4599] [-n 50] [-f]
                     The detached run's log.
 
-  feint doctor     [--addr :4599] [--vm auto]
+  feint doctor     [--addr :4599] [--vm auto] [--s3]
                     Diagnose the host: the port, the machine runtime and what it
                     can prove, the clients, and the ssh trap. A warning never
                     fails; only a broken thing does.
+                    --s3 requires live, explicitly enabled byte storage.
 
   feint images     [--vm auto] [--only ubuntu/24.04] [--check]
                     Build the machine images, which carry an ssh daemon so a
@@ -426,8 +440,11 @@ Usage:
                     what is missing and exits 2, building nothing.
 
   feint env <provider> [--shell bash|fish|powershell] [--endpoint <url>] [--unset]
-                       [--client <family>]
+                       [--client <family>] [--s3] [--s3-region <region>]
                     The environment a real client of that provider needs.
+                    --s3 discovers the live, enabled S3 doors before exporting;
+                    it refuses disabled or ambiguous endpoints. --s3-region
+                    selects among them. --unset needs no running process.
                     Exports on stdout, everything else on stderr, so
                     eval "$(feint env scaleway)" is safe. --client selects a
                     family when a provider's clients disagree about a value:
@@ -512,6 +529,25 @@ Usage:
                     docs/proxy.md says what each costs, as does
                     --expose-to-network, which puts this port and the account
                     behind it on the network.
+
+  feint run        [--endpoint http://127.0.0.1:4599] [--addr 127.0.0.1:0]
+                    [--unsafe-real-credentials] -- <command> [args...]
+                    Run one command with a client whose cloud endpoint is
+                    compiled in landing on this emulator instead. It asks the
+                    emulator which S3 doors it mounted, takes each door's cloud
+                    authority from the pack in this binary, and intercepts
+                    exactly those. No hostname is typed, which is the safety
+                    property rather than a convenience: a mistyped cloud host
+                    is not intercepted, it is resolved, so the run would leave
+                    for a third party and look like it worked. Every other host
+                    is refused rather than tunnelled. Nothing outlives the
+                    child — the authority lives in a directory this run creates
+                    and removes, and the variables are set on the child alone,
+                    never on your shell, /etc/hosts or a system trust store.
+                    Needs no privilege. Credentials that are not this
+                    repository's public fakes are refused, because the emulator
+                    checks no signature: real keys prove nothing here and one
+                    wrong door would put them on the wire.
 
   feint transcript <recording.jsonl> [--shape OP [--against emu.jsonl]]
                    [--sanitise corpus.jsonl --contract contracts/<provider>.json]
@@ -956,7 +992,7 @@ func checkAddrUnclaimed(addr string) error {
 		addr, describeForeign(id), addr)
 }
 
-func serve(args []string, stdout io.Writer) error {
+func serve(args []string, stdout io.Writer) (result error) {
 	fs := newFlagSet("serve")
 	addr := fs.String("addr", DefaultAddr, "listen address")
 	state := fs.String("state", "", "load and persist the store to this JSON file")
@@ -971,8 +1007,20 @@ func serve(args []string, stdout io.Writer) error {
 	expose := fs.Bool("expose-to-network", false, "listen off loopback, which disarms the browser guard: read what it costs before setting it")
 	consistency := fs.String("consistency", "immediate", "immediate settles every action at once; eventual walks the states a real cloud passes through, one per read, so a client's waiter has something to observe")
 	strictCatalog := fs.String("strict-catalog", "", "refuse a create naming an image, a template or a machine type outside this declared catalogue (a JSON file, docs/limits.md); unset, the compatibility mode, accepts any identifier")
+	storageFlags := bindObjectStorageFlags(fs)
 	if err := fs.Parse(args); err != nil {
 		return err
+	}
+	if err := storageFlags.validate(); err != nil {
+		return err
+	}
+	var storageEndpoint string
+	if storageFlags.root != "" {
+		var err error
+		storageEndpoint, err = storageListenEndpoint(*addr)
+		if err != nil {
+			return err
+		}
 	}
 
 	if err := checkListenAddr(*addr, *expose); err != nil {
@@ -1142,15 +1190,32 @@ func serve(args []string, stdout io.Writer) error {
 		}
 	}
 
+	doors, objects, err := mountObjectStorage(context.Background(), srv, storageFlags, env.Log)
+	if err != nil {
+		return err
+	}
+	if objects != nil {
+		env.Objects = objects
+		defer func() {
+			if err := objects.Close(); err != nil {
+				result = errors.Join(result, fmt.Errorf("close object storage: %w", err))
+			}
+		}()
+	}
 	httpSrv := &http.Server{
 		Addr: *addr,
 		// Wrapped here rather than in the server: this is where the listen
 		// address is known, and the guard's whole job is to compare what the
 		// caller asked for against what this process is bound to.
-		Handler:           emulator.GuardRebinding(srv.Handler(), *addr),
+		Handler:           doors.Handler(*addr),
 		ReadHeaderTimeout: 10 * time.Second,
 		WriteTimeout:      writeTimeoutFor(rt),
 	}
+	defer func() {
+		if err := httpSrv.Close(); err != nil {
+			result = errors.Join(result, fmt.Errorf("close HTTP server: %w", err))
+		}
+	}()
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -1170,6 +1235,9 @@ func serve(args []string, stdout io.Writer) error {
 			fmt.Fprintf(stdout, "  %-9s %d routes\n", p.Name(), len(p.Routes()))
 		}
 		fmt.Fprintf(stdout, "  machines  %s\n", env.RuntimeName())
+		for _, door := range doors.Snapshot().Doors {
+			fmt.Fprintf(stdout, "  S3        %s%s\n", storageEndpoint, door.Path)
+		}
 		if page {
 			fmt.Fprintf(stdout, "  page      http://%s/_feint/ui\n", *addr)
 		}

@@ -373,6 +373,37 @@ answered everything the modern provider sent.
   instance pool, the `local_file` behind it, and the one
   `exoscale_nlb_service` behind that: the service is blocked by the SOS
   branch, not by this emulator.
+- **Replayed 2026-11-11, `feat/850-object-storage-release@0691306`, through
+  `feint run`** — **the SOS branch reaches the local door**, which is what this
+  replay was for. Both backup buckets exist in the `exoscale/de-muc-1` door
+  (`my-own-paas-…-etcd-backups.de-muc-1` and `…-vault-backups.de-muc-1`) where
+  every earlier run took a 403 from the real `sos-de-muc-1.exo.io`. The aws
+  provider's endpoint is built in code
+  (`https://sos-${local.platform_backup_zone}.exo.io`), so nothing was
+  configured: `feint run` intercepted it.
+  **The control-plane half is not comparable with the August figures**, and the
+  reason is a guard added since: the repository's own `.terraform.lock.hcl`
+  pins `exoscale/exoscale` at **0.49.0**, below the v0.71.0 floor, so every
+  `/v2/` write is refused by user agent (#644). Seven resources applied, all
+  provider-agnostic (tls, random, local). That refusal did its job on a
+  stranger's stack: without it, half of this apply would have reached Exoscale
+  and billed.
+  **One gap found, and not invented away**: after creating a bucket, aws
+  provider 5.4.0 reads `GetBucketEncryption`, and the door answers 501. No
+  recording of that shape exists for SOS, so it is named here rather than
+  guessed — the same treatment as the two unrecorded OOS discovery shapes.
+  **Harness inputs**: `locals.tf` from the published `locals.tf.example` with
+  `platform_admin_networks` pinned instead of `"auto"` (the auto path calls
+  ipconfig.me, which `feint run` refuses because it is not a door), and the
+  public `exoscale_prefixes.json` seeded into the local `ch-dk-2` door, since
+  `data.http.exoscale_ip_addresses` reads it from
+  `exoscale-prefixes.sos-ch-dk-2.exo.io` — a virtual-host address that
+  `feint run` intercepts through its wildcard.
+  **A defect in feint, found here and fixed in the same branch**: the sequence
+  both commands document — eval `feint env exoscale`, then `feint run` — was
+  refused by its own binary, because `knownFakes` was a second hand-written
+  copy of the credentials the packs publish and had drifted from them. See
+  `acceptedFakes` and `TestEveryPublishedFakeIsAcceptedByRun`.
 
 ### 3. PhilippeChepy/terraform-exoscale-vault — applied after a recorded edit, fully green
 
@@ -578,6 +609,31 @@ platform entry.
   `CreateBucket` still routed by the provider to the real
   `s3.fr-par.scw.cloud` (403), Cloudflare external, `0 to change`,
   9 destroyed.
+- **Replayed 2026-11-11, `feat/850-object-storage-release`, through
+  `feint run`** — **19 resources of 19, and a second plan reporting no
+  changes**, against 9 at every earlier replay. The first run where this stack
+  goes all the way, and the first where its Object Storage branch does not
+  leave the station: the bucket and the qcow2 land in the local
+  `scaleway/fr-par` door instead of taking a 403 from the real
+  `s3.fr-par.scw.cloud`, and the object reads back sha256-identical
+  (65 536 bytes, `faef4dcf…`). Provider 2.91.0 under `~> 2.0`, not the 2.x of
+  August. Cloudflare stays out of the plan, its token being unset.
+  **It took two findings and two fixes, in this order.** The first run after
+  the data plane applied **11**, and stopped on
+  `scaleway_instance_snapshot.flatcar[0]`: a refusal whose stated reason had
+  died, *"importing a snapshot reads Object Storage, which this emulator does
+  not serve"*, answered while the object sat in the door, named by the request
+  being refused. Seven resources hung behind that one call, every one of them
+  a plain dependency — the image on the snapshot, the three servers on the
+  image, the three private NICs on the servers. Serving the import took it to
+  19, and then the **second plan said `2 to add, 0 to change, 2 to destroy`**:
+  the imported snapshot carried the route's default empty base volume, which
+  the provider reads back as `volume_id "fr-par-1/"` and treats as
+  `forces replacement`, taking the image with it. An imported snapshot has no
+  parent, so the field had to say null. Both are held by tests and by the
+  mutations in `tools/falsify/specs/a-snapshot-import-reads-the-object.json`.
+  **Not measured: the destroy.** The emulator was stopped before a teardown
+  ran. Recorded as missing rather than assumed clean.
 
 ### 3. HealsCodes/ephemeral-devbox — applied in part
 

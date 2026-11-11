@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "provider": "outscale",
+  "region": "eu-west-2",
+  "observed_at": "2026-11-09",
+  "client": "curl, no client SDK involved",
+  "provenance": "ANONYMOUS GET on https://oos.eu-west-2.outscale.com/<name-that-does-not-exist>. No credentials were sent, so the request carries no AWS Signature v4 and is attributed to no account: nothing was created, nothing was modified, nothing was billed, and the user's Outscale account was offered and deliberately not used. This is the same method that produced ScalewayMissingBucket (anonymous fr-par GET) and ExoscaleMissingBucket (anonymous ch-gva-2 GET), and it is the cheapest measurement that can settle a wire shape: the 404 body IS the subject. One request, read-only.",
+  "redaction": "The request identifier of the recorded exchange is kept because it is the shape that matters here: x-amz-id-2 and x-amz-request-id carried the SAME value, which neither of the two existing dialects does. It identifies no account and names no resource. The bucket name was a timestamped nonce and is replaced below.",
+  "why_it_cannot_be_guessed": [
+    "<Resource> is PRESENT and EMPTY — Scaleway fills it with /<bucket>, Exoscale omits it entirely.",
+    "<BucketName> is ABSENT — both other dialects carry it.",
+    "x-amz-id-2 equals x-amz-request-id — Scaleway and Exoscale derive them separately.",
+    "No X-Amzn-Request-Id header, unlike Exoscale.",
+    "The message carries a final period, like Exoscale and unlike Scaleway."
+  ],
+  "server_header": "nginx/1.20.0, so this is Outscale's own implementation rather than AWS S3",
+  "exchanges": [
+    {
+      "method": "GET",
+      "path": "/<missing-bucket>",
+      "query": "",
+      "status": 404,
+      "headers": {
+        "content-type": "application/xml",
+        "x-amz-request-id": "4a23766cf345890fcec2",
+        "x-amz-id-2": "4a23766cf345890fcec2",
+        "x-content-type-options": "nosniff"
+      },
+      "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Error><Code>NoSuchBucket</Code><Message>The specified bucket does not exist.</Message><Resource></Resource><RequestId>4a23766cf345890fcec2</RequestId></Error>"
+    }
+  ]
+}

@@ -21,7 +21,7 @@
     "Identifiers are not checked against anything": "2026-09-02",
     "Lifecycle transitions are immediate, unless you ask for otherwise": "2026-09-03",
     "Managed Kubernetes is not emulated, and a CRUD-only version is refused (#283)": "2026-08-27",
-    "Object Storage is not emulated": "2026-08-27",
+    "Object Storage: simple explicit doors, not full client workflows": "2026-11-07",
     "Outscale and Exoscale trail Scaleway, and the generated tables say by how much": "2026-08-27",
     "Placement is recorded, never enforced (#285)": "2026-08-27",
     "ReadTags does not list an internet service, because upstream names no type for one": "2026-08-27",

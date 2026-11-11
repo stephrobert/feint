@@ -1,12 +1,14 @@
 package scaleway
 
 import (
+	"context"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/stephrobert/feint/internal/core/emulator"
 	"github.com/stephrobert/feint/internal/core/resource"
+	"github.com/stephrobert/feint/internal/s3"
 )
 
 // Snapshots, as control-plane records.
@@ -40,10 +42,9 @@ type createSnapshotRequest struct {
 	Organization *string   `json:"organization"`
 	Project      *string   `json:"project"`
 	VolumeType   string    `json:"volume_type"`
-	// Bucket and Key belong to the import-from-Object-Storage path, which stays
-	// declined: docs/limits.md says why Object Storage is not emulated, and a
-	// snapshot restored from a bucket that does not exist would answer success
-	// about bytes nobody has.
+	// Bucket and Key carry the import-from-Object-Storage path. It was declined
+	// while nothing here held bytes; importedSnapshotSize serves it now, and
+	// still refuses a snapshot restored from an object nobody has.
 	Bucket *string `json:"bucket"`
 	Key    *string `json:"key"`
 }
@@ -70,19 +71,27 @@ func (p *Pack) createSnapshot(w http.ResponseWriter, r *http.Request) {
 		writeInvalidArguments(w, ArgumentError{ArgumentName: "name", Reason: "required"})
 		return
 	}
-	if req.Bucket != nil || req.Key != nil {
-		writeInvalidArguments(w, ArgumentError{
-			ArgumentName: "bucket",
-			Reason:       "constraint",
-			HelpMessage:  "importing a snapshot reads Object Storage, which this emulator does not serve; see docs/limits.md",
-		})
-		return
-	}
-
 	volumeType := req.VolumeType
 	size := uint64(rootVolumeSize)
 	base := map[string]any{"id": "", "name": ""}
-	if req.VolumeID != nil && *req.VolumeID != "" {
+	imported := req.Bucket != nil || req.Key != nil
+	if imported {
+		bytes, ok := p.importedSnapshotSize(r.Context(), w, zone, req)
+		if !ok {
+			return
+		}
+		size = bytes
+		// No base volume, and NULL rather than an empty one. Measured on the
+		// replay: an empty {id, name} renders base_volume with an empty id,
+		// the Scaleway provider reads it back as volume_id \"fr-par-1/\" and
+		// every later plan answers `forces replacement`. An imported snapshot
+		// has no parent, so the field has to say so, the way block/v1\u0027s
+		// import already answers parent_volume: nil.
+		// TestAnImportedSnapshotHasNoBaseVolumeAndReplansEmpty fails without
+		// this.
+		base = nil
+	}
+	if !imported && req.VolumeID != nil && *req.VolumeID != "" {
 		// instance/v1 alone, and the resource name in the refusal says which
 		// product answered (#648).
 		//
@@ -391,4 +400,82 @@ func slicePtr(s *[]string) []string {
 		return nil
 	}
 	return *s
+}
+
+// importedSnapshotSize resolves the object an import names and answers its
+// size in bytes.
+//
+// The refusal this replaces was unconditional, and its stated reason died with
+// the data plane: it told the client that "importing a snapshot reads Object
+// Storage, which this emulator does not serve" while the object sat in the
+// local door, named by the very request being refused. Found by replaying a
+// stranger's stack, ioandev/scaleway-flatcar-k3s in examples/stacks/surveyed.md,
+// whose image pipeline uploads a qcow2 and then imports it: the upload landed,
+// and the import refused on a premise the upload had just falsified.
+//
+// Three answers, and the one that matters is the middle one:
+//
+//   - no byte store armed: refused, naming the flags that arm it. Nothing can
+//     be read, and a snapshot sized from nothing is the half-success this
+//     project exists to avoid.
+//   - the object is absent: refused. The real API refuses an object that is
+//     not there; what this emulator does NOT know is the exact shape it uses,
+//     so the refusal borrows this route's own invalid_arguments envelope and
+//     docs/limits.md says that the dialect is unmeasured.
+//   - the object is there: its size becomes the snapshot's size, which is the
+//     one fact about it a client can check.
+//
+// The bucket is addressed through s3.StoreNamespace rather than by composing
+// the scope here, because a pack that spells the door's scope itself finds
+// nothing the day the door changes it, and finds it silently.
+//
+// TestASnapshotImportTakesTheSizeOfTheObjectItNames and
+// TestASnapshotImportIsRefusedWithoutTheObject fail without this.
+func (p *Pack) importedSnapshotSize(ctx context.Context, w http.ResponseWriter,
+	zone string, req createSnapshotRequest) (uint64, bool) {
+	bucket, key := textPtr(req.Bucket), textPtr(req.Key)
+	if bucket == "" {
+		writeInvalidArguments(w, ArgumentError{ArgumentName: "bucket", Reason: "required"})
+		return 0, false
+	}
+	if key == "" {
+		writeInvalidArguments(w, ArgumentError{ArgumentName: "key", Reason: "required"})
+		return 0, false
+	}
+	region := regionOfZone(zone)
+	if p.env.Objects == nil {
+		writeInvalidArguments(w, ArgumentError{ArgumentName: "bucket", Reason: "constraint",
+			HelpMessage: "importing a snapshot reads Object Storage, and this run serves none: " +
+				"start the emulator with --objectstore, and mount this region's door with " +
+				"--s3-doors " + Name + "/" + region})
+		return 0, false
+	}
+	return p.importedObjectSize(ctx, w, region, bucket, key)
+}
+
+// importedObjectSize resolves an object a CONTROL-PLANE import names, and
+// answers its size. ok=false means the refusal has already been written.
+//
+// Shared by the instance and block imports on purpose. They answer differently
+// when no byte store is armed, and that difference is deliberate — the block
+// import has been served as an intention since #807, the instance one was
+// refused outright — but what they do when there IS one must not be written
+// twice. This repository has already paid for the same lifecycle written in
+// two packs and fixed in one.
+//
+// TestASnapshotImportIsRefusedWithoutTheObject and
+// TestABlockImportRefusesAnObjectTheDoorDoesNotHold fail without this.
+func (p *Pack) importedObjectSize(ctx context.Context, w http.ResponseWriter,
+	region, bucket, key string) (uint64, bool) {
+	object, err := p.env.Objects.HeadObject(ctx, s3.StoreNamespace(Name, region)+"/"+bucket, key)
+	if err != nil {
+		writeInvalidArguments(w, ArgumentError{ArgumentName: "key", Reason: "constraint",
+			HelpMessage: "the " + Name + "/" + region + " door holds no object " + key +
+				" in bucket " + bucket + ", so there is nothing to import"})
+		return 0, false
+	}
+	if object.Size < 0 {
+		return 0, true
+	}
+	return uint64(object.Size), true
 }

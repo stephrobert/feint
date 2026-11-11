@@ -31,6 +31,8 @@ import (
 
 func envCommand(args []string, stdout, stderr io.Writer) int {
 	fs := newFlagSet("env")
+	withS3 := fs.Bool("s3", false, "export only live, explicitly enabled S3 endpoints as well as control-plane variables")
+	s3Region := fs.String("s3-region", "", "select an enabled S3 region when more than one is declared")
 	shell := fs.String("shell", "bash", "shell syntax: bash, fish or powershell")
 	endpoint := fs.String("endpoint", "", "the emulator's address (default: http://<the --addr default>)")
 	unset := fs.Bool("unset", false, "print the removals instead of the exports")
@@ -89,6 +91,10 @@ func envCommand(args []string, stdout, stderr io.Writer) int {
 		target = defaultEndpoint()
 	}
 	env := pack.Env(target)
+	if *s3Region != "" && !*withS3 {
+		fmt.Fprintln(stderr, "feint: --s3-region requires --s3")
+		return exitError
+	}
 	if *client != "" {
 		// A client family only means something to a pack whose clients
 		// disagree; anywhere else the flag would silently print the same thing
@@ -110,6 +116,30 @@ func envCommand(args []string, stdout, stderr io.Writer) int {
 	if !ok {
 		fmt.Fprintf(stderr, "feint: unknown shell %q; bash, fish or powershell\n", *shell)
 		return exitError
+	}
+	_, hasS3 := pack.(packObjectStorage)
+	if *withS3 || (*unset && hasS3) {
+		if err := storageEnvironment(pack, target, *s3Region, *unset, env.Vars); err != nil {
+			fmt.Fprintf(stderr, "feint: %v\n", err)
+			return exitError
+		}
+		if storage, ok := pack.(packObjectStorage); *unset && *withS3 && ok && storage.ObjectStorage(*s3Region).HostEndpoint {
+			for _, key := range []string{"HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy", "ALL_PROXY", "all_proxy", "NO_PROXY", "no_proxy"} {
+				env.Vars[key] = ""
+			}
+		}
+		if !*unset {
+			// The hardcoded-endpoint half of this note went away when `feint
+			// run` was measured (#849): these variables cannot redirect a
+			// client that builds its endpoint in code, but that is now a
+			// limit of `env`, not of the emulator, so the note points at the
+			// command instead of calling the path uncertified.
+			fmt.Fprintln(stderr, "note: S3 supports simple bytes and private non-versioned Scaleway buckets; Exoscale ancillary workflows are not certified.")
+			fmt.Fprintln(stderr, "note: a client that builds its S3 endpoint in code ignores these variables; `feint run -- <command>` lands it on the local door instead.")
+			if env.Vars["HTTP_PROXY"] != "" {
+				fmt.Fprintln(stderr, "note: S3 host doors replace this shell's proxy settings with the local non-forwarding emulator. Use a dedicated shell; env --s3 --unset removes them, it does not restore previous values.")
+			}
+		}
 	}
 
 	keys := make([]string, 0, len(env.Vars))

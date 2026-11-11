@@ -41,6 +41,7 @@ type serveFlags struct {
 	// in the background, and a mode `start` could not name is a mode the
 	// lifecycle verbs cannot test (#126).
 	strictCatalog string
+	storage       *objectStorageFlags
 }
 
 // args renders the flags back into a `serve` command line.
@@ -64,6 +65,9 @@ func (f serveFlags) args() []string {
 	if f.strictCatalog != "" {
 		out = append(out, "--strict-catalog", f.strictCatalog)
 	}
+	if f.storage != nil {
+		out = append(out, f.storage.args()...)
+	}
 	return out
 }
 
@@ -84,6 +88,7 @@ func bindServeFlags(fs *flag.FlagSet) *serveFlags {
 	// TestStartRelaysTheDeclaredProjectsToServe fails without this.
 	fs.StringVar(&f.projects, "projects", "", "comma-separated project names the emulated account holds, in order")
 	fs.StringVar(&f.strictCatalog, "strict-catalog", "", "refuse a create naming an image, a template or a machine type outside this declared catalogue (JSON); unset accepts any identifier")
+	f.storage = bindObjectStorageFlags(fs)
 	return f
 }
 
@@ -95,6 +100,10 @@ func start(args []string, stdout, stderr io.Writer) int {
 	detach := fs.Bool("detach", false, "return as soon as the child is spawned, without waiting for health")
 	foreground := fs.Bool("foreground", false, "do not detach; equivalent to `feint serve`")
 	if err := fs.Parse(args); err != nil {
+		return exitError
+	}
+	if err := flags.storage.validate(); err != nil {
+		fmt.Fprintf(stderr, "feint: %v\n", err)
 		return exitError
 	}
 

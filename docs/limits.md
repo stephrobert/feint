@@ -4,7 +4,137 @@ What Feint deliberately does not do, and why. Stating this precisely matters
 more than the feature list: an emulator that lies about its coverage is worse
 than one that is small.
 
-## Object Storage is not emulated
+## Object Storage: simple explicit doors, not full client workflows
+
+#850 adds opt-in, persisted simple S3 operations on the existing port, with
+declared `/_feint/s3/<provider>/<region>/` endpoints, cumulative byte budgets
+and an AWS CLI 2.32.17 / scw 2.62.0 restart proof. The Scaleway private,
+non-versioned bucket `create/list/get/delete` workflow is served. See the
+[door ADR and commands](object-storage-routing.md).
+Opt-in `--s3-host-doors` also permits exo 1.95.1 uploads, object listing and downloads from an existing
+bucket through a synthetic scoped authority and the same-port non-forwarding
+HTTP proxy. AWS retrieval proves the uploaded binary bytes and SHA-256 survive
+actual restart. Real Exo downloads also preserve a 6,340,608-byte object across
+multiple HTTP ranges. ListObjectsV2 exposes actual persisted modification dates;
+legacy undated objects must be overwritten before their listing can be served.
+Exo now uploads that fixture through real multipart. AWS session/part inventories
+survive restart, resume and complete with identical bytes; Exo bucket removal
+aborts a real dangling session. Private byte metadata v4 reads v1..v3 without
+inventing dates; successful mutations upgrade it, and older binaries cannot
+read v4. Rollback requires a pre-upgrade copy of the whole owned store.
+Exo also bulk-deletes actual unversioned keys; AWS independently confirms the
+empty inventory survives restart while the other provider's bytes remain.
+DeleteObjects requires a verified transport checksum and closed XML, bounded to
+1000 keys and 8 MiB. Store failures return an explicit whole-request Feint refusal,
+not fabricated per-key cloud errors; immutable blobs remain retained.
+Multipart assembly has the same configured object limit as simple PUT
+(256 MiB default). Retained parts and assembly share the blob quota (1 GiB
+default), including peak reservation; abort is not GC. Opaque SHA-256 part tags
+are not generic object ETags. Completion Location consumers are not certified;
+same-key pagination markers require a live session. Exo's bucket remover does
+not paginate uploads, so removal beyond 1000 sessions is not certified.
+### Bucket discovery after a create, and the provider version that decides it
+
+A door answers `acl`, `versioning`, `tagging` and `cors`; it answers **501** on
+`encryption`, `location` and `policy`, because no recording of those shapes
+exists and this project does not invent them.
+
+Which of those a client meets depends on the provider version, and both ends
+are measured rather than reasoned:
+
+| client | after `aws_s3_bucket` create | verdict |
+|---|---|---|
+| AWS provider **6.72.0** | reads no encryption | the bucket applies; `examples/stacks/exoscale` does this in CI |
+| AWS provider **5.4.0** | reads `GetBucketEncryption` | `Error: getting S3 Bucket encryption: NotImplemented` |
+
+Measured 2026-11-11 by replaying PhilippeChepy/platform, whose pinned lock file
+carries 5.4.0 (examples/stacks/surveyed.md). So "Terraform creates a bucket on
+the local door" is true of the current provider and false of that one, and a
+stack pinned below 6.x stops on a discovery call rather than on anything about
+bytes.
+
+### A SOS bucket in Terraform, and why no object beside it
+
+`examples/stacks/exoscale` creates a bucket against the local SOS door, which
+is #850's criterion that a SOS-dependent stack reach local storage. Nothing is
+intercepted for it: SOS honours `sos_endpoint`, so the redirection is
+configuration, and `feint run` is for clients that build their endpoint in code.
+
+It goes through the **AWS provider**, because the Exoscale provider has no
+bucket resource. Measured on 0.72.0: its only storage resource is
+`exoscale_sos_bucket_policy`, which does not create a bucket, and whose three
+verbs this emulator answers 501 — no policy shape is recorded, and this project
+does not invent formats. The AWS provider pointed at the door is also what
+Exoscale users actually write.
+
+**There is no `aws_s3_object` in that stack, and the reason is measured.** The
+object applies and its bytes land in the local store, sha256 identical. But
+every later plan then wants to update it in place:
+
+```text
+~ resource "aws_s3_object" "index" {
+    + etag = "ff010b1a42027160f88b26c8834cbb3e"
+```
+
+`aws_s3_object` compares the ETag a read returns against the one it computed
+with `filemd5`, and this emulator returns none — on PUT, on HEAD or on GET,
+verified on all three. That is the position `internal/s3/multipart.go` states:
+the SDK defines an ETag as an opaque entity tag rather than an MD5, and the
+multipart tags here identify verified SHA-256 content. Serving an MD5 on simple
+PUT would mean persisting it, which is a v5 byte format older binaries could
+not read, so the choice was between that migration and an example carrying a
+permanent diff. A permanent diff in an example is worse: it teaches a reader
+that drift is normal here.
+
+So the bucket is driven and the object is not, and `tools/conformance/stacks.sh`
+asserts the bucket is in the LOCAL door's inventory after the apply — a bucket
+listed there cannot have been created anywhere else. That assertion exists
+because the stack's bucket is `count = 0` without `TF_VAR_sos_endpoint`: the
+leg would otherwise pass while proving nothing, and it was proved to bite with
+that variable emptied.
+
+This does not implement bucket virtual hosts, DNS/TLS
+interception or a complete Exoscale lifecycle; use a dedicated shell because
+its S3 environment replaces proxy settings.
+Complete Exoscale bucket workflows, ListObjects v1, owner requests, writable tags/public ACLs,
+version histories, multipart copy, generic ETags and checkpoint/reset remain
+unsupported. Hardcoded Terraform redirection no longer belongs on that list:
+`feint run` reaches it, measured, and the section below says how and what it
+still does not cover.
+No MinIO service or dependency is used by this implementation.
+
+### How Scaleway Terraform is reached, and why the DNS half was never needed
+
+**The premise of the refusal below fell on 2026-11-09, and it is kept here
+because the reasoning is the useful part.** It held that redirecting the
+provider needs *DNS interception plus a TLS certificate*, priced the certificate
+half as cheap and the DNS half as neither cheap nor safe, and concluded on that
+split. The split was right. The requirement was not.
+
+An HTTP forward proxy needs no DNS at all: the client puts the hostname in its
+own CONNECT line, so the name arrives as data rather than as a lookup to be
+subverted. `feint run` terminates that CONNECT with an authority minted for the
+one run, re-originates the request to the local door, and refuses every host it
+was not told about. No resolver, no `/etc/hosts`, no system trust store, no
+privilege. The expensive half of the blocker did not have to be paid because it
+did not exist.
+
+Measured on the published provider 2.82.0, host network, no sudo:
+`TestScalewayTerraformStorageThroughFeintRunOnTheHostNetwork` completes apply,
+reads **139,264 identical bytes** back from the local byte store by sha256, gets
+an empty second plan and a complete teardown.
+
+What it still does not cover: the witness needs a provider mirror, so it is not
+run on a pull request and the capability is a measurement you reproduce rather
+than a gate — `capability.go` therefore carries no row for it, since its matrix
+admits only control-plane rows proven by the conformance workflow. OpenTofu is
+untested on this path. And `feint env --s3` still cannot help, because variables
+cannot reach a client that builds its endpoint in code; that is a limit of
+`env`, not of the emulator.
+
+The original reasoning follows.
+
+### Why Scaleway Terraform was called not redirectable
 
 Scaleway Object Storage is S3-compatible, so emulating it is not the hard part
 (MinIO does it already). The obstacle is **how clients reach it**.
@@ -26,9 +156,9 @@ for the number; the section below is that number, measured. The short version:
 the certificate half is cheap and safe, the DNS half is neither, and the whole
 blocker reduces to this one product on this one client.
 
-The SDK and the CLI are better off: they honour `SCW_S3_ENDPOINT`. So an S3
-workflow driven by `scw` or by an SDK can already point at MinIO today; only the
-Terraform path is blocked.
+The SDK and the CLI are better off: they honour `SCW_S3_ENDPOINT`. The private,
+non-versioned bucket workflow now points at Feint's explicit same-port door
+and passes with the pinned CLI; the Terraform path remains blocked.
 
 The consequence has since been observed live, from a stranger's stack rather
 than a fixture ([#262](https://github.com/stephrobert/feint/issues/262),
@@ -43,6 +173,33 @@ one product on this one client. The escape-path section below (#280) carries
 the full measured list, what warns before the run, and the egress cuts that
 were tested rather than described.
 
+## An instance snapshot imported from Object Storage, and what it checks (#850)
+
+`instance/v1/API.CreateSnapshot` takes `{bucket, key}`, and that path was
+refused outright while nothing here held bytes. The refusal outlived its
+reason: with a door armed it told the client that "importing a snapshot reads
+Object Storage, which this emulator does not serve" while the object sat in
+that door, named by the request being refused. Found on 2026-11-11 by replaying
+ioandev/scaleway-flatcar-k3s, whose image pipeline uploads a qcow2 and imports
+it; see examples/stacks/surveyed.md.
+
+It is served now, and it checks:
+
+- **the object is there**: its size becomes the snapshot's size, and the
+  snapshot carries **no base volume** — a null, not an empty one. An empty
+  `{id, name}` reads back as `volume_id "fr-par-1/"` and makes every later plan
+  answer `forces replacement` on the snapshot and on the image cut from it.
+  Measured: that is what the first version did, and the stack's second plan
+  said `2 to add, 0 to change, 2 to destroy` until it was fixed.
+- **the object is absent**: refused. The dialect is this route's own
+  `invalid_arguments` envelope, because the real API's shape for a missing
+  object is unrecorded, exactly as for the block import below.
+- **no byte store armed**: refused, naming `--objectstore` and `--s3-doors`
+  rather than the limits page, because the operator can act on it.
+
+With that, the whole surveyed stack applies: **19 resources of 19, and a second
+plan reporting no changes**, its qcow2 sha256-identical in the local door.
+
 ## An imported block snapshot is an intention, and the object is never read (#807)
 
 `block/v1/API.ImportSnapshotFromObjectStorage` and its `block/v1alpha1` twin are
@@ -55,13 +212,20 @@ here. The export stays declined; the import no longer shares its refusal.
 What this emulator records is the intention. A snapshot appears, `available`,
 carrying the name and project the client gave — the request declares no tags,
 unlike the create beside it — with no parent volume and a
-size of zero, because no bytes moved and none could have.
+size of zero, because this handler does not read object bytes.
 
-The divergence, stated rather than hidden: the real API refuses an object that
-does not exist, and this emulator cannot. There is no Object Storage here to
-check a bucket and a key against, so an import naming an object nobody uploaded
-answers success here and answers an error upstream. A plan that depends on that
-refusal is not covered.
+The divergence that stood here is closed on one side and stated on the other.
+**With a byte store armed**, the handler now reads the object through the door
+of its own region: the snapshot takes the object's size, and an import naming
+an object nobody uploaded is refused, as upstream refuses it. **With no byte
+store**, the intention above stands unchanged — nothing can be read, so nothing
+is asserted about bytes, and a plan depending on the refusal is still not
+covered in that configuration.
+
+What remains unmeasured is the refusal's **dialect**, not its existence: the
+real API's status and body for a missing object are not recorded here, so the
+refusal borrows this route's own `invalid_arguments` envelope. A client that
+branches on the exact error shape is not covered.
 
 One thing neither side of #807 could answer: which status a real import reports
 while it is in flight. The block contract lists `creating` and `available`, no
@@ -344,8 +508,9 @@ wall and no longer an operator ceremony either — it is the coverage argument
 alone: whether the S3-through-Terraform corner is worth emulating an S3 surface,
 which is a product call and the only thing still holding the refusal.
 
-The blocker is one product on one client, so the MinIO + `SCW_S3_ENDPOINT` page
-remains the right answer for the S3 workflow, and the refusal caps coverage by
+That measurement predates #850's explicit byte gateway: a complete configurable
+S3 workflow still needs operations beyond its simple byte slice (or a separate
+S3 service such as MinIO). The Terraform refusal still caps coverage by
 exactly one corner rather than quietly bounding the whole project. If
 Object-Storage-through-Terraform is ever wanted, it is a roadmap item with a
 named owner and a shape already measured, and number 7 shortened it again:

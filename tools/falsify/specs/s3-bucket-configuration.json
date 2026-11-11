@@ -1,0 +1,153 @@
+{
+  "package": "./internal/s3/",
+  "mutations": [
+    {
+      "label": "bucket create aliases the supplied attributes",
+      "package": "./internal/core/objectstore/",
+      "file": "internal/core/objectstore/store.go",
+      "find": "Metadata: maps.Clone(metadata)}",
+      "replace": "Metadata: func() map[string]string { _ = maps.Clone(metadata); return metadata }()}",
+      "test": "TestBucketMetadataPersistsAndDoesNotAlias"
+    },
+    {
+      "label": "initial bucket metadata bypasses its UTF-8 and byte bound",
+      "package": "./internal/core/objectstore/",
+      "file": "internal/core/objectstore/store.go",
+      "find": "if err := validMetadata(Object{Metadata: metadata}); err != nil {",
+      "replace": "if err := validMetadata(Object{Metadata: metadata}); err != nil && false {",
+      "test": "TestBucketMetadataBoundsAndConcurrentFields"
+    },
+    {
+      "label": "bucket metadata updates bypass their cumulative bound",
+      "package": "./internal/core/objectstore/",
+      "file": "internal/core/objectstore/bucket_metadata.go",
+      "find": "if err := validMetadata(Object{Metadata: metadata}); err != nil {",
+      "replace": "if err := validMetadata(Object{Metadata: metadata}); err != nil && false {",
+      "test": "TestBucketMetadataBoundsAndConcurrentFields"
+    },
+    {
+      "label": "bucket attribute reads alias persisted state",
+      "package": "./internal/core/objectstore/",
+      "file": "internal/core/objectstore/bucket_metadata.go",
+      "find": "maps.Copy(out, b.Metadata)",
+      "replace": "maps.Copy(out, b.Metadata)\n\tout = b.Metadata",
+      "test": "TestBucketMetadataPersistsAndDoesNotAlias"
+    },
+    {
+      "label": "inventory attributes alias persisted state",
+      "package": "./internal/core/objectstore/",
+      "file": "internal/core/objectstore/bucket_metadata.go",
+      "find": "out[name] = metadata",
+      "replace": "out[name] = metadata\n\t\tout[name] = b.Metadata",
+      "test": "TestBucketMetadataPersistsAndDoesNotAlias"
+    },
+    {
+      "label": "restored bucket attributes bypass validation",
+      "package": "./internal/core/objectstore/",
+      "file": "internal/core/objectstore/manifest.go",
+      "find": "if err := validMetadata(Object{Metadata: b.Metadata}); err != nil {",
+      "replace": "if err := validMetadata(Object{Metadata: b.Metadata}); err != nil && false {",
+      "test": "TestLegacyBucketMetadataUpgradeAndValidation"
+    },
+    {
+      "label": "version 1 silently accepts version 2 attributes",
+      "package": "./internal/core/objectstore/",
+      "file": "internal/core/objectstore/manifest.go",
+      "find": "if state.Version == 1 && b.Metadata != nil {",
+      "replace": "if state.Version == 1 && b.Metadata != nil && false {",
+      "test": "TestLegacyBucketMetadataUpgradeAndValidation"
+    },
+    {
+      "label": "the create region need not match its declared door",
+      "file": "internal/s3/server.go",
+      "find": "if decodeErr != nil || region != s.cfg.Region {",
+      "replace": "if decodeErr != nil || (region != s.cfg.Region && false) {",
+      "test": "TestBucketConfigurationRefusals/region"
+    },
+    {
+      "label": "non-private ACLs and Object Lock are acknowledged without implementation",
+      "file": "internal/s3/bucket_configuration.go",
+      "find": "if len(values) != 1 || values[0] != allowed {",
+      "replace": "if (len(values) != 1 || values[0] != allowed) && false {",
+      "test": "TestBucketConfigurationRefusals/public-acl|TestBucketConfigurationRefusals/lock"
+    },
+    {
+      "label": "invalid configuration MD5 is acknowledged",
+      "file": "internal/s3/bucket_configuration.go",
+      "find": "if len(values) != 1 || values[0] != base64.StdEncoding.EncodeToString(digest[:]) {",
+      "replace": "if (len(values) != 1 || values[0] != base64.StdEncoding.EncodeToString(digest[:])) && false {",
+      "test": "TestBucketConfigurationRefusals/checksum"
+    },
+    {
+      "label": "unknown XML configuration leaves are silently accepted",
+      "file": "internal/s3/bucket_configuration.go",
+      "find": "(depth == 1 && (leaves != 0 || t.Name.Local != leafName))",
+      "replace": "(depth == 1 && (leaves != 0 || (t.Name.Local != leafName && false)))",
+      "test": "TestBucketConfigurationRefusals/unknown-field"
+    },
+    {
+      "label": "unknown XML configuration attributes are discarded",
+      "file": "internal/s3/bucket_configuration.go",
+      "find": "if attr.Name.Space != \"\" || attr.Name.Local != \"xmlns\" || attr.Value != s3XMLNamespace {",
+      "replace": "if (attr.Name.Space != \"\" || attr.Name.Local != \"xmlns\" || attr.Value != s3XMLNamespace) && false {",
+      "test": "TestBucketConfigurationRefusals/unknown-attribute"
+    },
+    {
+      "label": "an empty XML document produces a configuration value",
+      "file": "internal/s3/bucket_configuration.go",
+      "find": "if depth != 0 || roots != 1 || leaves != 1 {",
+      "replace": "if (depth != 0 || roots != 1 || leaves != 1) && false {",
+      "test": "TestBucketConfigurationValueRequiresOneLeaf"
+    },
+    {
+      "label": "version histories are falsely enabled",
+      "file": "internal/s3/bucket_configuration.go",
+      "find": "if status != \"Suspended\" {",
+      "replace": "if status != \"Suspended\" && false {",
+      "test": "TestBucketConfigurationRefusals/enabled"
+    },
+    {
+      "label": "restored unsupported versioning is published",
+      "file": "internal/s3/bucket_configuration.go",
+      "find": "if status != \"\" && status != \"Suspended\" {",
+      "replace": "if status != \"\" && status != \"Suspended\" && false {",
+      "test": "TestRestoredBucketConfigurationIsRevalidated"
+    },
+    {
+      "label": "duplicate query values silently select a bucket feature",
+      "file": "internal/s3/bucket_configuration.go",
+      "find": "if feature != \"\" || len(values) != 1 || values[0] != \"\" {",
+      "replace": "if (feature != \"\" || len(values) != 1 || values[0] != \"\") && false {",
+      "test": "TestBucketConfigurationRefusals/duplicate-query"
+    },
+    {
+      "label": "bucket configuration queries become ordinary object writes",
+      "file": "internal/s3/server.go",
+      "find": "if query.Has(\"versioning\") || query.Has(\"acl\") || query.Has(\"tagging\") {",
+      "replace": "if (query.Has(\"versioning\") || query.Has(\"acl\") || query.Has(\"tagging\")) && false {",
+      "test": "TestBucketConfigurationRefusals/object-query"
+    },
+    {
+      "label": "legacy buckets receive an invented listing date",
+      "file": "internal/s3/bucket_configuration.go",
+      "find": "if _, err := BucketCreationTime(metadata); err != nil || !bucketName(wireName) {",
+      "replace": "if _, err := BucketCreationTime(metadata); (err != nil || !bucketName(wireName)) && false {",
+      "test": "TestRestoredBucketConfigurationIsRevalidated"
+    },
+    {
+      "label": "the bare endpoint retains the original unmatched path",
+      "file": "internal/s3/doors.go",
+      "find": "remainder, ok = \"\", true",
+      "replace": "remainder, ok = strings.TrimPrefix(raw, \"\\x00never\"), true",
+      "test": "TestMountedBucketListingAcceptsOnlyItsCanonicalBareEndpoint"
+    },
+    {
+      "label": "SDK endpoint exports retain the refused terminal slash",
+      "package": "./internal/cli/",
+      "file": "internal/cli/object_storage.go",
+      "find": "target := strings.TrimSuffix(endpoint, \"/\") + strings.TrimSuffix(selected.Path, \"/\")",
+      "replace": "target := strings.TrimSuffix(endpoint, \"/\") + selected.Path",
+      "test": "TestS3EnvOnlyExportsLiveSelectedDoorsAndUnsetWorksOffline"
+    }
+  ]
+}

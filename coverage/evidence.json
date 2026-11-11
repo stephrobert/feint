@@ -8,7 +8,7 @@
   "generated_from": {
     "contracts": "ed36f9b500bddee0",
     "shapes": "cac046c206cc9fc8",
-    "suites": "ecc2680b2b1c058a"
+    "suites": "cfe3e26f5afb40b2"
   },
   "operations": {
     "account/v3/ProjectAPI.CreateProject": {
@@ -130,7 +130,7 @@
     },
     "block/v1/API.ImportSnapshotFromObjectStorage": {
       "driven": false,
-      "probed": "none",
+      "probed": "refusal",
       "contract": "unchecked",
       "dataplane": false,
       "shape": "unobserved",
@@ -238,7 +238,7 @@
     },
     "block/v1alpha1/API.ImportSnapshotFromObjectStorage": {
       "driven": false,
-      "probed": "none",
+      "probed": "refusal",
       "contract": "unchecked",
       "dataplane": false,
       "shape": "unobserved",
@@ -927,6 +927,15 @@
       "dataplane": true,
       "shape": "observed",
       "behaviour": true,
+      "negative": false
+    },
+    "exoscale/v2.list-sos-buckets-usage": {
+      "driven": true,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": false,
       "negative": false
     },
     "exoscale/v2.list-ssh-keys": {

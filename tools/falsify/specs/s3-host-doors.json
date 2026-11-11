@@ -1,0 +1,95 @@
+{
+  "package": "./internal/s3/",
+  "mutations": [
+    {
+      "label": "absolute proxy requests can enter the native control plane",
+      "file": "internal/s3/doors.go",
+      "find": "handler == nil && !r.URL.IsAbs() && r.Method != http.MethodConnect",
+      "replace": "handler == nil && (!r.URL.IsAbs() || true) && r.Method != http.MethodConnect",
+      "test": "TestHostDoorsRefuseAmbiguousProxyTargets"
+    },
+    {
+      "label": "proxy URL and Host need not agree",
+      "file": "internal/s3/doors.go",
+      "find": "r.URL.Host != r.Host || r.URL.User != nil",
+      "replace": "(r.URL.Host != r.Host && false) || r.URL.User != nil",
+      "test": "TestHostDoorsRefuseAmbiguousProxyTargets"
+    },
+    {
+      "label": "HTTPS and origin-form requests masquerade as HTTP proxy requests",
+      "file": "internal/s3/doors.go",
+      "find": "r.URL.Scheme != \"http\"",
+      "replace": "r.URL.Scheme == \"\\x00never\"",
+      "test": "TestHostDoorsRefuseAmbiguousProxyTargets"
+    },
+    {
+      "label": "proxy targets can carry URL credentials",
+      "file": "internal/s3/doors.go",
+      "find": "r.URL.User != nil || r.URL.Fragment",
+      "replace": "(r.URL.User != nil && false) || r.URL.Fragment",
+      "test": "TestHostDoorsRefuseAmbiguousProxyTargets"
+    },
+    {
+      "label": "S3 host peer validation is disabled",
+      "file": "internal/s3/server.go",
+      "find": "if err != nil || !peer.Addr().Unmap().IsLoopback() {",
+      "replace": "if (err != nil || !peer.Addr().Unmap().IsLoopback()) && false {",
+      "test": "TestHostDoorsRetainOriginPeerAndUploadDeadlineGuards"
+    },
+    {
+      "label": "S3 host browser Origins are admitted",
+      "file": "internal/s3/server.go",
+      "find": "if len(r.Header.Values(\"Origin\")) != 0 {",
+      "replace": "if len(r.Header.Values(\"Origin\")) != 0 && false {",
+      "test": "TestHostDoorsRetainOriginPeerAndUploadDeadlineGuards"
+    },
+    {
+      "label": "live host reports can export a foreign authority",
+      "package": "./internal/cli/",
+      "file": "internal/cli/object_storage.go",
+      "find": "(door.Host != \"\" && door.Host != s3.DoorHost(door.Provider, door.Region))",
+      "replace": "(door.Host != \"\" && door.Host != s3.DoorHost(door.Provider, door.Region) && false)",
+      "test": "TestS3DiscoveryRefusesRedirectsInvalidReportsAndForeignEndpoints"
+    },
+    {
+      "label": "host activation without storage succeeds silently",
+      "package": "./internal/cli/",
+      "file": "internal/cli/object_storage.go",
+      "find": "if f.hosts && f.root == \"\" {",
+      "replace": "if f.hosts && f.root == \"\" && false {",
+      "test": "TestObjectStorageValidatesDefaultsAndLimitsWithoutStartingAnything"
+    },
+    {
+      "label": "host mode replaces the measured prefix of every client",
+      "package": "./internal/cli/",
+      "file": "internal/cli/object_storage.go",
+      "find": "if profile.HostEndpoint && selected.Host != \"\" {",
+      "replace": "if (profile.HostEndpoint || true) && selected.Host != \"\" {",
+      "test": "TestS3HostEnvironmentUsesOnlyDeclaredAuthorityAndLocalProxy"
+    },
+    {
+      "label": "host proxy exports can point away from the local emulator",
+      "package": "./internal/cli/",
+      "file": "internal/cli/object_storage.go",
+      "find": "vars[key] = strings.TrimSuffix(endpoint, \"/\")",
+      "replace": "vars[key] = strings.TrimSuffix(\"http://foreign.example/\"+endpoint, \"/\")",
+      "test": "TestS3HostEnvironmentUsesOnlyDeclaredAuthorityAndLocalProxy"
+    },
+    {
+      "label": "NO_PROXY can bypass the synthetic host interception",
+      "package": "./internal/cli/",
+      "file": "internal/cli/object_storage.go",
+      "find": "vars[key] = \"127.0.0.1,localhost,::1\"",
+      "replace": "vars[key] = \"*\"",
+      "test": "TestS3HostEnvironmentUsesOnlyDeclaredAuthorityAndLocalProxy"
+    },
+    {
+      "label": "host mode is lost on restart",
+      "package": "./internal/cli/",
+      "file": "internal/cli/object_storage.go",
+      "find": "if f.hosts {\n\t\targs = append(args, \"--s3-host-doors\")",
+      "replace": "if f.hosts && false {\n\t\targs = append(args, \"--s3-host-doors\")",
+      "test": "TestStartPreservesObjectStorageFlagsAndAbsoluteRoot"
+    }
+  ]
+}

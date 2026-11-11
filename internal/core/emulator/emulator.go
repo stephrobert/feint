@@ -20,6 +20,7 @@ import (
 
 	"github.com/stephrobert/feint/internal/contract"
 	"github.com/stephrobert/feint/internal/core/machine"
+	"github.com/stephrobert/feint/internal/core/objectstore"
 	"github.com/stephrobert/feint/internal/core/store"
 	"github.com/stephrobert/feint/internal/trace"
 )
@@ -28,8 +29,11 @@ import (
 // so tests can pin timestamps and identifiers and compare golden output.
 type Env struct {
 	Store *store.Store
-	Now   func() time.Time
-	NewID func() string
+	// Objects is the optional neutral durable byte inventory, wired before HTTP
+	// starts. A nil value means Object Storage was not enabled.
+	Objects *objectstore.Store
+	Now     func() time.Time
+	NewID   func() string
 	// machines backs powered-on servers with something that actually runs.
 	// Defaults to the metadata-only driver, so nothing ever starts unless the
 	// operator asked for it.

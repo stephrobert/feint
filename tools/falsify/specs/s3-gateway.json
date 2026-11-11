@@ -1,0 +1,110 @@
+{
+  "package": "./internal/s3/",
+  "mutations": [
+    {
+      "label": "transport checksum mismatches publish metadata",
+      "file": "internal/s3/upload.go",
+      "find": "if got != want {",
+      "replace": "if got != want && false {",
+      "test": "TestUploadChecksumsAndFramingBeforePublication|TestPlainUploadChecksumsAndBound"
+    },
+    {
+      "label": "the decoded upload byte bound is disabled",
+      "file": "internal/s3/upload.go",
+      "find": "if size < 0 || size > max {",
+      "replace": "if size < 0 || (size > max && false) {",
+      "test": "TestPlainUploadChecksumsAndBound"
+    },
+    {
+      "label": "extra bytes after the inner chunk terminator are ignored",
+      "file": "internal/s3/upload.go",
+      "find": "if err != nil || reader.Buffered() != 0 || len(headers) != len(u.trailers) {",
+      "replace": "if err != nil || (reader.Buffered() != 0 && false) || len(headers) != len(u.trailers) {",
+      "test": "TestUploadChecksumsAndFramingBeforePublication/extra-bytes"
+    },
+    {
+      "label": "missing declared checksum trailers are ignored",
+      "file": "internal/s3/upload.go",
+      "find": "if err != nil || reader.Buffered() != 0 || len(headers) != len(u.trailers) {",
+      "replace": "if err != nil || reader.Buffered() != 0 || (len(headers) != len(u.trailers) && false) {",
+      "test": "TestUploadChecksumsAndFramingBeforePublication/missing-trailer"
+    },
+    {
+      "label": "incomplete checksum trailer framing is accepted",
+      "file": "internal/s3/upload.go",
+      "find": "if len(tail) > 8<<10 || (string(tail) != \"\\r\\n\" && !bytes.HasSuffix(tail, []byte(\"\\r\\n\\r\\n\"))) {",
+      "replace": "if len(tail) > 8<<10 || (string(tail) != \"\\r\\n\" && !bytes.HasSuffix(tail, []byte(\"\\r\\n\\r\\n\")) && false) {",
+      "test": "TestUploadChecksumsAndFramingBeforePublication/bare-lf-trailer"
+    },
+    {
+      "label": "the HTTP peer need not be loopback",
+      "file": "internal/s3/server.go",
+      "find": "if err != nil || !peer.Addr().Unmap().IsLoopback() {",
+      "replace": "if err != nil || (!peer.Addr().Unmap().IsLoopback() && false) {",
+      "test": "TestLoopbackAndPathStyleBoundary"
+    },
+    {
+      "label": "virtual cloud hostnames are treated as path-style endpoints",
+      "file": "internal/s3/server.go",
+      "find": "if host != \"localhost\" && (ipErr != nil || !ip.Unmap().IsLoopback()) &&\n\t\t(s.cfg.endpointHost == \"\" || r.Host != s.cfg.endpointHost) {",
+      "replace": "if host != \"localhost\" && (ipErr != nil || !ip.Unmap().IsLoopback()) &&\n\t\t(s.cfg.endpointHost == \"\" || r.Host != s.cfg.endpointHost) && false {",
+      "test": "TestLoopbackAndPathStyleBoundary"
+    },
+    {
+      "label": "S3 query features silently become ordinary CRUD",
+      "file": "internal/s3/server.go",
+      "find": "if key != \"x-id\" && (!s.cfg.BucketConfiguration || (key != \"versioning\" && key != \"acl\" && key != \"tagging\" && !absent)) {",
+      "replace": "if key != \"x-id\" && (!s.cfg.BucketConfiguration || (key != \"versioning\" && key != \"acl\" && key != \"tagging\" && !absent)) && false {",
+      "test": "TestRefusalsDoNotMasqueradeAsCloudSupport"
+    },
+    {
+      "label": "range requests silently return full bytes",
+      "file": "internal/s3/server.go",
+      "find": "if values := r.Header.Values(\"Range\"); len(values) != 0 {",
+      "replace": "if values := r.Header.Values(\"Range\"); len(values) != 0 && false {",
+      "test": "TestSingleByteRangesReturnOnlyTheirVerifiedBytes"
+    },
+    {
+      "label": "unsafe restored metadata is emitted as HTTP headers",
+      "file": "internal/s3/server.go",
+      "find": "if !headerName(key) || !headerValue(value) || seen[canonical] {",
+      "replace": "if (!headerName(key) || !headerValue(value) || seen[canonical]) && false {",
+      "test": "TestPersistedMetadataIsRevalidatedForHTTP"
+    },
+    {
+      "label": "invalid upload metadata is accepted",
+      "file": "internal/s3/server.go",
+      "find": "if len(values) != 1 || !headerName(suffix) || !headerValue(values[0]) {",
+      "replace": "if (len(values) != 1 || !headerName(suffix) || !headerValue(values[0])) && false {",
+      "test": "TestUploadHeaderValidationAndConstructor"
+    },
+    {
+      "label": "conflicting payload and explicit SHA256 headers are ignored",
+      "file": "internal/s3/upload.go",
+      "find": "if want := u.expected[\"X-Amz-Checksum-Sha256\"]; want != \"\" && want != value {",
+      "replace": "if want := u.expected[\"X-Amz-Checksum-Sha256\"]; want != \"\" && want != value && false {",
+      "test": "TestUploadHeaderValidationAndConstructor"
+    },
+    {
+      "label": "the constructor admits an overflowing raw byte bound",
+      "file": "internal/s3/server.go",
+      "find": "if cfg.MaxObjectBytes <= 0 || cfg.MaxObjectBytes > (math.MaxInt64-(64<<10))/2 {",
+      "replace": "if cfg.MaxObjectBytes <= 0 || (cfg.MaxObjectBytes > (math.MaxInt64-(64<<10))/2 && false) {",
+      "test": "TestUploadHeaderValidationAndConstructor"
+    },
+    {
+      "label": "response checksums no longer describe the stored bytes",
+      "file": "internal/s3/server.go",
+      "find": "base64.StdEncoding.EncodeToString(digest)",
+      "replace": "base64.StdEncoding.EncodeToString(append([]byte{digest[0] ^ 1}, digest[1:]...))",
+      "test": "TestRoundTripPreservesLogicalKeysAndBytes"
+    },
+    {
+      "label": "duplicate upload headers silently select the first value",
+      "file": "internal/s3/upload.go",
+      "find": "if len(r.Header.Values(name)) > 1 {",
+      "replace": "if len(r.Header.Values(name)) > 1 && false {",
+      "test": "TestAmbiguousUploadHeadersDoNotPublish"
+    }
+  ]
+}

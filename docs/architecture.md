@@ -13,6 +13,9 @@ internal/cli/               the commands: lifecycle, serve, env, doctor, snapsho
                             coverage, probe, docs, catalog, clean, version
 internal/core/resource/     the neutral resource: ID, Kind, Tenant, State, Attrs, Runtime
 internal/core/store/        in-memory storage plus JSON snapshot, with no provider knowledge
+internal/core/objectstore/  neutral persisted object bytes and metadata
+internal/s3/                bounded S3 protocol and same-port explicit door dispatch
+internal/conformancetest/   isolated pinned AWS CLI harness, under the conformance tag
 internal/core/emulator/     Env, Pack, Route, the single-port mount, /_feint/*
 internal/core/machine/      the machine runtime behind --vm: Incus containers, VMs, OVN
 internal/core/network/      address plans, subnets, firewall bindings
@@ -72,6 +75,120 @@ identically for another provider? If yes, it belongs to the core. What stays in
 the pack is what only that provider knows — its image catalogue, the login its
 machines use, the field its API publishes an address under, or the fact that it
 publishes none.
+
+## Neutral object bytes and explicitly mounted S3 doors
+
+[objectstore](../internal/core/objectstore/store.go) is an independent library
+for #850, activated only by `serve`/`start --objectstore`. It does not imply
+complete provider Object Storage support. Its caller explicitly selects a private root
+whose parent already exists. New roots are mode 0700; files are mode 0600.
+The pinned parent must belong to this user or root; group/other write permission
+requires its sticky bit so another UID cannot replace the newly created root
+before it is opened. A sticky directory owned by a foreign UID is not trusted.
+Existing unmarked roots, symlinks, non-regular files, foreign owners and public
+permissions are refused, not repaired or adopted.
+
+The store holds a directory lock across its lifetime on Linux/macOS local
+filesystems. Logical bucket names and keys are JSON data, never paths. A
+streaming PUT declares its exact decoded size, writes and syncs a temporary
+blob, links it under its SHA-256 without overwriting an existing blob, and
+syncs that directory before atomically publishing and syncing metadata.
+Uploads to distinct keys run independently. A generation check prevents an
+unfinished upload from repopulating a deleted or recreated bucket.
+
+GET and HEAD verify the complete blob; listing is a metadata inventory only.
+The digest is not an S3 ETag. Deletion removes references, not blobs. The
+private `feint-objectstore` v1 index is not `feint-snapshot` v1: no snapshot,
+checkpoint/reset or cleanup command reads it yet. Unreferenced blobs and
+temporary files from a process crash are retained; there is no collector or
+recursive root deletion.
+An interrupted initial creation may leave an unmarked directory; inspect and
+remove that explicitly rather than asking Open to adopt it.
+
+A successful mutation follows file and directory syncs. If metadata was renamed
+but its directory sync fails, the call reports failure and the instance requires
+close/reopen; failure may therefore have published metadata. Reopen, corruption
+and concurrency are tested, not actual power loss or network filesystem locks.
+The root is not a sandbox against a malicious process sharing its owner's UID.
+The caller must impose storage quotas and unblock its input reader on
+cancellation; waiting for an existing same-key transaction may also delay
+cancellation. No structured format passes through a text template.
+
+`OpenWithLimit` adds an explicit cumulative blob-byte budget without changing
+the index format or `Open`'s unlimited library behavior. It counts retained and
+orphan data on reopen, with hard-linked names counted once, and reserves each
+upload's declared size before file creation or input reads. The EOF probe is
+read into memory, never written beyond that reservation. Reservations are
+released after temporary-file cleanup; new published blobs remain charged even
+when metadata publication fails. Failed cleanup retains the partial byte charge.
+Deletion does not free blob bytes. Identical uploads still require temporary
+space. Metadata and filesystem overhead are outside this byte budget.
+See the [accepted door ADR](object-storage-routing.md) for the selected opt-in
+defaults (1 GiB cumulative, 256 MiB per simple PUT) and the mounted
+same-port server integration.
+The gateway renders a budget refusal as a logged Feint HTTP 507 text response,
+not an unmeasured S3 XML error. The official-client component proof uses a small
+explicit cumulative budget; deployment limits are configurable CLI options.
+
+### Explicit S3 protocol, not complete Object Storage support
+
+[s3](../internal/s3/server.go) is a direct HTTP handler over that store, with no
+listener, control-plane SDK route or snapshot integration.
+[Doors](../internal/s3/doors.go) dispatch declared provider/region prefixes
+before the mono-port server's cleaning mux, over one shared store with opaque
+namespaces. CLI composition owns activation and shutdown. Trusted intercepted
+host handoff and virtual-host routing remain deferred, not implicit promises.
+It accepts loopback peers and literal loopback/localhost endpoint hosts only.
+SigV4 credentials are accepted without authenticating their secret; they are
+never logged. Local callers still have access to the whole selected store.
+
+Run `mise run conformance:s3` with **AWS CLI 2.32.17** installed. Absence or a
+different version fails, never skips. The isolated HOME uses the repository's
+public fake credentials, an ephemeral trusted HTTPS certificate, metadata
+discovery disabled and a non-forwarding proxy with a positive CONNECT control.
+This is a client proxy boundary, **not a network namespace or a proof that
+arbitrary clients cannot bypass proxies**.
+
+The witness performs CreateBucket, PutObject, GetObject, DeleteObject and
+DeleteBucket against the component, retrieves 73,728 identical binary bytes and
+checks their independent SHA-256. HTTPS makes this client emit `aws-chunked`
+with a CRC32 trailer. CRC32 is an explicit fixture selection, not a claim about
+the default algorithm or unmodified Terraform stacks. A sixth GET deliberately
+changes only the response checksum: the official client must reject it. No
+ETag is emitted; this client succeeds without one. This does **not** establish
+Scaleway/SOS ETag behavior or support clients that require ETags.
+
+Uploads require an exact decoded length, capped by the caller's byte bound.
+Framing is decoded and CRC32/SHA-256 checksums verified **before** EOF can let
+the core publish metadata. The raw body is bounded to twice that cap plus
+64 KiB; the trailer section is capped at 8 KiB. Logical object keys are decoded
+once, never cleaned. HTTP metadata is validated at intake and again after
+reading the neutral store, including case-insensitive header collisions.
+Callers need server read/header deadlines, header limits and **cumulative**
+disk quotas; this per-request bound does not prevent many uploads or reclaim
+unreferenced blobs.
+
+Only empty-body bucket creation, bucket HEAD/deletion and full object
+PUT/GET/HEAD/deletion are implemented. Queries other than SDK `x-id`, range and
+conditional requests, ACLs, policies, versioning, multipart, encryption,
+Content-MD5 and other checksum algorithms are explicitly refused. There are no
+successful empty bucket-listing or multipart stubs.
+The only cloud XML error is NoSuchBucket, with explicitly selected Scaleway or
+SOS envelopes from the anonymous HTTPS GET recordings of
+2026-11-06T20:33:53Z at `s3.fr-par.scw.cloud` and `sos-ch-gva-2.exo.io`.
+[The test](../internal/s3/server_test.go) decodes the recorded producer bodies;
+their response identifiers are redacted, not their fields. Applying that error
+family to other missing-bucket operations is an adapter choice, not another
+cloud measurement. NoSuchKey, conflicting creation and BucketNotEmpty still
+get a logged **Feint 501 text refusal**, not fabricated cloud XML.
+
+That witness proves a protocol component. `mise run conformance:s3:mounted`
+separately drives the actual `feint start`/`restart` process on both declared
+doors and proves bytes, checksums, literal keys and persisted namespaces.
+Neither proves complete `scw`/`exo` lifecycles, a surveyed Terraform stack,
+interception or reset. The full control-plane conformance population is
+unchanged. [The declared mutations](../tools/falsify/specs/s3-gateway.json)
+hold checksum, framing, size, metadata and unsupported-feature guards.
 
 ## What varies is a field, not a convention
 

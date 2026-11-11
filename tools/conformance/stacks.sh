@@ -90,6 +90,9 @@ trap cleanup_stack EXIT
 run_stack() { # name
   local name="$1"
   local src="$ROOT/examples/stacks/$name"
+  # Reset per stack: a decision taken for one stack must not be inherited by
+  # the next, which is how a guard starts reporting about the wrong subject.
+  SOS_DOOR=0
   [ -d "$src" ] || fail "no stack at $src"
 
   case "$name" in
@@ -107,6 +110,32 @@ run_stack() { # name
       export EXOSCALE_API_ENDPOINT="$ENDPOINT/v2"
       export EXOSCALE_ZONE="${EXOSCALE_ZONE:-ch-dk-2}"
       export TF_VAR_zone="$EXOSCALE_ZONE"
+      # The SOS door, ASKED FOR rather than assumed, and that is this file's
+      # own rule: branch on a declaration, never on a name you expect.
+      #
+      # The emulator of the `image` job runs the shipped container with no
+      # override — deliberately, since "a proof that quietly passes different
+      # flags proves a different image" — so it serves no door at all. Setting
+      # the variable unconditionally made that job's apply FAIL, measured, and
+      # it is the population trap CLAUDE.md names: a control eprouve on the
+      # richest run and broken by the poorest.
+      #
+      # Without the variable the stack's bucket is `count = 0`, so the stack
+      # stays appliable against an emulator that serves no bytes.
+      #
+      # SOS_DOOR records the decision, and the assertion after the apply keys
+      # off THAT rather than off the variable. The difference is #459's: a
+      # guard that skips itself when its own input is missing cannot report the
+      # bug where the input went missing. With this, a served door and a
+      # forgotten export fail the leg instead of quietly passing it.
+      SOS_DOOR=0
+      if curl -fsS --max-time 20 "$ENDPOINT/_feint/s3" 2>/dev/null \
+        | grep -q "\"path\":\"/_feint/s3/exoscale/$EXOSCALE_ZONE/\""; then
+        SOS_DOOR=1
+        export TF_VAR_sos_endpoint="$ENDPOINT/_feint/s3/exoscale/$EXOSCALE_ZONE"
+      else
+        echo "  note: this emulator serves no exoscale/$EXOSCALE_ZONE door, so the stack's bucket is left out"
+      fi
       ;;
     *)
       VARS=(-var "endpoint=$ENDPOINT")
@@ -134,6 +163,25 @@ run_stack() { # name
   "$TF" apply -no-color -auto-approve ${VARS[@]+"${VARS[@]}"} >/dev/null \
     || fail "$name: apply failed"
   ok "applied"
+
+  # The bucket of the Exoscale stack is `count = 0` when TF_VAR_sos_endpoint is
+  # empty, which is how the stack stays appliable for a reader whose emulator
+  # serves no door. It is also how this leg would pass while proving nothing,
+  # so the inventory is asked rather than assumed: a bucket that is in the
+  # LOCAL door's listing cannot have been created anywhere else.
+  #
+  # Proved to bite: with the export above emptied, this leg fails naming the
+  # door it looked in.
+  if [ "$name" = exoscale ] && [ "${SOS_DOOR:-0}" = 1 ]; then
+    local inventory
+    inventory="$(curl -fsS --max-time 20 "$ENDPOINT/_feint/s3/exoscale/$EXOSCALE_ZONE/" || true)"
+    case "$inventory" in
+      *"<Name>platform-assets</Name>"*)
+        ok "the SOS bucket is in the local door's inventory" ;;
+      *)
+        fail "$name: platform-assets is absent from the local door at $ENDPOINT/_feint/s3/exoscale/$EXOSCALE_ZONE/ — either TF_VAR_sos_endpoint was not exported, so the bucket was left out, or it was created somewhere this emulator cannot see" ;;
+    esac
+  fi
 
   # The assertion that separates a test from a demonstration. Both defects this
   # file's header names were caught here rather than by the apply.

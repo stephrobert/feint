@@ -1,0 +1,141 @@
+{
+  "package": "./internal/s3/",
+  "mutations": [
+    {
+      "label": "bulk deletion silently accepts duplicate query values",
+      "file": "internal/s3/delete.go",
+      "find": "if len(values) != 1 || (key != \"delete\" && key != \"x-id\")",
+      "replace": "if (len(values) != 1 && false) || (key != \"delete\" && key != \"x-id\")",
+      "test": "TestDeleteObjectsRefusalsCannotDeleteValidatedPrefix"
+    },
+    {
+      "label": "bulk deletion ignores a nonempty operation selector",
+      "file": "internal/s3/delete.go",
+      "find": "(key == \"delete\" && values[0] != \"\")",
+      "replace": "(key == \"delete\" && values[0] != \"\" && false)",
+      "test": "TestDeleteObjectsRefusalsCannotDeleteValidatedPrefix"
+    },
+    {
+      "label": "bulk deletion accepts an unrelated SDK operation",
+      "file": "internal/s3/delete.go",
+      "find": "(key == \"x-id\" && values[0] != \"DeleteObjects\")",
+      "replace": "(key == \"x-id\" && values[0] != \"DeleteObjects\" && false)",
+      "test": "TestDeleteObjectsRefusalsCannotDeleteValidatedPrefix"
+    },
+    {
+      "label": "destructive XML need not carry a transport checksum",
+      "file": "internal/s3/delete.go",
+      "find": "r.Header.Get(\"X-Amz-Checksum-Sha256\") == \"\" && r.Header.Get(\"X-Amz-Trailer\") == \"\" {",
+      "replace": "r.Header.Get(\"X-Amz-Checksum-Sha256\") == \"\" && r.Header.Get(\"X-Amz-Trailer\") == \"\" && false {",
+      "test": "TestDeleteObjectsChecksumsAndSizeBeforeDeletion"
+    },
+    {
+      "label": "destructive XML Content-MD5 mismatch is ignored",
+      "file": "internal/s3/bucket_configuration.go",
+      "find": "if len(values) != 1 || values[0] != base64.StdEncoding.EncodeToString(digest[:]) {",
+      "replace": "if (len(values) != 1 || values[0] != base64.StdEncoding.EncodeToString(digest[:])) && false {",
+      "test": "TestDeleteObjectsChecksumsAndSizeBeforeDeletion"
+    },
+    {
+      "label": "destructive XML decoded size may differ from its declaration",
+      "file": "internal/s3/bucket_configuration.go",
+      "find": "if int64(len(body)) != size {",
+      "replace": "if int64(len(body)) != size && false {",
+      "test": "TestDeleteObjectsChecksumsAndSizeBeforeDeletion"
+    },
+    {
+      "label": "XML from a foreign namespace deletes objects",
+      "file": "internal/s3/delete.go",
+      "find": "if t.Name.Space != \"\" && t.Name.Space != s3XMLNamespace {",
+      "replace": "if t.Name.Space != \"\" && t.Name.Space != s3XMLNamespace && false {",
+      "test": "TestDeleteObjectsRefusalsCannotDeleteValidatedPrefix"
+    },
+    {
+      "label": "XML silently drops unknown attributes before deletion",
+      "file": "internal/s3/delete.go",
+      "find": "if len(stack) != 0 || attr.Name.Space != \"\" || attr.Name.Local != \"xmlns\" || attr.Value != s3XMLNamespace {",
+      "replace": "if (len(stack) != 0 || attr.Name.Space != \"\" || attr.Name.Local != \"xmlns\" || attr.Value != s3XMLNamespace) && false {",
+      "test": "TestDeleteObjectsRefusalsCannotDeleteValidatedPrefix"
+    },
+    {
+      "label": "a trailing root is silently accepted",
+      "file": "internal/s3/delete.go",
+      "find": "if roots != 0 || t.Name.Local != \"Delete\" {",
+      "replace": "if (roots != 0 && false) || t.Name.Local != \"Delete\" {",
+      "test": "TestDeleteObjectsRefusalsCannotDeleteValidatedPrefix"
+    },
+    {
+      "label": "duplicate Quiet fields silently change response semantics",
+      "file": "internal/s3/delete.go",
+      "find": "if quietCount != 0 {",
+      "replace": "if quietCount != 0 && false {",
+      "test": "TestDeleteObjectsRefusalsCannotDeleteValidatedPrefix"
+    },
+    {
+      "label": "duplicate object Key fields silently choose another object",
+      "file": "internal/s3/delete.go",
+      "find": "if keyCount != 1 || key == \"\"",
+      "replace": "if keyCount < 1 || key == \"\"",
+      "test": "TestDeleteObjectsRefusalsCannotDeleteValidatedPrefix"
+    },
+    {
+      "label": "oversized keys are accepted by the wire parser",
+      "file": "internal/s3/delete.go",
+      "find": "key == \"\" || len(key) > 1024 || !utf8.ValidString(key)",
+      "replace": "key == \"\" || (len(key) > 1024 && false) || !utf8.ValidString(key)",
+      "test": "TestDeleteObjectsClosedRefusalShapes"
+    },
+    {
+      "label": "the 1000-key operation bound is ignored",
+      "file": "internal/s3/delete.go",
+      "find": "if len(result.keys) > 1000 {",
+      "replace": "if len(result.keys) > 1000 && false {",
+      "test": "TestDeleteObjectsRefusalsCannotDeleteValidatedPrefix"
+    },
+    {
+      "label": "unknown Quiet values are treated as false",
+      "file": "internal/s3/delete.go",
+      "find": "if value != \"true\" && value != \"false\" {",
+      "replace": "if value != \"true\" && value != \"false\" && false {",
+      "test": "TestDeleteObjectsRefusalsCannotDeleteValidatedPrefix"
+    },
+    {
+      "label": "empty deletion is advertised as success",
+      "file": "internal/s3/delete.go",
+      "find": "len(stack) != 0 || len(result.keys) == 0",
+      "replace": "len(stack) != 0 || (len(result.keys) == 0 && false)",
+      "test": "TestDeleteObjectsClosedRefusalShapes"
+    },
+    {
+      "label": "Quiet requests incorrectly return successful keys",
+      "file": "internal/s3/delete.go",
+      "find": "if !request.quiet {",
+      "replace": "if !request.quiet || true {",
+      "test": "TestDeleteObjectsReturnsActualLiteralKeysAndQuietState"
+    },
+    {
+      "label": "validated XML claims deletion without changing references",
+      "file": "internal/core/objectstore/store.go",
+      "find": "for _, key := range keys {\n\t\tdelete(next.Buckets[name].Objects, key)\n\t}",
+      "replace": "for _, key := range keys {\n\t\tif key == \"\\x00never\" { delete(next.Buckets[name].Objects, key) }\n\t}",
+      "package": "./internal/core/objectstore/",
+      "test": "TestBulkDeletePersistsReferencesAndRetainsBytes"
+    },
+    {
+      "label": "caller-owned key slices are reordered",
+      "file": "internal/core/objectstore/store.go",
+      "find": "keys = slices.Clone(keys)",
+      "replace": "keys = slices.Clip(keys)",
+      "package": "./internal/core/objectstore/",
+      "test": "TestBulkDeletePersistsReferencesAndRetainsBytes"
+    },
+    {
+      "label": "a failed batch commit publishes partially deleted metadata",
+      "file": "internal/core/objectstore/store.go",
+      "find": "for _, key := range keys {\n\t\tdelete(next.Buckets[name].Objects, key)\n\t}\n\treturn s.commit(ctx, next)",
+      "replace": "for _, key := range keys {\n\t\tdelete(next.Buckets[name].Objects, key)\n\t}\n\ts.state = next\n\treturn s.commit(ctx, next)",
+      "package": "./internal/core/objectstore/",
+      "test": "TestBulkDeleteRefusalsPreserveEveryReference"
+    }
+  ]
+}
