@@ -173,7 +173,7 @@ This suite is the whole of the pack's evidence, and it is enough: Exoscale is
 *starter* since EXO-2. There is no Terraform suite here and there will not be
 one until upstream moves — the provider reaches the real cloud with half its
 calls, so this emulator refuses it. See
-[docs/limits.md](../../docs/limits.md#the-exoscale-terraform-provider-is-refused-and-why).
+[docs/limits.md](../../docs/limits.md#the-exoscale-terraform-provider-has-a-floor-and-below-it-the-refusal-stands).
 
 Credentials are fake, well-formed and deliberately public: the SDKs validate
 their shape even though the emulator ignores their value.

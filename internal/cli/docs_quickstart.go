@@ -131,6 +131,67 @@ func renderQuickstart(goMod, changelog string, french bool) (string, error) {
 	}
 	b.WriteString("```\n\n")
 
+	// The same four commands for a reader without Homebrew, and that absence is
+	// the majority rather than the edge case: this project's audience is Linux
+	// engineers, and the first line of its Quick Start asked them for a package
+	// manager most of them do not run (#843).
+	//
+	// Short enough to stay in the Quick Start, and still verified. The bytes are
+	// checked against the published list before anything is installed, because
+	// the alternative people reach for when a verified path is long is
+	// curl-to-shell, and offering that here would teach it.
+	//
+	// What the checksum does NOT prove is said rather than implied: it proves
+	// the bytes match the list, not who wrote the list. The signature over the
+	// list is one step further and it lives in the install page, generated from
+	// this same version, so neither can drift from the other.
+	//
+	// The architecture is a case rather than a default, for the reason the
+	// install page gives at length: the wrong binary fails at exec with a
+	// message naming neither the file nor the machine.
+	if french {
+		b.WriteString("Sans Homebrew, la même chose sur Linux :\n\n")
+	} else {
+		b.WriteString("Without Homebrew, the same thing on Linux:\n\n")
+	}
+	//
+	// Wrapped in a subshell on purpose. A refusal needs to stop the chain, and
+	// the two ways of writing that are both wrong where this block is read: a
+	// bare `return` outside a function is an error in an interactive shell, and
+	// a bare `exit` closes the terminal somebody just pasted into. `( set -e …
+	// exit 1 )` stops the install and leaves the session alone.
+	b.WriteString("```bash\n")
+	b.WriteString("( set -e\n")
+	fmt.Fprintf(&b, "  v=%s\n", version)
+	b.WriteString("  case $(uname -m) in\n")
+	b.WriteString("    x86_64)  a=feint-linux-amd64 ;;\n")
+	b.WriteString("    aarch64) a=feint-linux-arm64 ;;\n")
+	if french {
+		b.WriteString("    *) echo \"aucun binaire publié pour $(uname -m)\" >&2; exit 1 ;;\n")
+	} else {
+		b.WriteString("    *) echo \"no published binary for $(uname -m)\" >&2; exit 1 ;;\n")
+	}
+	b.WriteString("  esac\n")
+	fmt.Fprintf(&b, "  base=https://github.com/%s/releases/download/v$v\n", slug)
+	b.WriteString("  curl -fsSLO \"$base/$a\"\n")
+	b.WriteString("  curl -fsSL \"$base/checksums.txt\" | sha256sum --check --ignore-missing -\n")
+	b.WriteString("  install -Dm755 \"$a\" ~/.local/bin/feint\n")
+	b.WriteString(")\n")
+	b.WriteString("```\n\n")
+	if french {
+		b.WriteString("Cela prouve que les octets correspondent à la liste publiée, pas qui a\n" +
+			"écrit la liste. La signature de la liste est une étape de plus, et elle est\n" +
+			"dans [docs/install.md](docs/install.md) : c'est celle à suivre pour épingler\n" +
+			"feint dans une CI. Si `feint` reste introuvable ensuite, `~/.local/bin`\n" +
+			"n'est pas dans votre `PATH`.\n\n")
+	} else {
+		b.WriteString("That proves the bytes match the published list, not who wrote the list.\n" +
+			"The signature over the list is one step further, in\n" +
+			"[docs/install.md](docs/install.md), and it is the one to follow when pinning\n" +
+			"feint in CI. If `feint` is not found afterwards, `~/.local/bin` is not on\n" +
+			"your `PATH`.\n\n")
+	}
+
 	// What those four commands print, derived from the configuration they run
 	// rather than typed beside it.
 	//

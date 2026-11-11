@@ -308,6 +308,18 @@ depends = ["build"]
 # reader meets before anything else.
 run = "tools/conformance/quickstart.sh 127.0.0.1:4597"
 
+[tasks."conformance:released-linux"]
+description = "Install the published binary the way the README tells a Linux reader to, then run the quickstart against it"
+# Deliberately NOT depending on `build`. The whole subject is the artefact a
+# stranger can obtain, so a locally built binary in the tree would be the one
+# thing that must not be measured here. It downloads the release the README
+# pins and refuses to run with any provider credential visible, because an
+# acceptance that could have reached a real account proves nothing about
+# locality.
+#
+# Its port is its own, like every suite that starts and stops emulators.
+run = "tools/conformance/released-linux.sh 127.0.0.1:4596"
+
 [tasks."conformance:environment"]
 description = "Prove `feint up` and `feint down` on a fixture declaration, with the real binary"
 depends = ["build"]

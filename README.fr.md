@@ -83,6 +83,29 @@ feint up      # vérifie la station, démarre l'émulateur, applique le Terrafor
 feint down    # détruit ce qu'il a créé, puis arrête l'émulateur
 ```
 
+Sans Homebrew, la même chose sur Linux :
+
+```bash
+( set -e
+  v=0.15.0
+  case $(uname -m) in
+    x86_64)  a=feint-linux-amd64 ;;
+    aarch64) a=feint-linux-arm64 ;;
+    *) echo "aucun binaire publié pour $(uname -m)" >&2; exit 1 ;;
+  esac
+  base=https://github.com/stephrobert/feint/releases/download/v$v
+  curl -fsSLO "$base/$a"
+  curl -fsSL "$base/checksums.txt" | sha256sum --check --ignore-missing -
+  install -Dm755 "$a" ~/.local/bin/feint
+)
+```
+
+Cela prouve que les octets correspondent à la liste publiée, pas qui a
+écrit la liste. La signature de la liste est une étape de plus, et elle est
+dans [docs/install.md](docs/install.md) : c'est celle à suivre pour épingler
+feint dans une CI. Si `feint` reste introuvable ensuite, `~/.local/bin`
+n'est pas dans votre `PATH`.
+
 Ce que ces quatre commandes impriment :
 
 ```text

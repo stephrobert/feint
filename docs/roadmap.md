@@ -177,7 +177,7 @@ emulator and a paying account. `ClientOptWithAPIEndpoint` exists in egoscale and
 is never called; three sites build a v2 client without it. Filed upstream as
 [exoscale/terraform-provider-exoscale#573][exo-573], with the mechanism and a
 reproduction; the reasoning and a patched build are in
-[limits.md](limits.md#the-exoscale-terraform-provider-is-refused-and-why).
+[limits.md](limits.md#the-exoscale-terraform-provider-has-a-floor-and-below-it-the-refusal-stands).
 
 A condition nobody here can reach is not a condition, it is a hostage. Keeping
 it would have made this project's own published maturity depend on someone

@@ -51,7 +51,7 @@ discards.
 ### The Exoscale stack runs, from provider v0.71.0
 
 It did not, from 2026-08-26 to 2026-09-05, and the history is dated in
-[limits.md](limits.md#the-exoscale-terraform-provider-is-refused-and-why): the
+[limits.md](limits.md#the-exoscale-terraform-provider-has-a-floor-and-below-it-the-refusal-stands): the
 published provider built two clients and only one honoured
 `EXOSCALE_API_ENDPOINT`, so an apply or destroy **split** between the emulator
 and a paying account (#525 measured exactly that from `feint down` on this

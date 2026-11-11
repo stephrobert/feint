@@ -172,7 +172,7 @@ therefore did not fail — it **split**, half against the emulator and half
 against a paying account (upstream
 [#573](https://github.com/exoscale/terraform-provider-exoscale/issues/573)).
 The whole measurement is in
-[docs/limits.md](../../docs/limits.md#the-exoscale-terraform-provider-is-refused-and-why).
+[docs/limits.md](../../docs/limits.md#the-exoscale-terraform-provider-has-a-floor-and-below-it-the-refusal-stands).
 
 **From 2026-08-26 to 2026-09-05, nothing ran this stack, and that was the
 decision, not a gap.** A pinned four-line fork used to close the split for a
