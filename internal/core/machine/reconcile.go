@@ -51,6 +51,11 @@ type Reconciled struct {
 	// and a record nobody could act on need different answers from the
 	// operator.
 	Failed []string
+	// Reapplied names the rule sets written to the runtime again because the
+	// restore brought back the records they are translated from. Separate
+	// from Recreated: nothing was started, a set that the runtime already
+	// held under the same name was overwritten with the restored rules.
+	Reapplied []string
 	// Skipped names records whose machine this binding does not own, or which
 	// name no machine at all. Reported rather than silently passed over: a
 	// record nobody could act on is what an operator needs to hear about.
@@ -166,6 +171,21 @@ func (b Binding) ReconcileMissing(ctx context.Context, records []*resource.Resou
 		// a test's bookkeeping stamp and try to boot it.
 		name := res.Runtime[b.RuntimeKey]
 		if name == "" || slices.Contains(held, name) {
+			continue
+		}
+		// And the checkpoint must describe it as UP. A record keeps its
+		// machine name after the machine is gone — that is how ReconcileGone
+		// finds what to destroy — so "has a name and the host does not hold
+		// it" is also, word for word, the description of a server the
+		// checkpoint says is stopped. The runtime leg measured it: a reset
+		// returned a terminated VM to running and started a container for it,
+		// and the verdict then named the resource it had itself changed.
+		//
+		// The word is the pack's and the comparison is shared, which is the
+		// field this binding already carries for PowerOn to write.
+		//
+		// TestAResetLeavesAStoppedRecordStopped fails without this.
+		if res.State != b.RunningState {
 			continue
 		}
 		if b.driver == nil {

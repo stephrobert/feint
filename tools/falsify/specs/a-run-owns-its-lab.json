@@ -96,9 +96,23 @@
     {
       "label": "a reset that did not converge stops failing the command, so a shared emulator is left dirty by a run that reported success. The caller asked for the lab to be left as found; a quiet 0 is how the next test inherits the mess and blames itself",
       "file": "internal/cli/run.go",
-      "find": "\tif resetVerdict == \"did not converge\" && code == exitOK {",
-      "replace": "\tif resetVerdict == \"did not converge\" && code == exitOK && false {",
+      "find": "\tif code == exitOK && !deliveredWhatWasAsked(resetVerdict, cleanup) {",
+      "replace": "\tif code == exitOK && !deliveredWhatWasAsked(resetVerdict, cleanup) && false {",
       "test": "TestARunWhoseResetDidNotConvergeFails"
+    },
+    {
+      "label": "only a non-converging reset fails the run, which is the contract error an audit found: a reset the emulator refused, one that could not be read back, and one with no checkpoint to return to all left the exit code at the child's, so a CI run could read `terraform test success / feint reset failed / feint run exit 0`",
+      "file": "internal/cli/run.go",
+      "find": "\tcase \"\", \"converged\":",
+      "replace": "\tcase \"\", \"converged\", \"failed\", \"unverified\", \"not attempted\":",
+      "test": "TestAGuaranteeThatWasNotDeliveredFailsTheRun"
+    },
+    {
+      "label": "a lab this command owned and could not stop stops failing the run, so a leaked port and a leaked directory report success with `cleanup: failed` in a receipt nobody reads. The receipt said it and the exit code did not, which is the half that reaches CI",
+      "file": "internal/cli/run.go",
+      "find": "\tswitch cleanup {\n\tcase \"clean\", \"kept\", \"not owned\":",
+      "replace": "\tswitch cleanup {\n\tcase \"clean\", \"kept\", \"not owned\", \"failed\":",
+      "test": "TestAGuaranteeThatWasNotDeliveredFailsTheRun"
     }
   ]
 }

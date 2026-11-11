@@ -83,6 +83,28 @@ type MissingReconciler interface {
 	ReconcileMissing(ctx context.Context, records []*resource.Resource, held []string) machine.Reconciled
 }
 
+// RuleReconciler is the third optional half, and separate from the other two
+// for the reason MissingReconciler spells out: a pack gains one when it is
+// ready, and the ones it already had keep working. Merging them would turn
+// every pack into a non-implementer in silence.
+//
+// It exists because a reset that only restores the store reports convergence
+// over a firewall the runtime is still enforcing from before the checkpoint.
+// Survey answers names, a modified rule set keeps its name, so nothing in the
+// observation can see the difference — and machine.GroupSync.Reapply carries
+// the measurement that turned that deduction into a defect.
+//
+// tools/conformance/scaleway/network.sh and internal/cli's
+// TestAPackThatEnforcesRulesReappliesThemOnReset fail without it.
+type RuleReconciler interface {
+	// ReconcileRules writes this pack's restored rule sets to the runtime
+	// again. It takes the pack's own records, because which of them is a
+	// group is the pack's vocabulary — "instance/security-group",
+	// "securitygroup" and "security-group" for the three — and the core
+	// guessing at that is the mistake ReconcileMissing documents.
+	ReconcileRules(ctx context.Context, records []*resource.Resource) machine.Reconciled
+}
+
 // checkpoints holds the control-plane half of each named checkpoint.
 //
 // In memory, and that is the scope #853 describes: "returns to the session's
@@ -120,18 +142,40 @@ func (c *checkpoints) drop(name string) bool {
 
 // handleCheckpointSave records the control plane and the bytes under one name.
 //
-// Both halves or neither: a checkpoint whose store was taken and whose bytes
-// were not is a checkpoint a reset cannot honour, and it would fail later,
-// somewhere else, with no mention of this call. So the byte half goes first —
-// it is the one that can fail on a disk — and the store half follows only
-// when it succeeded.
+// Both halves or neither, and the ORDER is what makes that true rather than a
+// sentence. An external audit caught the first version claiming it: the bytes
+// were saved first, so a failure in the store snapshot left a previously taken
+// checkpoint of the same name holding its OLD control plane beside the NEW
+// object references. A later reset would have restored one against the other,
+// and the comment promising otherwise is the defect this repository names most
+// often.
 //
-// TestACheckpointTakesBothHalvesOrNeither fails without this.
+// The order that delivers it:
+//
+//  1. take the control-plane snapshot into memory. Nothing durable is touched,
+//     and a failure here leaves the previous checkpoint whole;
+//  2. save the bytes, which objectstore publishes by renaming a temporary
+//     file: it either replaces the old checkpoint or leaves it, never a
+//     half of one;
+//  3. publish the control-plane half only now.
+//
+// So a failure at any step leaves the previous checkpoint consistent with
+// itself, which is the only promise worth making.
+//
+// TestACheckpointTakesBothHalvesOrNeither and
+// TestAFailedControlPlaneHalfLeavesTheEarlierBytesWhole fail without this.
 func (s *Server) handleCheckpointSave(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	if !validCheckpointName(name) {
 		writeJSON(w, http.StatusBadRequest, map[string]any{
 			"error": "a checkpoint name is 1 to 64 characters of letters, digits, dash, dot or underscore",
+		})
+		return
+	}
+	var state bytes.Buffer
+	if err := s.env.Store.Snapshot(&state); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{
+			"error": "the control plane could not be checkpointed: " + err.Error(),
 		})
 		return
 	}
@@ -143,13 +187,9 @@ func (s *Server) handleCheckpointSave(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	var state bytes.Buffer
-	if err := s.env.Store.Snapshot(&state); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]any{
-			"error": "the control plane could not be checkpointed: " + err.Error(),
-		})
-		return
-	}
+	// Published last, so that a byte half that failed above leaves any earlier
+	// checkpoint of this name holding its own control plane rather than a
+	// newer one.
 	s.checkpoints.put(name, state.Bytes())
 	writeJSON(w, http.StatusOK, map[string]any{
 		"schema_version": CheckpointSchemaVersion,
@@ -236,11 +276,15 @@ func (s *Server) handleReset(w http.ResponseWriter, r *http.Request) {
 	// asked would start containers beside ones already running.
 	held, surveyed := heldOnHost(r.Context(), s.env)
 	reconciled := map[string]any{}
-	var destroyed, skipped, recreated, failed []string
+	var destroyed, skipped, recreated, failed, reapplied []string
 	for _, pack := range s.packs {
 		mine := ownedBy(gone, pack.Name())
 		records := ownedBy(restored, pack.Name())
-		if len(mine) == 0 && (!surveyed || len(records) == 0) {
+		// Records alone are enough to have work to do, with no survey: rule
+		// sets live on the runtime whether or not a machine wears one, and an
+		// earlier form of this guard skipped the whole pack when nothing could
+		// be surveyed, which would have skipped the firewall half with it.
+		if len(mine) == 0 && len(records) == 0 {
 			continue
 		}
 		done := machine.Reconciled{}
@@ -261,15 +305,26 @@ func (s *Server) handleReset(w http.ResponseWriter, r *http.Request) {
 				s.env.Store.Put(res)
 			}
 		}
+		// Last of the three, and the order is the point: a set is attached to
+		// the interfaces of the machines that wear it, so re-applying before
+		// ReconcileMissing has put those machines back would attach nothing.
+		if rules, ok := pack.(RuleReconciler); ok && len(records) != 0 {
+			back := rules.ReconcileRules(r.Context(), records)
+			done.Reapplied = append(done.Reapplied, back.Reapplied...)
+			done.Skipped = append(done.Skipped, back.Skipped...)
+		}
 		destroyed = append(destroyed, done.Destroyed...)
+		reapplied = append(reapplied, done.Reapplied...)
 		skipped = append(skipped, done.Skipped...)
 		recreated = append(recreated, done.Recreated...)
 		failed = append(failed, done.Failed...)
 		reconciled[pack.Name()] = map[string]any{
 			"destroyed": done.Destroyed, "skipped": done.Skipped,
 			"recreated": done.Recreated, "failed": done.Failed,
+			"reapplied": done.Reapplied,
 		}
 	}
+	sort.Strings(reapplied)
 	sort.Strings(destroyed)
 	sort.Strings(skipped)
 	sort.Strings(recreated)
@@ -282,6 +337,11 @@ func (s *Server) handleReset(w http.ResponseWriter, r *http.Request) {
 		"destroyed":      destroyed,
 		"skipped":        skipped,
 		"recreated":      recreated,
+		// Named in the receipt rather than folded into recreated: nothing was
+		// started, a rule set the runtime already held was overwritten with
+		// the restored rules. An operator reading "recreated" would look for
+		// a machine that never moved.
+		"reapplied": reapplied,
 		// Named apart from skipped: a start that was attempted and refused and
 		// a record nobody could act on need different answers from whoever
 		// reads this.

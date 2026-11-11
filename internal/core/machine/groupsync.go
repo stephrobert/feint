@@ -264,12 +264,23 @@ func (s GroupSync) spec(group, fresh *resource.Resource) FirewallSpec {
 // fresh, when non-nil, wins over the store's copy of the same resource, in the
 // wearer replay as in the expansion — SpecOf says why.
 func (s GroupSync) SyncGroup(ctx context.Context, group, fresh *resource.Resource) {
+	_ = s.syncGroup(ctx, group, fresh)
+}
+
+// syncGroup is SyncGroup with its verdict kept.
+//
+// The bool exists for Reapply alone: every other caller acts on a change it
+// just made and has nothing to report, while a reconciliation answers an
+// operator who asked whether the lab came back. false means the runtime was
+// not wired or refused the set — in both cases the rules are metadata again,
+// and saying so is the point.
+func (s GroupSync) syncGroup(ctx context.Context, group, fresh *resource.Resource) bool {
 	if !s.wired() {
-		return
+		return false
 	}
 	fw := s.enforcer()
 	if !s.Binding.SyncRuleSet(ctx, fw, s.spec(group, fresh)) {
-		return
+		return false
 	}
 	for _, wearer := range s.Wearers(group) {
 		if fresh != nil && wearer.ID == fresh.ID {
@@ -277,6 +288,68 @@ func (s GroupSync) SyncGroup(ctx context.Context, group, fresh *resource.Resourc
 		}
 		s.applyMachine(ctx, wearer, fresh)
 	}
+	return true
+}
+
+// Reapply writes every one of these groups to the runtime again and replays
+// each onto its wearers.
+//
+// ## Why a reset needs this at all
+//
+// An external audit deduced it from the code and this repository then measured
+// it, which is the order that makes it a defect rather than a worry. A reset
+// restores the control plane and asks the runtime what it HOLDS, and Survey
+// answers NAMES. A rule revoked after the checkpoint leaves its rule set in
+// place under the same name, carrying the revoked content: nothing in the
+// observation differs, the reset reports convergence, and the port stays
+// closed. The suite reproduced exactly that under --vm incus, with a TCP
+// connection as the instrument:
+//
+//	FAIL: the reset reported convergence and port 80 is still refused:
+//	      the rule came back in the store and not on the NIC
+//
+// Destroying and recreating the set would be the wrong repair: it is a
+// reconfiguration, not a resurrection, and SyncRuleSet already replaces a set
+// of the same name with the restored translation.
+//
+// ## Why it is shared and not three copies
+//
+// The sequence is identical for the three packs — translate the restored
+// group, write the set, replay it onto the wearers — and only the KIND of
+// record a pack calls a group differs. That is the repository's own test: a
+// line that could be written identically for another provider belongs here.
+// The firewall reconciliation was written once in a pack before, and the two
+// others ran with zero ACLs while their API described a closed port (#475).
+//
+// tools/conformance/scaleway/network.sh fails without this.
+func (s GroupSync) Reapply(ctx context.Context, groups []*resource.Resource) Reconciled {
+	var done Reconciled
+	for _, group := range groups {
+		// Only a group somebody WEARS. A reset puts back what the checkpoint
+		// held; it does not furnish the host with objects the checkpoint never
+		// had, and a rule set attached to no interface enforces nothing by
+		// definition. The first version wrote every restored group, and the
+		// runtime leg caught it at once: two rule sets left over from earlier
+		// suites, whose machines were long swept, appeared on the host and the
+		// verdict reported them as differences the reset had created.
+		//
+		// This is also why the audit's case is still covered: the group whose
+		// rule was revoked is worn by the two servers the suite started, so it
+		// is precisely the one re-applied.
+		if len(s.Wearers(group)) == 0 {
+			done.Skipped = append(done.Skipped, group.ID)
+			continue
+		}
+		if s.syncGroup(ctx, group, nil) {
+			done.Reapplied = append(done.Reapplied, group.ID)
+			continue
+		}
+		// Not Failed: a runtime that enforces nothing is the documented
+		// degraded mode, not an error, and the caller already knows whether
+		// one was asked. Skipped is the answer for "nobody could act on it".
+		done.Skipped = append(done.Skipped, group.ID)
+	}
+	return done
 }
 
 // ApplyMachine writes every set one resource wears and attaches them to its

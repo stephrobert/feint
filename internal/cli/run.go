@@ -278,11 +278,29 @@ func runCommand(args []string, stdout io.Writer, stderr io.Writer) int {
 			return exitError
 		}
 	}
-	// A reset that did not converge is this command's failure even when the
-	// child passed: the caller asked for the lab to be left as found, and it
-	// was not. Reported separately from the child's code so a reader can tell
-	// a failing test from a leaking lab.
-	if resetVerdict == "did not converge" && code == exitOK {
+	// A guarantee this command was ASKED for and did not deliver is this
+	// command's failure, even when the child passed.
+	//
+	// The first version only failed on "did not converge", which an external
+	// audit read correctly as a contract error: a reset that could not be
+	// attempted, that the emulator refused, or that could not be read back
+	// left the exit code at the child's, so
+	//
+	//	terraform test   success
+	//	feint reset      failed
+	//	feint run        exit 0
+	//
+	// was a possible CI run. The same held for a lab this command owned and
+	// could not stop: `cleanup = "failed"` reached the receipt and nothing
+	// else, so a leaked port and a leaked directory reported success.
+	//
+	// So the rule is the general one, and it is worth stating because it is
+	// what a wrapper is for: the child's code travels untouched when the
+	// wrapper kept its promises, and the wrapper fails when it did not. Which
+	// of the two happened is in the receipt, because "the test failed" and
+	// "the lab leaked" send a reader to different places.
+	// TestAGuaranteeThatWasNotDeliveredFailsTheRun fails without this.
+	if code == exitOK && !deliveredWhatWasAsked(resetVerdict, cleanup) {
 		return exitError
 	}
 	// The child's code, not this command's: a wrapper that swallowed a
@@ -305,6 +323,34 @@ func keepsTheLab(code int, runErr error, asked bool) bool {
 		return false
 	}
 	return code != exitOK || runErr != nil
+}
+
+// deliveredWhatWasAsked reports whether this command kept the promises it was
+// given, which is a different question from whether the child passed.
+//
+// Written as a list of the answers that are NOT a success rather than the ones
+// that are: a verdict word added later would otherwise default to "fine", and
+// the one thing this function exists to prevent is a new way of failing that
+// nobody notices because the switch did not name it.
+func deliveredWhatWasAsked(resetVerdict, cleanup string) bool {
+	switch resetVerdict {
+	case "", "converged":
+		// Empty means --reset-after was never asked for, so there is nothing
+		// to have failed.
+	default:
+		// "did not converge", "failed", "unverified" and "not attempted" are
+		// all a reset the caller asked for and did not get.
+		return false
+	}
+	switch cleanup {
+	case "clean", "kept", "not owned":
+		// Kept is a success: --keep-on-failure asked for exactly that.
+		// Not owned is this command declining to claim a teardown it did not
+		// perform.
+	default:
+		return false
+	}
+	return true
 }
 
 // labSession names an owned lab, and deliberately nothing for an attached

@@ -165,25 +165,16 @@ func resetCommand(args []string, stdout, stderr io.Writer) int {
 	}
 	endpoint := "http://" + *addr
 
-	recorded, err := readRecordedCheckpoint(*addr)
+	// The name chooses the record, and an empty one means the last taken.
+	// Before the audit this read one file per instance, so a second
+	// checkpoint made the first unresettable.
+	recorded, err := readRecordedCheckpoint(*addr, asked)
 	if err != nil {
 		fmt.Fprintf(stderr, "feint reset: %v\n", err)
 		fmt.Fprintf(stderr, "  Take one first: feint checkpoint <name> --addr %s\n", *addr)
 		return exitError
 	}
 	name := recorded.Name
-	if asked != "" {
-		name = asked
-	}
-	if name != recorded.Name {
-		// Refused rather than guessed. The recorded state is what a verdict
-		// compares against, and comparing one checkpoint's emulator state to
-		// another's observation would report differences that are not the
-		// reset's fault.
-		fmt.Fprintf(stderr, "feint reset: this instance recorded %q, not %q, so a verdict on %q would compare the wrong states\n",
-			recorded.Name, name, name)
-		return exitError
-	}
 
 	answer, err := callCheckpoint(http.MethodPost, endpoint+"/_feint/reset/"+name)
 	if err != nil {
@@ -306,18 +297,45 @@ func callCheckpoint(method, url string) (map[string]any, error) {
 	return body, nil
 }
 
-// checkpointPath is where the observed state lives: beside the instance
-// record, because it belongs to that emulator and goes when it does.
-func checkpointPath(addr string) (string, error) {
+// checkpointPath is where one checkpoint's observed state lives: beside the
+// instance record, because it belongs to that emulator and goes when it does.
+//
+// Indexed by NAME, which the first version was not. An external audit caught
+// it: the emulator holds any number of named checkpoints and the CLI wrote a
+// single checkpoint.json, so `checkpoint A` followed by `checkpoint B` made
+// `reset A` impossible — the observation it would have been judged against had
+// been overwritten. The refusal that fired was honest and the feature was
+// still missing.
+//
+// The name has already been through checkpointArgName or is a session
+// identity this command built, so it carries no separator. It is cleaned here
+// anyway, because a path built from a name is a path whoever reads this file
+// next will assume was checked.
+//
+// TestTwoNamedCheckpointsDoNotOverwriteEachOther fails without this.
+func checkpointPath(addr, name string) (string, error) {
 	dir, err := instanceDir(addr)
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(dir, "checkpoint.json"), nil
+	if name == "" || name == "." || name == ".." || strings.ContainsAny(name, `/\`) {
+		return "", fmt.Errorf("%q is not a checkpoint name", name)
+	}
+	return filepath.Join(dir, "checkpoints", filepath.Base(name)+".json"), nil
+}
+
+// lastCheckpointPath records which name was taken most recently, so that
+// `feint reset` with no argument has something to mean.
+func lastCheckpointPath(addr string) (string, error) {
+	dir, err := instanceDir(addr)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "checkpoints", "last"), nil
 }
 
 func writeRecordedCheckpoint(addr string, recorded recordedCheckpoint) error {
-	path, err := checkpointPath(addr)
+	path, err := checkpointPath(addr, recorded.Name)
 	if err != nil {
 		return err
 	}
@@ -328,17 +346,37 @@ func writeRecordedCheckpoint(addr string, recorded recordedCheckpoint) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, append(body, '\n'), 0o600)
+	if err := os.WriteFile(path, append(body, '\n'), 0o600); err != nil {
+		return err
+	}
+	// Written after the record, so a failure above leaves `last` pointing at
+	// a checkpoint that exists.
+	last, err := lastCheckpointPath(addr)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(last, []byte(recorded.Name+"\n"), 0o600)
 }
 
-func readRecordedCheckpoint(addr string) (recordedCheckpoint, error) {
-	path, err := checkpointPath(addr)
+func readRecordedCheckpoint(addr, name string) (recordedCheckpoint, error) {
+	if name == "" {
+		last, err := lastCheckpointPath(addr)
+		if err != nil {
+			return recordedCheckpoint{}, err
+		}
+		body, err := os.ReadFile(filepath.Clean(last))
+		if err != nil {
+			return recordedCheckpoint{}, fmt.Errorf("no checkpoint recorded for %s", addr)
+		}
+		name = strings.TrimSpace(string(body))
+	}
+	path, err := checkpointPath(addr, name)
 	if err != nil {
 		return recordedCheckpoint{}, err
 	}
 	body, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
-		return recordedCheckpoint{}, fmt.Errorf("no checkpoint recorded for %s", addr)
+		return recordedCheckpoint{}, fmt.Errorf("no checkpoint named %q recorded for %s", name, addr)
 	}
 	var recorded recordedCheckpoint
 	if err := json.Unmarshal(body, &recorded); err != nil {
@@ -386,7 +424,7 @@ func takeSessionCheckpoint(endpoint, session, addr string) error {
 //
 // TestAFailedResetAfterIsReportedAndNotRaised fails without this.
 func resetToSession(endpoint, session, addr string, stderr io.Writer) (string, []string) {
-	recorded, err := readRecordedCheckpoint(addr)
+	recorded, err := readRecordedCheckpoint(addr, session)
 	if err != nil || recorded.Name != session {
 		fmt.Fprintf(stderr, "feint run: --reset-after has no session checkpoint to return to: %v\n", err)
 		return "not attempted", nil
