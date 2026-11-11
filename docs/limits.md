@@ -651,7 +651,7 @@ paths before the run — which is what `feint doctor` now does.
 ## Elastic Metal is an inventory here, not a product (#631)
 
 Two operations of `baremetal/v1` are served, `ListServers` and `ListOffers`,
-and the thirty-five others of the product are declined with their reason in
+and the thirty-seven others of the product are declined with their reason in
 the pack. The listing exists because a fleet inventory has to enumerate the
 product to describe a mixed fleet, and it was measured before it was written,
 on 2026-09-06: `scw baremetal server list` (2.56.3) calls

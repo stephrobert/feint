@@ -34,8 +34,8 @@ OUTSCALE_SDK="${FEINT_SDK_OUTSCALE:-.upstream/osc-sdk-go}"
 # of the triage — two served, ten declined with a reason.
 # baremetal joined on 2026-09-06 with #631: a fleet inventory enumerates Elastic
 # Metal, and the route it needs is served, plus the catalogue read the CLI makes
-# right after it. Adding it here is what puts the product's thirty-seven
-# operations in front of the triage — two served, thirty-five declined with a
+# right after it. Adding it here is what puts the product's thirty-nine
+# operations in front of the triage — two served, thirty-seven declined with a
 # reason.
 # scw joined on 2026-09-15 with #776. It is not a product: it is the API
 # gateway that sits in front of all of them, and its one operation lives in
