@@ -177,6 +177,11 @@ case "$leg" in
     # command that starts and stops one, so the endpoint is read only to ask
     # whether a runtime is configured at all (#848).
     tools/conformance/run-sweep.sh "$endpoint"
+    # The host half of a reset (#853), which no unit test can reach: a
+    # recording driver proves which names the code emits, and this proves what
+    # a real runtime does with them — above all that the machine the
+    # checkpoint HOLDS is still there afterwards.
+    tools/conformance/reset-host.sh "$endpoint"
     ;;
 esac
 

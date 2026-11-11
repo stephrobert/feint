@@ -415,6 +415,13 @@ jobs:
       - name: feint run sweeps the machines it created, and only those
         run: sudo tools/conformance/run-sweep.sh http://127.0.0.1:4599
 
+      # The host half of a reset (#853). Its third assertion is the
+      # product: a reset that swept both machines would return an
+      # operator to a checkpoint whose servers answer nothing, which is
+      # worse than no reset at all.
+      - name: a reset reconciles the host and touches nothing else
+        run: sudo tools/conformance/reset-host.sh http://127.0.0.1:4599
+
       # The end of the chain the emulator exists for: a key registered through
       # the API, a server booted by the official client, a real shell on the
       # provider's own default login — three providers, three logins.
