@@ -15,7 +15,7 @@ parce que c'est là-dessus que ce projet est jugé : **une forme de réponse qu'
 client peut observer**, et **une limite qui a bougé**. Une refactorisation qui ne
 change ni l'un ni l'autre a sa place dans `git log`.
 
-## [Unreleased]
+## [0.15.0] - 2026-11-11
 
 ### Ajouté
 
@@ -146,6 +146,34 @@ change ni l'un ni l'autre a sa place dans `git log`.
   la liste accepte sa racine canonique nue sans redirection. Le format privé
   neutre version 2 lit la version 1 et la migre à la prochaine mutation ;
   les anciens binaires ne peuvent pas relire cette version 2.
+
+- **Un snapshot d'instance s'importe depuis le stockage objet** (#850, #262) :
+  `instance/v1/API.CreateSnapshot` accepte `{bucket, key}` et lit l'objet par la
+  porte de sa propre région, là où il était refusé sans condition. Le snapshot
+  prend la taille de l'objet et ne porte aucun volume parent ; un objet absent
+  est refusé, comme l'API réelle le refuse ; et sans magasin d'octets armé, le
+  refus nomme `--objectstore` et `--s3-doors` plutôt que la page des limites.
+  L'import de block/v1 passe par le même code, ce qui referme la divergence que
+  #807 avait écrite lui-même. **Une limite a bougé** : `docs/limits.md` dit ce
+  qui est servi et que le dialecte réel du refus d'un objet absent reste non
+  mesuré.
+- **`mise run vulncheck`** : govulncheck à la demande contre la chaîne d'outils
+  épinglée. Pas dans `prepush`, et #865 dit pourquoi : son verdict change sans
+  qu'une ligne du dépôt change.
+
+### Corrigé
+
+- **`feint run` refusait les faux identifiants publiés par `feint env`**
+  (#849) : la séquence que les deux commandes documentent, `eval` de
+  `feint env` puis `feint run`, était refusée par son propre binaire, parce que
+  la liste acceptée était une seconde copie écrite à la main de ce que les packs
+  publient et qu'elle en avait dérivé de deux caractères sur une valeur, et
+  d'une valeur entière sur l'autre. La liste se dérive des packs désormais.
+- **Un snapshot importé rendait un volume parent vide**, que le provider
+  Scaleway relit en `volume_id "fr-par-1/"` et traite comme
+  `forces replacement`, ce qui faisait churner le snapshot et l'image qui en
+  est tirée à chaque plan. Il rend null, et une stack tierce du registre
+  s'applique maintenant en entier avec un second plan vide.
 
 ## [0.14.0] - 2026-10-26
 

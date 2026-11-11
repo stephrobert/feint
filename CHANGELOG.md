@@ -13,7 +13,7 @@ Two kinds of change deserve their own line whatever their size, because they are
 what this project is judged on: **a response shape a client can observe**, and
 **a limit that moved**. A refactor that changes neither belongs in `git log`.
 
-## [Unreleased]
+## [0.15.0] - 2026-11-11
 
 ### Added
 
@@ -141,6 +141,33 @@ what this project is judged on: **a response shape a client can observe**, and
   S3 env endpoints omit the slash the SDK rejects; canonical bare bucket-list
   roots are dispatched without redirects. Neutral private metadata version 2
   reads version 1 and upgrades on mutation; older binaries cannot read it.
+
+- **An instance snapshot imports from Object Storage** (#850, #262):
+  `instance/v1/API.CreateSnapshot` takes `{bucket, key}` and reads the object
+  through the door of its own region, where it was refused outright before. The
+  snapshot takes the object's size and carries no base volume; an absent object
+  is refused, as upstream refuses it; and with no byte store armed the refusal
+  names `--objectstore` and `--s3-doors` rather than the limits page. block/v1's
+  import reads through the same code, which closes the divergence #807 recorded
+  in its own words. **A limit moved**: `docs/limits.md` says what is now served
+  and that the real API's dialect for a missing object is still unmeasured.
+- **`mise run vulncheck`**: govulncheck on demand against the pinned toolchain.
+  Not in `prepush`, and #865 says why: its verdict changes without a line of
+  this repository changing.
+
+### Fixed
+
+- **`feint run` accepted the fakes `feint env` publishes** (#849): the sequence
+  both commands document — eval `feint env`, then `feint run` — was refused by
+  its own binary, because the accepted list was a second hand-written copy of
+  the credentials the packs publish and had drifted from them by two characters
+  on one value and by a whole missing value on another. The list is derived from
+  the packs now, so the two cannot disagree again.
+- **An imported snapshot answered an empty base volume**, which the Scaleway
+  provider reads back as `volume_id "fr-par-1/"` and treats as
+  `forces replacement`, churning the snapshot and the image cut from it on
+  every plan. It answers null, and a surveyed third-party stack now applies
+  whole with an empty second plan.
 
 ## [0.14.0] - 2026-10-26
 
