@@ -1,0 +1,20 @@
+{
+ "package": "./tools/ci/",
+ "note": "The subject is a gate reporting success when it could not look. The gofmt pre-commit hook read `test -z \"$(gofmt -l .)\"` and never its exit code: `gofmt -l` writes offending files to stdout and its own errors to stderr, so any failure of gofmt produced an empty substitution, `test -z \"\"` was true, and the hook exited 0. Not skipped, not red — Passed, asserting it looked. Its window is a fresh clone before `mise trust`, which is a new contributor's first commit (#829).\n\nIt is the gate-level form of the defect this repository names most often: a control that cannot fail is a comment. It was found while running the measurement #739 asks for, which is the detail worth keeping — the harness broke first and the hook agreed with it, and `go vet` and `golangci-lint` reddening at the same instant on the same cause is the only reason the gofmt green stood out.\n\nThe first mutation restores the defect exactly. The second is the over-correction, and it is mutated because a hook that refuses everything passes the first test and refuses every commit, which teaches `--no-verify` and disarms every other hook at once — this repository has that written down as worse than no gate at all.\n\nBoth tests run the hook's own `entry:` line, read out of .pre-commit-config.yaml rather than copied into Go. A test asserting the entry *contains* `||` would pass on any rewrite that kept the characters and lost the property.",
+ "mutations": [
+  {
+   "label": "the entry goes back to `test -z \"$(gofmt -l .)\"`, which discards gofmt's exit code. This is the defect verbatim: with no gofmt on PATH the substitution is empty, the test is true, and the hook reports success over code nobody formatted",
+   "file": ".pre-commit-config.yaml",
+   "find": "        entry: bash -c 'out=$(gofmt -l .) || { echo \"gofmt could not run\" >&2; exit 1; }; test -z \"$out\" || { echo \"gofmt needed:\"; echo \"$out\"; exit 1; }'",
+   "replace": "        entry: bash -c 'test -z \"$(gofmt -l .)\" || { echo \"gofmt needed:\"; gofmt -l .; exit 1; }'",
+   "test": "TestTheGofmtHookFailsWhenGofmtCannotRun"
+  },
+  {
+   "label": "the hook refuses whatever it is given, which passes the refusing test and rejects every commit including correctly formatted Go. The shape that teaches `--no-verify`, and `--no-verify` disarms every other hook in this file at once",
+   "file": ".pre-commit-config.yaml",
+   "find": "        entry: bash -c 'out=$(gofmt -l .) || { echo \"gofmt could not run\" >&2; exit 1; }; test -z \"$out\" || { echo \"gofmt needed:\"; echo \"$out\"; exit 1; }'",
+   "replace": "        entry: bash -c 'out=$(gofmt -l .) || { echo \"gofmt could not run\" >&2; exit 1; }; echo \"gofmt needed:\"; echo \"$out\"; exit 1'",
+   "test": "TestTheGofmtHookPassesOnFormattedCodeAndFailsOnUnformatted"
+  }
+ ]
+}

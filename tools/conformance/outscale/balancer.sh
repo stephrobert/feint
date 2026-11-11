@@ -203,14 +203,38 @@ probe() {
   printf '%s' "$out"
 }
 
+# How many connections a verdict about DISTRIBUTION is drawn from (#559).
+#
+# Six was the number here, and six is a coin flipped six times. A balancer that
+# works sends every connection to one side with probability 2 x 0.5^6 = 3.1 %,
+# so this suite reddened about one run in thirty-two on a subject that was
+# behaving — and a gate that reds on a working system teaches the reflex of
+# re-running it, which this repository has written down as worse than having no
+# gate at all.
+#
+# The same arithmetic runs the other way after an unlink: six probes that
+# happen to avoid a machine the unlink never reached is 0.5^6 = 1.6 %, which is
+# a false GREEN over a real defect. The comment at that site already named it
+# "#559's defect with a different number"; it is the same number and it is
+# fixed in the same place.
+#
+# 24 puts both at 1.2e-7 and 6.0e-8. The cost is about ten seconds on a leg
+# that measures in minutes, which is the whole reason the cheap answer is the
+# right one here rather than a cleverer statistic.
+#
+# What it still does NOT prove, and the suite must not be read as claiming: that
+# the distribution is FAIR. Both machines being reached says the balancer has
+# more than one backend, nothing about the ratio.
+DISTRIBUTION_PROBES=24
+
 echo "- the balancer distributes to both machines"
-hits="$(probe 6)"
+hits="$(probe "$DISTRIBUTION_PROBES")"
 case "$hits" in
   *TIMEOUT*) fail "the balancer did not answer every probe: $hits" ;;
 esac
-case "$hits" in *"$vm_a"*) ;; *) fail "no connection reached $vm_a: $hits" ;; esac
-case "$hits" in *"$vm_b"*) ;; *) fail "no connection reached $vm_b: $hits" ;; esac
-ok "6/6 answered, over both machines:$hits"
+case "$hits" in *"$vm_a"*) ;; *) fail "no connection reached $vm_a over $DISTRIBUTION_PROBES probes: $hits" ;; esac
+case "$hits" in *"$vm_b"*) ;; *) fail "no connection reached $vm_b over $DISTRIBUTION_PROBES probes: $hits" ;; esac
+ok "$DISTRIBUTION_PROBES/$DISTRIBUTION_PROBES answered, over both machines:$hits"
 
 # The measurement #315 turned on. An address the runtime has to announce outside
 # the network answers for two minutes and goes dark; an address of the network's
@@ -226,11 +250,16 @@ echo "- and it is still there a minute later"
 # observe nothing changing is to let time pass. Shortening it shortens the
 # claim. docs/limits.md carries the full curve.
 sleep 60
-hits="$(probe 6)"
+# Six is enough HERE, and the difference is the point: this verdict is about
+# liveness, not distribution. "Did every connection get an answer" has no
+# false-negative that more probes would remove, so the count stays where the
+# wall-clock is already a minute.
+liveness=6
+hits="$(probe "$liveness")"
 case "$hits" in
   *TIMEOUT*) fail "the balancer went dark within a minute: $hits" ;;
 esac
-ok "6/6 answered again:$hits"
+ok "$liveness/$liveness answered again:$hits"
 
 # The replace-not-patch rule, measured rather than asserted in a unit test: a
 # machine the API has stopped listing must stop receiving connections.
@@ -238,12 +267,14 @@ echo "- an unlinked machine stops receiving connections"
 osc UnlinkLoadBalancerBackendMachines --LoadBalancerName "$lb_name" --BackendVmIds "$vm_a" >/dev/null \
   || fail "UnlinkLoadBalancerBackendMachines rejected"
 # waits on silence: the verdict below is that $vm_a NEVER answers again across
-# six connections. Nothing announces an unlink reaching the runtime, and the
-# only poll available — "six probes that avoided $vm_a" — is satisfied by luck
-# one run in sixty-four with the unlink not applied at all. That is #559's
-# defect with a different number, so this wait stays fixed.
+# $DISTRIBUTION_PROBES connections. Nothing announces an unlink reaching the
+# runtime, and the only poll available — "probes that avoided $vm_a" — is
+# satisfied by luck when the unlink has not applied at all. At six probes that
+# luck ran one run in sixty-four, which is #559 pointing the other way: a false
+# GREEN over a real defect. The probe count carries the fix; this wait stays
+# fixed, because a verdict drawn from an absence cannot poll for it.
 sleep 2
-hits="$(probe 6)"
+hits="$(probe "$DISTRIBUTION_PROBES")"
 case "$hits" in
   *TIMEOUT*) fail "the balancer stopped answering after an unlink: $hits" ;;
   *"$vm_a"*) fail "$vm_a still receives connections after being unlinked: $hits" ;;

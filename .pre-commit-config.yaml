@@ -77,10 +77,19 @@ repos:
   # Go quality gate — mirrors the CI workflow and the go-production-engineer standard.
   - repo: local
     hooks:
+      # The exit code is read, and that is the whole fix (#829). The entry used
+      # to be `test -z "$(gofmt -l .)" || ...`, which discards gofmt's status: a
+      # gofmt that cannot run produces an empty substitution, `test -z ""` is
+      # true, and the hook reports **Passed** -- green, asserting it looked. The
+      # window is a fresh clone before `mise trust`, which is a new
+      # contributor's first commit. go vet and golangci-lint below never had it,
+      # because they propagate their own status.
+      #
+      # tools/ci's TestTheGofmtHookFailsWhenGofmtCannotRun fails without this.
       - id: gofmt
         name: gofmt
         language: system
-        entry: bash -c 'test -z "$(gofmt -l .)" || { echo "gofmt needed:"; gofmt -l .; exit 1; }'
+        entry: bash -c 'out=$(gofmt -l .) || { echo "gofmt could not run" >&2; exit 1; }; test -z "$out" || { echo "gofmt needed:"; echo "$out"; exit 1; }'
         pass_filenames: false
         files: \.go$
       - id: go-vet
