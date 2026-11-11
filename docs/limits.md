@@ -242,6 +242,22 @@ interception plus a certificate the provider will accept"*, as if both were the
 hard part. The certificate is the easy, safe half; the DNS redirect is the hard,
 dangerous one.
 
+**Since 0.15.0 the cost is paid, and not by the route this section costed.**
+`feint run` (#849) stands a scoped forward proxy in front of the child: it
+accepts the `CONNECT`, terminates TLS with an authority generated for that run
+alone, and **refuses any host it was not told about rather than tunnelling
+it**. Measured on the published Scaleway provider 2.82.0, on the host network,
+with no sudo and no namespace: apply complete, 139,264 identical bytes read
+back from the local byte store by sha256, an empty second plan, a complete
+teardown. The authority is owner-only and never installed durably, and a client
+carrying real credentials is refused unless `--unsafe-real-credentials` says
+otherwise.
+
+What follows is therefore the cost of the **DNS** route, kept because it is
+what a reader comparing the two approaches needs, and because the namespace
+correction below is a measurement error worth not repeating. It is no longer
+the reason anything is refused.
+
 ### 1. How many endpoints are actually hardcoded: one product, one client
 
 The blocker is *"an endpoint built in code that no setting overrides"*. Swept
