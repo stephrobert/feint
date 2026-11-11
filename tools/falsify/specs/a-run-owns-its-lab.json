@@ -78,6 +78,13 @@
       "find": "\tif path == \"-\" {\n\t\treturn receipt.renderJSON(stdout)\n\t}",
       "replace": "\tif path == \"-\" || true {\n\t\treturn receipt.renderJSON(stdout)\n\t}",
       "test": "TestTheJSONReceiptGoesWhereItWasAskedFor"
+    },
+    {
+      "label": "the lab stops arming --cleanup, so a run with a machine runtime leaves its containers and networks behind: stopping the emulator does not sweep what the emulator created, and the receipt still says cleanup clean. #848's sixth behaviour in one flag",
+      "file": "internal/cli/run_lifecycle.go",
+      "find": "\tif mode != \"off\" {\n\t\targs = append(args, \"--cleanup\")\n\t}",
+      "replace": "\tif mode != \"off\" && false {\n\t\targs = append(args, \"--cleanup\")\n\t}",
+      "test": "TestAnOwnedLabSweepsItsRuntimeObjects"
     }
   ]
 }

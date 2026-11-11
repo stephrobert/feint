@@ -468,11 +468,12 @@ func TestTheReceiptReportsTheRuntimeTheEmulatorDeclares(t *testing.T) {
 	health := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"machines":"incus-ovn","capabilities":` +
-			`{"isolation":true,"firewall":true,"address":false}}`))
+			`{"isolation":true,"firewall":true,"address":false},` +
+			`"enforced":{"firewall":["scaleway"],"balancing":[]}}`))
 	}))
 	defer health.Close()
 
-	runtime, capabilities := labHealth(health.URL)
+	runtime, capabilities, proof := labHealth(health.URL)
 	if runtime != "incus-ovn" {
 		t.Errorf("the receipt would report runtime %q", runtime)
 	}
@@ -487,6 +488,24 @@ func TestTheReceiptReportsTheRuntimeTheEmulatorDeclares(t *testing.T) {
 			t.Errorf("capabilities %v, want %v", capabilities, want)
 		}
 	}
+	// The proof level is the INTERSECTION of the two halves, and both
+	// exclusions are asserted because each was wrong once. `balancing` here
+	// is enforced by nobody, so it is not proof. And an axis some pack hands
+	// over while the driver declares nothing is not proof either: the first
+	// version of labHealth reported "balancing, firewall" beside
+	// "runtime: none" on a real replay, because the packs ask when nothing
+	// answers.
+	if len(proof) != 1 || proof[0] != "firewall" {
+		t.Errorf("runtime proof %v; want firewall alone", proof)
+	}
+	asked := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"machines":"none","capabilities":null,` +
+			`"enforced":{"firewall":["scaleway"],"balancing":["outscale"]}}`))
+	}))
+	defer asked.Close()
+	if name, held, proof := labHealth(asked.URL); len(held) != 0 || len(proof) != 0 {
+		t.Errorf("a runtime that declares nothing reported %q %v proof=%v", name, held, proof)
+	}
 
 	// A driver that said nothing, and a lab that cannot be reached, both
 	// answer empty rather than a guess: an empty row is visibly empty.
@@ -494,11 +513,11 @@ func TestTheReceiptReportsTheRuntimeTheEmulatorDeclares(t *testing.T) {
 		_, _ = w.Write([]byte(`{"machines":"off","capabilities":null}`))
 	}))
 	defer silent.Close()
-	if name, held := labHealth(silent.URL); name != "off" || len(held) != 0 {
-		t.Errorf("a silent driver answered %q %v", name, held)
+	if name, held, proof := labHealth(silent.URL); name != "off" || len(held) != 0 || len(proof) != 0 {
+		t.Errorf("a silent driver answered %q %v %v", name, held, proof)
 	}
-	if name, held := labHealth("http://127.0.0.1:1"); name != "" || held != nil {
-		t.Errorf("an unreachable lab answered %q %v", name, held)
+	if name, held, proof := labHealth("http://127.0.0.1:1"); name != "" || held != nil || proof != nil {
+		t.Errorf("an unreachable lab answered %q %v %v", name, held, proof)
 	}
 }
 
@@ -529,5 +548,41 @@ func TestARuntimeNeedsALabThisCommandOwns(t *testing.T) {
 		"--endpoint", server.URL, "--runtime", "off", "--", "true",
 	}, &stdout, &stderr); code != exitOK {
 		t.Errorf("--runtime off was refused (%d): %s", code, stderr.String())
+	}
+}
+
+// TestAnOwnedLabSweepsItsRuntimeObjects is cited by labArgs.
+//
+// Stopping the emulator is not cleaning up after it: the machines and networks
+// it created outlive the process, and #848's sixth behaviour is that they do
+// not. So the lab is armed with --cleanup whenever a runtime is in play, and
+// the test asserts BOTH directions, because a flag passed under `off` would be
+// a sweep of nothing recorded in every command line forever.
+func TestAnOwnedLabSweepsItsRuntimeObjects(t *testing.T) {
+	for _, probe := range []struct {
+		mode  string
+		sweep bool
+	}{
+		{"off", false},
+		{"incus", true},
+		{"incus-vm", true},
+		{"incus-ovn", true},
+		{"auto", true},
+	} {
+		t.Run(probe.mode, func(t *testing.T) {
+			args := labArgs("127.0.0.1:4599", t.TempDir(), probe.mode)
+			if !slices.Contains(args, "--vm") || !slices.Contains(args, probe.mode) {
+				t.Fatalf("the lab is not told its runtime: %v", args)
+			}
+			if got := slices.Contains(args, "--cleanup"); got != probe.sweep {
+				t.Errorf("--cleanup present=%v under %q: %v", got, probe.mode, args)
+			}
+			// The byte store is always armed, because the doors are what the
+			// interception rewrites onto and a lab with none intercepts
+			// nothing.
+			if !slices.Contains(args, "--objectstore") {
+				t.Errorf("the lab mounts no byte store: %v", args)
+			}
+		})
 	}
 }

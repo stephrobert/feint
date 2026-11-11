@@ -108,19 +108,7 @@ func startOwnedLab(mode string, stderr io.Writer) (*ownedLab, error) {
 		return nil, fmt.Errorf("%s is %#o, wider than the 0700 this run requires", dir, mode)
 	}
 
-	args := []string{
-		"--addr", addr,
-		"--vm", mode,
-		"--timeout", labReadyTimeout.String(),
-		"--objectstore", filepath.Join(dir, "objects"),
-	}
-	// Contracts are checked when they are there and skipped when they are not:
-	// a released binary run from a stranger's stack directory has no contracts
-	// beside it, and refusing would make the command unusable exactly where
-	// #848 says it must work.
-	if stat, err := os.Stat("contracts"); err == nil && stat.IsDir() {
-		args = append(args, "--contracts", "contracts")
-	}
+	args := labArgs(addr, dir, mode)
 	if code := start(args, io.Discard, stderr); code != exitOK {
 		if err := os.RemoveAll(dir); err != nil {
 			fmt.Fprintf(stderr, "feint run: could not remove %s: %v\n", dir, err)
@@ -299,6 +287,9 @@ type runReceipt struct {
 	// caller asked for.
 	Runtime      string   `json:"runtime"`
 	Capabilities []string `json:"capabilities"`
+	// RuntimeProof is what some pack actually hands to the runtime, which is
+	// not the same list: a capability can be declared and wired by nobody.
+	RuntimeProof []string `json:"runtime_proof"`
 	Providers    []string `json:"providers"`
 	Intercepted  []string `json:"intercepted"`
 	Command      []string `json:"command"`
@@ -374,6 +365,9 @@ func (r runReceipt) render(w io.Writer) {
 			runtime += " (" + strings.Join(r.Capabilities, ", ") + ")"
 		}
 		row("runtime", runtime)
+	}
+	if len(r.RuntimeProof) != 0 {
+		row("runtime proof", strings.Join(r.RuntimeProof, ", "))
 	}
 	row("cleanup", r.Cleanup)
 	// Deliberately narrow wording, and a field rather than a literal here:
@@ -480,22 +474,23 @@ func writeReceipt(receipt runReceipt, path string, stdout io.Writer) error {
 // otherwise passed, and an empty runtime row is visibly empty.
 //
 // TestTheReceiptReportsTheRuntimeTheEmulatorDeclares fails without this.
-func labHealth(endpoint string) (string, []string) {
+func labHealth(endpoint string) (string, []string, []string) {
 	client := &http.Client{Timeout: 5 * time.Second}
 	res, err := client.Get(strings.TrimSuffix(endpoint, "/") + "/_feint/health")
 	if err != nil {
-		return "", nil
+		return "", nil, nil
 	}
 	defer func() { _ = res.Body.Close() }()
 	if res.StatusCode != http.StatusOK {
-		return "", nil
+		return "", nil, nil
 	}
 	var body struct {
-		Machines     string          `json:"machines"`
-		Capabilities map[string]bool `json:"capabilities"`
+		Machines     string              `json:"machines"`
+		Capabilities map[string]bool     `json:"capabilities"`
+		Enforced     map[string][]string `json:"enforced"`
 	}
 	if err := json.NewDecoder(io.LimitReader(res.Body, 1<<20)).Decode(&body); err != nil {
-		return "", nil
+		return "", nil, nil
 	}
 	held := make([]string, 0, len(body.Capabilities))
 	for name, declared := range body.Capabilities {
@@ -504,5 +499,56 @@ func labHealth(endpoint string) (string, []string) {
 		}
 	}
 	slices.Sort(held)
-	return body.Machines, held
+	// The proof level #848's receipt example calls "runtime proof", and it is
+	// the INTERSECTION of the two halves the emulator publishes separately:
+	// `capabilities.<axis>` says the runtime can deliver it, `enforced.<axis>`
+	// says some pack hands it over. Either alone is a lie, and the first
+	// version of this function shipped one: under `--vm off` it reported
+	// "runtime proof: balancing, firewall" beside "runtime: none", because
+	// the packs still ASK when nothing answers. That is the same defect #180
+	// and #481 recorded on the health payload itself, reproduced here within
+	// an hour of reading their comment.
+	proof := make([]string, 0, len(body.Enforced))
+	for axis, packs := range body.Enforced {
+		if len(packs) != 0 && body.Capabilities[axis] {
+			proof = append(proof, axis)
+		}
+	}
+	slices.Sort(proof)
+	return body.Machines, held, proof
+}
+
+// labArgs is the command line the owned lab starts with.
+//
+// A function so it can be read without spawning anything: startOwnedLab goes
+// through `start`, which re-execs os.Executable(), so the only way to assert
+// what the lab is given is to assert it here.
+//
+// --cleanup whenever a runtime is in play, because #848's sixth behaviour is
+// "cleans up Feint-owned runtime objects on normal exit" and stopping the
+// emulator does not do that: the machines and networks it created outlive the
+// process. `serve --cleanup` sweeps exactly what the emulator made, by the
+// labels it wrote. Not under `off`, where there is nothing to sweep and the
+// flag would only be noise in a recorded command line.
+//
+// Contracts when they are there and skipped when they are not: a released
+// binary run from a stranger's stack directory has none beside it, and
+// refusing would make the command unusable exactly where #848 says it must
+// work.
+//
+// TestAnOwnedLabSweepsItsRuntimeObjects fails without this.
+func labArgs(addr, dir, mode string) []string {
+	args := []string{
+		"--addr", addr,
+		"--vm", mode,
+		"--timeout", labReadyTimeout.String(),
+		"--objectstore", filepath.Join(dir, "objects"),
+	}
+	if mode != "off" {
+		args = append(args, "--cleanup")
+	}
+	if stat, err := os.Stat("contracts"); err == nil && stat.IsDir() {
+		args = append(args, "--contracts", "contracts")
+	}
+	return args
 }

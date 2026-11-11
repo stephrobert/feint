@@ -196,7 +196,7 @@ func runCommand(args []string, stdout io.Writer, stderr io.Writer) int {
 		// restart. Report what was last seen and say it is a window.
 		calls, truncated = after, true
 	}
-	runtimeName, capabilities := labHealth(target)
+	runtimeName, capabilities, proof := labHealth(target)
 
 	cleanup := "not owned"
 	if owned != nil {
@@ -226,7 +226,7 @@ func runCommand(args []string, stdout io.Writer, stderr io.Writer) int {
 	receipt := runReceipt{
 		SchemaVersion: runReceiptSchemaVersion, Lab: labKind(owned),
 		Session: labSession(owned), Endpoint: target,
-		Runtime: runtimeName, Capabilities: capabilities,
+		Runtime: runtimeName, Capabilities: capabilities, RuntimeProof: proof,
 		Providers: providers, Intercepted: intercepted, Command: command,
 		Calls: calls, CallsTruncated: truncated, Stripped: stripped,
 		Exit: code, Cleanup: cleanup,
