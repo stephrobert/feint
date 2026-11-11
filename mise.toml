@@ -1,7 +1,7 @@
 # mise — unified toolchain + task runner for feint (versions pinned, reproducible across machines
 # and CI). Activate: `mise install` then `mise trust`. Run a task: `mise run <task>`. List: `mise tasks`.
 [tools]
-go = "1.26.10"            # the feint binary
+go = "1.26.11"            # the feint binary
 # Repeated in .github/workflows/go.yml, which installs it by version; the major
 # is repeated again as .golangci.yml's schema version. Both are held by
 # TestTheWorkflowsPinTheSameToolsAsMise and
@@ -466,6 +466,26 @@ run = "tools/conformance/outscale/octl.sh http://$FEINT_ADDR"
 [tasks.lint-shell]
 description = "shellcheck every script in the repository"
 run = "git ls-files -z '*.sh' | xargs -0 shellcheck --severity=style"
+
+# Deliberately NOT in prepush, and the reason is the one CLAUDE.md gives for
+# keeping conformance out of the hook, in a sharper form: prepush is offline,
+# deterministic and a few seconds long, and govulncheck is none of the three.
+# It queries vuln.go.dev, so it fails on a network it cannot reach, and its
+# verdict changes without a single line here changing — which is exactly what
+# happened on 1.26.6, 1.26.9, 1.26.10 and 1.26.11, four reds on pull requests
+# that touched no Go file. A hook that red means --no-verify, which disarms
+# every other hook at once.
+#
+# It is here so the question can be ASKED before pushing, by whoever wants to
+# ask it, and so that the answer to "why did CI see this and I did not" is one
+# command rather than a workflow file. The scan that should catch it before
+# anybody pushes belongs on a schedule, the way drift.yml works.
+[tasks.vulncheck]
+description = "govulncheck against the pinned toolchain (network, non-deterministic verdict)"
+run = """
+go install golang.org/x/vuln/cmd/govulncheck@v1.3.0
+"$(go env GOPATH)/bin/govulncheck" ./...
+"""
 
 [tasks."compat:check"]
 description = "Run an older release's consumer expressions against this one, and refuse a silently-wrong verdict"
