@@ -666,6 +666,8 @@ n'est une étape dans le travail de qui que ce soit.
 | `feint doctor` | diagnostique l'hôte : le port, le runtime, les clients |
 | `feint env <provider>` | l'environnement dont un vrai client de ce provider a besoin |
 | `feint snapshot` | nomme l'état d'un émulateur qui tourne et y revient : `save`, `load`, `list`, `rm` |
+| `feint checkpoint` | nomme l'état d'un émulateur qui tourne : plan de contrôle, octets, et ce qu'un client peut en observer |
+| `feint reset` | revient à ce point, retire ce qu'il ne contient pas, et dit si le laboratoire a convergé |
 | `feint images` | construit les images de machines, qui portent un démon ssh pour répondre sans dépôt de paquets |
 | `feint clean` | retire les machines, réseaux et jeux de règles que l'émulateur a créés |
 | `feint version` | affiche la version |

@@ -1,0 +1,48 @@
+{
+  "package": "./internal/core/emulator/",
+  "note": "The subject is #853's own line: \"reset is not successful because JSON was restored\". `feint snapshot load` and `PUT /_feint/state` restore the control plane verbatim and touch nothing else, so a resource that disappears leaves its container running while the API no longer mentions it. The issue's last closing criterion asks for exactly this spec: \"a falsification that restores only the store but not runtime makes the test fail\".\n\nThe mutations are therefore all of the same family: each one turns the reset back into a restore, by a different route. The route matters, because each is a shape that would look reasonable in review — skipping the reconciliation loop, computing the difference by count instead of identity, handing a pack the resources that SURVIVED, or taking the \"before\" picture after the restore, when it is already gone.\n\nThe last one is the one worth reading twice. Reading the store after the restore instead of before is a one-line reordering that compiles, runs, reports a clean reset, and reconciles nothing at all — because by then there is no difference left to see.",
+  "mutations": [
+    {
+      "label": "the reconciliation loop is skipped, so a reset restores the control plane and leaves every machine the checkpoint does not hold running. This is the gap #853 names, reproduced exactly: the API no longer mentions the container and nobody takes it down",
+      "file": "internal/core/emulator/checkpoint.go",
+      "find": "\t\treconciler, ok := pack.(Reconciler)\n\t\tif !ok {\n\t\t\tcontinue\n\t\t}",
+      "replace": "\t\treconciler, ok := pack.(Reconciler)\n\t\tif !ok || true {\n\t\t\t_ = reconciler\n\t\t\tcontinue\n\t\t}",
+      "test": "TestAResetDestroysWhatTheCheckpointDoesNotHold"
+    },
+    {
+      "label": "the before picture is taken AFTER the restore instead of before, so there is no difference left to compute and the reset reconciles nothing while reporting a clean pass. A one-line reordering that compiles, runs and lies",
+      "file": "internal/core/emulator/checkpoint.go",
+      "find": "\tbefore := s.env.Store.All()\n\tif err := s.env.Store.Restore(bytes.NewReader(state)); err != nil {",
+      "replace": "\tbefore := []*resource.Resource(nil)\n\tif err := s.env.Store.Restore(bytes.NewReader(state)); err != nil {",
+      "test": "TestAResetDestroysWhatTheCheckpointDoesNotHold"
+    },
+    {
+      "label": "each pack is handed the resources that SURVIVED the restore rather than the ones that did not, so a reset destroys exactly the machines the checkpoint expects to keep. The opposite error of the first mutation, and the expensive one: it takes down what the operator asked to come back",
+      "file": "internal/core/emulator/checkpoint.go",
+      "find": "\t\t\tif res.Tenant.Provider == pack.Name() {\n\t\t\t\tmine = append(mine, res)\n\t\t\t}",
+      "replace": "\t\t\tif res.Tenant.Provider != pack.Name() {\n\t\t\t\tmine = append(mine, res)\n\t\t\t}",
+      "test": "TestAResetDestroysWhatTheCheckpointDoesNotHold"
+    },
+    {
+      "label": "the difference is computed by comparing identifiers only, dropping the kind and the provider, so two resources that share an id across products are taken for one another. Written as a narrowed key rather than a count because the count version does not compile, and the narrowed one is what a reviewer would wave through",
+      "file": "internal/core/emulator/checkpoint.go",
+      "find": "\treturn res.Tenant.Provider + \"\\x00\" + res.Kind + \"\\x00\" + res.ID",
+      "replace": "\treturn res.ID",
+      "test": "TestAResetDestroysWhatTheCheckpointDoesNotHold"
+    },
+    {
+      "label": "the byte half of a checkpoint is skipped, so the store is named and the bytes are not. A later reset restores the control plane, finds no byte checkpoint, and an operator reads a clean reset over a store whose objects are whatever the last test left",
+      "file": "internal/core/emulator/checkpoint.go",
+      "find": "\tif s.env.Objects != nil {\n\t\tif err := s.env.Objects.SaveCheckpoint(r.Context(), name); err != nil {",
+      "replace": "\tif s.env.Objects != nil && false {\n\t\tif err := s.env.Objects.SaveCheckpoint(r.Context(), name); err != nil {",
+      "test": "TestACheckpointTakesBothHalvesOrNeither"
+    },
+    {
+      "label": "a checkpoint name stops being validated, so a name that is a path component before it is a name reaches the byte store, which writes a directory per checkpoint. This repository's order is a refusal at intake rather than escaping later, and `..` is the whole reason",
+      "file": "internal/core/emulator/checkpoint.go",
+      "find": "\tif !validCheckpointName(name) {",
+      "replace": "\tif !validCheckpointName(name) && false {",
+      "test": "TestACheckpointTakesBothHalvesOrNeither"
+    }
+  ]
+}

@@ -5,12 +5,16 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stephrobert/feint/internal/core/emulator"
 	"github.com/stephrobert/feint/internal/core/machine"
+	"github.com/stephrobert/feint/internal/core/objectstore"
 	"github.com/stephrobert/feint/internal/core/resource"
 	"github.com/stephrobert/feint/internal/core/store"
 )
@@ -41,11 +45,21 @@ func (p *reconcilingPack) ReconcileGone(_ context.Context, gone []*resource.Reso
 
 func labServer(t *testing.T, packs ...emulator.Pack) (*httptest.Server, *store.Store) {
 	t.Helper()
+	return labServerWithBytes(t, nil, packs...)
+}
+
+// labServerWithBytes is the same lab with an optional byte store, because a
+// checkpoint's two halves cannot both be asserted against a lab that has one
+// of them. The falsification found that: skipping the byte half changed
+// nothing in a test whose emulator served no objects.
+func labServerWithBytes(t *testing.T, objects *objectstore.Store, packs ...emulator.Pack) (*httptest.Server, *store.Store) {
+	t.Helper()
 	held := store.New()
 	env := &emulator.Env{
-		Store: held,
-		Now:   func() time.Time { return time.Unix(1700000000, 0).UTC() },
-		NewID: func() string { return "00000000-0000-4000-8000-000000000001" },
+		Store:   held,
+		Objects: objects,
+		Now:     func() time.Time { return time.Unix(1700000000, 0).UTC() },
+		NewID:   func() string { return "00000000-0000-4000-8000-000000000001" },
 	}
 	srv, err := emulator.NewServer(env, packs...)
 	if err != nil {
@@ -107,6 +121,37 @@ func TestACheckpointTakesBothHalvesOrNeither(t *testing.T) {
 		t.Errorf("schema_version %v", body["schema_version"])
 	}
 
+	// With a byte store armed, both halves are taken and the answer says so.
+	// Asserted on a SECOND lab rather than by widening the first, because the
+	// absence of a byte store is the ordinary case and must keep its own
+	// assertion above.
+	root := t.TempDir()
+	if err := os.Chmod(root, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	bytesStore, err := objectstore.Open(t.Context(), filepath.Join(root, "objects"))
+	if err != nil {
+		t.Fatalf("open the byte store: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := bytesStore.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	withBytes, _ := labServerWithBytes(t, bytesStore, stubPack{name: "acme"})
+	code, body = checkpointPost(t, withBytes.URL+"/_feint/checkpoint/baseline")
+	if code != http.StatusOK {
+		t.Fatalf("checkpoint with bytes: %d %v", code, body)
+	}
+	if carried, _ := body["bytes"].(bool); !carried {
+		t.Error("a lab with a byte store reported carrying none")
+	}
+	// And the byte checkpoint really exists, which is the half a status code
+	// cannot show: resetting it must find something to restore.
+	if err := bytesStore.ResetCheckpoint(t.Context(), "baseline"); err != nil {
+		t.Errorf("the checkpoint named the store and did not take its bytes: %v", err)
+	}
+
 	// A name that is a path component before it is a name. Refused at the
 	// door, because the byte store writes a directory per checkpoint and this
 	// repository's order is a refusal at intake rather than escaping later.
@@ -133,12 +178,20 @@ func TestAResetDestroysWhatTheCheckpointDoesNotHold(t *testing.T) {
 	server, held := labServer(t, acme, stubPack{name: "quiet"})
 
 	put(t, held, "acme", "instance/server", "kept")
+	// A second record SHARING that identifier across kinds, which is the
+	// population a narrower comparison cannot see. The falsification found
+	// this gap: a difference computed on identifiers alone passed every
+	// assertion here until these two existed, because every id in the test
+	// was distinct and a narrowed key still told them apart.
+	put(t, held, "acme", "instance/ip", "kept")
 	if code, body := checkpointPost(t, server.URL+"/_feint/checkpoint/baseline"); code != http.StatusOK {
 		t.Fatalf("checkpoint: %d %v", code, body)
 	}
 
-	// The lab moves on: one more resource of each pack.
+	// The lab moves on: one more resource of each pack, and one that shares
+	// its identifier with a record the checkpoint DOES hold, on another kind.
 	put(t, held, "acme", "instance/server", "later")
+	put(t, held, "acme", "instance/volume", "kept")
 	put(t, held, "quiet", "instance/server", "alsolater")
 
 	code, body := checkpointPost(t, server.URL+"/_feint/reset/baseline")
@@ -146,15 +199,23 @@ func TestAResetDestroysWhatTheCheckpointDoesNotHold(t *testing.T) {
 		t.Fatalf("reset: %d %v", code, body)
 	}
 
-	// The store is back to one resource.
-	if count, _ := body["resources"].(float64); int(count) != 1 {
+	// The store is back to the two the checkpoint held.
+	if count, _ := body["resources"].(float64); int(count) != 2 {
 		t.Errorf("resources after the reset: %v", body["resources"])
 	}
-	// And the pack was handed exactly the resource the checkpoint does not
-	// hold — not the one it does, which is the direction that would destroy a
-	// machine the checkpoint expects to keep.
-	if len(acme.got) != 1 || len(acme.got[0]) != 1 || acme.got[0][0] != "later" {
+	// And the pack was handed exactly the records the checkpoint does not
+	// hold — not the ones it does, which is the direction that would destroy a
+	// machine the checkpoint expects to keep. TWO of them, and the second
+	// shares its identifier with a kept record: a comparison that dropped the
+	// kind would have taken it for the one that survived and left its machine
+	// running.
+	if len(acme.got) != 1 || len(acme.got[0]) != 2 {
 		t.Fatalf("the pack was asked to reconcile %v", acme.got)
+	}
+	handed := append([]string(nil), acme.got[0]...)
+	sort.Strings(handed)
+	if handed[0] != "kept" || handed[1] != "later" {
+		t.Fatalf("the pack was handed %v, want the volume sharing an id and the extra server", handed)
 	}
 	if destroyed, _ := body["destroyed"].([]any); len(destroyed) != 1 || destroyed[0] != "feint-acme-later" {
 		t.Errorf("destroyed %v", body["destroyed"])
