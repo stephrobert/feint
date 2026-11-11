@@ -134,11 +134,18 @@ func TestASnapshotOfNothingIsRefused(t *testing.T) {
 	}
 }
 
-// Importing from Object Storage stays refused, and says which argument.
+// Importing from Object Storage is refused when this RUN serves none.
 //
-// docs/limits.md carries why Object Storage is not emulated. A snapshot
-// restored from a bucket nobody serves would answer success about bytes that do
-// not exist, which is worse than the refusal.
+// The reason used to be that the emulator served no Object Storage at all, and
+// that sentence stopped being true: see importedSnapshotSize and
+// TestASnapshotImportTakesTheSizeOfTheObjectItNames, which import an object
+// that is actually there. What survives is the narrower refusal this test
+// holds — a snapshot restored from bytes nobody has would answer success about
+// a disk that does not exist, which is worse than refusing.
+//
+// The message it must NOT go back to is the unconditional one: with a byte
+// store armed, the old text told the client the emulator does not serve Object
+// Storage while the object sat in the door, named by the refused request.
 func TestASnapshotImportedFromABucketIsRefused(t *testing.T) {
 	ts := newTestServer(t)
 

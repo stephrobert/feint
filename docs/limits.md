@@ -33,6 +33,26 @@ default), including peak reservation; abort is not GC. Opaque SHA-256 part tags
 are not generic object ETags. Completion Location consumers are not certified;
 same-key pagination markers require a live session. Exo's bucket remover does
 not paginate uploads, so removal beyond 1000 sessions is not certified.
+### Bucket discovery after a create, and the provider version that decides it
+
+A door answers `acl`, `versioning`, `tagging` and `cors`; it answers **501** on
+`encryption`, `location` and `policy`, because no recording of those shapes
+exists and this project does not invent them.
+
+Which of those a client meets depends on the provider version, and both ends
+are measured rather than reasoned:
+
+| client | after `aws_s3_bucket` create | verdict |
+|---|---|---|
+| AWS provider **6.72.0** | reads no encryption | the bucket applies; `examples/stacks/exoscale` does this in CI |
+| AWS provider **5.4.0** | reads `GetBucketEncryption` | `Error: getting S3 Bucket encryption: NotImplemented` |
+
+Measured 2026-11-11 by replaying PhilippeChepy/platform, whose pinned lock file
+carries 5.4.0 (examples/stacks/surveyed.md). So "Terraform creates a bucket on
+the local door" is true of the current provider and false of that one, and a
+stack pinned below 6.x stops on a discovery call rather than on anything about
+bytes.
+
 ### A SOS bucket in Terraform, and why no object beside it
 
 `examples/stacks/exoscale` creates a bucket against the local SOS door, which
@@ -153,6 +173,33 @@ one product on this one client. The escape-path section below (#280) carries
 the full measured list, what warns before the run, and the egress cuts that
 were tested rather than described.
 
+## An instance snapshot imported from Object Storage, and what it checks (#850)
+
+`instance/v1/API.CreateSnapshot` takes `{bucket, key}`, and that path was
+refused outright while nothing here held bytes. The refusal outlived its
+reason: with a door armed it told the client that "importing a snapshot reads
+Object Storage, which this emulator does not serve" while the object sat in
+that door, named by the request being refused. Found on 2026-11-11 by replaying
+ioandev/scaleway-flatcar-k3s, whose image pipeline uploads a qcow2 and imports
+it; see examples/stacks/surveyed.md.
+
+It is served now, and it checks:
+
+- **the object is there**: its size becomes the snapshot's size, and the
+  snapshot carries **no base volume** — a null, not an empty one. An empty
+  `{id, name}` reads back as `volume_id "fr-par-1/"` and makes every later plan
+  answer `forces replacement` on the snapshot and on the image cut from it.
+  Measured: that is what the first version did, and the stack's second plan
+  said `2 to add, 0 to change, 2 to destroy` until it was fixed.
+- **the object is absent**: refused. The dialect is this route's own
+  `invalid_arguments` envelope, because the real API's shape for a missing
+  object is unrecorded, exactly as for the block import below.
+- **no byte store armed**: refused, naming `--objectstore` and `--s3-doors`
+  rather than the limits page, because the operator can act on it.
+
+With that, the whole surveyed stack applies: **19 resources of 19, and a second
+plan reporting no changes**, its qcow2 sha256-identical in the local door.
+
 ## An imported block snapshot is an intention, and the object is never read (#807)
 
 `block/v1/API.ImportSnapshotFromObjectStorage` and its `block/v1alpha1` twin are
@@ -167,11 +214,18 @@ carrying the name and project the client gave — the request declares no tags,
 unlike the create beside it — with no parent volume and a
 size of zero, because this handler does not read object bytes.
 
-The divergence, stated rather than hidden: the real API refuses an object that
-does not exist, and this handler does not check the opt-in byte store. The
-snapshot-import route is not wired to the S3 gateway, so an import naming an object nobody uploaded
-answers success here and answers an error upstream. A plan that depends on that
-refusal is not covered.
+The divergence that stood here is closed on one side and stated on the other.
+**With a byte store armed**, the handler now reads the object through the door
+of its own region: the snapshot takes the object's size, and an import naming
+an object nobody uploaded is refused, as upstream refuses it. **With no byte
+store**, the intention above stands unchanged — nothing can be read, so nothing
+is asserted about bytes, and a plan depending on the refusal is still not
+covered in that configuration.
+
+What remains unmeasured is the refusal's **dialect**, not its existence: the
+real API's status and body for a missing object are not recorded here, so the
+refusal borrows this route's own `invalid_arguments` envelope. A client that
+branches on the exact error shape is not covered.
 
 One thing neither side of #807 could answer: which status a real import reports
 while it is in flight. The block contract lists `creating` and `available`, no

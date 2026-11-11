@@ -609,26 +609,31 @@ platform entry.
   `CreateBucket` still routed by the provider to the real
   `s3.fr-par.scw.cloud` (403), Cloudflare external, `0 to change`,
   9 destroyed.
-- **Replayed 2026-11-11, `feat/850-object-storage-release@0691306`, through
-  `feint run`** — the first replay where this stack's Object Storage branch
-  does not leave the station. **11 applied** against every earlier run's 9:
-  `scaleway_object_bucket.flatcar` and `scaleway_object.flatcar_qcow2` now land
-  in the local `scaleway/fr-par` door instead of taking a 403 from the real
-  `s3.fr-par.scw.cloud`, and the uploaded qcow2 reads back **sha256-identical**
-  (65 536 bytes, `faef4dcf…`) through that door. Provider 2.91.0 under
-  `~> 2.0`, not the 2.x of August. Re-plan **`8 to add / 0 to change`**: the
-  bucket and the object round-trip, so `scaleway_object` carries no permanent
-  diff — unlike `aws_s3_object`, whose ETag comparison is documented in
-  docs/object-storage-routing.md.
-  **The chain now stops one resource later, and on a refusal whose stated
-  reason is no longer true**: `scaleway_instance_snapshot` with `import {}`
-  answers *"importing a snapshot reads Object Storage, which this emulator does
-  not serve"* (`internal/providers/scaleway/snapshots.go`), while the object it
-  would read is in the door, named by the request. The refusal is
-  unconditional; it predates the data plane.
-  **Destroy not measured.** The emulator was stopped before the teardown ran,
-  so this entry carries no destroy figure — recorded as missing rather than
-  assumed clean.
+- **Replayed 2026-11-11, `feat/850-object-storage-release`, through
+  `feint run`** — **19 resources of 19, and a second plan reporting no
+  changes**, against 9 at every earlier replay. The first run where this stack
+  goes all the way, and the first where its Object Storage branch does not
+  leave the station: the bucket and the qcow2 land in the local
+  `scaleway/fr-par` door instead of taking a 403 from the real
+  `s3.fr-par.scw.cloud`, and the object reads back sha256-identical
+  (65 536 bytes, `faef4dcf…`). Provider 2.91.0 under `~> 2.0`, not the 2.x of
+  August. Cloudflare stays out of the plan, its token being unset.
+  **It took two findings and two fixes, in this order.** The first run after
+  the data plane applied **11**, and stopped on
+  `scaleway_instance_snapshot.flatcar[0]`: a refusal whose stated reason had
+  died, *"importing a snapshot reads Object Storage, which this emulator does
+  not serve"*, answered while the object sat in the door, named by the request
+  being refused. Seven resources hung behind that one call, every one of them
+  a plain dependency — the image on the snapshot, the three servers on the
+  image, the three private NICs on the servers. Serving the import took it to
+  19, and then the **second plan said `2 to add, 0 to change, 2 to destroy`**:
+  the imported snapshot carried the route's default empty base volume, which
+  the provider reads back as `volume_id "fr-par-1/"` and treats as
+  `forces replacement`, taking the image with it. An imported snapshot has no
+  parent, so the field had to say null. Both are held by tests and by the
+  mutations in `tools/falsify/specs/a-snapshot-import-reads-the-object.json`.
+  **Not measured: the destroy.** The emulator was stopped before a teardown
+  ran. Recorded as missing rather than assumed clean.
 
 ### 3. HealsCodes/ephemeral-devbox — applied in part
 

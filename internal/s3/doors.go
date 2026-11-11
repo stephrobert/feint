@@ -137,7 +137,7 @@ func mount(next http.Handler, store *objectstore.Store, profiles []Profile, maxO
 			return nil, fmt.Errorf("s3: duplicate door %s", path)
 		}
 		server, err := New(store, Config{Region: p.Region, MaxObjectBytes: maxObjectBytes,
-			MissingBucket: p.MissingBucket, Namespace: p.Provider + "/" + p.Region, Log: log,
+			MissingBucket: p.MissingBucket, Namespace: StoreNamespace(p.Provider, p.Region), Log: log,
 			BucketConfiguration: p.BucketConfiguration, AbsentConfigurations: p.AbsentConfigurations,
 			ObjectDiscovery: p.ObjectDiscovery, ListObjectsV1: p.ListObjectsV1, OwnerID: p.OwnerID,
 			PrivateACLWrite: p.PrivateACLWrite})
@@ -280,3 +280,22 @@ func (w *doorWriter) Write(p []byte) (int, error) {
 }
 
 func (w *doorWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+
+// StoreNamespace is the scope a door's buckets live under in the shared byte
+// store, so that two doors can serve a bucket of the same name without seeing
+// each other's.
+//
+// Exported because a pack sometimes has to find the object a CONTROL-PLANE
+// call names: Scaleway's CreateSnapshot takes {bucket, key} and the real cloud
+// reads that object server-side. A second copy of this composition in the pack
+// is exactly how the two would drift, and the drift would be invisible — the
+// pack would simply never find an object that is there.
+//
+// TestMountedDoorsPreserveRawKeysAndIsolateScopes fails when this stops
+// agreeing with what a door writes. That test spells the scope out by hand
+// instead of calling this function, deliberately: a witness that computed the
+// expected name the same way as the subject would agree with any format,
+// including a wrong one.
+func StoreNamespace(provider, region string) string {
+	return provider + "/" + region
+}
