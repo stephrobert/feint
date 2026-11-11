@@ -15,6 +15,30 @@ parce que c'est là-dessus que ce projet est jugé : **une forme de réponse qu'
 client peut observer**, et **une limite qui a bougé**. Une refactorisation qui ne
 change ni l'un ni l'autre a sa place dans `git log`.
 
+## [Unreleased]
+
+### Ajouté
+
+- **`feint run` possède son laboratoire** (#848) : sans `--endpoint`, il démarre
+  un émulateur, l'attend, résout l'environnement du provider comme le fait
+  `feint env`, lance la commande et arrête tout ce qu'il a démarré.
+  `--provider` restreint les exports à un seul pack, `--keep-on-failure` laisse
+  debout le laboratoire d'une exécution ratée et imprime la commande exacte pour
+  l'atteindre et le supprimer, et `--json` écrit le reçu sur la sortie standard,
+  où il est la seule chose écrite. Le code de sortie est celui de l'enfant.
+- **Une exécution retire les variables qu'un pack a mesurées comme un retour
+  vers le vrai cloud**, au lieu de seulement les écraser : `OSC_PROFILE` fait
+  lire `~/.osc/config.json` au provider Outscale 1.1.x, qui ignore alors
+  complètement l'export d'endpoint (#342). Écraser ne suffit donc pas, la
+  variable doit disparaître. Les noms se découvrent depuis les `EnvHazards` des
+  packs, et non depuis une seconde liste tenue ici.
+
+### Modifié
+
+- **`feint run` écrit sa prose sur la sortie d'erreur**, pour que la sortie
+  standard ne porte que le reçu. Rien ne lisait ce texte comme une donnée, et
+  `--json` aurait obligé à l'en retirer.
+
 ## [0.15.0] - 2026-11-11
 
 ### Ajouté

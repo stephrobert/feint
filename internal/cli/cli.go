@@ -249,7 +249,7 @@ const (
 // TestTheFrozenSurfacesStillMatchTheirFixture, and a fixture regenerated
 // without bumping this constant fails TestASurfaceChangeDemandsItsVersionBump.
 // The procedure for a deliberate change is in RELEASING.md ("Frozen surfaces").
-const cliSurfaceVersion = 28
+const cliSurfaceVersion = 29
 
 // Run executes one command and returns the process exit code.
 func Run(args []string, stdout, stderr io.Writer) int {
@@ -530,11 +530,16 @@ Usage:
                     --expose-to-network, which puts this port and the account
                     behind it on the network.
 
-  feint run        [--endpoint http://127.0.0.1:4599] [--addr 127.0.0.1:0]
+  feint run        [--provider scaleway] [--endpoint http://127.0.0.1:4599]
+                    [--addr 127.0.0.1:0] [--keep-on-failure] [--json]
                     [--unsafe-real-credentials] -- <command> [args...]
-                    Run one command with a client whose cloud endpoint is
-                    compiled in landing on this emulator instead. It asks the
-                    emulator which S3 doors it mounted, takes each door's cloud
+                    Run one command against a local cloud this command owns.
+                    With no --endpoint it starts an emulator, waits for it,
+                    resolves the provider environment the way feint env does,
+                    runs the command, and stops everything it started — so a
+                    client whose cloud endpoint is compiled in lands here
+                    instead. It asks the emulator which S3 doors it
+                    mounted, takes each door's cloud
                     authority from the pack in this binary, and intercepts
                     exactly those. No hostname is typed, which is the safety
                     property rather than a convenience: a mistyped cloud host
@@ -547,7 +552,15 @@ Usage:
                     Needs no privilege. Credentials that are not this
                     repository's public fakes are refused, because the emulator
                     checks no signature: real keys prove nothing here and one
-                    wrong door would put them on the wire.
+                    wrong door would put them on the wire. Variables a pack has
+                    measured as a way back to the real cloud are removed from
+                    the child rather than merely overridden. --provider narrows
+                    the exports to one pack, --keep-on-failure leaves a failed
+                    run's lab up and prints how to reach and remove it, and
+                    --json writes the receipt as JSON on stdout, where it is
+                    the only thing written. The exit code is the child's.
+                    It starts no machine runtime: that is what up does,
+                    refusals a declaration carries.
 
   feint transcript <recording.jsonl> [--shape OP [--against emu.jsonl]]
                    [--sanitise corpus.jsonl --contract contracts/<provider>.json]

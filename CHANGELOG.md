@@ -13,6 +13,30 @@ Two kinds of change deserve their own line whatever their size, because they are
 what this project is judged on: **a response shape a client can observe**, and
 **a limit that moved**. A refactor that changes neither belongs in `git log`.
 
+## [Unreleased]
+
+### Added
+
+- **`feint run` owns the lab** (#848): with no `--endpoint` it starts an
+  emulator, waits for it, resolves the provider environment the way `feint env`
+  does, runs the command and stops everything it started. `--provider` narrows
+  the exports to one pack, `--keep-on-failure` leaves a failed run's lab up and
+  prints the exact command to reach and remove it, and `--json` writes the
+  receipt on stdout where it is the only thing written. The exit code is the
+  child's.
+- **A run removes the variables a pack measured as a way back to the real
+  cloud**, rather than only overriding them: `OSC_PROFILE` makes the Outscale
+  provider 1.1.x read `~/.osc/config.json` and ignore the endpoint export
+  entirely (#342), so overriding does not help and the variable has to go. The
+  names are discovered from the packs' own `EnvHazards`, not kept in a second
+  list here.
+
+### Changed
+
+- **`feint run` writes its prose to stderr**, so that stdout carries the
+  receipt and nothing else. Nothing read that text as data; `--json` would
+  have needed it stripped.
+
 ## [0.15.0] - 2026-11-11
 
 ### Added

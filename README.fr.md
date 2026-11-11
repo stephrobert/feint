@@ -433,6 +433,82 @@ curl -s localhost:4599/_feint/conformance | jq .
 
 ---
 
+### Le stockage objet, quand vous le demandez
+
+Les octets sont désarmés par défaut, parce que les écrire est un effet de bord
+sur votre disque. Un drapeau les arme, et une porte est montée par provider et
+par région :
+
+```bash
+feint start --objectstore /tmp/feint-objects \
+            --s3-doors scaleway/fr-par,exoscale/ch-gva-2
+curl -s localhost:4599/_feint/s3 | jq .
+```
+
+Chaque porte est un vrai point d'entrée S3 sous
+`/_feint/s3/<provider>/<région>/`, et `feint env scaleway --s3` imprime la
+variable que votre client lit. Un `PUT` atterrit sur le disque, un `GET` après
+redémarrage rend les mêmes octets, et `feint stop` ne les emporte pas.
+
+Le périmètre est borné exprès, et
+[docs/object-storage-routing.md](docs/object-storage-routing.md) dit où sont
+les bords : objets simples, téléversements multipart, suppression en lot,
+buckets privés non versionnés. Une sous-ressource de bucket que personne n'a
+enregistrée répond 501 plutôt qu'une supposition. Il y en a trois aujourd'hui,
+`encryption`, `location` et `policy`, et le provider AWS 5.4.0 lit la première
+après chaque création là où le 6.72.0 ne la lit pas. C'est le genre de détail
+que ce projet préfère écrire plutôt que vous le laisser découvrir.
+
+### Une seule commande, quand le client fabrique son endpoint
+
+Certains clients ne lisent pas vos exports. Le provider Terraform Scaleway
+code en dur `s3.<région>.scw.cloud` pour le stockage objet, et un provider
+`aws` pointé sur Exoscale fabrique `sos-<zone>.exo.io` dans son code. Pour
+ceux-là, `feint run` prend tout en charge :
+
+```bash
+feint run -- terraform apply
+```
+
+Il démarre un émulateur, l'attend, exporte les mêmes variables que
+`feint env`, intercepte les noms d'hôtes que ses propres portes déclarent,
+lance votre commande, puis arrête tout ce qu'il a démarré. **Vous ne tapez
+jamais de nom d'hôte**, et c'est la propriété de sûreté plutôt qu'un confort :
+un hôte qu'il n'intercepte pas est refusé, jamais tunnelisé, donc un lancement
+ne peut pas partir discrètement chez un tiers. Il ne demande aucun privilège,
+ne touche pas à `/etc/hosts` et n'installe aucune autorité.
+
+```text
+feint run: passed
+  lab            owned http://127.0.0.1:41235
+  providers      exoscale, outscale, scaleway
+  command        terraform apply
+  calls          74
+  intercepted    s3.fr-par.scw.cloud, sos-ch-gva-2.exo.io
+  cleanup        clean
+  real cloud     no known escape observed
+```
+
+`--json` écrit ce reçu en JSON sur la sortie standard, où il est la seule chose
+écrite. `--keep-on-failure` laisse debout le laboratoire d'une exécution ratée
+et imprime la commande exacte pour l'inspecter et le supprimer. Le code de
+sortie est celui de votre commande.
+
+Trois refus l'accompagnent. Des identifiants qui ne sont pas les faux publics
+de ce dépôt sont refusés, parce que l'émulateur ne vérifie aucune signature :
+de vraies clés ne prouvent rien ici. Les variables qu'un pack a **mesurées**
+comme un retour vers le vrai cloud sont retirées de l'enfant plutôt
+qu'écrasées : `OSC_PROFILE` fait lire `~/.osc/config.json` au provider
+Outscale, qui ignore alors complètement votre endpoint, donc l'écraser ne sert
+à rien. Enfin, une configuration Terraform portant une fuite mesurée pour
+laquelle ce lancement n'a aucune porte est refusée avant que votre commande ne
+démarre.
+
+Il ne démarre aucun runtime de machines : c'est le rôle de `feint up`, avec les
+refus qu'une déclaration porte.
+
+---
+
 ## La page
 
 Le binaire sert une page sur lui-même, à `/_feint/ui`, ouverte par `feint ui`.
@@ -592,7 +668,7 @@ Terraform de qui que ce soit.
 | --- | --- |
 | `feint coverage` | la surface amont servie, déclinée ou non triée |
 | `feint proxy` | enregistre ce qu'un vrai client et un vrai cloud se disent, identifiants masqués |
-| `feint run` | lance une commande dont l'endpoint cloud est codé en dur en la faisant atterrir sur cet émulateur, sans privilège et sans toucher au système |
+| `feint run` | prend en charge un lancement entier : démarre l'émulateur, exporte l'environnement du client, fait atterrir ici son endpoint codé en dur, puis arrête tout ce qu'il a démarré |
 | `feint transcript` | lit un enregistrement : quoi servir ensuite, quelle forme, ce que l'émulateur omet |
 | `feint replay` | rejoue un enregistrement contre un émulateur qui tourne et rapporte, opération par opération, ce qui diverge |
 | `feint corpus` | rejoue les corpus committés contre un émulateur neuf et échoue sur une divergence avec ce que le vrai cloud a répondu |

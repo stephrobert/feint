@@ -550,6 +550,77 @@ than not, and it is how a Vm that reported success while going nowhere was found
 
 ---
 
+### Object Storage, when you ask for it
+
+Bytes are off by default, because writing them is a side effect on your disk.
+One flag arms them, and a door is mounted per provider and region:
+
+```bash
+feint start --objectstore /tmp/feint-objects \
+            --s3-doors scaleway/fr-par,exoscale/ch-gva-2
+curl -s localhost:4599/_feint/s3 | jq .
+```
+
+Each door is a real S3 endpoint under
+`/_feint/s3/<provider>/<region>/`, and `feint env scaleway --s3` prints the
+variable your client reads. A `PUT` lands on disk, a `GET` after a restart
+returns the same bytes, and `feint stop` does not take them with it.
+
+What it serves is bounded on purpose and
+[docs/object-storage-routing.md](docs/object-storage-routing.md) says where the
+edges are: simple objects, multipart uploads, bulk delete, private
+non-versioned buckets. A bucket sub-resource nobody recorded answers 501 rather
+than a guess — `encryption`, `location` and `policy` are the current three, and
+the AWS provider 5.4.0 reads the first one after every create where 6.72.0 does
+not. That is the kind of thing this project would rather write down than
+discover for you.
+
+### One command, when the client builds its own endpoint
+
+Some clients do not read your exports. The Scaleway Terraform provider
+hardcodes `s3.<region>.scw.cloud` for Object Storage, and an `aws` provider
+pointed at Exoscale builds `sos-<zone>.exo.io` in code. For those,
+`feint run` owns the whole run:
+
+```bash
+feint run -- terraform apply
+```
+
+It starts an emulator, waits for it, exports the same variables `feint env`
+prints, intercepts the cloud hostnames its own doors declare, runs your
+command, and stops everything it started. **You never type a hostname**, which
+is the safety property rather than a convenience: a host it does not intercept
+is refused, never tunnelled, so a run cannot quietly leave for a third party.
+It needs no privilege, touches no `/etc/hosts` and installs no CA.
+
+```text
+feint run: passed
+  lab            owned http://127.0.0.1:41235
+  providers      exoscale, outscale, scaleway
+  command        terraform apply
+  calls          74
+  intercepted    s3.fr-par.scw.cloud, sos-ch-gva-2.exo.io
+  cleanup        clean
+  real cloud     no known escape observed
+```
+
+`--json` writes that receipt as JSON on stdout, where it is the only thing
+written. `--keep-on-failure` leaves a failed run's lab up and prints the exact
+command to inspect and remove it. The exit code is your command's.
+
+Three refusals come with it. Credentials that are not this repository's public
+fakes are refused, because the emulator checks no signature: real keys prove
+nothing here. Variables a pack has **measured** as a way back to the real cloud
+are removed from the child rather than overridden — `OSC_PROFILE` makes the
+Outscale provider read `~/.osc/config.json` and ignore your endpoint entirely,
+so overriding does not help. And a Terraform configuration carrying a measured
+escape that this run has no door for is refused before your command starts.
+
+It starts no machine runtime: that is what `feint up` does, with the refusals a
+declaration carries.
+
+---
+
 ## The page
 
 ```bash
@@ -997,7 +1068,7 @@ These answer *how close to the real cloud is this*, and they are the subject of
 |---|---|
 | `feint coverage` | compare the upstream API surface with what the packs serve |
 | `feint proxy` | sit between a real client and a real cloud and record every exchange, credentials redacted |
-| `feint run` | run one command with its compiled-in cloud endpoint landing on this emulator, without privilege and without touching the system |
+| `feint run` | own a whole local run: start the emulator, export the client's environment, land its compiled-in cloud endpoint here, then stop everything it started |
 | `feint transcript` | read a recording: what to serve next, what a response must look like, what the emulator omits |
 | `feint replay` | reissue a recording at a running emulator and report, operation by operation, what diverged |
 | `feint corpus` | replay every committed corpus against a fresh emulator and fail on a divergence from what the real cloud answered |
