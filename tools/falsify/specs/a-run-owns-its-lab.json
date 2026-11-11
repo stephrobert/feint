@@ -85,6 +85,20 @@
       "find": "\tif mode != \"off\" {\n\t\targs = append(args, \"--cleanup\")\n\t}",
       "replace": "\tif mode != \"off\" && false {\n\t\targs = append(args, \"--cleanup\")\n\t}",
       "test": "TestAnOwnedLabSweepsItsRuntimeObjects"
+    },
+    {
+      "label": "--reset-after and --keep-on-failure are accepted together, so one of them silently loses: a failed run is either erased or kept, and whichever order the code happens to apply, half the users get the opposite of what they asked for and nothing says so",
+      "file": "internal/cli/run.go",
+      "find": "\tif *resetAfter && *keep {",
+      "replace": "\tif *resetAfter && *keep && false {",
+      "test": "TestResetAfterAndKeepOnFailureAreRefusedTogether"
+    },
+    {
+      "label": "a reset that did not converge stops failing the command, so a shared emulator is left dirty by a run that reported success. The caller asked for the lab to be left as found; a quiet 0 is how the next test inherits the mess and blames itself",
+      "file": "internal/cli/run.go",
+      "find": "\tif resetVerdict == \"did not converge\" && code == exitOK {",
+      "replace": "\tif resetVerdict == \"did not converge\" && code == exitOK && false {",
+      "test": "TestARunWhoseResetDidNotConvergeFails"
     }
   ]
 }

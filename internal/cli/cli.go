@@ -249,7 +249,7 @@ const (
 // TestTheFrozenSurfacesStillMatchTheirFixture, and a fixture regenerated
 // without bumping this constant fails TestASurfaceChangeDemandsItsVersionBump.
 // The procedure for a deliberate change is in RELEASING.md ("Frozen surfaces").
-const cliSurfaceVersion = 31
+const cliSurfaceVersion = 32
 
 // Run executes one command and returns the process exit code.
 func Run(args []string, stdout, stderr io.Writer) int {
@@ -535,7 +535,8 @@ Usage:
                     behind it on the network.
 
   feint run        [--provider scaleway] [--endpoint http://127.0.0.1:4599]
-                    [--addr 127.0.0.1:0] [--keep-on-failure] [--json]
+                    [--addr 127.0.0.1:0] [--keep-on-failure] [--reset-after]
+                    [--json <path>]
                     [--unsafe-real-credentials] -- <command> [args...]
                     Run one command against a local cloud this command owns.
                     With no --endpoint it starts an emulator, waits for it,
@@ -564,6 +565,11 @@ Usage:
                     --json writes the receipt as JSON to a path, or to
                     stdout with a single dash; stdout otherwise belongs to
                     your command alone. The exit code is the child's.
+                    --reset-after takes a checkpoint once the lab is ready
+                    and returns to it when the command ends, however it ends:
+                    success, failure, or a signal this command relayed. It is
+                    refused with --keep-on-failure, which keeps the state it
+                    would erase.
                     --runtime asks the host for a machine runtime before
                     anything starts, with the refusal up makes. off is the
                     default: starting containers is a side effect on this

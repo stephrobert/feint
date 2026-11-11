@@ -351,3 +351,57 @@ func readRecordedCheckpoint(addr string) (recordedCheckpoint, error) {
 	}
 	return recorded, nil
 }
+
+// takeSessionCheckpoint names the state a `feint run --reset-after` returns to.
+//
+// It is the lab's own session identity, not a name the operator typed: two
+// runs against one shared emulator must not be able to reset each other's
+// state, and a fixed name would let them.
+//
+// TestASessionCheckpointIsNamedAfterItsRun fails without this.
+func takeSessionCheckpoint(endpoint, session, addr string) error {
+	if _, err := callCheckpoint(http.MethodPost, endpoint+"/_feint/checkpoint/"+session); err != nil {
+		return fmt.Errorf("the session checkpoint could not be taken: %w", err)
+	}
+	state, runtimeName, err := observeFor(endpoint)
+	if err != nil {
+		return fmt.Errorf("the session checkpoint could not be read back: %w", err)
+	}
+	return writeRecordedCheckpoint(addr, recordedCheckpoint{
+		SchemaVersion: checkpointStateVersion, Name: session,
+		Taken: time.Now().UTC().Format(time.RFC3339), Runtime: runtimeName, State: state,
+	})
+}
+
+// resetToSession returns the lab to its session checkpoint and answers a
+// verdict plus whatever is left over.
+//
+// It never returns an error to the caller, and that is deliberate: the child
+// has already run, and its exit code is what a caller builds on. A reset that
+// could not even be attempted must be REPORTED rather than swallowed, and
+// rather than raised into the child's verdict where it would read as a failing
+// test. So the verdict is a word the receipt carries, and the four words are
+// not interchangeable — "not attempted", "failed", "unverified" and
+// "converged" send a reader to four different places.
+//
+// TestAFailedResetAfterIsReportedAndNotRaised fails without this.
+func resetToSession(endpoint, session, addr string, stderr io.Writer) (string, []string) {
+	recorded, err := readRecordedCheckpoint(addr)
+	if err != nil || recorded.Name != session {
+		fmt.Fprintf(stderr, "feint run: --reset-after has no session checkpoint to return to: %v\n", err)
+		return "not attempted", nil
+	}
+	if _, err := callCheckpoint(http.MethodPost, endpoint+"/_feint/reset/"+session); err != nil {
+		fmt.Fprintf(stderr, "feint run: the reset failed: %v\n", err)
+		return "failed", nil
+	}
+	state, _, err := observeFor(endpoint)
+	if err != nil {
+		fmt.Fprintf(stderr, "feint run: the reset ran and could not be read back: %v\n", err)
+		return "unverified", nil
+	}
+	if differences := recorded.State.diff(state); len(differences) != 0 {
+		return "did not converge", differences
+	}
+	return "converged", nil
+}

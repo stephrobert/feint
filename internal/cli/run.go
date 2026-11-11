@@ -81,6 +81,7 @@ func runCommand(args []string, stdout io.Writer, stderr io.Writer) int {
 	provider := fs.String("provider", "", "resolve only this provider's client environment into the child; empty resolves every pack's")
 	addr := fs.String("addr", "127.0.0.1:0", "the proxy's listen address; the default takes a free loopback port and prints it")
 	runtimeMode := fs.String("runtime", "off", "the machine runtime the lab starts with: off, incus, incus-vm, incus-ovn, auto. Anything but off starts containers on this host, so it is asked for")
+	resetAfter := fs.Bool("reset-after", false, "take a checkpoint once the lab is ready and return to it when the command ends, however it ends (#853). Refused with --keep-on-failure, which preserves the state this would erase")
 	keep := fs.Bool("keep-on-failure", false, "when the child fails, leave the lab running and print how to reach and remove it")
 	receiptPath := fs.String("json", "", "write the receipt as JSON to this path; `-` means stdout, which is only safe when the command itself is quiet")
 	unsafe := fs.Bool("unsafe-real-credentials", false, "allow the child to carry credentials that are not known fakes. The emulator never checks a signature, so this buys nothing and risks sending real keys to a third party")
@@ -99,6 +100,16 @@ func runCommand(args []string, stdout io.Writer, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "  The emulator accepts any signature without checking it, so real keys buy")
 		fmt.Fprintln(stderr, "  nothing here. Use the repository's public fakes, or pass")
 		fmt.Fprintln(stderr, "  --unsafe-real-credentials if you have a reason this refusal does not cover.")
+		return exitError
+	}
+
+	// Two flags that mean opposite things about a failed run: one erases the
+	// state, the other preserves it for inspection. Refused together rather
+	// than silently ordered, because either order is wrong for somebody and a
+	// reader cannot tell which they got.
+	// TestResetAfterAndKeepOnFailureAreRefusedTogether fails without this.
+	if *resetAfter && *keep {
+		fmt.Fprintln(stderr, "feint run: --reset-after erases the state --keep-on-failure keeps for you; pick one")
 		return exitError
 	}
 
@@ -181,6 +192,18 @@ func runCommand(args []string, stdout io.Writer, stderr io.Writer) int {
 	stripped := hazardVariables()
 	childEnv := childEnvironment{strip: stripped, set: exports}
 
+	// The session's initial state, named after the run's own directory so two
+	// runs against one shared emulator cannot reset each other's.
+	session := labSession(owned)
+	if session == "" {
+		session = "feint-run-session"
+	}
+	if *resetAfter {
+		if err := takeSessionCheckpoint(target, session, *addr); err != nil {
+			return fail(err)
+		}
+	}
+
 	// Counted before and after, so an ATTACHED lab's earlier traffic is not
 	// reported as this run's. The owned case starts at zero and the delta is
 	// the same number; the attached case is where a total would lie.
@@ -196,6 +219,15 @@ func runCommand(args []string, stdout io.Writer, stderr io.Writer) int {
 		// restart. Report what was last seen and say it is a window.
 		calls, truncated = after, true
 	}
+	// The reset, attempted on every way out of the child: success, failure,
+	// and a SIGTERM this command relayed and waited for. #853 asks for the
+	// three and concedes the fourth — a hard kill of this process cannot
+	// promise anything, and `feint doctor` is what finds that afterwards.
+	resetVerdict, unreconciled := "", []string(nil)
+	if *resetAfter {
+		resetVerdict, unreconciled = resetToSession(target, session, *addr, stderr)
+	}
+
 	runtimeName, capabilities, proof := labHealth(target)
 
 	cleanup := "not owned"
@@ -230,6 +262,7 @@ func runCommand(args []string, stdout io.Writer, stderr io.Writer) int {
 		Providers: providers, Intercepted: intercepted, Command: command,
 		Calls: calls, CallsTruncated: truncated, Stripped: stripped,
 		Exit: code, Cleanup: cleanup,
+		Reset: resetVerdict, Unreconciled: unreconciled,
 		RealCloud: "no known escape observed",
 	}
 	// stdout belongs to the CHILD, and to nothing else. Measured rather than
@@ -244,6 +277,13 @@ func runCommand(args []string, stdout io.Writer, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "feint run: %v\n", err)
 			return exitError
 		}
+	}
+	// A reset that did not converge is this command's failure even when the
+	// child passed: the caller asked for the lab to be left as found, and it
+	// was not. Reported separately from the child's code so a reader can tell
+	// a failing test from a leaking lab.
+	if resetVerdict == "did not converge" && code == exitOK {
+		return exitError
 	}
 	// The child's code, not this command's: a wrapper that swallowed a
 	// failing test would be worse than no wrapper.
