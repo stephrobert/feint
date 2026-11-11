@@ -1,0 +1,90 @@
+{
+  "package": "./internal/cli/",
+  "note": "The subject is #848: `feint run` owning the lab rather than only the interception. Before it, the shortest happy path still asked the user to understand the lifecycle, the environment export, the client invocation and the cleanup separately, which is the problem the issue states.\n\nWHICH HALF THIS SPEC CAN REACH, because it is not all of it. The mutations below are on decisions a unit test can observe: whether a failed run keeps its lab, whether the measured reroutes leave the child's environment, whether the command answers the child's exit code, and whether it claims a cleanup it did not perform. The SPAWN itself is not here, and the reason is mechanical rather than a choice: `start` re-execs os.Executable(), which under `go test` is the test binary, so a unit test of the spawn would run the suite again with `serve` arguments. Tagging this spec `conformance` was tried and refused by the subject rather than by the harness: the tagged package also holds the Terraform witness, which needs FEINT_TF_PLUGIN_DIR and refuses to run inside a namespace, so the baseline would be red before any mutation and the run would measure nothing.\n\nSo the owned lab starting and stopping carries TESTS and not a falsification — TestARunOwnsItsLabAndLeavesNothing and TestARunKeepsAFailedLabOnlyWhenAsked in run_lab_conformance_test.go, which drive the built binary and assert that nothing listens and nothing remains in the run's own TMPDIR afterwards. That is written here rather than left for a reader to notice, because a spec that looks complete is worse than one that names its edge.",
+  "mutations": [
+    {
+      "label": "a lab is kept after a run that passed, so every green run binds a port and holds a directory of bytes until the machine is rebooted. Nothing in the output says so: the command succeeded, and an operator has no reason to look",
+      "file": "internal/cli/run.go",
+      "find": "func keepsTheLab(code int, runErr error, asked bool) bool {\n\tif !asked {\n\t\treturn false\n\t}\n\treturn code != exitOK || runErr != nil",
+      "replace": "func keepsTheLab(code int, runErr error, asked bool) bool {\n\tif !asked {\n\t\treturn false\n\t}\n\treturn code == exitOK && runErr == nil",
+      "test": "TestALabIsKeptOnlyWhenAFailedRunAskedForIt"
+    },
+    {
+      "label": "--keep-on-failure stops being consulted, so a failed run is torn down with the lab an operator was told they could inspect. The flag is still accepted and the receipt still printed, which is the shape of a flag that quietly does nothing",
+      "file": "internal/cli/run.go",
+      "find": "func keepsTheLab(code int, runErr error, asked bool) bool {\n\tif !asked {\n\t\treturn false\n\t}",
+      "replace": "func keepsTheLab(code int, runErr error, asked bool) bool {\n\tif !asked && false {\n\t\treturn false\n\t}",
+      "test": "TestALabIsKeptOnlyWhenAFailedRunAskedForIt"
+    },
+    {
+      "label": "the measured reroutes stop being discovered, so OSC_PROFILE survives into a run that looks local: the Outscale provider 1.1.x then reads ~/.osc/config.json, ignores the endpoint export entirely, and reaches https://api.<region>.outscale.com with that profile's real credentials (#342). The emulator cannot see a request that never arrives, so every other signal in the run stays green",
+      "file": "internal/cli/run_lifecycle.go",
+      "find": "\t\t_ = hazards.EnvHazards(record(false))\n\t\t_ = hazards.EnvHazards(record(true))",
+      "replace": "\t\t_ = hazards.EnvHazards(func(string) (string, bool) { return \"\", false })\n\t\t_ = record",
+      "test": "TestARunStripsEveryVariableAPackMeasuredAsAReroute"
+    },
+    {
+      "label": "the child keeps BOTH values of a variable this command resolved: its own and the one the operator's shell carried. exec hands the last to a Go client, but a child reading it with C getenv gets whichever the loader put first, so a run would reach the emulator or the real cloud depending on nothing a reader can see. Written as a dropped de-duplication rather than as a reordered append, because reordering changes nothing here and the first draft of this mutation stayed green proving it",
+      "file": "internal/cli/run_lifecycle.go",
+      "find": "\t\tif ok && slices.ContainsFunc(c.set, func(s string) bool {",
+      "replace": "\t\tif ok && false && slices.ContainsFunc(c.set, func(s string) bool {",
+      "test": "TestARunStripsEveryVariableAPackMeasuredAsAReroute"
+    },
+    {
+      "label": "the command answers its own success instead of the child's, so a failing test suite driven through feint run reports 0. This is the mutation that would survive longest in practice: everything else about the run is correct, and the only wrong byte is one nobody prints",
+      "file": "internal/cli/run.go",
+      "find": "\t// The child's code, not this command's: a wrapper that swallowed a\n\t// failing test would be worse than no wrapper.\n\treturn code",
+      "replace": "\t// The child's code, not this command's: a wrapper that swallowed a\n\t// failing test would be worse than no wrapper.\n\treturn code * 0",
+      "test": "TestAnAttachedRunReturnsTheChildsCodeAndSaysItIsNotItsLab"
+    },
+    {
+      "label": "an attached emulator is reported as owned, so the receipt claims a cleanup this command never performed and a reader believes the endpoint is gone. The opposite of the leak the other mutations guard, and the same cost: a reader who trusts the receipt",
+      "file": "internal/cli/run.go",
+      "find": "func labKind(owned *ownedLab) string {\n\tif owned == nil {\n\t\treturn \"attached\"\n\t}\n\treturn \"owned\"",
+      "replace": "func labKind(owned *ownedLab) string {\n\tif owned == nil {\n\t\treturn \"owned\"\n\t}\n\treturn \"owned\"",
+      "test": "TestAnAttachedRunReturnsTheChildsCodeAndSaysItIsNotItsLab"
+    },
+    {
+      "label": "every pack is taken as covered, so a configuration that hardcodes s3.<region>.scw.cloud runs with no door catching it and the calls leave for the real cloud with whatever credentials the run holds. The emulator cannot see a request that never arrives, so the run reports a clean pass",
+      "file": "internal/cli/run_lifecycle.go",
+      "find": "\t\tif !ok || covered[pack.Name()] {",
+      "replace": "\t\tif !ok || covered[pack.Name()] || true {",
+      "test": "TestARunRefusesAnEscapeNoDoorOfItsOwnWouldCatch"
+    },
+    {
+      "label": "the escape is computed and then not acted on, which is this repository's most expensive shape: the analysis runs, the warning exists somewhere, and the child starts anyway. #848 asks for a refusal BEFORE terraform runs, and a refusal that does not refuse is an intention written in the past tense",
+      "file": "internal/cli/run.go",
+      "find": "\tif escapes := stackEscapes(profiles); len(escapes) != 0 {",
+      "replace": "\tif escapes := stackEscapes(profiles); len(escapes) != 0 && false {",
+      "test": "TestARunRefusesAnEscapeNoDoorOfItsOwnWouldCatch"
+    },
+    {
+      "label": "the runtime is accepted alongside an --endpoint this command did not start, so --runtime is silently ignored: the emulator was configured when somebody else started it, and the operator is told nothing. A flag that does nothing is worse than a missing flag, because it reads as a capability",
+      "file": "internal/cli/run.go",
+      "find": "\tif *endpoint != \"\" && *runtimeMode != \"off\" {",
+      "replace": "\tif *endpoint != \"\" && *runtimeMode != \"off\" && false {",
+      "test": "TestARuntimeNeedsALabThisCommandOwns"
+    },
+    {
+      "label": "the receipt reports the mode that was ASKED FOR instead of what the emulator declares, so a run started with --runtime auto on a host without OVN claims an isolation it does not have. This is the repository's own rule broken: a capability is declared by the driver, and an undeclared one counts as absent",
+      "file": "internal/cli/run_lifecycle.go",
+      "find": "\t\tif declared {\n\t\t\theld = append(held, name)\n\t\t}",
+      "replace": "\t\tif declared || true {\n\t\t\theld = append(held, name)\n\t\t}",
+      "test": "TestTheReceiptReportsTheRuntimeTheEmulatorDeclares"
+    },
+    {
+      "label": "the JSON receipt is written to stdout whatever the caller asked, which is the defect a real replay found: `terraform apply` prints its plan into the same stream and the receipt becomes unparseable exactly when the run is real. A path was asked for precisely so that could not happen",
+      "file": "internal/cli/run_lifecycle.go",
+      "find": "\tif path == \"-\" {\n\t\treturn receipt.renderJSON(stdout)\n\t}",
+      "replace": "\tif path == \"-\" || true {\n\t\treturn receipt.renderJSON(stdout)\n\t}",
+      "test": "TestTheJSONReceiptGoesWhereItWasAskedFor"
+    },
+    {
+      "label": "the lab stops arming --cleanup, so a run with a machine runtime leaves its containers and networks behind: stopping the emulator does not sweep what the emulator created, and the receipt still says cleanup clean. #848's sixth behaviour in one flag",
+      "file": "internal/cli/run_lifecycle.go",
+      "find": "\tif mode != \"off\" {\n\t\targs = append(args, \"--cleanup\")\n\t}",
+      "replace": "\tif mode != \"off\" && false {\n\t\targs = append(args, \"--cleanup\")\n\t}",
+      "test": "TestAnOwnedLabSweepsItsRuntimeObjects"
+    }
+  ]
+}

@@ -173,6 +173,10 @@ case "$leg" in
     tools/conformance/outscale/network.sh "$endpoint"
     tools/conformance/exoscale/network.sh "$endpoint"
     tools/conformance/outscale/balancer.sh "$endpoint"
+    # The sweep owns its own lab, unlike the four above: its subject is the
+    # command that starts and stops one, so the endpoint is read only to ask
+    # whether a runtime is configured at all (#848).
+    tools/conformance/run-sweep.sh "$endpoint"
     ;;
 esac
 

@@ -407,6 +407,14 @@ jobs:
       - name: Exoscale network suite
         run: sudo tools/conformance/exoscale/network.sh http://127.0.0.1:4599
 
+      # The sweep, which owns its own lab: its subject is the command that
+      # starts and stops one, so the endpoint above is read only to ask
+      # whether a runtime is configured (#848). It is the half that cannot
+      # be unit-tested, and the half an operator feels: a container the run
+      # created must be gone, and a container it did not create must not be.
+      - name: feint run sweeps the machines it created, and only those
+        run: sudo tools/conformance/run-sweep.sh http://127.0.0.1:4599
+
       # The end of the chain the emulator exists for: a key registered through
       # the API, a server booted by the official client, a real shell on the
       # provider's own default login — three providers, three logins.
