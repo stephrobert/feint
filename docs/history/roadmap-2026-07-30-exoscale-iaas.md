@@ -201,7 +201,7 @@ as its routes.
   `EXOSCALE_API_ENDPOINT` for its v3 client only, so an apply splits between
   this emulator and a paying account. Filed as
   [exoscale/terraform-provider-exoscale#573](https://github.com/exoscale/terraform-provider-exoscale/issues/573);
-  the measurement is in [limits.md](../limits.md#the-exoscale-terraform-provider-is-refused-and-why).
+  the measurement is in [limits.md](../limits.md#the-exoscale-terraform-provider-has-a-floor-and-below-it-the-refusal-stands).
   `exo` proves the same behaviour, and it is the official client.
 - Dependencies: batch 1 only for legibility. Risk: the provider's waiters. Every
   mutation must mint its Operation with the correct command.

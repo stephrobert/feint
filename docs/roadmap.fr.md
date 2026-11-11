@@ -185,7 +185,7 @@ egoscale et n'est jamais appelé ; trois sites construisent un client v2 sans
 lui. Déposé en amont sous
 [exoscale/terraform-provider-exoscale#573][exo-573], avec le mécanisme et une
 reproduction ; le raisonnement et un build corrigé sont dans
-[limits.md](limits.md#the-exoscale-terraform-provider-is-refused-and-why).
+[limits.md](limits.md#the-exoscale-terraform-provider-has-a-floor-and-below-it-the-refusal-stands).
 
 Une condition que personne ici ne peut atteindre n'est pas une condition,
 c'est un otage. La garder aurait fait dépendre la maturité publiée de ce
