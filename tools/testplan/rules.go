@@ -499,6 +499,21 @@ var rules = []rule{
 		Unproven: prepushIsTheWholeGate,
 	},
 
+	{
+		Path: "tools/conformance/run-sweep.sh",
+		Why:  "feint run's sweep, which only a real runtime can answer for",
+		Runs: []string{"FEINT_VM=incus-ovn mise run conformance:leg -- runtime"},
+		Unproven: "the sweep runs on the runtime leg, which refuses without a runtime, " +
+			"and is measured under whatever mode the emulator declares: one leg proves " +
+			"one mode, so incus-vm and a run with more than one machine are not covered, " +
+			"and neither is a sweep interrupted part-way",
+		Cites: []claim{{
+			About: "the sweep runs on the runtime leg, which refuses without a runtime",
+			In:    "tools/conformance/leg.sh",
+			Shows: []string{"tools/conformance/run-sweep.sh"},
+		}},
+	},
+
 	// ------------------------------------------------------------ the harness
 	{
 		Path:     "tools/conformance/scaleway/",
