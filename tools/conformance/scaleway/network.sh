@@ -272,6 +272,28 @@ rule_id="$(api -X POST "$ENDPOINT/instance/v1/zones/$ZONE/security_groups/$sg_id
 wait_until 30 reach || fail "port 80 is still refused after the rule was authorised"
 ok "port 80 reachable"
 
+# ---- The audit's third P0, reproduced before being believed -----------------
+# An external audit deduced from the code that a reset could report convergence
+# while a firewall rule was still missing from the runtime: `Survey` answers
+# machine, network and rule-set NAMES, and a rule modified in place keeps its
+# rule set's name, so nothing in the observation would see the difference.
+#
+# It said so as a hypothesis and had not reproduced it. Neither had anybody
+# here. This measures it, with the only instrument whose verdict cannot be
+# argued with: a TCP connection.
+#
+# The port is open at this point, so the checkpoint is taken with the rule in
+# place. The suite then revokes the rule below and proves the port closes; the
+# reset step after that asks whether the rule comes BACK.
+fw_checkpoint=0
+if command -v "${FEINT_BIN:-./feint}" >/dev/null 2>&1; then
+  if "${FEINT_BIN:-./feint}" checkpoint firewall-reset --addr "${ENDPOINT#http://}" >/dev/null; then
+    fw_checkpoint=1
+  else
+    skip "the checkpoint was refused; the reset step below is skipped"
+  fi
+fi
+
 echo "- revoking it closes it again"
 api -X DELETE "$ENDPOINT/instance/v1/zones/$ZONE/security_groups/$sg_id/rules/$rule_id" >/dev/null
 # waits on silence: the verdict below is drawn from a connection that does NOT
@@ -282,6 +304,34 @@ api -X DELETE "$ENDPOINT/instance/v1/zones/$ZONE/security_groups/$sg_id/rules/$r
 sleep 3
 if reach; then fail "port 80 is still open after the rule was revoked"; fi
 ok "port 80 refused again"
+
+echo "- and a reset puts the rule back on the NIC, not only in the store"
+if [ "${fw_checkpoint:-0}" = 1 ]; then
+  "${FEINT_BIN:-./feint}" reset firewall-reset --addr "${ENDPOINT#http://}" >/dev/null \
+    || fail "the reset reported that the lab did not converge"
+  # The store has the rule again by construction: it was restored verbatim.
+  # What this asks is whether the PACKETS flow, which is the question `Survey`
+  # cannot answer and the one an operator has.
+  if wait_until 30 reach; then
+    ok "port 80 reachable again after the reset"
+    # The reset put the AUTHORISING rule back, which is exactly what it was
+    # asked for. Everything below measures a group that DROPS inbound, so the
+    # rule is revoked once more and the suite goes on from the state it
+    # expected. Without this the flexible-IP section reads the reset's own
+    # success as a firewall gap.
+    api -X DELETE "$ENDPOINT/instance/v1/zones/$ZONE/security_groups/$sg_id/rules/$rule_id" >/dev/null
+    # waits on silence: the verdict below is drawn from a connection that
+    # does NOT open, exactly as above the first revocation, and polling
+    # until the port closes would end at the first failed connection —
+    # which is also what a port that has not reopened yet looks like.
+    sleep 3
+    if reach; then fail "port 80 is still open after the restored rule was revoked again"; fi
+  else
+    fail "the reset reported convergence and port 80 is still refused: the rule came back in the store and not on the NIC"
+  fi
+else
+  skip "no checkpoint was taken, so the reset step measures nothing"
+fi
 
 # ---- Flexible IP ------------------------------------------------------------
 # A public address a cloud hands out is routed to the machine holding it. Here it

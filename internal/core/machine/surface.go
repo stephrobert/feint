@@ -184,6 +184,7 @@ func PackSurface() map[string]string {
 		"GroupSync":                           "the firewall orchestrator, built from the pack's own translation of its groups",
 		"GroupSync.SyncGroup":                 "write one group's rule set and replay it onto every wearer",
 		"GroupSync.ApplyMachine":              "write every set one resource wears and attach them in one call",
+		"GroupSync.Reapply":                   "write a restored group's rule set to the runtime again, so a reset puts the rule back on the NIC",
 		"GroupSync.SyncReferrers":             "re-expand the groups whose rules name the groups this resource wears",
 		"GroupSync.Drop":                      "remove a deleted group's rule set from the runtime",
 		"GroupSync.PlanOf":                    "declare the plan the scope of the groups is read from, the pack's own",

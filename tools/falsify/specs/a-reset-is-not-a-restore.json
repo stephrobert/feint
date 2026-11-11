@@ -1,86 +1,116 @@
 {
-  "package": "./internal/core/emulator/",
-  "note": "The subject is #853's own line: \"reset is not successful because JSON was restored\". `feint snapshot load` and `PUT /_feint/state` restore the control plane verbatim and touch nothing else, so a resource that disappears leaves its container running while the API no longer mentions it. The issue's last closing criterion asks for exactly this spec: \"a falsification that restores only the store but not runtime makes the test fail\".\n\nThe mutations are therefore all of the same family: each one turns the reset back into a restore, by a different route. The route matters, because each is a shape that would look reasonable in review — skipping the reconciliation loop, computing the difference by count instead of identity, handing a pack the resources that SURVIVED, or taking the \"before\" picture after the restore, when it is already gone.\n\nThe last one is the one worth reading twice. Reading the store after the restore instead of before is a one-line reordering that compiles, runs, reports a clean reset, and reconciles nothing at all — because by then there is no difference left to see.\n\nSince an external audit of the merged code: the verdict's object comparison is in here too. It took the digest from ListObjectsV2's ETag, which internal/s3/list.go does not emit, so the field was always empty and two different contents under one key compared equal. The mutation that reproduces it is below, and the test that bites mounts a REAL door over a REAL store — the test that let the defect through built observedObject values by hand, with digests in them, so it exercised the comparison and never the observation.",
-  "mutations": [
-    {
-      "label": "the destroying half stops being called, so a reset restores the control plane and leaves every machine the checkpoint does not hold running. This is the gap #853 names, reproduced exactly: the API no longer mentions the container and nobody takes it down",
-      "file": "internal/core/emulator/checkpoint.go",
-      "find": "\t\tif reconciler, ok := pack.(Reconciler); ok && len(mine) != 0 {",
-      "replace": "\t\tif reconciler, ok := pack.(Reconciler); ok && len(mine) != 0 && false {",
-      "test": "TestAResetDestroysWhatTheCheckpointDoesNotHold"
-    },
-    {
-      "label": "the before picture is taken AFTER the restore instead of before, so there is no difference left to compute and the reset reconciles nothing while reporting a clean pass. A one-line reordering that compiles, runs and lies",
-      "file": "internal/core/emulator/checkpoint.go",
-      "find": "\tbefore := s.env.Store.All()\n\tif err := s.env.Store.Restore(bytes.NewReader(state)); err != nil {",
-      "replace": "\tbefore := []*resource.Resource(nil)\n\tif err := s.env.Store.Restore(bytes.NewReader(state)); err != nil {",
-      "test": "TestAResetDestroysWhatTheCheckpointDoesNotHold"
-    },
-    {
-      "label": "each pack is handed ANOTHER pack's resources, so a reset destroys exactly the machines the checkpoint expects to keep and leaves the ones it does not. The opposite error of the first mutation and the expensive one: it takes down what the operator asked to come back",
-      "file": "internal/core/emulator/checkpoint.go",
-      "find": "\t\tif res.Tenant.Provider == provider {\n\t\t\tout = append(out, res)\n\t\t}",
-      "replace": "\t\tif res.Tenant.Provider != provider {\n\t\t\tout = append(out, res)\n\t\t}",
-      "test": "TestAResetDestroysWhatTheCheckpointDoesNotHold"
-    },
-    {
-      "label": "the difference is computed by comparing identifiers only, dropping the kind and the provider, so two resources that share an id across products are taken for one another. Written as a narrowed key rather than a count because the count version does not compile, and the narrowed one is what a reviewer would wave through",
-      "file": "internal/core/emulator/checkpoint.go",
-      "find": "\treturn res.Tenant.Provider + \"\\x00\" + res.Kind + \"\\x00\" + res.ID",
-      "replace": "\treturn res.ID",
-      "test": "TestAResetDestroysWhatTheCheckpointDoesNotHold"
-    },
-    {
-      "label": "the byte half of a checkpoint is skipped, so the store is named and the bytes are not. A later reset restores the control plane, finds no byte checkpoint, and an operator reads a clean reset over a store whose objects are whatever the last test left",
-      "file": "internal/core/emulator/checkpoint.go",
-      "find": "\tif s.env.Objects != nil {\n\t\tif err := s.env.Objects.SaveCheckpoint(r.Context(), name); err != nil {",
-      "replace": "\tif s.env.Objects != nil && false {\n\t\tif err := s.env.Objects.SaveCheckpoint(r.Context(), name); err != nil {",
-      "test": "TestACheckpointTakesBothHalvesOrNeither"
-    },
-    {
-      "label": "a checkpoint name stops being validated, so a name that is a path component before it is a name reaches the byte store, which writes a directory per checkpoint. This repository's order is a refusal at intake rather than escaping later, and `..` is the whole reason",
-      "file": "internal/core/emulator/checkpoint.go",
-      "find": "\tif !validCheckpointName(name) {",
-      "replace": "\tif !validCheckpointName(name) && false {",
-      "test": "TestACheckpointTakesBothHalvesOrNeither"
-    },
-    {
-      "label": "a host nobody can survey is taken for an empty one, so a reset offers every record for recreation and starts a second container beside each one already running. The defect is trusting the store about a question only the runtime can answer: the store is exactly what just changed",
-      "file": "internal/core/emulator/checkpoint.go",
-      "find": "\tleft, asked, err := env.machines.Survey(ctx)\n\tif !asked || err != nil {\n\t\treturn nil, false\n\t}",
-      "replace": "\tleft, asked, err := env.machines.Survey(ctx)\n\tif (!asked || err != nil) && false {\n\t\treturn nil, false\n\t}",
-      "test": "TestAResetAsksNothingOfAHostNobodyCanSurvey"
-    },
-    {
-      "label": "the pack is handed the records and asked to start them without being told what the host holds, so every record looks missing. This is the version of the code that shipped for an hour: the core picked the missing records itself with a \"feint-\" prefix, which put a provider's vocabulary in the neutral layer and matched a test's own bookkeeping stamp, which it then tried to boot",
-      "file": "internal/core/machine/reconcile.go",
-      "find": "\t\tname := res.Runtime[b.RuntimeKey]\n\t\tif name == \"\" || slices.Contains(held, name) {\n\t\t\tcontinue\n\t\t}",
-      "replace": "\t\tname := res.Runtime[b.RuntimeKey]\n\t\tif name == \"\" || (slices.Contains(held, name) && false) {\n\t\t\tcontinue\n\t\t}",
-      "test": "TestReconcileStartsOnlyTheMachinesThatAreMissing",
-      "package": "./internal/core/machine/"
-    },
-    {
-      "label": "the object comparison goes back to the door, the bucket and the key, dropping the digest and both sizes. This IS the defect an audit found in merged code: with no content in the key, a reset reports convergence over bytes that changed, and the commit message claimed objects were compared by digest",
-      "file": "internal/cli/observable.go",
-      "find": "\t\treturn fmt.Sprintf(\"%s/%s/%s digest=%s bytes=%d listed=%d\",\n\t\t\tob.Door, ob.Bucket, ob.Key, ob.Digest, ob.Size, ob.Listed)",
-      "replace": "\t\treturn fmt.Sprintf(\"%s/%s/%s\",\n\t\t\tob.Door, ob.Bucket, ob.Key) + fmt.Sprint(ob.Digest, ob.Size, ob.Listed)[:0]",
-      "test": "TestTwoObjectsOfOneSizeAndDifferentBytesDoNotConverge",
-      "package": "./internal/cli/"
-    },
-    {
-      "label": "the digest stops being computed over the bytes that arrived and becomes the empty string, which is exactly what reading an absent ETag produced. A verdict whose digest is constant compares every content equal, and the run reports a clean reset",
-      "file": "internal/cli/observable.go",
-      "find": "\treturn hex.EncodeToString(sum.Sum(nil)), size, nil",
-      "replace": "\treturn hex.EncodeToString(sum.Sum(nil))[:0], size, nil",
-      "test": "TestTwoObjectsOfOneSizeAndDifferentBytesDoNotConverge",
-      "package": "./internal/cli/"
-    },
-    {
-      "label": "the two halves are taken in the order an audit caught: the bytes first, the control plane second. A failure in the second step then leaves an earlier checkpoint of that name holding its OLD store beside the NEW object references, and a later reset restores one against the other — while the comment above promises both halves or neither. The order IS the guard here, so the mutation reorders rather than neutralises",
-      "file": "internal/core/emulator/checkpoint.go",
-      "find": "\tvar state bytes.Buffer\n\tif err := s.env.Store.Snapshot(&state); err != nil {\n\t\twriteJSON(w, http.StatusInternalServerError, map[string]any{\n\t\t\t\"error\": \"the control plane could not be checkpointed: \" + err.Error(),\n\t\t})\n\t\treturn\n\t}\n\tif s.env.Objects != nil {\n\t\tif err := s.env.Objects.SaveCheckpoint(r.Context(), name); err != nil {\n\t\t\twriteJSON(w, http.StatusInternalServerError, map[string]any{\n\t\t\t\t\"error\": \"the bytes could not be checkpointed: \" + err.Error(),\n\t\t\t})\n\t\t\treturn\n\t\t}\n\t}",
-      "replace": "\tif s.env.Objects != nil {\n\t\tif err := s.env.Objects.SaveCheckpoint(r.Context(), name); err != nil {\n\t\t\twriteJSON(w, http.StatusInternalServerError, map[string]any{\n\t\t\t\t\"error\": \"the bytes could not be checkpointed: \" + err.Error(),\n\t\t\t})\n\t\t\treturn\n\t\t}\n\t}\n\tvar state bytes.Buffer\n\tif err := s.env.Store.Snapshot(&state); err != nil {\n\t\twriteJSON(w, http.StatusInternalServerError, map[string]any{\n\t\t\t\"error\": \"the control plane could not be checkpointed: \" + err.Error(),\n\t\t})\n\t\treturn\n\t}",
-      "test": "TestAFailedControlPlaneHalfLeavesTheEarlierBytesWhole"
-    }
-  ]
+ "package": "./internal/core/emulator/",
+ "note": "The subject is #853's own line: \"reset is not successful because JSON was restored\". `feint snapshot load` and `PUT /_feint/state` restore the control plane verbatim and touch nothing else, so a resource that disappears leaves its container running while the API no longer mentions it. The issue's last closing criterion asks for exactly this spec: \"a falsification that restores only the store but not runtime makes the test fail\".\n\nThe mutations are therefore all of the same family: each one turns the reset back into a restore, by a different route. The route matters, because each is a shape that would look reasonable in review — skipping the reconciliation loop, computing the difference by count instead of identity, handing a pack the resources that SURVIVED, or taking the \"before\" picture after the restore, when it is already gone.\n\nThe last one is the one worth reading twice. Reading the store after the restore instead of before is a one-line reordering that compiles, runs, reports a clean reset, and reconciles nothing at all — because by then there is no difference left to see.\n\nSince an external audit of the merged code: the verdict's object comparison is in here too. It took the digest from ListObjectsV2's ETag, which internal/s3/list.go does not emit, so the field was always empty and two different contents under one key compared equal. The mutation that reproduces it is below, and the test that bites mounts a REAL door over a REAL store — the test that let the defect through built observedObject values by hand, with digests in them, so it exercised the comparison and never the observation.\n\nThird round, same audit: its P0-3, the firewall. The audit deduced from the code that a reset could report convergence while a rule was still missing from the runtime, and said so as a hypothesis it had not reproduced. The network suite reproduced it under --vm incus, with a TCP connection as the instrument, before a line of the fix was written: \"the reset reported convergence and port 80 is still refused: the rule came back in the store and not on the NIC\". Survey answers NAMES, and a rule set whose content changed keeps its name, so nothing in the observation can see the difference.\n\nThe first fix then over-corrected, and the same leg caught that too: writing every restored group put rule sets nobody wears back on the host, and the verdict reported them as differences the reset itself had made. Both directions are mutated below, because a guard that refuses everything passes the attack and breaks the product.\n\nThe fourth mutation is a defect the leg surfaced on the way, older than the audit: a record keeps its machine name after the machine is gone, so \"names a machine the host does not hold\" also describes a server the checkpoint says is stopped. A reset was starting containers for terminated VMs and then writing `running` over the state it had been asked to return to.",
+ "mutations": [
+  {
+   "label": "the destroying half stops being called, so a reset restores the control plane and leaves every machine the checkpoint does not hold running. This is the gap #853 names, reproduced exactly: the API no longer mentions the container and nobody takes it down",
+   "file": "internal/core/emulator/checkpoint.go",
+   "find": "\t\tif reconciler, ok := pack.(Reconciler); ok && len(mine) != 0 {",
+   "replace": "\t\tif reconciler, ok := pack.(Reconciler); ok && len(mine) != 0 && false {",
+   "test": "TestAResetDestroysWhatTheCheckpointDoesNotHold"
+  },
+  {
+   "label": "the before picture is taken AFTER the restore instead of before, so there is no difference left to compute and the reset reconciles nothing while reporting a clean pass. A one-line reordering that compiles, runs and lies",
+   "file": "internal/core/emulator/checkpoint.go",
+   "find": "\tbefore := s.env.Store.All()\n\tif err := s.env.Store.Restore(bytes.NewReader(state)); err != nil {",
+   "replace": "\tbefore := []*resource.Resource(nil)\n\tif err := s.env.Store.Restore(bytes.NewReader(state)); err != nil {",
+   "test": "TestAResetDestroysWhatTheCheckpointDoesNotHold"
+  },
+  {
+   "label": "each pack is handed ANOTHER pack's resources, so a reset destroys exactly the machines the checkpoint expects to keep and leaves the ones it does not. The opposite error of the first mutation and the expensive one: it takes down what the operator asked to come back",
+   "file": "internal/core/emulator/checkpoint.go",
+   "find": "\t\tif res.Tenant.Provider == provider {\n\t\t\tout = append(out, res)\n\t\t}",
+   "replace": "\t\tif res.Tenant.Provider != provider {\n\t\t\tout = append(out, res)\n\t\t}",
+   "test": "TestAResetDestroysWhatTheCheckpointDoesNotHold"
+  },
+  {
+   "label": "the difference is computed by comparing identifiers only, dropping the kind and the provider, so two resources that share an id across products are taken for one another. Written as a narrowed key rather than a count because the count version does not compile, and the narrowed one is what a reviewer would wave through",
+   "file": "internal/core/emulator/checkpoint.go",
+   "find": "\treturn res.Tenant.Provider + \"\\x00\" + res.Kind + \"\\x00\" + res.ID",
+   "replace": "\treturn res.ID",
+   "test": "TestAResetDestroysWhatTheCheckpointDoesNotHold"
+  },
+  {
+   "label": "the byte half of a checkpoint is skipped, so the store is named and the bytes are not. A later reset restores the control plane, finds no byte checkpoint, and an operator reads a clean reset over a store whose objects are whatever the last test left",
+   "file": "internal/core/emulator/checkpoint.go",
+   "find": "\tif s.env.Objects != nil {\n\t\tif err := s.env.Objects.SaveCheckpoint(r.Context(), name); err != nil {",
+   "replace": "\tif s.env.Objects != nil && false {\n\t\tif err := s.env.Objects.SaveCheckpoint(r.Context(), name); err != nil {",
+   "test": "TestACheckpointTakesBothHalvesOrNeither"
+  },
+  {
+   "label": "a checkpoint name stops being validated, so a name that is a path component before it is a name reaches the byte store, which writes a directory per checkpoint. This repository's order is a refusal at intake rather than escaping later, and `..` is the whole reason",
+   "file": "internal/core/emulator/checkpoint.go",
+   "find": "\tif !validCheckpointName(name) {",
+   "replace": "\tif !validCheckpointName(name) && false {",
+   "test": "TestACheckpointTakesBothHalvesOrNeither"
+  },
+  {
+   "label": "a host nobody can survey is taken for an empty one, so a reset offers every record for recreation and starts a second container beside each one already running. The defect is trusting the store about a question only the runtime can answer: the store is exactly what just changed",
+   "file": "internal/core/emulator/checkpoint.go",
+   "find": "\tleft, asked, err := env.machines.Survey(ctx)\n\tif !asked || err != nil {\n\t\treturn nil, false\n\t}",
+   "replace": "\tleft, asked, err := env.machines.Survey(ctx)\n\tif (!asked || err != nil) && false {\n\t\treturn nil, false\n\t}",
+   "test": "TestAResetAsksNothingOfAHostNobodyCanSurvey"
+  },
+  {
+   "label": "the pack is handed the records and asked to start them without being told what the host holds, so every record looks missing. This is the version of the code that shipped for an hour: the core picked the missing records itself with a \"feint-\" prefix, which put a provider's vocabulary in the neutral layer and matched a test's own bookkeeping stamp, which it then tried to boot",
+   "file": "internal/core/machine/reconcile.go",
+   "find": "\t\tname := res.Runtime[b.RuntimeKey]\n\t\tif name == \"\" || slices.Contains(held, name) {\n\t\t\tcontinue\n\t\t}",
+   "replace": "\t\tname := res.Runtime[b.RuntimeKey]\n\t\tif name == \"\" || (slices.Contains(held, name) && false) {\n\t\t\tcontinue\n\t\t}",
+   "test": "TestReconcileStartsOnlyTheMachinesThatAreMissing",
+   "package": "./internal/core/machine/"
+  },
+  {
+   "label": "the object comparison goes back to the door, the bucket and the key, dropping the digest and both sizes. This IS the defect an audit found in merged code: with no content in the key, a reset reports convergence over bytes that changed, and the commit message claimed objects were compared by digest",
+   "file": "internal/cli/observable.go",
+   "find": "\t\treturn fmt.Sprintf(\"%s/%s/%s digest=%s bytes=%d listed=%d\",\n\t\t\tob.Door, ob.Bucket, ob.Key, ob.Digest, ob.Size, ob.Listed)",
+   "replace": "\t\treturn fmt.Sprintf(\"%s/%s/%s\",\n\t\t\tob.Door, ob.Bucket, ob.Key) + fmt.Sprint(ob.Digest, ob.Size, ob.Listed)[:0]",
+   "test": "TestTwoObjectsOfOneSizeAndDifferentBytesDoNotConverge",
+   "package": "./internal/cli/"
+  },
+  {
+   "label": "the digest stops being computed over the bytes that arrived and becomes the empty string, which is exactly what reading an absent ETag produced. A verdict whose digest is constant compares every content equal, and the run reports a clean reset",
+   "file": "internal/cli/observable.go",
+   "find": "\treturn hex.EncodeToString(sum.Sum(nil)), size, nil",
+   "replace": "\treturn hex.EncodeToString(sum.Sum(nil))[:0], size, nil",
+   "test": "TestTwoObjectsOfOneSizeAndDifferentBytesDoNotConverge",
+   "package": "./internal/cli/"
+  },
+  {
+   "label": "the two halves are taken in the order an audit caught: the bytes first, the control plane second. A failure in the second step then leaves an earlier checkpoint of that name holding its OLD store beside the NEW object references, and a later reset restores one against the other — while the comment above promises both halves or neither. The order IS the guard here, so the mutation reorders rather than neutralises",
+   "file": "internal/core/emulator/checkpoint.go",
+   "find": "\tvar state bytes.Buffer\n\tif err := s.env.Store.Snapshot(&state); err != nil {\n\t\twriteJSON(w, http.StatusInternalServerError, map[string]any{\n\t\t\t\"error\": \"the control plane could not be checkpointed: \" + err.Error(),\n\t\t})\n\t\treturn\n\t}\n\tif s.env.Objects != nil {\n\t\tif err := s.env.Objects.SaveCheckpoint(r.Context(), name); err != nil {\n\t\t\twriteJSON(w, http.StatusInternalServerError, map[string]any{\n\t\t\t\t\"error\": \"the bytes could not be checkpointed: \" + err.Error(),\n\t\t\t})\n\t\t\treturn\n\t\t}\n\t}",
+   "replace": "\tif s.env.Objects != nil {\n\t\tif err := s.env.Objects.SaveCheckpoint(r.Context(), name); err != nil {\n\t\t\twriteJSON(w, http.StatusInternalServerError, map[string]any{\n\t\t\t\t\"error\": \"the bytes could not be checkpointed: \" + err.Error(),\n\t\t\t})\n\t\t\treturn\n\t\t}\n\t}\n\tvar state bytes.Buffer\n\tif err := s.env.Store.Snapshot(&state); err != nil {\n\t\twriteJSON(w, http.StatusInternalServerError, map[string]any{\n\t\t\t\"error\": \"the control plane could not be checkpointed: \" + err.Error(),\n\t\t})\n\t\treturn\n\t}",
+   "test": "TestAFailedControlPlaneHalfLeavesTheEarlierBytesWhole"
+  },
+  {
+   "label": "the firewall half stops being called, which is the audit's third P0 exactly: the store gets its rule back, the runtime keeps enforcing the one from after the checkpoint, and the verdict sees no difference because Survey answers names",
+   "file": "internal/core/emulator/checkpoint.go",
+   "find": "\t\tif rules, ok := pack.(RuleReconciler); ok && len(records) != 0 {",
+   "replace": "\t\tif rules, ok := pack.(RuleReconciler); ok && len(records) != 0 && false {",
+   "test": "TestAResetPutsTheRuleBackOnTheRuntimeAndNotOnlyInTheStore"
+  },
+  {
+   "label": "the pack is only offered its records when something could be surveyed, which is the guard as it stood before the firewall half existed. Rule sets live on the runtime whether or not any machine wears one, so this skips the whole third half on a host nobody can survey",
+   "file": "internal/core/emulator/checkpoint.go",
+   "find": "\t\tif len(mine) == 0 && len(records) == 0 {",
+   "replace": "\t\tif len(mine) == 0 && (!surveyed || len(records) == 0) {",
+   "test": "TestAResetPutsTheRuleBackOnTheRuntimeAndNotOnlyInTheStore"
+  },
+  {
+   "label": "the wearer filter goes, and a reset furnishes the host with rule sets the checkpoint never held. The runtime leg reported them as differences the reset had itself created, which is the over-correction half of the same fix",
+   "package": "./internal/core/machine/",
+   "file": "internal/core/machine/groupsync.go",
+   "find": "\t\tif len(s.Wearers(group)) == 0 {",
+   "replace": "\t\tif len(s.Wearers(group)) == 0 && false {",
+   "test": "TestReapplyWritesTheWornSetsAndOnlyThose"
+  },
+  {
+   "label": "a reset starts again the machine of a record the checkpoint describes as stopped, then writes `running` over the state it was asked to return to. The verdict that follows names, as a difference it failed to reconcile, the very resource it changed",
+   "package": "./internal/core/machine/",
+   "file": "internal/core/machine/reconcile.go",
+   "find": "\t\tif res.State != b.RunningState {",
+   "replace": "\t\tif res.State != b.RunningState && false {",
+   "test": "TestAResetLeavesAStoppedRecordStopped"
+  }
+ ]
 }

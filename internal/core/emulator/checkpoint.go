@@ -83,6 +83,28 @@ type MissingReconciler interface {
 	ReconcileMissing(ctx context.Context, records []*resource.Resource, held []string) machine.Reconciled
 }
 
+// RuleReconciler is the third optional half, and separate from the other two
+// for the reason MissingReconciler spells out: a pack gains one when it is
+// ready, and the ones it already had keep working. Merging them would turn
+// every pack into a non-implementer in silence.
+//
+// It exists because a reset that only restores the store reports convergence
+// over a firewall the runtime is still enforcing from before the checkpoint.
+// Survey answers names, a modified rule set keeps its name, so nothing in the
+// observation can see the difference — and machine.GroupSync.Reapply carries
+// the measurement that turned that deduction into a defect.
+//
+// tools/conformance/scaleway/network.sh and internal/cli's
+// TestAPackThatEnforcesRulesReappliesThemOnReset fail without it.
+type RuleReconciler interface {
+	// ReconcileRules writes this pack's restored rule sets to the runtime
+	// again. It takes the pack's own records, because which of them is a
+	// group is the pack's vocabulary — "instance/security-group",
+	// "securitygroup" and "security-group" for the three — and the core
+	// guessing at that is the mistake ReconcileMissing documents.
+	ReconcileRules(ctx context.Context, records []*resource.Resource) machine.Reconciled
+}
+
 // checkpoints holds the control-plane half of each named checkpoint.
 //
 // In memory, and that is the scope #853 describes: "returns to the session's
@@ -254,11 +276,15 @@ func (s *Server) handleReset(w http.ResponseWriter, r *http.Request) {
 	// asked would start containers beside ones already running.
 	held, surveyed := heldOnHost(r.Context(), s.env)
 	reconciled := map[string]any{}
-	var destroyed, skipped, recreated, failed []string
+	var destroyed, skipped, recreated, failed, reapplied []string
 	for _, pack := range s.packs {
 		mine := ownedBy(gone, pack.Name())
 		records := ownedBy(restored, pack.Name())
-		if len(mine) == 0 && (!surveyed || len(records) == 0) {
+		// Records alone are enough to have work to do, with no survey: rule
+		// sets live on the runtime whether or not a machine wears one, and an
+		// earlier form of this guard skipped the whole pack when nothing could
+		// be surveyed, which would have skipped the firewall half with it.
+		if len(mine) == 0 && len(records) == 0 {
 			continue
 		}
 		done := machine.Reconciled{}
@@ -279,15 +305,26 @@ func (s *Server) handleReset(w http.ResponseWriter, r *http.Request) {
 				s.env.Store.Put(res)
 			}
 		}
+		// Last of the three, and the order is the point: a set is attached to
+		// the interfaces of the machines that wear it, so re-applying before
+		// ReconcileMissing has put those machines back would attach nothing.
+		if rules, ok := pack.(RuleReconciler); ok && len(records) != 0 {
+			back := rules.ReconcileRules(r.Context(), records)
+			done.Reapplied = append(done.Reapplied, back.Reapplied...)
+			done.Skipped = append(done.Skipped, back.Skipped...)
+		}
 		destroyed = append(destroyed, done.Destroyed...)
+		reapplied = append(reapplied, done.Reapplied...)
 		skipped = append(skipped, done.Skipped...)
 		recreated = append(recreated, done.Recreated...)
 		failed = append(failed, done.Failed...)
 		reconciled[pack.Name()] = map[string]any{
 			"destroyed": done.Destroyed, "skipped": done.Skipped,
 			"recreated": done.Recreated, "failed": done.Failed,
+			"reapplied": done.Reapplied,
 		}
 	}
+	sort.Strings(reapplied)
 	sort.Strings(destroyed)
 	sort.Strings(skipped)
 	sort.Strings(recreated)
@@ -300,6 +337,11 @@ func (s *Server) handleReset(w http.ResponseWriter, r *http.Request) {
 		"destroyed":      destroyed,
 		"skipped":        skipped,
 		"recreated":      recreated,
+		// Named in the receipt rather than folded into recreated: nothing was
+		// started, a rule set the runtime already held was overwritten with
+		// the restored rules. An operator reading "recreated" would look for
+		// a machine that never moved.
+		"reapplied": reapplied,
 		// Named apart from skipped: a start that was attempted and refused and
 		// a record nobody could act on need different answers from whoever
 		// reads this.

@@ -246,3 +246,19 @@ func (p *Pack) removeFirewall(ctx context.Context, group *resource.Resource) {
 // internal/cli's TestEveryPackThatWiresTheFirewallSaysSo is what notices if
 // it does not.
 func (p *Pack) EnforcesFirewall() bool { return true }
+
+// ReconcileRules implements emulator.RuleReconciler: after a reset restores
+// the control plane, this pack's groups are written to the runtime again.
+//
+// One line of its own, and the rest is machine.GroupSync.Reapply, shared with
+// the two other packs. What varies is this: which restored record this
+// provider calls a group.
+func (p *Pack) ReconcileRules(ctx context.Context, records []*resource.Resource) machine.Reconciled {
+	groups := make([]*resource.Resource, 0, len(records))
+	for _, res := range records {
+		if res.Kind == kindSecurityGroup {
+			groups = append(groups, res)
+		}
+	}
+	return p.groupSync().Reapply(ctx, groups)
+}
