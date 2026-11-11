@@ -1,0 +1,20 @@
+{
+ "package": "./tools/ci/",
+ "note": "The subject is a gate that reds on a subject behaving correctly. The Outscale balancer suite asked SIX connections whether a balancer reaches both of its machines; six is a coin flipped six times, so a working balancer sends every connection to one side with probability 2 x 0.5^6 = 3.1 %. About one run in thirty-two, on the dataplane suite — the one whose subject is this project's own differentiator (#559).\n\nThe same arithmetic runs the other way at the unlink site: six probes that happen to avoid a machine the unlink never reached is 0.5^6 = 1.6 %, a false GREEN over a real defect. That site's own comment named it 'the same defect with a different number' and left the number.\n\nWhy it matters more than its size: a gate that reds on a healthy system teaches the reflex of re-running it, and this repository has that written down as worse than having no gate at all. The fix is 24 probes, which puts both tails at 1.2e-7 and 6.0e-8, for about ten seconds on a leg that measures in minutes.\n\nThe control reads the script, because the subject IS the sample size — but it checks a property rather than a value: every probe call whose verdict names a machine draws from the declared constant, and that constant supports the claim. Raising or lowering the number stays free; going back to a literal does not.",
+ "mutations": [
+  {
+   "label": "the sample goes back to six, which is the defect verbatim: a balancer that works reds one run in thirty-two, and an unlink that never applied passes one run in sixty-four",
+   "file": "tools/conformance/outscale/balancer.sh",
+   "find": "DISTRIBUTION_PROBES=24",
+   "replace": "DISTRIBUTION_PROBES=6",
+   "test": "TestABalancerVerdictDrawsFromASampleLargeEnoughToMeanIt"
+  },
+  {
+   "label": "one per-machine verdict is spelled at its site again instead of drawing from the constant, so the arithmetic written beside the constant stops describing what the suite actually asks. This is how the number drifted in the first place",
+   "file": "tools/conformance/outscale/balancer.sh",
+   "find": "case \"$hits\" in *\"$vm_a\"*) ;; *) fail \"no connection reached $vm_a over $DISTRIBUTION_PROBES probes: $hits\" ;; esac",
+   "replace": "hits=\"$(probe 6)\"; case \"$hits\" in *\"$vm_a\"*) ;; *) fail \"no connection reached $vm_a over $DISTRIBUTION_PROBES probes: $hits\" ;; esac",
+   "test": "TestABalancerVerdictDrawsFromASampleLargeEnoughToMeanIt"
+  }
+ ]
+}
