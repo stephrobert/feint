@@ -279,3 +279,20 @@ func (p *Pack) refresh(ctx context.Context, res *resource.Resource) bool {
 func (p *Pack) addressOf(res *resource.Resource) string {
 	return p.reconciler().PublicAddressOf(res)
 }
+
+// ReconcileGone takes down the machines of records a reset removed (#853).
+//
+// Two lines, and that is the point: the gesture is identical for every pack,
+// so it lives on the shared binding where a defect is fixed once. What this
+// pack adds is which binding — its prefix, its runtime key, its ownership
+// mark — and nothing else.
+//
+// The recreating half is deliberately absent here too. Starting a machine
+// needs a Boot this pack renders from its own catalogue, and #853 bounds that
+// in the same words: "where the runtime contract supports it".
+// emulator.TestAResetDestroysWhatTheCheckpointDoesNotHold drives this through
+// the server; machine.TestReconcileDestroysOnlyTheMachinesItOwns holds what it
+// delegates to.
+func (p *Pack) ReconcileGone(ctx context.Context, gone []*resource.Resource) machine.Reconciled {
+	return p.binding().ReconcileGone(ctx, gone)
+}
