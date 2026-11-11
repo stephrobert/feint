@@ -1,0 +1,124 @@
+name: a first Linux apply from the published artefacts
+
+# Can a stranger without Homebrew reach `Apply complete!` from what this
+# project published? (#843)
+#
+# Everything else here proves the code: `conformance.yml` drives real clients
+# against a binary the runner just built, and `tools/conformance/quickstart.sh`
+# drives the four commands the README prints. None of it proves that the
+# artefacts a reader can actually obtain still work, nor that the install block
+# in the README is one they can run.
+#
+# So this job is deliberately the other way round: it never builds. It takes
+# the install commands **out of README.md**, runs them on a clean runner, and
+# then drives the existing quickstart gate against whatever they installed.
+#
+# ## Why not on every pull request
+#
+# It replays a PUBLISHED release, and a pull request's README can legitimately
+# pin a version that is not published yet — that is what `feint docs --check`
+# enforces when the CHANGELOG moves. Gating a pull request on it would make
+# every release-preparation branch red by construction, which is the
+# gate-blocks-the-release shape this repository already carries a scar from.
+#
+# It runs when a release is published, which is the moment the claim becomes
+# checkable, nightly so the published route cannot rot between releases, and on
+# demand.
+#
+# ## What it proves, and what it must never be read as proving
+#
+# The example declares `runtime: mode: off` and nothing here overrides it. This
+# proves a control plane, an address and a server the API describes. It proves
+# **nothing** about Incus or OVN networking, and the script says so in its last
+# line rather than leaving a reader to infer locality from a green tick.
+
+on:
+  release:
+    types: [published]
+  schedule:
+    # Offset from conformance.yml (03:43) and runtime-proof.yml (02:31), so the
+    # three never compete for the same third-party release servers at once.
+    - cron: '17 4 * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+env:
+  TERRAFORM_VERSION: '1.13.3'
+
+jobs:
+  replay:
+    name: install from the README, then run the quickstart
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          # audit rather than block: the point of this job is to watch where a
+          # first install actually goes, and a blocked egress would hide the
+          # one thing worth seeing if the published route ever reached
+          # somewhere unexpected.
+          egress-policy: audit
+
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The engine the stack asks for, and the only prerequisite that is not
+      # feint's. Same pinned version and same upstream checksums as the
+      # terraform leg of conformance.yml: one client, one truth.
+      - name: Install Terraform
+        run: |
+          set -euo pipefail
+          workdir="$(mktemp -d)"
+          base="https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}"
+          asset="terraform_${TERRAFORM_VERSION}_linux_amd64.zip"
+          tools/ci/fetch.sh "${base}/${asset}" "${workdir}/${asset}"
+          tools/ci/fetch.sh "${base}/terraform_${TERRAFORM_VERSION}_SHA256SUMS" "${workdir}/sums"
+          (cd "${workdir}" && grep " ${asset}$" sums | sha256sum -c -)
+          sudo unzip -o "${workdir}/${asset}" terraform -d /usr/local/bin
+          terraform version
+
+      # No Go toolchain is set up on purpose, and no `go build` runs: a reader
+      # installing a released binary has neither. If this job ever needs one,
+      # the thing being measured has changed.
+      - name: Replay the published Linux route
+        run: tools/conformance/released-linux.sh
+
+      - name: Say what was proven, and what was not
+        if: always()
+        run: |
+          {
+            echo "### A first Linux apply from the published artefacts"
+            echo
+            echo "Runner: \`$(uname -s) $(uname -m)\`, $(. /etc/os-release && echo "$PRETTY_NAME")"
+            echo "Terraform: \`$(terraform version | head -1)\`"
+            echo
+            echo "The install commands were taken out of \`README.md\` and run; the"
+            echo "quickstart gate then drove the binary they installed."
+            echo
+            echo "**Runtime mode off.** This proves a control plane, an address and a"
+            echo "server the API describes. It proves nothing about Incus or OVN"
+            echo "networking."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # A night this route breaks has to reach somebody. falsify.yml was killed by
+  # its own timeout for twenty-four consecutive nights with nobody told, because
+  # it adopted no reporting job and `cancelled` is not `failure` — which is the
+  # defect tools/ci's TestEveryScheduledWorkflowReportsOrSaysWhyNot now refuses
+  # for every scheduled workflow at once. It reddened on this file before this
+  # job existed.
+  #
+  # One issue, updated, never one per night, and only on a schedule: a release
+  # or a manual run has somebody already watching it.
+  report:
+    name: A red night opens the issue, a green one closes it
+    needs: [replay]
+    if: always() && github.event_name == 'schedule'
+    permissions:
+      contents: read
+      actions: read
+      issues: write
+    uses: ./.github/workflows/night-report.yml

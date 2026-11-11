@@ -72,6 +72,29 @@ feint up      # checks the host, starts the emulator, applies the Terraform
 feint down    # destroys what it created, then stops the emulator
 ```
 
+Without Homebrew, the same thing on Linux:
+
+```bash
+( set -e
+  v=0.15.0
+  case $(uname -m) in
+    x86_64)  a=feint-linux-amd64 ;;
+    aarch64) a=feint-linux-arm64 ;;
+    *) echo "no published binary for $(uname -m)" >&2; exit 1 ;;
+  esac
+  base=https://github.com/stephrobert/feint/releases/download/v$v
+  curl -fsSLO "$base/$a"
+  curl -fsSL "$base/checksums.txt" | sha256sum --check --ignore-missing -
+  install -Dm755 "$a" ~/.local/bin/feint
+)
+```
+
+That proves the bytes match the published list, not who wrote the list.
+The signature over the list is one step further, in
+[docs/install.md](docs/install.md), and it is the one to follow when pinning
+feint in CI. If `feint` is not found afterwards, `~/.local/bin` is not on
+your `PATH`.
+
 What those four commands print:
 
 ```text
