@@ -106,4 +106,28 @@ EOF
 [ -z "$missing" ] || fail "the reset took a container it does not own:$missing"
 ok "every container feint did not create is still there"
 
+# ---------------------------------------------------------------------------
+# The other half: a machine the checkpoint HOLDS that the host has lost.
+#
+# The removal is out of band on purpose, and it is the only way to produce the
+# state this measures — the record is there, the machine is not — without
+# touching the store. A reset that only removed would leave an operator with a
+# control plane describing servers that answer nothing.
+echo "-- the host loses a machine the checkpoint holds"
+"$FEINT" checkpoint reset-back --addr "$ADDR" >/dev/null || fail "the second checkpoint was refused"
+held="$(ours | head -1)"
+[ -n "$held" ] || fail "no machine to lose, so this half would measure nothing"
+incus delete --force "$held" >/dev/null 2>&1 || fail "could not take the machine away out of band"
+[ -z "$(ours)" ] || fail "the machine is still there, so the reset below would have nothing to do"
+ok "the machine is gone from the host while the record remains"
+
+"$FEINT" reset reset-back --addr "$ADDR" || fail "the reset reported that the lab did not converge"
+printf '%s\n' "$(ours)" | grep -qx "$held" \
+  || fail "the reset did not start the machine again: [$(ours | tr '\n' ' ')]"
+ok "the machine the checkpoint holds is back, under the same name"
+
+# The name is the assertion, not the count: a reset that started SOME
+# container would satisfy a count while leaving every record naming one that
+# does not exist, and the next reset would report it missing again, forever.
+
 echo "conformance: the host half of a reset measured under $mode"

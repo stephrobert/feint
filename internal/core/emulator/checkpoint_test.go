@@ -54,12 +54,29 @@ func labServer(t *testing.T, packs ...emulator.Pack) (*httptest.Server, *store.S
 // nothing in a test whose emulator served no objects.
 func labServerWithBytes(t *testing.T, objects *objectstore.Store, packs ...emulator.Pack) (*httptest.Server, *store.Store) {
 	t.Helper()
+	return labServerWith(t, objects, nil, packs...)
+}
+
+// labServerWithRuntime is the same lab with a runtime that can be surveyed,
+// which is the only way to measure what a reset considers MISSING: the store
+// is what just changed, so whether anything backs a record is a question only
+// the host can answer.
+func labServerWithRuntime(t *testing.T, rt machine.Runtime, packs ...emulator.Pack) (*httptest.Server, *store.Store) {
+	t.Helper()
+	return labServerWith(t, nil, &rt, packs...)
+}
+
+func labServerWith(t *testing.T, objects *objectstore.Store, rt *machine.Runtime, packs ...emulator.Pack) (*httptest.Server, *store.Store) {
+	t.Helper()
 	held := store.New()
 	env := &emulator.Env{
 		Store:   held,
 		Objects: objects,
 		Now:     func() time.Time { return time.Unix(1700000000, 0).UTC() },
 		NewID:   func() string { return "00000000-0000-4000-8000-000000000001" },
+	}
+	if rt != nil {
+		env.UseMachines(*rt)
 	}
 	srv, err := emulator.NewServer(env, packs...)
 	if err != nil {
@@ -220,10 +237,16 @@ func TestAResetDestroysWhatTheCheckpointDoesNotHold(t *testing.T) {
 	if destroyed, _ := body["destroyed"].([]any); len(destroyed) != 1 || destroyed[0] != "feint-acme-later" {
 		t.Errorf("destroyed %v", body["destroyed"])
 	}
-	// Recreation is not attempted, and the answer says so: a quiet success
-	// would read as "the host matches the checkpoint".
-	if recreates, _ := body["recreates"].(bool); recreates {
-		t.Error("the reset claims it recreates missing machines")
+	// Recreation IS attempted now, and the answer says so. Nothing was
+	// recreated here because this lab has no runtime: the records the
+	// checkpoint holds name machines the survey cannot be asked about, and a
+	// reset that started containers because nobody could be asked would be
+	// the opposite defect.
+	if recreates, _ := body["recreates"].(bool); !recreates {
+		t.Error("the reset says it does not recreate, which stopped being true")
+	}
+	if back, _ := body["recreated"].([]any); len(back) != 0 {
+		t.Errorf("a lab with no runtime recreated %v", back)
 	}
 
 	// Twice is a no-op, which is #853's own criterion: nothing is left to

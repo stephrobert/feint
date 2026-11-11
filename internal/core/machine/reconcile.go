@@ -2,6 +2,7 @@ package machine
 
 import (
 	"context"
+	"slices"
 
 	"github.com/stephrobert/feint/internal/core/resource"
 )
@@ -42,6 +43,14 @@ import (
 type Reconciled struct {
 	// Destroyed names the machines taken down because their record is gone.
 	Destroyed []string
+	// Recreated names the machines started again because a record the
+	// checkpoint holds had none.
+	Recreated []string
+	// Failed names the records whose machine could not be started again.
+	// Separate from Skipped, because a start that was attempted and refused
+	// and a record nobody could act on need different answers from the
+	// operator.
+	Failed []string
 	// Skipped names records whose machine this binding does not own, or which
 	// name no machine at all. Reported rather than silently passed over: a
 	// record nobody could act on is what an operator needs to hear about.
@@ -95,6 +104,82 @@ func (b Binding) ReconcileGone(ctx context.Context, gone []*resource.Resource) R
 		// start disagreeing.
 		b.Remove(ctx, res.ID, name)
 		done.Destroyed = append(done.Destroyed, name)
+	}
+	return done
+}
+
+// ReconcileMissing starts again the machines of records that have none.
+//
+// It is the other half of #853's "runtime reconciled to the checkpoint", and
+// the issue bounds it in the same breath: "where the runtime contract supports
+// it". What that turned out to be here is better than I expected, and it was
+// measured rather than assumed.
+//
+// ## Why a rebuilt boot is the boot the original had
+//
+// A pack builds its Boot from three places, and a reset has already put all
+// three back by the time this runs:
+//
+//   - the record's own attributes, which the restore brought back verbatim;
+//   - the store, for things like the project's SSH keys, which the restore
+//     brought back too — the keys are part of the checkpoint;
+//   - the image catalogue, which is compiled into the binary and depends on no
+//     state at all.
+//
+// So the fear that sequenced this half last — an image gone from the
+// catalogue, a key deleted, a user data that no longer exists — does not
+// survive reading where those values come from. What a label the catalogue
+// does not know produces is an empty image reference, which is exactly what
+// the ORIGINAL poweron produced for that same record.
+//
+// ## Why the Boot comes in as a function
+//
+// Building one is pack knowledge: the image table, the login, the cloud-init a
+// pack renders for its own product. Taking a builder rather than a Boot keeps
+// the loop, the ownership path and the honest reporting in one place while the
+// one thing that genuinely varies stays with the pack. Each pack writes one
+// line.
+//
+// ## What it refuses to call a success
+//
+// PowerOn already answers false when a runtime was configured and did not
+// deliver, and sets FailedState rather than Running. This reports those as
+// Failed instead of folding them into Recreated: a reset that said it brought
+// three machines back when one of them is in FailedState would be the half-
+// success this project exists to avoid, and the verdict above it compares the
+// observable state anyway — so a lie here would be caught, loudly, in the
+// wrong place.
+//
+// TestReconcileStartsOnlyTheMachinesThatAreMissing fails without this.
+func (b Binding) ReconcileMissing(ctx context.Context, records []*resource.Resource,
+	held []string, boot func(*resource.Resource) Boot,
+) Reconciled {
+	var done Reconciled
+	for _, res := range records {
+		if res == nil || boot == nil {
+			continue
+		}
+		// Which of these records is missing a machine is decided HERE, with
+		// this binding's own key, and not by the caller. The core tried to
+		// guess it with a "feint-" prefix and was wrong twice: a provider's
+		// vocabulary in the neutral layer, and a match broad enough to pick up
+		// a test's bookkeeping stamp and try to boot it.
+		name := res.Runtime[b.RuntimeKey]
+		if name == "" || slices.Contains(held, name) {
+			continue
+		}
+		if b.driver == nil {
+			// Metadata only: PowerOn would answer running without starting
+			// anything, which is the documented degraded mode and not
+			// something to report as a recreation.
+			done.Skipped = append(done.Skipped, b.Name(res.ID))
+			continue
+		}
+		if !b.PowerOn(ctx, res, boot(res)) {
+			done.Failed = append(done.Failed, b.Name(res.ID))
+			continue
+		}
+		done.Recreated = append(done.Recreated, res.Runtime[b.RuntimeKey])
 	}
 	return done
 }

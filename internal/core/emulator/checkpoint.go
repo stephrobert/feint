@@ -53,6 +53,36 @@ type Reconciler interface {
 	ReconcileGone(ctx context.Context, gone []*resource.Resource) machine.Reconciled
 }
 
+// MissingReconciler is the other half, and a SEPARATE interface rather than a
+// second method on Reconciler.
+//
+// That is not style. A single interface carrying both means a pack
+// implementing one of them satisfies neither, the type assertion fails, and
+// the reconciliation silently stops happening — no error, no log, a reset that
+// reports a clean pass and reconciles nothing. It happened while this half was
+// being written: adding the second method to Reconciler turned every pack into
+// a non-implementer, and the only reason it was caught is that a test asserted
+// which records a pack was HANDED rather than that the call answered 200.
+//
+// Two optional halves cannot do that: a pack gains one when it is ready, and
+// the one it already had keeps working.
+//
+// internal/cli's TestAPackThatDrivesMachinesReconcilesBothWays fails without
+// both halves being satisfied by every pack that drives machines.
+type MissingReconciler interface {
+	// ReconcileMissing starts again the machines of this pack's records that
+	// the host no longer holds.
+	//
+	// It takes the records and the machines the host DOES hold, and the pack
+	// decides which of its records are missing. The core deliberately does not
+	// decide: a record's machine name lives under a key that is the pack's own
+	// vocabulary, and a first version of this guessed with a "feint-" prefix
+	// in the core. It was wrong twice over — a provider-shaped assumption in
+	// the neutral layer, and broad enough to match a test's own bookkeeping
+	// stamp, which it then tried to boot.
+	ReconcileMissing(ctx context.Context, records []*resource.Resource, held []string) machine.Reconciled
+}
+
 // checkpoints holds the control-plane half of each named checkpoint.
 //
 // In memory, and that is the scope #853 describes: "returns to the session's
@@ -196,32 +226,54 @@ func (s *Server) handleReset(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	gone := goneAfterRestore(before, s.env.Store.All())
+	restored := s.env.Store.All()
+	gone := goneAfterRestore(before, restored)
+	// What the host actually holds, asked of the runtime rather than deduced
+	// from the store: the store is exactly what just changed, it says a server
+	// is running, and whether anything backs it is the question. A driver that
+	// cannot be surveyed answers asked=false, and then nothing is offered for
+	// recreation at all — claiming a machine is absent because nobody could be
+	// asked would start containers beside ones already running.
+	held, surveyed := heldOnHost(r.Context(), s.env)
 	reconciled := map[string]any{}
-	var destroyed, skipped []string
+	var destroyed, skipped, recreated, failed []string
 	for _, pack := range s.packs {
-		reconciler, ok := pack.(Reconciler)
-		if !ok {
+		mine := ownedBy(gone, pack.Name())
+		records := ownedBy(restored, pack.Name())
+		if len(mine) == 0 && (!surveyed || len(records) == 0) {
 			continue
 		}
-		mine := make([]*resource.Resource, 0, len(gone))
-		for _, res := range gone {
-			if res.Tenant.Provider == pack.Name() {
-				mine = append(mine, res)
+		done := machine.Reconciled{}
+		if reconciler, ok := pack.(Reconciler); ok && len(mine) != 0 {
+			done = reconciler.ReconcileGone(r.Context(), mine)
+		}
+		if starter, ok := pack.(MissingReconciler); ok && surveyed && len(records) != 0 {
+			back := starter.ReconcileMissing(r.Context(), records, held)
+			done.Recreated = append(done.Recreated, back.Recreated...)
+			done.Failed = append(done.Failed, back.Failed...)
+			done.Skipped = append(done.Skipped, back.Skipped...)
+			// A recreation rewrites the record's Runtime and State, so the
+			// store is written back here rather than left holding the machine
+			// name of a container that is gone. Put rather than Commit: the
+			// resource came out of this store a moment ago and nothing else
+			// writes during a reset, which holds the whole store's lock.
+			for _, res := range records {
+				s.env.Store.Put(res)
 			}
 		}
-		if len(mine) == 0 {
-			continue
-		}
-		done := reconciler.ReconcileGone(r.Context(), mine)
 		destroyed = append(destroyed, done.Destroyed...)
 		skipped = append(skipped, done.Skipped...)
+		recreated = append(recreated, done.Recreated...)
+		failed = append(failed, done.Failed...)
 		reconciled[pack.Name()] = map[string]any{
 			"destroyed": done.Destroyed, "skipped": done.Skipped,
+			"recreated": done.Recreated, "failed": done.Failed,
 		}
 	}
 	sort.Strings(destroyed)
 	sort.Strings(skipped)
+	sort.Strings(recreated)
+	sort.Strings(failed)
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"schema_version": CheckpointSchemaVersion,
@@ -229,11 +281,13 @@ func (s *Server) handleReset(w http.ResponseWriter, r *http.Request) {
 		"resources":      s.env.Store.Len(),
 		"destroyed":      destroyed,
 		"skipped":        skipped,
-		"per_provider":   reconciled,
-		// Said on the wire, because a caller cannot see it any other way and a
-		// quiet success would read as "the host matches the checkpoint".
-		"recreated": []string{},
-		"recreates": false,
+		"recreated":      recreated,
+		// Named apart from skipped: a start that was attempted and refused and
+		// a record nobody could act on need different answers from whoever
+		// reads this.
+		"failed":       failed,
+		"per_provider": reconciled,
+		"recreates":    true,
 	})
 }
 
@@ -281,4 +335,33 @@ func validCheckpointName(name string) bool {
 	}
 	// A name of dots is a path, not a name.
 	return name != "." && name != ".."
+}
+
+// ownedBy narrows a list of resources to one pack's own, so no pack ever sees
+// another's.
+func ownedBy(resources []*resource.Resource, provider string) []*resource.Resource {
+	out := make([]*resource.Resource, 0, len(resources))
+	for _, res := range resources {
+		if res.Tenant.Provider == provider {
+			out = append(out, res)
+		}
+	}
+	return out
+}
+
+// heldOnHost answers the machines the runtime actually holds, and whether it
+// could be asked at all.
+//
+// Through Survey, which names only what the emulator labelled and issues no
+// mutating command. The second return is not a convenience: a driver nobody
+// can survey is not an empty host, and treating it as one would have a reset
+// start a container beside every one already running.
+//
+// TestAResetAsksNothingOfAHostNobodyCanSurvey fails without this.
+func heldOnHost(ctx context.Context, env *Env) ([]string, bool) {
+	left, asked, err := env.machines.Survey(ctx)
+	if !asked || err != nil {
+		return nil, false
+	}
+	return left.Machines, true
 }

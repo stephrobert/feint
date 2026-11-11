@@ -3,10 +3,10 @@
   "note": "The subject is #853's own line: \"reset is not successful because JSON was restored\". `feint snapshot load` and `PUT /_feint/state` restore the control plane verbatim and touch nothing else, so a resource that disappears leaves its container running while the API no longer mentions it. The issue's last closing criterion asks for exactly this spec: \"a falsification that restores only the store but not runtime makes the test fail\".\n\nThe mutations are therefore all of the same family: each one turns the reset back into a restore, by a different route. The route matters, because each is a shape that would look reasonable in review — skipping the reconciliation loop, computing the difference by count instead of identity, handing a pack the resources that SURVIVED, or taking the \"before\" picture after the restore, when it is already gone.\n\nThe last one is the one worth reading twice. Reading the store after the restore instead of before is a one-line reordering that compiles, runs, reports a clean reset, and reconciles nothing at all — because by then there is no difference left to see.",
   "mutations": [
     {
-      "label": "the reconciliation loop is skipped, so a reset restores the control plane and leaves every machine the checkpoint does not hold running. This is the gap #853 names, reproduced exactly: the API no longer mentions the container and nobody takes it down",
+      "label": "the destroying half stops being called, so a reset restores the control plane and leaves every machine the checkpoint does not hold running. This is the gap #853 names, reproduced exactly: the API no longer mentions the container and nobody takes it down",
       "file": "internal/core/emulator/checkpoint.go",
-      "find": "\t\treconciler, ok := pack.(Reconciler)\n\t\tif !ok {\n\t\t\tcontinue\n\t\t}",
-      "replace": "\t\treconciler, ok := pack.(Reconciler)\n\t\tif !ok || true {\n\t\t\t_ = reconciler\n\t\t\tcontinue\n\t\t}",
+      "find": "\t\tif reconciler, ok := pack.(Reconciler); ok && len(mine) != 0 {",
+      "replace": "\t\tif reconciler, ok := pack.(Reconciler); ok && len(mine) != 0 && false {",
       "test": "TestAResetDestroysWhatTheCheckpointDoesNotHold"
     },
     {
@@ -17,10 +17,10 @@
       "test": "TestAResetDestroysWhatTheCheckpointDoesNotHold"
     },
     {
-      "label": "each pack is handed the resources that SURVIVED the restore rather than the ones that did not, so a reset destroys exactly the machines the checkpoint expects to keep. The opposite error of the first mutation, and the expensive one: it takes down what the operator asked to come back",
+      "label": "each pack is handed ANOTHER pack's resources, so a reset destroys exactly the machines the checkpoint expects to keep and leaves the ones it does not. The opposite error of the first mutation and the expensive one: it takes down what the operator asked to come back",
       "file": "internal/core/emulator/checkpoint.go",
-      "find": "\t\t\tif res.Tenant.Provider == pack.Name() {\n\t\t\t\tmine = append(mine, res)\n\t\t\t}",
-      "replace": "\t\t\tif res.Tenant.Provider != pack.Name() {\n\t\t\t\tmine = append(mine, res)\n\t\t\t}",
+      "find": "\t\tif res.Tenant.Provider == provider {\n\t\t\tout = append(out, res)\n\t\t}",
+      "replace": "\t\tif res.Tenant.Provider != provider {\n\t\t\tout = append(out, res)\n\t\t}",
       "test": "TestAResetDestroysWhatTheCheckpointDoesNotHold"
     },
     {
@@ -43,6 +43,21 @@
       "find": "\tif !validCheckpointName(name) {",
       "replace": "\tif !validCheckpointName(name) && false {",
       "test": "TestACheckpointTakesBothHalvesOrNeither"
+    },
+    {
+      "label": "a host nobody can survey is taken for an empty one, so a reset offers every record for recreation and starts a second container beside each one already running. The defect is trusting the store about a question only the runtime can answer: the store is exactly what just changed",
+      "file": "internal/core/emulator/checkpoint.go",
+      "find": "\tleft, asked, err := env.machines.Survey(ctx)\n\tif !asked || err != nil {\n\t\treturn nil, false\n\t}",
+      "replace": "\tleft, asked, err := env.machines.Survey(ctx)\n\tif (!asked || err != nil) && false {\n\t\treturn nil, false\n\t}",
+      "test": "TestAResetAsksNothingOfAHostNobodyCanSurvey"
+    },
+    {
+      "label": "the pack is handed the records and asked to start them without being told what the host holds, so every record looks missing. This is the version of the code that shipped for an hour: the core picked the missing records itself with a \"feint-\" prefix, which put a provider's vocabulary in the neutral layer and matched a test's own bookkeeping stamp, which it then tried to boot",
+      "file": "internal/core/machine/reconcile.go",
+      "find": "\t\tname := res.Runtime[b.RuntimeKey]\n\t\tif name == \"\" || slices.Contains(held, name) {\n\t\t\tcontinue\n\t\t}",
+      "replace": "\t\tname := res.Runtime[b.RuntimeKey]\n\t\tif name == \"\" || (slices.Contains(held, name) && false) {\n\t\t\tcontinue\n\t\t}",
+      "test": "TestReconcileStartsOnlyTheMachinesThatAreMissing",
+      "package": "./internal/core/machine/"
     }
   ]
 }
