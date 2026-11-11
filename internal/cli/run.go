@@ -77,8 +77,12 @@ import (
 // one direction that costs something.
 func runCommand(args []string, stdout io.Writer, stderr io.Writer) int {
 	fs := newFlagSet("run")
-	endpoint := fs.String("endpoint", defaultEndpoint(), "the running emulator, whose mounted S3 doors decide what is intercepted. Loopback HTTP(S) only")
+	endpoint := fs.String("endpoint", "", "attach to an emulator already running here, instead of starting one. Empty means this command owns the lab and stops it. Loopback HTTP(S) only")
+	provider := fs.String("provider", "", "resolve only this provider's client environment into the child; empty resolves every pack's")
 	addr := fs.String("addr", "127.0.0.1:0", "the proxy's listen address; the default takes a free loopback port and prints it")
+	runtimeMode := fs.String("runtime", "off", "the machine runtime the lab starts with: off, incus, incus-vm, incus-ovn, auto. Anything but off starts containers on this host, so it is asked for")
+	keep := fs.Bool("keep-on-failure", false, "when the child fails, leave the lab running and print how to reach and remove it")
+	receiptPath := fs.String("json", "", "write the receipt as JSON to this path; `-` means stdout, which is only safe when the command itself is quiet")
 	unsafe := fs.Bool("unsafe-real-credentials", false, "allow the child to carry credentials that are not known fakes. The emulator never checks a signature, so this buys nothing and risks sending real keys to a third party")
 	if err := fs.Parse(args); err != nil {
 		return exitError
@@ -98,18 +102,187 @@ func runCommand(args []string, stdout io.Writer, stderr io.Writer) int {
 		return exitError
 	}
 
-	profiles, err := runProfiles(*endpoint)
-	if err != nil {
+	// The runtime, asked of the host before anything starts, which is `up`'s
+	// rule and for its reason: a refusal must fire with nothing running. The
+	// same seam answers, so the refusal says what `up`'s says.
+	if *endpoint != "" && *runtimeMode != "off" {
+		fmt.Fprintf(stderr, "feint run: --runtime %s needs a lab this command owns; --endpoint names one it does not\n", *runtimeMode)
+		fmt.Fprintln(stderr, "  Drop --endpoint to own the lab, or start that emulator with --vm yourself.")
+		return exitError
+	}
+	if *endpoint == "" {
+		if _, err := resolveRuntime(*runtimeMode, stderr); err != nil {
+			fmt.Fprintf(stderr, "feint run: %v\n", err)
+			fmt.Fprintf(stderr, "  `feint doctor --vm %s` reports the whole diagnosis, and --runtime off needs none of it.\n", *runtimeMode)
+			return exitError
+		}
+	}
+
+	// The lab. Owned when nothing was named, which is the default because
+	// #848's whole point is that Feint infrastructure leaves the user's
+	// mental model; attached when an endpoint is named, because a suite that
+	// already brought an emulator up with its own flags must not get a second.
+	target, owned := *endpoint, (*ownedLab)(nil)
+	if target == "" {
+		lab, err := startOwnedLab(*runtimeMode, stderr)
+		if err != nil {
+			fmt.Fprintf(stderr, "feint run: %v\n", err)
+			return exitError
+		}
+		owned, target = lab, lab.endpoint
+	}
+
+	// Everything that can be refused is refused before the child is spawned,
+	// which is `up`'s rule and for its reason: a run that dies four minutes in
+	// on a missing door has spent those minutes teaching nothing. The teardown
+	// is wired first so that a refusal below cannot leak the lab.
+	fail := func(err error) int {
 		fmt.Fprintf(stderr, "feint run: %v\n", err)
+		if owned != nil {
+			if closeErr := owned.close(stderr); closeErr != nil {
+				fmt.Fprintf(stderr, "feint run: %v\n", closeErr)
+			}
+		}
 		return exitError
 	}
 
-	code, err := runChild(*endpoint, *addr, profiles, command, *unsafe, stdout, stderr)
+	profiles, err := runProfiles(target)
 	if err != nil {
-		fmt.Fprintf(stderr, "feint run: %v\n", err)
+		return fail(err)
+	}
+	exports, providers, err := providerExports(target, *provider)
+	if err != nil {
+		return fail(err)
+	}
+
+	// The escape refusal #848 asks for, before a child is spawned and before
+	// a `terraform apply` can reach anything. It fires on a hazard this run
+	// has no door for, never on one it intercepts — the distinction is in
+	// stackEscapes and it is the whole difference between a useful refusal and
+	// a command that refuses the stacks it was built for.
+	if escapes := stackEscapes(profiles); len(escapes) != 0 {
+		fmt.Fprintln(stderr, "feint run: refusing to start; this configuration can reach a real cloud this run does not intercept")
+		for _, escape := range escapes {
+			fmt.Fprintf(stderr, "  %s\n", escape)
+		}
+		fmt.Fprintln(stderr, "  Mount that provider's door (--objectstore and --s3-doors on the emulator), or run elsewhere.")
+		if owned != nil {
+			if closeErr := owned.close(stderr); closeErr != nil {
+				fmt.Fprintf(stderr, "feint run: %v\n", closeErr)
+			}
+		}
 		return exitError
 	}
+
+	// What the child may see: the measured reroutes removed, this command's
+	// own exports added. The strip is what makes the receipt's "no known
+	// escape observed" more than a hope — a variable a pack measured as a way
+	// to reach the real cloud cannot reach the child at all.
+	stripped := hazardVariables()
+	childEnv := childEnvironment{strip: stripped, set: exports}
+
+	// Counted before and after, so an ATTACHED lab's earlier traffic is not
+	// reported as this run's. The owned case starts at zero and the delta is
+	// the same number; the attached case is where a total would lie.
+	before, _ := callsSoFar(target)
+
+	code, runErr := runChild(target, *addr, profiles, command, *unsafe, childEnv, stdout, stderr)
+
+	// Read before the teardown, or there is nothing left to read.
+	after, truncated := callsSoFar(target)
+	calls := after - before
+	if calls < 0 || truncated {
+		// A ring that wrapped makes the delta meaningless, and so does a
+		// restart. Report what was last seen and say it is a window.
+		calls, truncated = after, true
+	}
+	runtimeName, capabilities, proof := labHealth(target)
+
+	cleanup := "not owned"
+	if owned != nil {
+		switch {
+		case keepsTheLab(code, runErr, *keep):
+			owned.keep(stderr)
+			cleanup = "kept"
+		default:
+			if closeErr := owned.close(stderr); closeErr != nil {
+				fmt.Fprintf(stderr, "feint run: %v\n", closeErr)
+				cleanup = "failed"
+			} else {
+				cleanup = "clean"
+			}
+		}
+	}
+
+	if runErr != nil {
+		fmt.Fprintf(stderr, "feint run: %v\n", runErr)
+		return exitError
+	}
+
+	intercepted := make([]string, 0, len(profiles))
+	for _, profile := range profiles {
+		intercepted = append(intercepted, profile.CloudHost)
+	}
+	receipt := runReceipt{
+		SchemaVersion: runReceiptSchemaVersion, Lab: labKind(owned),
+		Session: labSession(owned), Endpoint: target,
+		Runtime: runtimeName, Capabilities: capabilities, RuntimeProof: proof,
+		Providers: providers, Intercepted: intercepted, Command: command,
+		Calls: calls, CallsTruncated: truncated, Stripped: stripped,
+		Exit: code, Cleanup: cleanup,
+		RealCloud: "no known escape observed",
+	}
+	// stdout belongs to the CHILD, and to nothing else. Measured rather than
+	// reasoned: the first version wrote the JSON receipt there, and replaying
+	// a surveyed stack made `terraform apply` print its plan into the same
+	// stream, so the receipt was unparseable exactly when the run was real.
+	// The prose goes to stderr beside the rest of this command's prose, and
+	// the JSON goes to a path the caller names.
+	receipt.render(stderr)
+	if *receiptPath != "" {
+		if err := writeReceipt(receipt, *receiptPath, stdout); err != nil {
+			fmt.Fprintf(stderr, "feint run: %v\n", err)
+			return exitError
+		}
+	}
+	// The child's code, not this command's: a wrapper that swallowed a
+	// failing test would be worse than no wrapper.
 	return code
+}
+
+// keepsTheLab answers whether a finished run leaves its emulator up.
+//
+// A function rather than a condition inline, because it is the decision this
+// command is most likely to get wrong in the expensive direction: keeping on
+// success would leave a port and a directory behind after every green run,
+// and nothing in the output would say so. Both halves are asserted, and the
+// mutation that drops either is in
+// tools/falsify/specs/a-run-owns-its-lab.json.
+//
+// TestALabIsKeptOnlyWhenAFailedRunAskedForIt fails without this.
+func keepsTheLab(code int, runErr error, asked bool) bool {
+	if !asked {
+		return false
+	}
+	return code != exitOK || runErr != nil
+}
+
+// labSession names an owned lab, and deliberately nothing for an attached
+// one: its identity belongs to whoever started it, and inventing a second name
+// for it would put two names on one emulator.
+func labSession(owned *ownedLab) string {
+	if owned == nil {
+		return ""
+	}
+	return owned.session
+}
+
+// labKind names who owns the emulator, for a receipt a reader can act on.
+func labKind(owned *ownedLab) string {
+	if owned == nil {
+		return "attached"
+	}
+	return "owned"
 }
 
 // runProfiles asks the emulator which doors it mounted and pairs each with the
@@ -270,7 +443,7 @@ func withoutCABundle(environ []string) []string {
 
 // runChild mounts the forward, mints the CA, runs the command and removes both.
 func runChild(endpoint, addr string, profiles []s3.Profile, command []string, unsafe bool,
-	stdout, stderr io.Writer,
+	childEnv childEnvironment, stdout, stderr io.Writer,
 ) (int, error) {
 	// The transport is what makes a door reachable: a client asks for
 	// GET / on the cloud authority, and the door lives under a path prefix.
@@ -377,19 +550,23 @@ func runChild(endpoint, addr string, profiles []s3.Profile, command []string, un
 	// The receipt, before the child runs rather than after. #849 asks that
 	// every rewrite be inspectable; printed first, it is also inspectable by
 	// somebody who interrupts the run.
-	fmt.Fprintf(stdout, "feint run: proxy on %s, authority at %s\n", proxyURL, caPath)
+	// The interception receipt is prose, so it goes to stderr: with --json,
+	// stdout carries the run receipt and nothing else, and the child's own
+	// stdout is already there. Before #848 this was on stdout, where it mixed
+	// with whatever the child printed; nothing reads it as data.
+	fmt.Fprintf(stderr, "feint run: proxy on %s, authority at %s\n", proxyURL, caPath)
 	for _, profile := range profiles {
-		fmt.Fprintf(stdout, "  https://%s and https://<bucket>.%s -> %s%s (TLS terminated with the run's own authority)\n",
+		fmt.Fprintf(stderr, "  https://%s and https://<bucket>.%s -> %s%s (TLS terminated with the run's own authority)\n",
 			profile.CloudHost, profile.CloudHost, endpoint, s3.DoorPath(profile.Provider, profile.Region))
 	}
-	fmt.Fprintln(stdout, "  every other host is refused, never tunnelled")
+	fmt.Fprintln(stderr, "  every other host is refused, never tunnelled")
 	if unsafe {
-		fmt.Fprintln(stdout, "  --unsafe-real-credentials: the child's credentials were NOT checked")
+		fmt.Fprintln(stderr, "  --unsafe-real-credentials: the child's credentials were NOT checked")
 	}
 
 	child := exec.Command(command[0], command[1:]...) //nolint:gosec // the operator's own command, explicit argv, no shell
 	child.Stdin, child.Stdout, child.Stderr = os.Stdin, stdout, stderr
-	child.Env = append(withoutCABundle(os.Environ()),
+	child.Env = append(childEnv.apply(withoutCABundle(os.Environ())),
 		"HTTP_PROXY="+proxyURL, "HTTPS_PROXY="+proxyURL,
 		"http_proxy="+proxyURL, "https_proxy="+proxyURL,
 		// The emulator itself must not go through the proxy, or a request to it

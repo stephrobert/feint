@@ -159,7 +159,7 @@ resource "scaleway_object" "payload" {
 		var stdout, stderr bytes.Buffer
 		started := time.Now()
 		code, err := runChild(objects.URL, "127.0.0.1:0", profiles,
-			append([]string{terraform}, args...), false, &stdout, &stderr)
+			append([]string{terraform}, args...), false, childEnvironment{}, &stdout, &stderr)
 		// Timed and logged, because a witness that passes implausibly fast is a
 		// witness nobody should believe: 0.94s for init+apply+plan+destroy was
 		// the first result here, and reading the durations is what settles it.

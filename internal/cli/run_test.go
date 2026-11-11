@@ -176,7 +176,7 @@ func TestRunRemovesItsAuthorityAfterASignal(t *testing.T) {
 	// `kill -TERM $PPID` targets this test process; runChild relays it to the
 	// child, which then dies on it rather than sleeping out the timeout.
 	code, err := runChild(server.URL, "127.0.0.1:0", profiles,
-		[]string{"sh", "-c", "kill -TERM $PPID; sleep 30"}, false, &stdout, &stderr)
+		[]string{"sh", "-c", "kill -TERM $PPID; sleep 30"}, false, childEnvironment{}, &stdout, &stderr)
 	if err != nil {
 		t.Fatalf("run failed: %v", err)
 	}
@@ -186,14 +186,17 @@ func TestRunRemovesItsAuthorityAfterASignal(t *testing.T) {
 
 	// The receipt names the authority, which is how its removal is observable
 	// at all — the directory is private to the run.
+	//
+	// Read from STDERR since #848: stdout is the run receipt's stream and
+	// nothing else, so that --json needs no prose stripped out of it.
 	var authority string
-	for _, line := range strings.Split(stdout.String(), "\n") {
+	for _, line := range strings.Split(stderr.String(), "\n") {
 		if _, after, ok := strings.Cut(line, "authority at "); ok {
 			authority = strings.TrimSpace(after)
 		}
 	}
 	if authority == "" {
-		t.Fatalf("the receipt does not name the authority: %q", stdout.String())
+		t.Fatalf("the receipt does not name the authority: %q", stderr.String())
 	}
 	if _, err := os.Stat(authority); !os.IsNotExist(err) {
 		t.Fatalf("the authority survived the signal at %s: %v", authority, err)
@@ -218,7 +221,7 @@ func TestRunKeepsItsAuthorityOwnerOnly(t *testing.T) {
 		// its authority (exit 0 below), and `ls -ld` prints the directory's
 		// mode the one way every Unix spells it.
 		[]string{"sh", "-c", `cat "$SSL_CERT_FILE" > /dev/null || exit 3; printf 'authority=%s\n' "$SSL_CERT_FILE"; ls -ld "$(dirname "$SSL_CERT_FILE")"`},
-		false, &stdout, &stderr)
+		false, childEnvironment{}, &stdout, &stderr)
 	if err != nil || code != 0 {
 		t.Fatalf("the child could not read its own authority: code %d, %v, %q", code, err, stderr.String())
 	}
@@ -335,7 +338,7 @@ func TestDoctorSeesARunInFlightAsItsOwner(t *testing.T) {
 	go func() {
 		_, err := runChild(server.URL, "127.0.0.1:0", profiles,
 			[]string{"sh", "-c", `while [ ! -f "$0" ]; do sleep 0.02; done`, release},
-			false, &stdout, &stderr)
+			false, childEnvironment{}, &stdout, &stderr)
 		done <- err
 	}()
 	defer func() {
@@ -394,7 +397,7 @@ func TestRunInterceptsBucketsAddressedAsSubdomains(t *testing.T) {
 	go func() {
 		_, err := runChild(objects.URL, "127.0.0.1:0", profiles,
 			[]string{"sh", "-c", `while [ ! -f "$0" ]; do sleep 0.02; done`, release},
-			false, &stdout, &stderr)
+			false, childEnvironment{}, &stdout, &stderr)
 		done <- err
 	}()
 	defer func() {
@@ -406,7 +409,7 @@ func TestRunInterceptsBucketsAddressedAsSubdomains(t *testing.T) {
 		}
 	}()
 
-	proxyURL, ca := awaitReceipt(t, &stdout)
+	proxyURL, ca := awaitReceipt(t, &stderr)
 	pem, err := os.ReadFile(ca) //nolint:gosec // the path this run printed
 	if err != nil {
 		t.Fatalf("read the run's authority: %v", err)
@@ -466,11 +469,11 @@ func TestRunInterceptsBucketsAddressedAsSubdomains(t *testing.T) {
 
 // awaitReceipt reads the proxy address and authority path out of the receipt,
 // which is also the only place they are published — the run owns both.
-func awaitReceipt(t *testing.T, stdout *syncBuffer) (*url.URL, string) {
+func awaitReceipt(t *testing.T, stream *syncBuffer) (*url.URL, string) {
 	t.Helper()
 	deadline := time.Now().Add(10 * time.Second)
 	for {
-		for _, line := range strings.Split(stdout.String(), "\n") {
+		for _, line := range strings.Split(stream.String(), "\n") {
 			rest, ok := strings.CutPrefix(line, "feint run: proxy on ")
 			if !ok {
 				continue
@@ -486,7 +489,7 @@ func awaitReceipt(t *testing.T, stdout *syncBuffer) (*url.URL, string) {
 			return parsed, strings.TrimSpace(authority)
 		}
 		if time.Now().After(deadline) {
-			t.Fatalf("the run printed no receipt: %q", stdout.String())
+			t.Fatalf("the run printed no receipt: %q", stream.String())
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
@@ -547,7 +550,7 @@ func TestRunGivesTheChildOnlyTheFourMeasuredVariables(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	// The child reports the environment it was actually given.
 	code, err := runChild(server.URL, "127.0.0.1:0", profiles,
-		[]string{"sh", "-c", "env"}, false, &stdout, &stderr)
+		[]string{"sh", "-c", "env"}, false, childEnvironment{}, &stdout, &stderr)
 	if err != nil || code != 0 {
 		t.Fatalf("run failed: code %d, %v, %q", code, err, stderr.String())
 	}

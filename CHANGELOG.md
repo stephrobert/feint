@@ -13,6 +13,38 @@ Two kinds of change deserve their own line whatever their size, because they are
 what this project is judged on: **a response shape a client can observe**, and
 **a limit that moved**. A refactor that changes neither belongs in `git log`.
 
+## [Unreleased]
+
+### Added
+
+- **`feint run` owns the lab** (#848): with no `--endpoint` it starts an
+  emulator, waits for it, resolves the provider environment the way `feint env`
+  does, runs the command and stops everything it started. `--provider` narrows
+  the exports to one pack, `--keep-on-failure` leaves a failed run's lab up and
+  prints the exact command to reach and remove it, `--json <path>` writes the
+  receipt where it is asked for, and `--runtime` asks the host for a machine
+  runtime before anything starts, with the refusal `feint up` makes. The exit
+  code is the child's, and stdout belongs to the child alone.
+- **A run removes the variables a pack measured as a way back to the real
+  cloud**, rather than only overriding them: `OSC_PROFILE` makes the Outscale
+  provider 1.1.x read `~/.osc/config.json` and ignore the endpoint export
+  entirely (#342), so overriding does not help and the variable has to go. The
+  names are discovered from the packs' own `EnvHazards`, not kept in a second
+  list here.
+
+### Changed
+
+- **`feint run` leaves stdout to the command it runs.** Its own prose goes to
+  stderr and the JSON receipt to a path. Measured rather than reasoned: the
+  first version wrote the receipt to stdout, and replaying a surveyed stack
+  made `terraform apply` print its plan into the same stream, so the receipt
+  was unparseable exactly when the run was real.
+- **A run refuses a measured escape it has no door for**, before the child
+  starts. Not every hazard: the ones the packs report are what this command
+  intercepts, so the question is whether THIS run mounts a door for the pack
+  that reported it. The receipt also reports the runtime and the capabilities
+  the emulator declares, rather than the mode that was asked for.
+
 ## [0.15.0] - 2026-11-11
 
 ### Added

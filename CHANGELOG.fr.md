@@ -15,6 +15,41 @@ parce que c'est là-dessus que ce projet est jugé : **une forme de réponse qu'
 client peut observer**, et **une limite qui a bougé**. Une refactorisation qui ne
 change ni l'un ni l'autre a sa place dans `git log`.
 
+## [Unreleased]
+
+### Ajouté
+
+- **`feint run` possède son laboratoire** (#848) : sans `--endpoint`, il démarre
+  un émulateur, l'attend, résout l'environnement du provider comme le fait
+  `feint env`, lance la commande et arrête tout ce qu'il a démarré.
+  `--provider` restreint les exports à un seul pack, `--keep-on-failure` laisse
+  debout le laboratoire d'une exécution ratée et imprime la commande exacte pour
+  l'atteindre et le supprimer, `--json <chemin>` écrit le reçu là où on le
+  demande, et `--runtime` demande à l'hôte un runtime de machines avant que
+  quoi que ce soit ne démarre, avec le refus qu'oppose `feint up`. Le code de
+  sortie est celui de l'enfant, et la sortie standard appartient à lui seul.
+- **Une exécution retire les variables qu'un pack a mesurées comme un retour
+  vers le vrai cloud**, au lieu de seulement les écraser : `OSC_PROFILE` fait
+  lire `~/.osc/config.json` au provider Outscale 1.1.x, qui ignore alors
+  complètement l'export d'endpoint (#342). Écraser ne suffit donc pas, la
+  variable doit disparaître. Les noms se découvrent depuis les `EnvHazards` des
+  packs, et non depuis une seconde liste tenue ici.
+
+### Modifié
+
+- **`feint run` laisse la sortie standard à la commande qu'il lance.** Sa
+  propre prose part sur la sortie d'erreur et le reçu JSON dans un fichier.
+  Mesuré plutôt que raisonné : la première version écrivait le reçu sur la
+  sortie standard, et en rejouant une stack du registre, `terraform apply` y a
+  imprimé son plan, rendant le reçu illisible précisément quand l'exécution
+  était réelle.
+- **Une exécution refuse une fuite mesurée pour laquelle elle n'a pas de
+  porte**, avant que l'enfant ne démarre. Pas tous les dangers : ceux que les
+  packs signalent sont ceux que cette commande intercepte, donc la question est
+  de savoir si **cette** exécution monte une porte pour le pack qui l'a
+  signalé. Le reçu rapporte aussi le runtime et les capacités que l'émulateur
+  déclare, et non le mode demandé.
+
 ## [0.15.0] - 2026-11-11
 
 ### Ajouté
