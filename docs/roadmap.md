@@ -828,6 +828,14 @@ unkeepable promise costs.
 
 ### And then the runtime is somebody else's project
 
+> **Clarified 2026-11-11, and it stands.** `docs/limits.md`, *"The lab is
+> disposable, and that is the boundary"*, writes the decision #196 had been
+> holding open and refuses #553, #554 and #555. One nuance it adds: the
+> boundary is a resource whose **loss would matter**, not persistence as such.
+> The emulator's own record may survive a restart — it is rebuildable, never
+> authoritative, and holds nobody's content — which is why #551 stays in scope
+> while durable volumes do not.
+
 The obvious next step is to teach this driver about clusters. It is the wrong
 one, and saying why is the most useful thing on this page.
 

@@ -1512,6 +1512,75 @@ this change: an instance snapshot of a block volume is typed `unified`, never
 `block/v1alpha1`, and an image cut from a snapshot that broke that promise made
 `scw instance image list` fail for the whole zone.
 
+## The lab is disposable, and that is the boundary (#196, #733)
+
+**feint never manages a resource whose loss would matter.** It materialises a
+lab on one host, and everything in that lab is rebuilt rather than recovered.
+A durable resource — a volume holding bytes somebody wants back, a reconciler
+that owns the host's state, quotas over real capacity — belongs to a different
+product, and `docs/roadmap.md` has said so from the start: *"a small IaaS above
+Incus answers a different question from the one this project answers, and
+answering both in one binary is how a repository acquires two products and does
+neither well."*
+
+Decided 2026-11-11. It had been filed as #196 and unwritten since, while three
+milestones planned the opposite — which is how a reader of either text would
+have been right and wrong at once. The sentence above is what stands; what
+follows is what it does and does not forbid, because that distinction is the
+whole content of the decision.
+
+### Why this is a safety property and not a scope preference
+
+The argument that makes feint safe to run on an operator's own station is one
+sentence: **it only touches what it made, and what it made is disposable.**
+Both halves carry weight. The first is enforced — every object is labelled, the
+driver answers ownership before shape, and `feint clean` sweeps exactly its own
+work. The second is what makes the first affordable: a sweep that could destroy
+something irreplaceable would need a confirmation, a backup story and a recovery
+path, and an emulator that grows those is one nobody dares point at a real
+directory.
+
+An audit has already turned a crafted snapshot into `incus delete --force` and
+`network delete incusbr0` on a host. Those were refused by ownership checks. The
+reason that refusal is enough, rather than merely necessary, is that nothing
+feint owns was worth keeping.
+
+### What persistence IS allowed, and why it is not the same thing
+
+The record of a lab may survive a restart. That is #551's subject and it is in
+scope: an `apply`, a `kill -9` and a restart that leaves the plan empty is a
+convenience for the person using the lab, not a promise about anybody's bytes.
+
+Three properties keep it on this side of the boundary, and a change that breaks
+any one of them is a change of product rather than a feature:
+
+- **the record is explicitly rebuildable.** Losing it costs a re-apply, never
+  data. `feint snapshot save` already writes one on request and
+  `PUT /_feint/state` restores it;
+- **it is never authoritative.** What the runtime holds decides; the record
+  describes. A restored record naming a machine is an untrusted input, revalidated
+  at the boundary — see the sections on ownership above;
+- **nothing in it is a user's content.** Object Storage bytes are the one place
+  that could become so, and they are bounded by a byte budget, held under a
+  directory feint owns, and swept with the rest.
+
+### What this refuses, by name
+
+- a reconciler that observes the host and converges it toward a declaration,
+  publishing what it observed (#553, #554): that is the other project's control
+  loop, and it is the point at which feint would start owning state rather than
+  describing it;
+- volumes that hold bytes surviving a host reboot, with protection in each
+  provider's vocabulary and quotas over them (#555): that is a resource whose
+  loss would matter, which is the thing this section refuses;
+- multi-host anything. `docs/roadmap.md` already puts the scheduler, the IPAM
+  and the authentication of such a project outside this repository, and #195
+  draws the HTTP boundary a second backend would speak across.
+
+The refusal is of the work landing **here**, not of the work. A homelab that
+materialises durable resources is a legitimate product; it is a different one,
+and the line between them is this section.
+
 ## What survives a dead emulator, in one table
 
 The store is memory: a dead process loses every emulated resource, and that is
