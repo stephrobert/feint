@@ -330,6 +330,26 @@ else
   printf "  %s·%s conformance on CI not checked (no remote, or gh is not installed)\n" "$DIM" "$OFF"
 fi
 
+# The tracker has to agree with the tags, and until today it did not: v0.14.0
+# and v0.15.0 were both published while milestones titled after them stayed open
+# with 19 and 10 issues. milestone-gate.sh says why at length, and exits 2 when
+# it could not measure rather than refusing a tag for a reason that is not about
+# the repository.
+if git remote | grep -q . && command -v gh >/dev/null 2>&1; then
+  # The status is captured rather than read from $? after the fact: the three
+  # branches are the whole point of this gate, and a check written as
+  # `if ...; elif [ $? = 2 ]` reads the status of whichever test ran last.
+  gate_status=0
+  gate="$("$(dirname "$0")/milestone-gate.sh" "$VERSION" 2>&1)" || gate_status=$?
+  case "$gate_status" in
+    0) ok "$gate" ;;
+    2) printf "  %s·%s milestones not checked (%s)\n" "$DIM" "$OFF" "$gate" ;;
+    *) ko "the tracker disagrees with the tags" "$gate" ;;
+  esac
+else
+  printf "  %s·%s milestones not checked (no remote, or gh is not installed)\n" "$DIM" "$OFF"
+fi
+
 echo
 if [ "$failures" -gt 0 ]; then
   printf "%s%d check(s) failed; nothing was tagged.%s\n" "$RED" "$failures" "$OFF" >&2

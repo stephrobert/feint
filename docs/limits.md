@@ -242,6 +242,22 @@ interception plus a certificate the provider will accept"*, as if both were the
 hard part. The certificate is the easy, safe half; the DNS redirect is the hard,
 dangerous one.
 
+**Since 0.15.0 the cost is paid, and not by the route this section costed.**
+`feint run` (#849) stands a scoped forward proxy in front of the child: it
+accepts the `CONNECT`, terminates TLS with an authority generated for that run
+alone, and **refuses any host it was not told about rather than tunnelling
+it**. Measured on the published Scaleway provider 2.82.0, on the host network,
+with no sudo and no namespace: apply complete, 139,264 identical bytes read
+back from the local byte store by sha256, an empty second plan, a complete
+teardown. The authority is owner-only and never installed durably, and a client
+carrying real credentials is refused unless `--unsafe-real-credentials` says
+otherwise.
+
+What follows is therefore the cost of the **DNS** route, kept because it is
+what a reader comparing the two approaches needs, and because the namespace
+correction below is a measurement error worth not repeating. It is no longer
+the reason anything is refused.
+
 ### 1. How many endpoints are actually hardcoded: one product, one client
 
 The blocker is *"an endpoint built in code that no setting overrides"*. Swept
@@ -3080,6 +3096,33 @@ pack's `Declined()` with its reason. Adding an operation is ordinary work (see
 the `provider-pack-author` skill), not a redesign. The lifting condition is
 the tables', never this paragraph's: the day the counts converge, the
 generated artefacts say so without anyone rewriting a sentence here.
+
+## The Outscale Net-peering surface is proven by `shapes/`, and its transcript is not committed (#438)
+
+The five peering operations are proven: `CreateNetPeering`, `AcceptNetPeering`,
+`RejectNetPeering`, `DeleteNetPeering` and `ReadNetPeerings` each read
+`driven: true`, `shape: observed` and `negative: true` in
+`coverage/evidence.json`, from `shapes/outscale.json`. Nothing about that
+surface is unmeasured.
+
+What is **not** committed is a second proof of the same surface: the recorded
+transcript was never added to `corpus/outscale/`, which holds five
+`oapi-cli-*.jsonl` files and none for peering. Its replay produces a cascade
+from a single `CreateNet` conflict that nobody has reproduced, and
+`corpus/accepted.json` forbids the only shape that would let it in anyway: *an
+entry that excuses nothing fails the gate*, so an exemption whose reason is
+"the root is not known" cannot be written there.
+
+So the choice is deliberate rather than pending. A corpus trimmed until it
+passes is the outcome that file exists to make impossible, and a second proof
+of an already-proven surface does not buy enough to justify committing a
+replay whose failure nobody understands. The recorder findings that run
+surfaced are not lost: they are the `REDACTED-10` tag-key family, filed
+against the instrument as #384, which `corpus/accepted.json` already records
+as "NOT THE EMULATOR".
+
+This limit lifts the day the `CreateNet` conflict is reproduced, or the day a
+client this project drives exercises peering in a way `shapes/` cannot cover.
 
 ## The contracts do not guarantee the same thing
 

@@ -1,5 +1,4 @@
 {
-  "comment": "When each section of docs/limits.md was last confirmed against the issues it cites. A citation is a signal, never a proof: most closed issues are decisions whose limits hold. Re-date a line only after looking at the section. See tools/docs/limits-acks.py and #558.",
   "acknowledged": {
     "A Scaleway VPC's Network ACL is a record, and nothing at the edge applies it": "2026-08-27",
     "A Scaleway load balancer and public gateway record their configuration; nothing forwards packets": "2026-08-27",
@@ -21,16 +20,17 @@
     "Identifiers are not checked against anything": "2026-09-02",
     "Lifecycle transitions are immediate, unless you ask for otherwise": "2026-09-03",
     "Managed Kubernetes is not emulated, and a CRUD-only version is refused (#283)": "2026-08-27",
-    "Object Storage: simple explicit doors, not full client workflows": "2026-11-07",
+    "Object Storage: simple explicit doors, not full client workflows": "2026-11-11",
     "Outscale and Exoscale trail Scaleway, and the generated tables say by how much": "2026-08-27",
     "Placement is recorded, never enforced (#285)": "2026-08-27",
     "ReadTags does not list an internet service, because upstream names no type for one": "2026-08-27",
     "The Exoscale Terraform provider is refused, and why": "2026-08-27",
     "The Exoscale stack's second plan is not empty: two per-id outputs read back null at apply time (#520)": "2026-08-29",
+    "The Outscale Net-peering surface is proven by `shapes/`, and its transcript is not committed (#438)": "2026-11-11",
     "The Scaleway gateway's `GET /metadata` is served, and what it answers is three constants (#776)": "2026-09-15",
     "The catalogue is a whitelist, and its values are measured": "2026-08-27",
     "The contracts do not guarantee the same thing": "2026-08-27",
-    "The cost of DNS/TLS interception, measured (#76)": "2026-08-27",
+    "The cost of DNS/TLS interception, measured (#76)": "2026-11-11",
     "The firewall enforces, within stated bounds": "2026-08-28",
     "The guest's DHCP client is not how a published address reaches a machine (#587)": "2026-08-29",
     "The per-parameter half: 18 Scaleway list operations, 72 parameters, each served or refused (#277)": "2026-08-29",
@@ -40,5 +40,6 @@
     "`feint images resolve` prints only what boots, and names what it left out (#476)": "2026-08-30",
     "`lb/v1` refusals carry an envelope the real one does not": "2026-09-03",
     "`scw` 2.56.3 prints a recovered panic on every successful `lb acl delete`, and the defect is upstream (#505)": "2026-08-28"
-  }
+  },
+  "comment": "When each section of docs/limits.md was last confirmed against the issues it cites. A citation is a signal, never a proof: most closed issues are decisions whose limits hold. Re-date a line only after looking at the section. See tools/docs/limits-acks.py and #558."
 }

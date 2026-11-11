@@ -788,8 +788,22 @@ func renderCoverage(reports []drift.CoverageFile, routes map[string]map[string]i
 		// most of the gap is operations somebody decided to refuse. The
 		// distinction between a refusal and an absence is the one these tables
 		// exist to make, so the headline makes it before the rows do.
-		fmt.Fprintf(&b, "%d routes mounted. Of the %d operations upstream declares: %s served,\n%s declined on purpose, %s untriaged.\n\n",
-			routeTotal(byProduct), rep.Total,
+		// The product count is part of the sentence, and that is not padding.
+		// It read "Of the 548 operations upstream declares" while the Scaleway
+		// scan covers 11 of the 56 products in that SDK: a reader took 548 for
+		// Scaleway's whole API, and the scoping was stated only at
+		// docs/limits.md:3316. A verdict that does not name its population is
+		// the one failure this repository exists to refuse, and it was printed
+		// on the front page.
+		//
+		// Uniform across the three on purpose: Outscale and Exoscale are
+		// scanned whole, so the count simply says so, and nothing has to
+		// decide which provider deserves a caveat.
+		//
+		// internal/cli's TestTheCoverageHeadlineNamesItsPopulation fails
+		// without this.
+		fmt.Fprintf(&b, "%d routes mounted. Of the %d operations upstream declares in the %d product(s)\nthis scan covers: %s served, %s declined on purpose, %s untriaged.\n\n",
+			routeTotal(byProduct), rep.Total, len(rep.Products),
 			percent(rep.Implemented, rep.Total), percent(rep.Declined, rep.Total), percent(rep.Unknown, rep.Total))
 		named, rest, foldedGroups := foldSmallGroups(groupRows(rep), rep.Total)
 		b.WriteString("| Group | Served | Declined | Untriaged | Upstream |\n")
