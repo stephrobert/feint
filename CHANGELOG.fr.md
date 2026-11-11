@@ -17,8 +17,25 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-11-11
+
 ### Ajouté
 
+- **`feint checkpoint` et `feint reset`** (#853) : un point de reprise
+  enregistre le plan de contrôle et les octets sous un seul nom, et un reset y
+  ramène le labo. Il détruit ce que le point de reprise ne contient pas,
+  redémarre ce que l'hôte ne détient plus, et réapplique les jeux de règles de
+  pare-feu de chaque pack sur le runtime. Le verdict n'est pas celui de
+  l'opération : il compare ce qu'un client peut observer, le plan de contrôle,
+  les octets relus à travers les portes et ce que l'hôte détient, et il répond
+  « did not converge » au lieu de rapporter l'intention.
+- **Une route d'installation Linux dans le démarrage rapide** (#843), sous
+  celle de Homebrew et générée depuis la même version que la page
+  d'installation. Six lignes, et elles vérifient : les octets sont contrôlés
+  contre le `checksums.txt` publié avant toute installation. Ce que cela ne
+  prouve pas est dit plutôt que sous-entendu : cela prouve que les octets
+  correspondent à la liste, pas qui a écrit la liste, et la signature de la
+  liste reste dans `docs/install.md`.
 - **`feint run` possède son laboratoire** (#848) : sans `--endpoint`, il démarre
   un émulateur, l'attend, résout l'environnement du provider comme le fait
   `feint env`, lance la commande et arrête tout ce qu'il a démarré.
@@ -37,6 +54,28 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Modifié
 
+- **Le chiffre de couverture nomme la population qu'il a comptée.** Il disait
+  « Of the 548 operations upstream declares » alors que le scan Scaleway couvre
+  11 des 56 produits de ce SDK : un tiers du fournisseur était imprimé comme le
+  fournisseur. Une stack qui utilise un produit hors du scan part vers le vrai
+  endpoint, et le README dit maintenant de quel scan il parle.
+- **Le README ne dit plus que l'object storage est hors périmètre.** Il est
+  sorti en 0.15.0 ; la phrase était hors des blocs générés, là où `feint docs
+  --check` ne pouvait pas l'atteindre.
+- **Un tag est refusé tant qu'un jalon ouvert réclame une version déjà
+  publiée** (#877). `v0.14.0` et `v0.15.0` étaient publiées alors que des jalons
+  portant leur nom restaient ouverts avec 19 et 10 issues : le suivi annonçait
+  deux versions sorties comme inachevées. `tools/release/milestone-gate.sh` pose
+  la question avant chaque tag, et dit quand il n'a pas pu mesurer plutôt que de
+  refuser pour une raison qui ne concerne pas le dépôt.
+- **`docs/limits.md` a rattrapé des comportements changés depuis des mois**
+  (#857). Onze sections citaient des issues fermées depuis la dernière
+  relecture ; trois étaient fausses, dont un titre annonçant que le provider
+  Terraform Exoscale est refusé alors qu'il pilote le pack depuis septembre.
+- **La frontière de ce produit est écrite** (#196, #733) : `docs/limits.md`
+  énonce que feint ne gère jamais une ressource dont la perte compterait. Deux
+  textes courants disaient le contraire l'un de l'autre depuis deux mois, sans
+  se citer.
 - **`feint run` laisse la sortie standard à la commande qu'il lance.** Sa
   propre prose part sur la sortie d'erreur et le reçu JSON dans un fichier.
   Mesuré plutôt que raisonné : la première version écrivait le reçu sur la
@@ -49,6 +88,45 @@ change ni l'un ni l'autre a sa place dans `git log`.
   de savoir si **cette** exécution monte une porte pour le pack qui l'a
   signalé. Le reçu rapporte aussi le runtime et les capacités que l'émulateur
   déclare, et non le mode demandé.
+
+### Corrigé
+
+- **Un reset remet une règle de pare-feu sur l'interface, pas seulement dans le
+  store** (#871). `Survey` ne rend que des noms, et un jeu de règles dont le
+  contenu change garde le sien : rien dans l'observation ne pouvait voir la
+  différence, et un reset annonçait la convergence pendant que le runtime
+  appliquait encore les règles d'un état que le point de reprise ne décrit pas.
+  Reproduit par une connexion TCP sous `--vm incus` avant d'être corrigé. La
+  même passe a corrigé un reset qui démarrait la machine d'un enregistrement
+  décrit comme arrêté, puis écrivait « running » par-dessus l'état qu'on lui
+  demandait de retrouver.
+- **Le verdict du reset compare les octets d'un objet**, et plus seulement son
+  nom (#871). Il lisait l'empreinte dans un champ que `ListObjectsV2` n'émet
+  pas : le champ était toujours vide, et deux contenus différents sous une même
+  clé se comparaient égaux. Chaque objet est maintenant récupéré et haché par
+  l'observateur.
+- **`feint run` échoue quand il n'a pas tenu une promesse** (#871). Seul
+  « did not converge » faisait échouer la commande, donc un reset refusé, un
+  reset illisible et un labo que la commande possédait sans pouvoir l'arrêter
+  laissaient tous le code de sortie à celui de l'enfant.
+- **Un point de reprise est entier, ou c'est le précédent** (#871). Les octets
+  étaient enregistrés avant l'instantané du plan de contrôle : un échec à la
+  seconde étape laissait un point de reprise antérieur du même nom avec son
+  ancien store à côté des nouvelles références d'objets.
+- **Les points de reprise nommés cessent de s'écraser** (#871) : l'émulateur en
+  détient autant qu'on veut, le CLI en écrivait un par instance, donc
+  `checkpoint A` puis `checkpoint B` rendait `reset A` impossible.
+- **Le crochet pre-commit `gofmt` échoue quand gofmt ne peut pas s'exécuter**
+  (#829). Il lisait la liste des fichiers à reformater et jamais le code de
+  sortie : tout échec de gofmt produisait une liste vide, et le crochet
+  répondait « Passed ». Sa fenêtre est un clone neuf avant `mise trust`,
+  c'est-à-dire le premier commit d'un nouveau contributeur.
+- **Un verdict d'équilibrage est tiré de vingt-quatre connexions, pas six**
+  (#559). Six, c'est une pièce lancée six fois : un équilibreur qui fonctionne
+  envoyait toutes les connexions du même côté environ une fois sur trente-deux,
+  et la suite rougissait sur un sujet qui se comportait bien. Le même calcul
+  valait dans l'autre sens après un délien, en faux vert sur un vrai défaut.
+
 
 ## [0.15.0] - 2026-11-11
 

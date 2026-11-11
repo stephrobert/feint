@@ -15,8 +15,24 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-11-11
+
 ### Added
 
+- **`feint checkpoint` and `feint reset`** (#853): a checkpoint records the
+  control plane and the object bytes under one name, and a reset returns the
+  lab to it — destroying what the checkpoint does not hold, starting again what
+  the host no longer holds, and putting each pack's firewall rule sets back on
+  the runtime. The verdict is not the operation's own: it compares what a
+  client can observe, control plane, bytes read back through the doors, and
+  what the host holds, and it says `did not converge` rather than reporting the
+  intention.
+- **A Linux install route in the Quick Start** (#843), under the Homebrew one
+  and generated from the same version the install page is pinned to. Six lines,
+  and they verify: the bytes are checked against the published `checksums.txt`
+  before anything is installed. What that does not prove is said rather than
+  implied — it proves the bytes match the list, not who wrote the list, and the
+  signature over the list stays in `docs/install.md`.
 - **`feint run` owns the lab** (#848): with no `--endpoint` it starts an
   emulator, waits for it, resolves the provider environment the way `feint env`
   does, runs the command and stops everything it started. `--provider` narrows
@@ -34,6 +50,28 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Changed
 
+- **The coverage headline names the population it counted.** It read "Of the
+  548 operations upstream declares" while the Scaleway scan covers 11 of the 56
+  products in that SDK, so a third of the provider was printed as the provider.
+  A stack using a product outside the scan reaches the real endpoint, and the
+  README now says which scan it is talking about.
+- **`README.md` stops saying object storage is out of scope.** It shipped in
+  0.15.0; the sentence sat outside the generated blocks, where `feint docs
+  --check` could not reach it.
+- **A tag is refused while an open milestone claims a version already tagged**
+  (#877). `v0.14.0` and `v0.15.0` were both published while milestones named
+  after them stayed open with 19 and 10 issues, so the tracker said two
+  released versions were unfinished. `tools/release/milestone-gate.sh` asks
+  before each tag, and says when it could not measure rather than refusing for
+  a reason that is not about the repository.
+- **`docs/limits.md` caught up with behaviour that changed months ago** (#857).
+  Eleven sections cited issues that had closed since anyone last read them;
+  three were false, including a heading saying the Exoscale Terraform provider
+  is refused when it has been driving the pack since September.
+- **The boundary of this product is written down** (#196, #733):
+  `docs/limits.md` states that feint never manages a resource whose loss would
+  matter. Two current texts had said opposite things for two months, neither
+  citing the other.
 - **`feint run` leaves stdout to the command it runs.** Its own prose goes to
   stderr and the JSON receipt to a path. Measured rather than reasoned: the
   first version wrote the receipt to stdout, and replaying a surveyed stack
@@ -44,6 +82,41 @@ what this project is judged on: **a response shape a client can observe**, and
   intercepts, so the question is whether THIS run mounts a door for the pack
   that reported it. The receipt also reports the runtime and the capabilities
   the emulator declares, rather than the mode that was asked for.
+
+### Fixed
+
+- **A reset puts a firewall rule back on the interface, not only in the store**
+  (#871). `Survey` answers names, and a rule set whose content changed keeps its
+  name, so nothing in the observation could see the difference: a reset reported
+  convergence while the runtime went on enforcing the rules of a state the
+  checkpoint does not describe. Reproduced with a TCP connection under
+  `--vm incus` before being fixed. The same pass fixed a reset starting the
+  machine of a record the checkpoint describes as stopped, and then writing
+  `running` over the state it had been asked to return to.
+- **The reset verdict compares the bytes of an object**, not just its name
+  (#871). It read the digest from a field `ListObjectsV2` does not emit, so the
+  field was always empty and two different contents under one key compared
+  equal. Each object is now fetched and hashed by the observer.
+- **`feint run` fails when it did not keep a promise** (#871). Only
+  `did not converge` used to fail the run, so a failed reset, one that could not
+  be read back, and a lab this command owned and could not stop all left the
+  exit code at the child's.
+- **A checkpoint is whole or it is the previous one** (#871). The bytes were
+  saved before the control-plane snapshot, so a failure in the second step left
+  an earlier checkpoint of that name holding its old store beside the new object
+  references.
+- **Named checkpoints stop overwriting each other** (#871): the emulator holds
+  any number and the CLI wrote one file per instance, so `checkpoint A` then
+  `checkpoint B` made `reset A` impossible.
+- **The `gofmt` pre-commit hook fails when gofmt cannot run** (#829). It read
+  the list of offending files and never the exit code, so any failure of gofmt
+  produced an empty list and the hook reported `Passed`. Its window is a fresh
+  clone before `mise trust`, which is a new contributor's first commit.
+- **A balancer verdict is drawn from twenty-four connections, not six** (#559).
+  Six is a coin flipped six times: a balancer that works sent every connection
+  to one side about one run in thirty-two, so the dataplane suite reddened on a
+  subject that was behaving. The same arithmetic ran the other way after an
+  unlink, as a false green over a real defect.
 
 ## [0.15.0] - 2026-11-11
 
