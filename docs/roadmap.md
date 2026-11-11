@@ -828,13 +828,18 @@ unkeepable promise costs.
 
 ### And then the runtime is somebody else's project
 
-> **Clarified 2026-11-11, and it stands.** `docs/limits.md`, *"The lab is
-> disposable, and that is the boundary"*, writes the decision #196 had been
-> holding open and refuses #553, #554 and #555. One nuance it adds: the
-> boundary is a resource whose **loss would matter**, not persistence as such.
-> The emulator's own record may survive a restart — it is rebuildable, never
-> authoritative, and holds nobody's content — which is why #551 stays in scope
-> while durable volumes do not.
+> **Superseded in part, 2026-11-11.** The decision #196 had been holding open
+> is written in `docs/limits.md`, *"feint is to hold durable resources, and the
+> safety argument has to change with it"*, and it answers the other way: feint
+> materialises a homelab's durable resources on one host, under one
+> personality. #551, #553, #554 and #555 are the work.
+>
+> **What still holds here is the sentence below about a MULTI-HOST cloud.** The
+> boundary moves from *persistent* to *multi-host*: the other project's API,
+> its scheduler, its IPAM and its authentication are still not issues here, and
+> #195 still describes the HTTP contract a second backend speaks across. The
+> paragraph is kept whole, per the journal rule, so that what moved and what did
+> not are both legible.
 
 The obvious next step is to teach this driver about clusters. It is the wrong
 one, and saying why is the most useful thing on this page.

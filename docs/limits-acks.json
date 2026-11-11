@@ -36,7 +36,6 @@
     "The cost of DNS/TLS interception, measured (#76)": "2026-11-11",
     "The firewall enforces, within stated bounds": "2026-08-28",
     "The guest's DHCP client is not how a published address reaches a machine (#587)": "2026-11-11",
-    "The lab is disposable, and that is the boundary (#196, #733)": "2026-11-11",
     "The per-parameter half: 18 Scaleway list operations, 72 parameters, each served or refused (#277)": "2026-08-29",
     "The station reaches an OVN private address only via the network's router, and the posted uplink routes do not go there (#496)": "2026-08-27",
     "The three packs hand their security groups to the runtime, within two measured bounds": "2026-08-28",
@@ -44,7 +43,8 @@
     "Which door a reply leaves by, and why it does not decide (#672)": "2026-11-11",
     "`feint images resolve` prints only what boots, and names what it left out (#476)": "2026-08-30",
     "`lb/v1` refusals carry an envelope the real one does not": "2026-09-03",
-    "`scw` 2.56.3 prints a recovered panic on every successful `lb acl delete`, and the defect is upstream (#505)": "2026-08-28"
+    "`scw` 2.56.3 prints a recovered panic on every successful `lb acl delete`, and the defect is upstream (#505)": "2026-08-28",
+    "feint is to hold durable resources, and the safety argument has to change with it (#196, #733)": "2026-11-11"
   },
   "comment": "When each section of docs/limits.md was last confirmed against the issues it cites. A citation is a signal, never a proof: most closed issues are decisions whose limits hold. Re-date a line only after looking at the section. See tools/docs/limits-acks.py and #558."
 }

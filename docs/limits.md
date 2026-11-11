@@ -1512,74 +1512,71 @@ this change: an instance snapshot of a block volume is typed `unified`, never
 `block/v1alpha1`, and an image cut from a snapshot that broke that promise made
 `scw instance image list` fail for the whole zone.
 
-## The lab is disposable, and that is the boundary (#196, #733)
+## feint is to hold durable resources, and the safety argument has to change with it (#196, #733)
 
-**feint never manages a resource whose loss would matter.** It materialises a
-lab on one host, and everything in that lab is rebuilt rather than recovered.
-A durable resource — a volume holding bytes somebody wants back, a reconciler
-that owns the host's state, quotas over real capacity — belongs to a different
-product, and `docs/roadmap.md` has said so from the start: *"a small IaaS above
-Incus answers a different question from the one this project answers, and
-answering both in one binary is how a repository acquires two products and does
-neither well."*
+**Decided 2026-11-11: feint materialises a homelab's durable resources on one
+host, under one personality. A multi-host cloud with its own scheduler is
+another project.** That is the wording #733 itself offered, and it supersedes
+in part `docs/roadmap.md`'s *"and then the runtime is somebody else's
+project"* — the boundary moves from *persistence* to *multi-host*. #195 still
+draws the second one and is untouched: a control plane on the far side speaks
+an HTTP contract, and shares no Go package.
 
-Decided 2026-11-11. It had been filed as #196 and unwritten since, while three
-milestones planned the opposite — which is how a reader of either text would
-have been right and wrong at once. The sentence above is what stands; what
-follows is what it does and does not forbid, because that distinction is the
-whole content of the decision.
+The decision had been filed as #196 and left unwritten for two months while
+three milestones planned it and one roadmap sentence denied it. **What was
+missing was never the direction; it was that neither text cited the other.**
 
-### Why this is a safety property and not a scope preference
+### What is true today, which is not the same thing
 
-The argument that makes feint safe to run on an operator's own station is one
-sentence: **it only touches what it made, and what it made is disposable.**
-Both halves carry weight. The first is enforced — every object is labelled, the
-driver answers ownership before shape, and `feint clean` sweeps exactly its own
-work. The second is what makes the first affordable: a sweep that could destroy
-something irreplaceable would need a confirmation, a backup story and a recovery
-path, and an emulator that grows those is one nobody dares point at a real
-directory.
+This page states measured limits, and the direction above is not one.
 
-An audit has already turned a crafted snapshot into `incus delete --force` and
-`network delete incusbr0` on a host. Those were refused by ownership checks. The
-reason that refusal is enough, rather than merely necessary, is that nothing
-feint owns was worth keeping.
+Today, nothing feint holds is durable. The store is memory, the table below
+says exactly what a dead emulator loses, and the one place real bytes live —
+Object Storage — is bounded by a byte budget, sits under a directory feint
+owns, and is swept with everything else. A reader deciding whether to point
+feint at something they care about should read that table, not this section.
 
-### What persistence IS allowed, and why it is not the same thing
+The work that changes it is #551 (a persistence seam), #553 and #554 (the
+reconciler, and explicit adoption of host objects) and #555 (volumes whose
+bytes survive a host reboot). Until those land, the lab is disposable **in
+fact**, and this section is a direction rather than a description.
 
-The record of a lab may survive a restart. That is #551's subject and it is in
-scope: an `apply`, a `kill -9` and a restart that leaves the plan empty is a
-convenience for the person using the lab, not a promise about anybody's bytes.
+### The cost this direction carries, named before it is met
 
-Three properties keep it on this side of the boundary, and a change that breaks
-any one of them is a change of product rather than a feature:
+The argument that makes feint safe to aim at an operator's own station is one
+sentence: *it only touches what it made, and what it made is disposable.*
 
-- **the record is explicitly rebuildable.** Losing it costs a re-apply, never
-  data. `feint snapshot save` already writes one on request and
-  `PUT /_feint/state` restores it;
-- **it is never authoritative.** What the runtime holds decides; the record
-  describes. A restored record naming a machine is an untrusted input, revalidated
-  at the boundary — see the sections on ownership above;
-- **nothing in it is a user's content.** Object Storage bytes are the one place
-  that could become so, and they are bounded by a byte budget, held under a
-  directory feint owns, and swept with the rest.
+The first half is enforced and stays: everything is labelled, the driver
+answers ownership before shape, `feint clean` sweeps exactly its own work, and
+an audit that turned a crafted snapshot into `incus delete --force` was refused
+by those checks.
 
-### What this refuses, by name
+**The second half is what makes the first affordable, and it is the half that
+expires.** `feint clean --force` removes everything carrying the label after
+naming each row, with no confirmation, no backup and no recovery path — which
+is correct for a lab and indefensible for a volume somebody wants back. The
+same goes for every sweep in the conformance suites, for `feint down
+--cleanup`, and for the snapshot-restore path that treats a restored `Runtime`
+value as untrusted input precisely because losing what it names costs nothing.
 
-- a reconciler that observes the host and converges it toward a declaration,
-  publishing what it observed (#553, #554): that is the other project's control
-  loop, and it is the point at which feint would start owning state rather than
-  describing it;
-- volumes that hold bytes surviving a host reboot, with protection in each
-  provider's vocabulary and quotas over them (#555): that is a resource whose
-  loss would matter, which is the thing this section refuses;
-- multi-host anything. `docs/roadmap.md` already puts the scheduler, the IPAM
-  and the authentication of such a project outside this repository, and #195
-  draws the HTTP boundary a second backend would speak across.
+So the day a durable resource exists, each of those has to answer a question it
+has never been asked: *is this one mine to destroy without asking?*
 
-The refusal is of the work landing **here**, not of the work. A homelab that
-materialises durable resources is a legitimate product; it is a different one,
-and the line between them is this section.
+That is **#880**, filed before the durable work rather than after it, because
+the cheap order is the wrong one: if #555 lands first, every sweep becomes
+dangerous at the same instant, in paths nobody edited. It is a prerequisite of
+#555, not a consequence of it.
+
+### What does not change
+
+- **the north star.** An emulator whose clients cannot tell the difference is
+  what this project is; durability is a property of what it materialises, not a
+  licence to answer differently;
+- **ownership before shape**, on every destructive path, and the labels that
+  make it answerable;
+- **#195's boundary.** A second runtime backend speaks HTTP and lives in its
+  own repository. Durable does not mean distributed, and this decision moves
+  only the first word.
 
 ## What survives a dead emulator, in one table
 
