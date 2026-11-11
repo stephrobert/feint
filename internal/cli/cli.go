@@ -249,7 +249,7 @@ const (
 // TestTheFrozenSurfacesStillMatchTheirFixture, and a fixture regenerated
 // without bumping this constant fails TestASurfaceChangeDemandsItsVersionBump.
 // The procedure for a deliberate change is in RELEASING.md ("Frozen surfaces").
-const cliSurfaceVersion = 30
+const cliSurfaceVersion = 32
 
 // Run executes one command and returns the process exit code.
 func Run(args []string, stdout, stderr io.Writer) int {
@@ -316,6 +316,10 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		return images(args[2:], stdout, stderr)
 	case "snapshot":
 		return snapshot(args[2:], stdout, stderr)
+	case "checkpoint":
+		return checkpointCommand(args[2:], stdout, stderr)
+	case "reset":
+		return resetCommand(args[2:], stdout, stderr)
 	case "version", "--version", "-v":
 		// The flag forms are aliases, not a second way of doing it: a user who
 		// types `feint --version` and gets "unknown command" concludes the
@@ -531,7 +535,8 @@ Usage:
                     behind it on the network.
 
   feint run        [--provider scaleway] [--endpoint http://127.0.0.1:4599]
-                    [--addr 127.0.0.1:0] [--keep-on-failure] [--json]
+                    [--addr 127.0.0.1:0] [--keep-on-failure] [--reset-after]
+                    [--json <path>]
                     [--unsafe-real-credentials] -- <command> [args...]
                     Run one command against a local cloud this command owns.
                     With no --endpoint it starts an emulator, waits for it,
@@ -560,11 +565,34 @@ Usage:
                     --json writes the receipt as JSON to a path, or to
                     stdout with a single dash; stdout otherwise belongs to
                     your command alone. The exit code is the child's.
+                    --reset-after takes a checkpoint once the lab is ready
+                    and returns to it when the command ends, however it ends:
+                    success, failure, or a signal this command relayed. It is
+                    refused with --keep-on-failure, which keeps the state it
+                    would erase.
                     --runtime asks the host for a machine runtime before
                     anything starts, with the refusal up makes. off is the
                     default: starting containers is a side effect on this
                     station, so it is asked for, and it needs a lab this
                     command owns.
+
+  feint checkpoint <name> [--addr 127.0.0.1:4599]
+                    Name the state of a running emulator: the control plane
+                    and, when one is armed, the object bytes. It also records
+                    what a client can OBSERVE at that moment, beside the
+                    instance, because that is what a later reset is measured
+                    against.
+
+  feint reset      [<name>] [--addr 127.0.0.1:4599]
+                    Return to that checkpoint and say whether the lab
+                    converged. The store is restored, the bytes are restored,
+                    and the machines of records the checkpoint does not hold
+                    are taken down through the ownership checks. Then the
+                    observable state is read again and compared: exit 0 when
+                    it matches, 1 with every remaining difference named. A
+                    reset is not successful because JSON was restored.
+                    It recreates nothing: a machine the checkpoint had and the
+                    host no longer does needs a boot only its pack can render.
 
   feint transcript <recording.jsonl> [--shape OP [--against emu.jsonl]]
                    [--sanitise corpus.jsonl --contract contracts/<provider>.json]

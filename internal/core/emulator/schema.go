@@ -126,4 +126,13 @@ const (
 	// because a suite that arms a fault from a committed file is a consumer on
 	// day one — the same reasoning that put the other four here.
 	FaultsSchemaVersion = 1
+	// CheckpointSchemaVersion is the shape of POST /_feint/checkpoint/{name},
+	// DELETE /_feint/checkpoint/{name} and POST /_feint/reset/{name}.
+	//
+	// 1 is the first: the name, the resource count and whether bytes were part
+	// of it; and for a reset, what was destroyed, what was skipped, the same
+	// split per provider, and the two fields that say recreation is not
+	// attempted. Frozen from the start like the four above, because a suite
+	// that resets between tests is a consumer on day one.
+	CheckpointSchemaVersion = 1
 )

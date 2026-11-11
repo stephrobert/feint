@@ -300,8 +300,20 @@ type runReceipt struct {
 	// window. The emulator publishes the window for exactly this reason.
 	CallsTruncated bool     `json:"calls_truncated"`
 	Stripped       []string `json:"stripped"`
-	Exit           int      `json:"exit"`
-	Cleanup        string   `json:"cleanup"`
+	// Exit is the child's code, and NEGATIVE means a signal killed it, which
+	// is what Go answers and what the prose above says in words. A reader of
+	// the JSON gets the number; a reader of the receipt gets the sentence.
+	// Reset is empty when --reset-after was not asked for, and otherwise
+	// says what happened: a run that reset and a run that did not are
+	// different facts, and an empty Unreconciled must not be read as
+	// "it converged".
+	Reset string `json:"reset,omitempty"`
+	// Unreconciled names what the reset could not bring back, which is
+	// #853's own wording: a reset reports exactly what it could not
+	// reconcile.
+	Unreconciled []string `json:"unreconciled,omitempty"`
+	Exit         int      `json:"exit"`
+	Cleanup      string   `json:"cleanup"`
 	// RealCloud is a field and not a sentence render() prints, because the
 	// prose and the JSON must not be able to disagree about the one claim a
 	// reader of this receipt cares about most.
@@ -342,7 +354,13 @@ func callsSoFar(endpoint string) (int, bool) {
 // render writes the compact receipt #848 describes.
 func (r runReceipt) render(w io.Writer) {
 	verdict := "passed"
-	if r.Exit != 0 {
+	switch {
+	case r.Exit < 0:
+		// Go answers -1 for a process a signal killed, and -1 is a number
+		// nobody can act on. The word is what a reader needs; the field keeps
+		// the number for a machine, and the JSON documents it.
+		verdict = "failed (the command was killed by a signal)"
+	case r.Exit != 0:
 		verdict = fmt.Sprintf("failed (%d)", r.Exit)
 	}
 	fmt.Fprintf(w, "feint run: %s\n", verdict)
@@ -368,6 +386,12 @@ func (r runReceipt) render(w io.Writer) {
 	}
 	if len(r.RuntimeProof) != 0 {
 		row("runtime proof", strings.Join(r.RuntimeProof, ", "))
+	}
+	if r.Reset != "" {
+		row("reset", r.Reset)
+		for _, difference := range r.Unreconciled {
+			fmt.Fprintf(w, "    %s\n", difference)
+		}
 	}
 	row("cleanup", r.Cleanup)
 	// Deliberately narrow wording, and a field rather than a literal here:

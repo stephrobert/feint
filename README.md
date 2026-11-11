@@ -1064,6 +1064,8 @@ workflow.
 | `feint env <provider>` | the environment a real client needs, for `eval` |
 | `feint doctor` | diagnose the host: the port, the machine runtime, the clients, the ssh trap |
 | `feint snapshot` | `save`, `load`, `list`, `rm` — name a running emulator's state and come back to it |
+| `feint checkpoint` | name the state of a running emulator — control plane, object bytes, and what a client can observe of both |
+| `feint reset` | return to that checkpoint, take down what it does not hold, and say whether the lab converged |
 | `feint serve` | serve the three emulated clouds on one port, in the foreground |
 | `feint images` | build the machine images, which carry an ssh daemon so a machine answers without a package repository |
 | `feint clean` | remove every machine, network and rule set the emulator created |

@@ -272,3 +272,37 @@ func (p *Pack) attachmentOf(res *resource.Resource) []machine.Attachment {
 		PrefixLen: prefix.Bits(),
 	}}
 }
+
+// ReconcileGone takes down the machines of records a reset removed (#853).
+//
+// Two lines, and that is the point: the gesture is identical for every pack,
+// so it lives on the shared binding where a defect is fixed once. What this
+// pack adds is which binding — its prefix, its runtime key, its ownership
+// mark — and nothing else.
+//
+// The recreating half is deliberately absent here too. Starting a machine
+// needs a Boot this pack renders from its own catalogue, and #853 bounds that
+// in the same words: "where the runtime contract supports it".
+// emulator.TestAResetDestroysWhatTheCheckpointDoesNotHold drives this through
+// the server; machine.TestReconcileDestroysOnlyTheMachinesItOwns holds what it
+// delegates to.
+func (p *Pack) ReconcileGone(ctx context.Context, gone []*resource.Resource) machine.Reconciled {
+	return p.binding().ReconcileGone(ctx, gone)
+}
+
+// ReconcileMissing starts again the machines of records a reset brought back
+// and the host no longer holds (#853).
+//
+// One line, for the reason ReconcileGone is two: the loop, the ownership path
+// and the honest reporting are shared, and what varies is the Boot this pack
+// builds from its own catalogue. Handing the builder rather than a Boot is
+// what keeps it that way.
+//
+// emulator.TestAResetStartsAgainWhatTheHostNoLongerHolds drives this through
+// the server; machine.TestReconcileStartsOnlyTheMachinesThatAreMissing holds
+// what it delegates to.
+func (p *Pack) ReconcileMissing(ctx context.Context, records []*resource.Resource,
+	held []string,
+) machine.Reconciled {
+	return p.binding().ReconcileMissing(ctx, records, held, p.bootOf)
+}

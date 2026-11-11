@@ -500,6 +500,20 @@ var rules = []rule{
 	},
 
 	{
+		Path: "tools/conformance/reset-host.sh",
+		Why:  "the host half of a reset, which only a real runtime can answer for",
+		Runs: []string{"FEINT_VM=incus-ovn mise run conformance:leg -- runtime"},
+		Unproven: "the reset suite runs on the runtime leg, which refuses without a runtime, " +
+			"and measures one machine kept, one removed and one lost out of band and started " +
+			"again: a reset interrupted part-way, a machine whose image left the catalogue " +
+			"between checkpoint and reset, and more than two machines are not covered",
+		Cites: []claim{{
+			About: "the reset suite runs on the runtime leg, which refuses without a runtime",
+			In:    "tools/conformance/leg.sh",
+			Shows: []string{"tools/conformance/reset-host.sh"},
+		}},
+	},
+	{
 		Path: "tools/conformance/run-sweep.sh",
 		Why:  "feint run's sweep, which only a real runtime can answer for",
 		Runs: []string{"FEINT_VM=incus-ovn mise run conformance:leg -- runtime"},

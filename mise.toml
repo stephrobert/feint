@@ -331,6 +331,7 @@ run = [
   # itself under --vm incus and --vm incus-vm rather than failing there.
   "tools/conformance/outscale/balancer.sh http://$FEINT_ADDR",
   "tools/conformance/run-sweep.sh http://$FEINT_ADDR",
+  "tools/conformance/reset-host.sh http://$FEINT_ADDR",
 ]
 
 [tasks."conformance:exoscale-terraform"]

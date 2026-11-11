@@ -360,6 +360,11 @@ type Server struct {
 	// self records the patterns of the endpoints the emulator serves about
 	// itself, so they can be enumerated rather than remembered.
 	self []string
+	// checkpoints holds the control-plane half of each named checkpoint
+	// (#853). In memory, which is the scope the issue describes: a reset
+	// returns to the session's initial state, and a checkpoint meant to
+	// outlive the process is what `feint snapshot save` writes to a file.
+	checkpoints checkpoints
 	// shapeCovered is the set of operations an observed real-cloud shape
 	// covers, handed in by SetShapeCovered. nil means no catalogue was given,
 	// which the evidence record reports as "unknown" rather than "unobserved".
@@ -456,6 +461,12 @@ func NewServer(env *Env, packs ...Pack) (*Server, error) {
 	// conformance script or a CI job reads after the fact. Tying it to the page
 	// would make it unavailable to exactly the callers it was asked for.
 	s.mountSelf("GET /_feint/trace", s.handleTrace)
+	// Named checkpoints of a whole lab, and the reset that returns to one
+	// (#853). Mounted beside /_feint/state because they are the same
+	// subject seen as a lifecycle rather than as storage.
+	s.mountSelf("POST /_feint/checkpoint/{name}", s.handleCheckpointSave)
+	s.mountSelf("DELETE /_feint/checkpoint/{name}", s.handleCheckpointDelete)
+	s.mountSelf("POST /_feint/reset/{name}", s.handleReset)
 	s.mountSelf("GET /_feint/state", s.handleStateRead)
 	s.mountSelf("PUT /_feint/state", s.handleStateWrite)
 	// The assertion spans behind the behaviour and negative evidence axes: a
