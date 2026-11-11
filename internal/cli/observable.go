@@ -2,6 +2,8 @@ package cli
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
@@ -35,6 +37,31 @@ import (
 // the store alone leaves containers running that the API no longer mentions;
 // restoring the store and the host leaves bytes from a later test in a bucket
 // the checkpoint had empty.
+//
+// ## Why the digest is computed here and not read from the listing
+//
+// The first version of this file took the digest from ListObjectsV2's ETag,
+// and `internal/s3/list.go` emits no ETag at all: the field was always empty,
+// so two different contents under one key compared EQUAL and a reset could
+// report convergence over bytes that had changed. The commit message claimed
+// objects were compared by digest. They were not.
+//
+// It survived review and a passing test because the test built observedObject
+// values by hand, with digests in them. A comparison is only worth the
+// observation under it, and an observation nobody made is a field with a zero
+// value. Found by an external audit of the merged code, not here.
+//
+// So each object is FETCHED and hashed by the observer. Not the store's own
+// recorded digest and not the checksum header the door offers: what is being
+// judged is whether a client gets the same bytes back, and a digest supplied
+// by the subject cannot answer that. The size travels with it as a second,
+// independent signal and is part of the comparison key, which the first
+// version also dropped.
+//
+// It costs one GET per object. That is acceptable for a verdict on a local
+// store with a byte budget, and the alternative measured nothing.
+//
+// TestTwoObjectsOfOneSizeAndDifferentBytesDoNotConverge fails without this.
 //
 // ## Why the bytes are read through the door rather than from the store
 //
@@ -88,8 +115,16 @@ type observedObject struct {
 	Door   string `json:"door"`
 	Bucket string `json:"bucket"`
 	Key    string `json:"key"`
+	// Digest is a SHA-256 this observer computed over the bytes a GET
+	// delivered. Never the store's own record of it, and never the door's
+	// checksum header: a digest supplied by the subject cannot answer whether
+	// the subject serves the bytes it claims.
 	Digest string `json:"digest"`
-	Size   int64  `json:"size"`
+	// Size is what the GET actually delivered, and Listed is what the
+	// inventory said. They are compared separately so an inventory that
+	// disagrees with the bytes is a difference rather than a silent one.
+	Size   int64 `json:"size"`
+	Listed int64 `json:"listed"`
 }
 
 // observeLab reads the three halves and normalises them.
@@ -234,9 +269,18 @@ func observeObjects(ctx context.Context, endpoint string) ([]observedObject, err
 				return nil, fmt.Errorf("%s%s: %w", door.Path, bucket, err)
 			}
 			for _, object := range objects {
+				digest, size, err := fetchDigest(ctx, client, base+bucket+"/"+object.Key)
+				if err != nil {
+					return nil, fmt.Errorf("%s%s/%s: %w", door.Path, bucket, object.Key, err)
+				}
+				// The listing's size travels too, and a disagreement between
+				// it and what the GET delivered is itself a difference: a
+				// door whose inventory and bytes disagree has not converged
+				// whatever the digests say.
 				out = append(out, observedObject{
 					Door: strings.Trim(door.Path, "/"), Bucket: bucket,
-					Key: object.Key, Digest: object.ETag, Size: object.Size,
+					Key: object.Key, Digest: digest, Size: size,
+					Listed: object.Size,
 				})
 			}
 		}
@@ -255,7 +299,6 @@ type bucketListing struct {
 type objectListing struct {
 	Contents []struct {
 		Key  string `xml:"Key"`
-		ETag string `xml:"ETag"`
 		Size int64  `xml:"Size"`
 	} `xml:"Contents"`
 	IsTruncated bool   `xml:"IsTruncated"`
@@ -277,13 +320,11 @@ func listBuckets(ctx context.Context, client *http.Client, base string) ([]strin
 
 func listObjects(ctx context.Context, client *http.Client, base, bucket string) ([]struct {
 	Key  string `xml:"Key"`
-	ETag string `xml:"ETag"`
 	Size int64  `xml:"Size"`
 }, error,
 ) {
 	var all []struct {
 		Key  string `xml:"Key"`
-		ETag string `xml:"ETag"`
 		Size int64  `xml:"Size"`
 	}
 	// Paginated, because a comparison that read the first page only would
@@ -337,7 +378,11 @@ func (o observed) diff(other observed) []string {
 		return r.Kind + " " + r.ID + " state=" + r.State + " backing=[" + r.Backing + "]"
 	}
 	objectKey := func(ob observedObject) string {
-		return ob.Door + "/" + ob.Bucket + "/" + ob.Key + " digest=" + ob.Digest
+		// Every field, and the size twice. The first version compared the
+		// door, the bucket, the key and a digest that was always empty, so it
+		// compared nothing about the content at all.
+		return fmt.Sprintf("%s/%s/%s digest=%s bytes=%d listed=%d",
+			ob.Door, ob.Bucket, ob.Key, ob.Digest, ob.Size, ob.Listed)
 	}
 
 	out = append(out, compareSets("resource", mapAll(o.Resources, resourceKey), mapAll(other.Resources, resourceKey))...)
@@ -371,3 +416,37 @@ func compareSets(kind string, want, got []string) []string {
 	}
 	return out
 }
+
+// fetchDigest reads an object through its door and answers what arrived.
+//
+// The hash is computed over the response body as it streams, so nothing the
+// door says about the bytes is taken on trust, and the byte count comes from
+// the hash's own writer rather than from a header.
+func fetchDigest(ctx context.Context, client *http.Client, url string) (string, int64, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return "", 0, err
+	}
+	res, err := client.Do(req)
+	if err != nil {
+		return "", 0, err
+	}
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusOK {
+		return "", 0, fmt.Errorf("the door answered %d", res.StatusCode)
+	}
+	sum := sha256.New()
+	size, err := io.Copy(sum, io.LimitReader(res.Body, maxObservedObjectBytes))
+	if err != nil {
+		return "", 0, err
+	}
+	return hex.EncodeToString(sum.Sum(nil)), size, nil
+}
+
+// maxObservedObjectBytes bounds one object a verdict will read.
+//
+// Generous rather than tight: the store's own per-object limit is 256 MiB by
+// default, and a verdict that silently truncated at a smaller bound would
+// compare the first N bytes of two objects and call them equal — the same
+// class of defect as the empty digest this replaces.
+const maxObservedObjectBytes = 512 << 20

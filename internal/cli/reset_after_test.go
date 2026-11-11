@@ -103,8 +103,15 @@ func TestAFailedResetAfterIsReportedAndNotRaised(t *testing.T) {
 
 	t.Run("a session that is not this run's is not reset", func(t *testing.T) {
 		// Two runs against one shared emulator must not reset each other's
-		// state. The recorded name decides, and a mismatch is "not attempted"
-		// rather than a reset of somebody else's checkpoint.
+		// state. Since the audit, records are indexed by name, so the
+		// isolation is the lookup itself: a run asks for ITS session and
+		// finds nothing when only another run's was recorded.
+		//
+		// A fresh runtime directory, because the subtests above recorded
+		// their own sessions here and the first version of this one found
+		// one of them — the test passing for the wrong reason, which is what
+		// the per-name index changed underneath it.
+		t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
 		if err := writeRecordedCheckpoint(addr, recordedCheckpoint{
 			SchemaVersion: checkpointStateVersion, Name: "feint-lab-OTHER",
 		}); err != nil {
@@ -114,6 +121,11 @@ func TestAFailedResetAfterIsReportedAndNotRaised(t *testing.T) {
 		verdict, _ := resetToSession("http://"+addr, "feint-lab-1", addr, &stderr)
 		if verdict != "not attempted" {
 			t.Errorf("verdict %q for another run's session", verdict)
+		}
+		// And the other run's record is untouched: this one did not reset it
+		// and did not delete it either.
+		if back, err := readRecordedCheckpoint(addr, "feint-lab-OTHER"); err != nil || back.Name != "feint-lab-OTHER" {
+			t.Errorf("another run's record was disturbed: %+v %v", back, err)
 		}
 	})
 }
@@ -136,7 +148,7 @@ func TestASessionCheckpointIsNamedAfterItsRun(t *testing.T) {
 	if len(asked) != 1 || asked[0] != "/_feint/checkpoint/feint-lab-4021" {
 		t.Fatalf("the emulator was asked for %v", asked)
 	}
-	recorded, err := readRecordedCheckpoint(addr)
+	recorded, err := readRecordedCheckpoint(addr, "")
 	if err != nil {
 		t.Fatalf("read the record back: %v", err)
 	}

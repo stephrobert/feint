@@ -120,18 +120,40 @@ func (c *checkpoints) drop(name string) bool {
 
 // handleCheckpointSave records the control plane and the bytes under one name.
 //
-// Both halves or neither: a checkpoint whose store was taken and whose bytes
-// were not is a checkpoint a reset cannot honour, and it would fail later,
-// somewhere else, with no mention of this call. So the byte half goes first —
-// it is the one that can fail on a disk — and the store half follows only
-// when it succeeded.
+// Both halves or neither, and the ORDER is what makes that true rather than a
+// sentence. An external audit caught the first version claiming it: the bytes
+// were saved first, so a failure in the store snapshot left a previously taken
+// checkpoint of the same name holding its OLD control plane beside the NEW
+// object references. A later reset would have restored one against the other,
+// and the comment promising otherwise is the defect this repository names most
+// often.
 //
-// TestACheckpointTakesBothHalvesOrNeither fails without this.
+// The order that delivers it:
+//
+//  1. take the control-plane snapshot into memory. Nothing durable is touched,
+//     and a failure here leaves the previous checkpoint whole;
+//  2. save the bytes, which objectstore publishes by renaming a temporary
+//     file: it either replaces the old checkpoint or leaves it, never a
+//     half of one;
+//  3. publish the control-plane half only now.
+//
+// So a failure at any step leaves the previous checkpoint consistent with
+// itself, which is the only promise worth making.
+//
+// TestACheckpointTakesBothHalvesOrNeither and
+// TestAFailedControlPlaneHalfLeavesTheEarlierBytesWhole fail without this.
 func (s *Server) handleCheckpointSave(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	if !validCheckpointName(name) {
 		writeJSON(w, http.StatusBadRequest, map[string]any{
 			"error": "a checkpoint name is 1 to 64 characters of letters, digits, dash, dot or underscore",
+		})
+		return
+	}
+	var state bytes.Buffer
+	if err := s.env.Store.Snapshot(&state); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{
+			"error": "the control plane could not be checkpointed: " + err.Error(),
 		})
 		return
 	}
@@ -143,13 +165,9 @@ func (s *Server) handleCheckpointSave(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	var state bytes.Buffer
-	if err := s.env.Store.Snapshot(&state); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]any{
-			"error": "the control plane could not be checkpointed: " + err.Error(),
-		})
-		return
-	}
+	// Published last, so that a byte half that failed above leaves any earlier
+	// checkpoint of this name holding its own control plane rather than a
+	// newer one.
 	s.checkpoints.put(name, state.Bytes())
 	writeJSON(w, http.StatusOK, map[string]any{
 		"schema_version": CheckpointSchemaVersion,

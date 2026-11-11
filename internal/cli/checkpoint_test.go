@@ -55,15 +55,16 @@ func TestACheckpointNameIsTakenBeforeTheFlags(t *testing.T) {
 	}
 }
 
-// TestAResetRefusesToJudgeAgainstAnotherCheckpointsState is the other half of
-// the verdict's honesty.
+// TestAResetNamesTheCheckpointItCouldNotFind replaces a refusal that lost its
+// subject to the audit's second finding.
 //
-// The recorded observable state belongs to ONE checkpoint. Comparing the
-// emulator's restore of one against the observation of another would report
-// differences that are not the reset's fault, and an operator would chase
-// them. So a name that disagrees with the record is refused rather than
-// guessed.
-func TestAResetRefusesToJudgeAgainstAnotherCheckpointsState(t *testing.T) {
+// Before, the CLI kept one observation per instance, so asking to reset a
+// name it had not recorded last meant comparing one checkpoint's restore to
+// another's observation — and the command refused, honestly, while the
+// feature was missing. Observations are indexed by name now, so an unknown
+// name is simply unknown, and what matters is that the refusal says WHICH
+// name and how to make one.
+func TestAResetNamesTheCheckpointItCouldNotFind(t *testing.T) {
 	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
 	const addr = "127.0.0.1:4599"
 	if err := writeRecordedCheckpoint(addr, recordedCheckpoint{
@@ -74,9 +75,9 @@ func TestAResetRefusesToJudgeAgainstAnotherCheckpointsState(t *testing.T) {
 
 	var stdout, stderr bytes.Buffer
 	if code := resetCommand([]string{"something-else", "--addr", addr}, &stdout, &stderr); code != exitError {
-		t.Fatalf("a reset against another checkpoint's state was allowed (%d)", code)
+		t.Fatalf("a reset of a name nobody recorded was allowed (%d)", code)
 	}
-	for _, want := range []string{"baseline", "something-else", "compare the wrong states"} {
+	for _, want := range []string{"something-else", "feint checkpoint"} {
 		if !strings.Contains(stderr.String(), want) {
 			t.Errorf("the refusal does not mention %q: %s", want, stderr.String())
 		}
@@ -91,6 +92,51 @@ func TestAResetRefusesToJudgeAgainstAnotherCheckpointsState(t *testing.T) {
 	}
 	if !strings.Contains(stderr.String(), "feint checkpoint") {
 		t.Errorf("the refusal does not say how to take one: %s", stderr.String())
+	}
+}
+
+// TestTwoNamedCheckpointsDoNotOverwriteEachOther is cited by checkpointPath,
+// and it is the audit's second finding.
+//
+// The emulator holds any number of named checkpoints; the CLI wrote a single
+// file per instance. So `checkpoint A` then `checkpoint B` made `reset A`
+// impossible, because the observation A would have been judged against had
+// been overwritten by B's.
+func TestTwoNamedCheckpointsDoNotOverwriteEachOther(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	const addr = "127.0.0.1:4599"
+
+	for _, name := range []string{"alpha", "beta"} {
+		if err := writeRecordedCheckpoint(addr, recordedCheckpoint{
+			SchemaVersion: checkpointStateVersion, Name: name,
+			State: observed{Machines: []string{"feint-scw-" + name}},
+		}); err != nil {
+			t.Fatalf("record %s: %v", name, err)
+		}
+	}
+
+	// Both are still readable BY NAME, which is what the single file broke.
+	for _, name := range []string{"alpha", "beta"} {
+		back, err := readRecordedCheckpoint(addr, name)
+		if err != nil {
+			t.Fatalf("read %s back: %v", name, err)
+		}
+		if back.Name != name {
+			t.Errorf("reading %q answered %q", name, back.Name)
+		}
+		if len(back.State.Machines) != 1 || back.State.Machines[0] != "feint-scw-"+name {
+			t.Errorf("%s carries the wrong observation: %v", name, back.State.Machines)
+		}
+	}
+
+	// And an empty name means the last taken, so `feint reset` with no
+	// argument has something to mean.
+	last, err := readRecordedCheckpoint(addr, "")
+	if err != nil {
+		t.Fatalf("read the last: %v", err)
+	}
+	if last.Name != "beta" {
+		t.Errorf("the last taken reads as %q", last.Name)
 	}
 }
 
@@ -109,7 +155,7 @@ func TestARecordedCheckpointRefusesAVersionItCannotRead(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("record a checkpoint: %v", err)
 	}
-	if _, err := readRecordedCheckpoint(addr); err == nil {
+	if _, err := readRecordedCheckpoint(addr, ""); err == nil {
 		t.Fatal("a record from a later version was read anyway")
 	} else if !strings.Contains(err.Error(), "version") {
 		t.Errorf("the refusal does not say it is a version: %v", err)
@@ -123,7 +169,7 @@ func TestARecordedCheckpointRefusesAVersionItCannotRead(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("record a checkpoint: %v", err)
 	}
-	back, err := readRecordedCheckpoint(addr)
+	back, err := readRecordedCheckpoint(addr, "")
 	if err != nil {
 		t.Fatalf("read it back: %v", err)
 	}
