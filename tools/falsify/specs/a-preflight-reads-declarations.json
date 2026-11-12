@@ -1,0 +1,65 @@
+{
+ "package": "./internal/cli/",
+ "note": "The subject is a stack preflight that reads declarations and never evaluates them, and the verdict drawn from what it read.\n\nWhy it exists, measured 2026-11-12 against a real emulator with provider outscale/outscale 1.8.0: the repository's own Outscale example plus three resources this pack declines was applied. Plan 51 to add, 48 resources created, then two 404 OperationNotEmulated naming CreateVirtualGateway and CreateClientGateway, 50 entries left in the state. The third, outscale_vpn_connection, was never attempted, because its dependencies had failed: an operator who fixed the two visible errors would pay a second full apply to find it. Staged discovery, each step costing an apply and a half-built lab.\n\nThe lexer half carries its own measured defect. The mechanism this replaces strips comments with three states and no heredoc state, so a heredoc body holding one unbalanced quote — a shell script in user_data supplies one without trying — flips its string state, and a commented-out resource then survives the strip and the hazard scan fires on dead text.",
+ "mutations": [
+  {
+   "label": "the lexer loses its heredoc state, which is the defect as it stands in internal/cli today: a body with one unbalanced quote moves the scanner's idea of where strings are, and a commented-out resource comes back as declared",
+   "file": "internal/stack/lex.go",
+   "package": "./internal/stack/",
+   "find": "\t\tcase c == '<' && i+1 < len(src) && src[i+1] == '<':",
+   "replace": "\t\tcase c == '<' && i+1 < len(src) && src[i+1] == '<' && false:",
+   "test": "TestAHeredocDoesNotFlipTheScannersStringState"
+  },
+  {
+   "label": "the heredoc terminator is matched anywhere on a line instead of on a line of its own, against the language's own rule. The document then closes on the first body line that merely mentions the word, and everything after it is read as code",
+   "file": "internal/stack/lex.go",
+   "package": "./internal/stack/",
+   "find": "if strings.TrimSpace(lineText) == ident {",
+   "replace": "if strings.TrimSpace(lineText) == ident || strings.Contains(lineText, ident) {",
+   "test": "TestAHeredocEndsOnALineOfItsOwn"
+  },
+  {
+   "label": "a template label is taken for a literal, so a block type written as an interpolation would be reported as an exact type. The engine refuses that file outright, which is exactly why inventing a name for it is worse than saying nothing",
+   "file": "internal/stack/lex.go",
+   "package": "./internal/stack/",
+   "find": "return token{kind: kindString, text: text.String(), literal: !interpolated},",
+   "replace": "return token{kind: kindString, text: text.String(), literal: !interpolated || true},",
+   "test": "TestAnInterpolatedTypeIsReportedRatherThanGuessed"
+  },
+  {
+   "label": "an absence of knowledge stops making the verdict unknown, so a type nothing has measured reads as compatible. The green verdict drawn from nothing measured, which is the failure this repository is organised against",
+   "file": "internal/stack/verdict.go",
+   "find": "\t\tcase StandingUnknown:\n\t\t\tunknown = true",
+   "replace": "\t\tcase StandingUnknown + \"never\":\n\t\t\tunknown = true",
+   "test": "TestATypeNoTableKnowsIsUnknownAndNotCompatible"
+  },
+  {
+   "label": "a module whose contents were never read stops counting, so a verdict covers files nobody opened. Written that way first, and caught by running it against the repository's own Outscale example, which calls ./modules/net twice",
+   "file": "internal/stack/verdict.go",
+   "find": "\tif len(r.Unread) > 0 || len(r.Unresolved) > 0 {",
+   "replace": "\tif (len(r.Unread) > 0 || len(r.Unresolved) > 0) && false {",
+   "test": "TestTheRepositorysOwnOutscaleStackIsUnknownWhileItsModulesAreUnread"
+  },
+  {
+   "label": "a refusal stops deciding the verdict, so a configuration holding a type a pack refuses is no longer incompatible and nothing would refuse before the client runs",
+   "file": "internal/stack/verdict.go",
+   "find": "\t\tcase StandingDeclined:\n\t\t\tincompatible = true",
+   "replace": "\t\tcase StandingDeclined + \"never\":\n\t\t\tincompatible = true",
+   "test": "TestARefusalOutranksTheRestOfTheInventory"
+  },
+  {
+   "label": "a table row naming an operation its own pack has not decided about degrades into `served` instead of `unknown`, which turns every typo and every outlived row into a promise that the stack will apply",
+   "file": "internal/cli/stacktypes.go",
+   "find": "\t\t\t\ta.standing = stack.StandingUnknown\n",
+   "replace": "\t\t\t\ta.standing = stack.StandingServed // StandingUnknown\n",
+   "test": "TestAnOperationThePackHasNotDecidedIsUnknownNotServed"
+  },
+  {
+   "label": "the refusal stops carrying the pack's own reason, so a report says incompatible and cannot say why. #298 measured what a second copy of a decline reason costs: four days of two gates agreeing with each other while both disagreed with the code",
+   "file": "internal/cli/stacktypes.go",
+   "find": "\t\t\t\ta.reason = declined[op]\n",
+   "replace": "\t\t\t\ta.reason = \"\" // declined[op]\n",
+   "test": "TestThreeRefusedDeclarationsMakeTheConfigurationIncompatible"
+  }
+ ]
+}
