@@ -79,7 +79,7 @@ Each row is one `required_providers` entry, read where it is written.
 | `tools/conformance/scaleway/terraform` | `scaleway/scaleway` | `2.83.0` | exact: the version that answered | yes |
 | `examples/stacks/exoscale` | `exoscale/exoscale` | `0.72.0` | exact: the version that answered | yes |
 | `examples/stacks/exoscale` | `hashicorp/aws` | `6.72.0` | exact: the version that answered | yes |
-| `examples/stacks/outscale` | `outscale/outscale` | `~> 1.7` | constraint: resolved fresh on each run, so the version that answered is not knowable here | yes |
+| `examples/stacks/outscale` | `outscale/outscale` | `1.8.1` | exact: the version that answered | yes |
 | `examples/stacks/outscale/modules/net` | `outscale/outscale` | `~> 1.7` | constraint: resolved fresh on each run, so the version that answered is not knowable here | yes |
 | `examples/stacks/scaleway` | `scaleway/scaleway` | `2.83.0` | exact: the version that answered | yes |
 | `examples/quickstart/outscale` | `outscale/outscale` | `~> 1.7` | constraint: resolved fresh on each run, so the version that answered is not knowable here | yes |
