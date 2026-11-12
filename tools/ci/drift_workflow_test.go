@@ -331,6 +331,130 @@ func TestTheNightReportsTheBacklogAndNotJustWhatIsNew(t *testing.T) {
 	}
 }
 
+// TestAnUnmeasuredSourceMakesTheNightRed is cited by the health job of
+// drift.yml.
+//
+// ## The defect it closes, as it was measured
+//
+// Two steps of the scan run under continue-on-error, each for a good reason:
+// the coverage report must not stop the baseline refresh, and a broken contract
+// extraction must not cost the half that worked. The price is that a failure
+// there leaves the job green, and a green scan is read as a scan that found
+// nothing.
+//
+// It has already cost exactly that, for weeks. The extraction step called
+// `mise run`, which is not installed on a GitHub runner; it failed with
+// "command not found" every week, continue-on-error swallowed it, and the
+// contracts half of the mechanism measured nothing. The repository's own note
+// on that fix sits three lines above the step.
+//
+// ## What is asserted, and why it is executed rather than read
+//
+// The run block carries no `${{ }}` — both verdicts arrive through the
+// environment, which is this repository's rule for any expression reaching a
+// shell — so the block can be run. A text assertion would prove the words are
+// there; running it proves the arithmetic, including the case that matters
+// most: no verdict at all, which is what an interpolated absent output leaves
+// behind.
+func TestAnUnmeasuredSourceMakesTheNightRed(t *testing.T) {
+	workflow := readWorkflow(t, "drift.yml")
+
+	health := jobSection(workflow, "health")
+	if health == "" {
+		t.Fatal("drift.yml has no health job: a source that could not be measured leaves the scan green, " +
+			"and a green scan reads as a scan that found nothing")
+	}
+	if !strings.Contains(health, "if: always() && github.event_name == 'schedule'") {
+		t.Error("the health job is not always() on the schedule alone: the night it matters is the night " +
+			"something else failed")
+	}
+	// Through the environment. An expression interpolated into a run block is
+	// the pattern this repository refuses everywhere else.
+	if !strings.Contains(health, "BACKLOG: ${{ needs.drift.outputs.health }}") ||
+		!strings.Contains(health, "EXTRACTION: ${{ needs.drift.outputs.extraction }}") {
+		t.Error("the health job does not read the two verdicts through the environment")
+	}
+
+	drift := jobSection(workflow, "drift")
+	if !strings.Contains(drift, "extraction: ${{ steps.contracts.outcome }}") {
+		t.Error("the drift job does not publish the extraction's outcome: the step runs under " +
+			"continue-on-error, so its outcome is the only place its failure is written down")
+	}
+	// Unchanged and never-ran must stop being the same absence.
+	//
+	// Anchored on the exact line the shell would run, and on the exact value it
+	// writes. Two weaker forms were tried and a mutation walked through both: a
+	// substring search for `changed=false` passes on a commented-out echo, and
+	// skipping lines that start with `#` passes on `echo "# changed=false"`,
+	// where the hash is inside the string and the step writes a line GitHub
+	// parses as no output at all. Same lesson as propose's `git add` in the test
+	// above: read what the shell would do, not what the file says.
+	writes := regexp.MustCompile(`(?m)^\s*echo "changed=false" >> "\$GITHUB_OUTPUT"\s*$`)
+	if !writes.MatchString(runBlock(t, drift, "Refresh the API descriptions")) {
+		t.Error("the extraction step does not write `changed=false` when nothing moved, so `no change` " +
+			"and `died before this line` are the same empty output to every reader of it")
+	}
+
+	night := jobSection(workflow, "night")
+	needs := regexp.MustCompile(`(?m)^\s+needs:\s*\[([^\]]+)\]`).FindStringSubmatch(night)
+	if needs == nil || !strings.Contains(needs[1], "health") {
+		t.Error("the night job does not wait for the health job, so an unmeasured source is judged green")
+	}
+
+	script := runBlock(t, health, "The verdicts of the two measurements")
+	for _, c := range []struct {
+		backlog, extraction string
+		red                 bool
+		why                 string
+	}{
+		{"ok", "success", false, "both measurements ran, so the night is about what they found"},
+		{"unmeasured", "success", true, "a provider nobody could scan is not a provider with nothing undecided"},
+		{"ok", "failure", true, "the descriptions were not refreshed, so the night says nothing about them"},
+		{"ok", "", true, "no verdict at all, which is what an absent output leaves behind"},
+		{"", "", true, "neither measurement reported, the loudest case and the quietest before this job"},
+	} {
+		cmd := exec.Command("bash", "-c", script)
+		cmd.Env = append(os.Environ(), "BACKLOG="+c.backlog, "EXTRACTION="+c.extraction)
+		out, err := cmd.CombinedOutput()
+		red := err != nil
+		if red != c.red {
+			t.Errorf("BACKLOG=%q EXTRACTION=%q: red=%v, want %v (%s)\n%s",
+				c.backlog, c.extraction, red, c.red, c.why, out)
+		}
+	}
+}
+
+// runBlock is the shell of one step, dedented so it can be executed. It only
+// works on a block with no `${{ }}` in it, which is the property the step it is
+// used on is asserted to have.
+func runBlock(t *testing.T, section, step string) string {
+	t.Helper()
+	body := stepSection(section, step)
+	start := strings.Index(body, "run: |\n")
+	if start < 0 {
+		t.Fatalf("step %q has no literal run block", step)
+	}
+	lines := strings.Split(body[start+len("run: |\n"):], "\n")
+	const indent = "          "
+	out := make([]string, 0, len(lines))
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			out = append(out, "")
+			continue
+		}
+		if !strings.HasPrefix(line, indent) {
+			break
+		}
+		out = append(out, strings.TrimPrefix(line, indent))
+	}
+	script := strings.Join(out, "\n")
+	if strings.Contains(script, "${{") {
+		t.Fatalf("step %q interpolates an expression into its shell; it cannot be run, and it should not "+
+			"be written that way either:\n%s", step, script)
+	}
+	return script
+}
+
 // stepSection is the text of one step of a workflow, from its name to the next
 // step or the end of the file.
 func stepSection(workflow, name string) string {

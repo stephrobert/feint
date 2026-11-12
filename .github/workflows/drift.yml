@@ -60,6 +60,10 @@ jobs:
       # Whether every source could be measured at all. An unmeasured provider
       # must not read as a provider with nothing undecided.
       health: ${{ steps.backlog.outputs.health }}
+      # And whether the second measurement happened. The step runs under
+      # continue-on-error, so its failure leaves no trace in the job's result:
+      # the outcome is the only place it is written down.
+      extraction: ${{ steps.contracts.outcome }}
     steps:
       - name: Harden runner
         uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
@@ -252,6 +256,15 @@ jobs:
               git diff --stat contracts/
               echo '```'
             } >> "$GITHUB_STEP_SUMMARY"
+          else
+            # Said out loud, because an empty output and a step that died before
+            # reaching this line are the same absence to every reader of it.
+            # This step has already died that way for weeks: `mise run` is not
+            # on a GitHub runner, the step failed with "command not found", and
+            # continue-on-error turned it into a quiet nothing. What tells the
+            # two apart is the step's `outcome`, which the job now publishes.
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo 'The providers'"'"' API descriptions have not moved.' >> "$GITHUB_STEP_SUMMARY"
           fi
 
       # The triage view, saved for the issue. A flat list of ninety operation
@@ -548,6 +561,67 @@ jobs:
           FEINT_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: tools/ci/drift-report.sh --apply "${{ needs.drift.outputs.undecided }}" /tmp/triage.txt
 
+  # EVERY SOURCE WAS MEASURED, OR THE NIGHT IS RED.
+  #
+  # Two steps of the scan run under continue-on-error, and for a good reason in
+  # both cases: the coverage report must not stop the baseline refresh, and a
+  # broken contract extraction must not cost the half that worked. The price is
+  # that a failure there leaves the `drift` job green, and a green scan is read
+  # as a scan that found nothing.
+  #
+  # It has already cost exactly that. The extraction step called `mise run`,
+  # which is not installed on a GitHub runner, so it failed with "command not
+  # found" every week — silently — and the contracts half of this mechanism
+  # measured nothing at all for as long as nobody looked. The repository's own
+  # note on that fix is three lines above the step.
+  #
+  # So the two verdicts are read here, in a job whose only job is to be red when
+  # a source could not be measured. It is a separate job rather than a step of
+  # the scan on purpose: failing the scan would skip `propose`, and a pull
+  # request withheld because an extraction broke would lose the measurement that
+  # did work. This way the night is red, night-report.yml (#705) opens the one
+  # issue it opens, and the branch still carries what was measured.
+  #
+  # "Could not measure" and "nothing to report" are different answers. This job
+  # exists so the second one is never printed for the first.
+  #
+  # TestAnUnmeasuredSourceMakesTheNightRed fails without it.
+  health:
+    name: Every source of the scan was measured
+    needs: drift
+    if: always() && github.event_name == 'schedule'
+    runs-on: ubuntu-24.04
+    permissions: {}
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
+      - name: The verdicts of the two measurements
+        # Through the environment, never interpolated into the script: the
+        # repository's rule for every expression that reaches a shell.
+        env:
+          BACKLOG: ${{ needs.drift.outputs.health }}
+          EXTRACTION: ${{ needs.drift.outputs.extraction }}
+        run: |
+          set -uo pipefail
+          measured=0
+          if [ "${BACKLOG}" != ok ]; then
+            echo "The undecided backlog could not be measured (${BACKLOG:-no verdict at all})." >&2
+            echo "A provider nobody could scan is not a provider with nothing undecided." >&2
+            measured=1
+          fi
+          if [ "${EXTRACTION}" != success ]; then
+            echo "The API descriptions were not refreshed (${EXTRACTION:-no verdict at all})." >&2
+            echo "This night says nothing about what the providers publish today." >&2
+            measured=1
+          fi
+          if [ "${measured}" != 0 ]; then
+            echo "Reported as a red night rather than as an absence of drift." >&2
+            exit 1
+          fi
+          echo "Both measurements of this night ran: the upstream SDKs and the published descriptions."
+
   # A red night opens an issue, a green one closes it (#705): the mechanism
   # runtime-proof.yml adopted first, as a reusable workflow, because a block
   # copied into each scheduled caller is a control one caller forgets.
@@ -564,7 +638,7 @@ jobs:
   # one where the checkout failed.
   night:
     name: A red night opens the issue, a green one closes it
-    needs: [drift, propose, report]
+    needs: [drift, propose, report, health]
     if: always() && github.event_name == 'schedule'
     permissions:
       contents: read
