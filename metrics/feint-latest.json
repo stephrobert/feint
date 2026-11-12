@@ -1,42 +1,43 @@
 {
-  "generated_at": "2026-11-11T04:20:18Z",
+  "generated_at": "2026-11-12T04:20:36Z",
   "project": "feint",
-  "total_binary_downloads": 4576,
-  "latest_release": "v0.14.0",
+  "total_binary_downloads": 4680,
+  "latest_release": "v0.15.0",
   "platforms": {
-    "darwin-amd64": 35,
-    "darwin-arm64": 53,
-    "linux-amd64": 4444,
-    "linux-arm64": 44
+    "darwin-amd64": 58,
+    "darwin-arm64": 76,
+    "linux-amd64": 4479,
+    "linux-arm64": 67
   },
   "versions": {
-    "v0.1.0": 12,
-    "v0.10.0": 265,
-    "v0.11.0": 18,
-    "v0.12.0": 431,
-    "v0.12.1": 784,
-    "v0.13.0": 2674,
-    "v0.14.0": 23,
-    "v0.2.0": 10,
-    "v0.3.0": 8,
-    "v0.3.1": 11,
-    "v0.3.2": 2,
-    "v0.3.3": 2,
-    "v0.4.0": 5,
-    "v0.4.1": 11,
-    "v0.5.0": 5,
-    "v0.6.0": 12,
-    "v0.7.0": 75,
-    "v0.7.1": 6,
-    "v0.7.2": 6,
-    "v0.7.3": 43,
-    "v0.8.0": 99,
-    "v0.9.0": 74
+    "v0.1.0": 16,
+    "v0.10.0": 269,
+    "v0.11.0": 22,
+    "v0.12.0": 435,
+    "v0.12.1": 790,
+    "v0.13.0": 2686,
+    "v0.14.0": 27,
+    "v0.15.0": 6,
+    "v0.2.0": 14,
+    "v0.3.0": 12,
+    "v0.3.1": 15,
+    "v0.3.2": 6,
+    "v0.3.3": 6,
+    "v0.4.0": 9,
+    "v0.4.1": 15,
+    "v0.5.0": 9,
+    "v0.6.0": 16,
+    "v0.7.0": 79,
+    "v0.7.1": 10,
+    "v0.7.2": 10,
+    "v0.7.3": 47,
+    "v0.8.0": 103,
+    "v0.9.0": 78
   },
   "recent": {
-    "downloads_1d": 17,
-    "downloads_30d": 1644,
-    "downloads_7d": 148
+    "downloads_1d": 104,
+    "downloads_30d": 1704,
+    "downloads_7d": 206
   },
   "adoption": {
     "v0.10.0": {
@@ -59,6 +60,9 @@
       "J+1": 0,
       "J+7": 4
     },
+    "v0.15.0": {
+      "J+1": 6
+    },
     "v0.7.1": {
       "J+30": 1
     },
@@ -78,72 +82,112 @@
   "active_old_releases": [
     {
       "version": "v0.13.0",
-      "downloads_in_window": 109,
+      "downloads_in_window": 79,
       "window_days": 7
     },
     {
-      "version": "v0.3.0",
-      "downloads_in_window": 6,
+      "version": "v0.14.0",
+      "downloads_in_window": 21,
       "window_days": 7
     },
     {
       "version": "v0.12.1",
-      "downloads_in_window": 4,
+      "downloads_in_window": 10,
       "window_days": 7
     },
     {
-      "version": "v0.3.1",
-      "downloads_in_window": 1,
-      "window_days": 7
-    },
-    {
-      "version": "v0.2.0",
-      "downloads_in_window": 1,
-      "window_days": 7
-    },
-    {
-      "version": "v0.10.0",
-      "downloads_in_window": 1,
-      "window_days": 7
-    },
-    {
-      "version": "v0.1.0",
-      "downloads_in_window": 1,
+      "version": "v0.3.0",
+      "downloads_in_window": 10,
       "window_days": 7
     },
     {
       "version": "v0.3.2",
-      "downloads_in_window": 1,
-      "window_days": 7
-    },
-    {
-      "version": "v0.3.3",
-      "downloads_in_window": 1,
+      "downloads_in_window": 5,
       "window_days": 7
     },
     {
       "version": "v0.4.1",
-      "downloads_in_window": 1,
-      "window_days": 7
-    },
-    {
-      "version": "v0.6.0",
-      "downloads_in_window": 1,
-      "window_days": 7
-    },
-    {
-      "version": "v0.7.0",
-      "downloads_in_window": 1,
-      "window_days": 7
-    },
-    {
-      "version": "v0.7.2",
-      "downloads_in_window": 1,
+      "downloads_in_window": 5,
       "window_days": 7
     },
     {
       "version": "v0.9.0",
-      "downloads_in_window": 1,
+      "downloads_in_window": 5,
+      "window_days": 7
+    },
+    {
+      "version": "v0.7.2",
+      "downloads_in_window": 5,
+      "window_days": 7
+    },
+    {
+      "version": "v0.7.0",
+      "downloads_in_window": 5,
+      "window_days": 7
+    },
+    {
+      "version": "v0.3.1",
+      "downloads_in_window": 5,
+      "window_days": 7
+    },
+    {
+      "version": "v0.1.0",
+      "downloads_in_window": 5,
+      "window_days": 7
+    },
+    {
+      "version": "v0.6.0",
+      "downloads_in_window": 5,
+      "window_days": 7
+    },
+    {
+      "version": "v0.4.0",
+      "downloads_in_window": 4,
+      "window_days": 7
+    },
+    {
+      "version": "v0.12.0",
+      "downloads_in_window": 4,
+      "window_days": 7
+    },
+    {
+      "version": "v0.5.0",
+      "downloads_in_window": 4,
+      "window_days": 7
+    },
+    {
+      "version": "v0.3.3",
+      "downloads_in_window": 4,
+      "window_days": 7
+    },
+    {
+      "version": "v0.10.0",
+      "downloads_in_window": 4,
+      "window_days": 7
+    },
+    {
+      "version": "v0.7.1",
+      "downloads_in_window": 4,
+      "window_days": 7
+    },
+    {
+      "version": "v0.2.0",
+      "downloads_in_window": 4,
+      "window_days": 7
+    },
+    {
+      "version": "v0.7.3",
+      "downloads_in_window": 4,
+      "window_days": 7
+    },
+    {
+      "version": "v0.8.0",
+      "downloads_in_window": 4,
+      "window_days": 7
+    },
+    {
+      "version": "v0.11.0",
+      "downloads_in_window": 4,
       "window_days": 7
     }
   ]
