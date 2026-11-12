@@ -17,7 +17,7 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ## [Unreleased]
 
-## [0.16.0] - 2026-11-11
+## [0.16.0] - 2026-11-12
 
 ### Ajouté
 
@@ -90,6 +90,54 @@ change ni l'un ni l'autre a sa place dans `git log`.
   déclare, et non le mode demandé.
 
 ### Corrigé
+
+- **Six paramètres de requête qu'une route servie déclarait et jetait en
+  silence** (#884, #875). La description de l'API Scaleway n'avait pas été
+  ré-extraite depuis le 2026-10-19 pendant que les documents bougeaient
+  dessous ; une extraction fraîche rend +328 lignes, dont vingt et un paramètres
+  nouvellement déclarés, six sur des routes que cet émulateur sert. `server`,
+  `detached`, `regional`, `image_id`, `version_id` et `security_group_ids` sont
+  désormais servis, ou refusés en nommant l'argument. `version_id` est refusé
+  avant toute résolution, pour qu'une requête qui le porte avec une étiquette
+  inconnue s'entende dire quel argument pose problème au lieu de « cette image
+  n'existe pas ». Trouvé par un contributeur extérieur, par effet de bord d'un
+  triage.
+- **Le scan de dérive nocturne rapporte une dette, pas seulement une arrivée**
+  (#892, #886). Le portillon demandait si quelque chose était apparu qui n'est
+  pas dans la baseline, et la baseline enregistre les opérations inconnues : le
+  premier rafraîchissement après une arrivée l'inscrivait, et toutes les nuits
+  suivantes ne trouvaient rien de neuf alors que l'opération attendait toujours
+  une décision. Mesuré : deux opérations baremetal sont restées non décidées
+  pendant quatorze nuits vertes. Trois autres moitiés du même mécanisme ont
+  bougé avec : la pull request emporte maintenant les descriptions d'API qu'elle
+  a régénérées, qui n'avaient pas voyagé depuis le 2026-10-19 ; la vue de triage
+  couvre les onze produits que le portillon scanne au lieu de trois, donc une
+  opération hors de ces trois peut enfin être nommée ; et une source qu'on n'a
+  pas pu mesurer rend la nuit rouge au lieu de se lire comme une absence de
+  dérive.
+- **Le rapport de dérive retrouve son issue par son titre, pas par le seul
+  label** (#894). La recherche était `--label drift` plus la plus récente, et
+  trois issues ouvertes portent ce label. La dette étant vide, la première nuit
+  calme aurait fermé l'issue qui porte le travail restant, avec les mots « Every
+  operation upstream is triaged ».
+- **Le rejeu de falsification tient dans son budget, et un plafond atteint est
+  un fait mesuré** (#893, #890). L'exécution planifiée du 2026-11-12 a été
+  coupée après 210,3 minutes contre le `timeout-minutes: 210` qu'elle déclare
+  elle-même, et l'issue ouverte a mis ça sur le compte de l'infrastructure. Le
+  coût était dans le dépôt : instrumenté sur une spec, les deux passes de tests
+  complètes qu'il joue par spec font 45 secondes sur 53, soit 242 références et
+  242 restaurations par rejeu pour une quinzaine de questions distinctes. La
+  référence est désormais répondue une fois par couple paquets-environnement, et
+  la restauration se lit sur les octets des fichiers mutés. Huit specs de
+  `./internal/cli/`, 54 mutations, toutes mordant encore : 441 s avant, 181 s
+  après. Le rapport de nuit distingue un budget atteint d'un runner perdu, et
+  nomme la durée et le plafond.
+- **Un test demandait au noyau une promesse qu'il n'a jamais faite** (#896). La
+  sonde de port libre ferme son écouteur avant de répondre, donc le même port
+  peut être redonné aussitôt ; un test exigeait que deux sondes consécutives
+  diffèrent. Mesuré sur deux mille paires : une est revenue identique. Il
+  affirme maintenant loopback et liable, ce que la fonction promet vraiment,
+  son propre commentaire commençant par « Racy by nature ».
 
 - **Un reset remet une règle de pare-feu sur l'interface, pas seulement dans le
   store** (#871). `Survey` ne rend que des noms, et un jeu de règles dont le

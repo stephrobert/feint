@@ -15,7 +15,7 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ## [Unreleased]
 
-## [0.16.0] - 2026-11-11
+## [0.16.0] - 2026-11-12
 
 ### Added
 
@@ -84,6 +84,50 @@ what this project is judged on: **a response shape a client can observe**, and
   the emulator declares, rather than the mode that was asked for.
 
 ### Fixed
+
+- **Six query parameters a served route declared and dropped in silence**
+  (#884, #875). The Scaleway API description had not been re-extracted since
+  2026-10-19 while the documents moved under it; a fresh extraction answered
+  +328 lines, holding twenty-one newly declared query parameters, six of them on
+  routes this emulator serves. `server`, `detached`, `regional`, `image_id`,
+  `version_id` and `security_group_ids` are now served, or refused by name.
+  `version_id` is refused before anything else is resolved, so a request
+  carrying it with an unknown label is told which argument is the problem rather
+  than answered "no such image". Found by an outside contributor, as a side
+  effect of a triage.
+- **The nightly drift scan reports a debt, not only an arrival** (#892, #886).
+  The gate asked whether something appeared that is not in the committed
+  baseline, and the baseline records the unknown operations — so the first
+  refresh after an arrival wrote it down and every later night found nothing
+  new while the operation was still undecided. Measured: two baremetal
+  commitment operations sat undecided for fourteen green nights. Three more
+  halves of the same mechanism moved with it: the pull request now carries the
+  API descriptions it regenerated, which had not travelled since 2026-10-19; the
+  triage view covers the eleven products the gate scans rather than three, so an
+  operation outside those three can now be named; and a source that could not be
+  measured makes the night red instead of reading as an absence of drift.
+- **The drift report finds its own issue by title, not by label alone** (#894).
+  The lookup was `--label drift` plus the newest match, and three open issues
+  wear that label. With the backlog empty, the first quiet night would have
+  closed the issue carrying the work still to do, with the words "Every
+  operation upstream is triaged".
+- **The falsification replay fits its budget, and a ceiling it reached is a
+  measured fact** (#893, #890). The scheduled run of 2026-11-12 was cancelled
+  after 210.3 minutes against the `timeout-minutes: 210` it declares for itself,
+  and the issue it opened called that the run's own infrastructure. The cost was
+  in the repository: instrumented on one spec, the two full test suites it runs
+  per spec were 45 of 53 seconds, which across a replay is 242 baselines and 242
+  restorations for some fifteen distinct questions. The baseline is now answered
+  once per packages and environment, and the restoration is read off the bytes
+  of the files that were mutated. Eight `./internal/cli/` specs, 54 mutations,
+  every one still biting: 441 s before, 181 s after. The night report tells a
+  budget reached from a runner lost, and names the duration and the ceiling.
+- **A test asked the kernel for a promise it never made** (#896). The free-port
+  probe closes its listener before answering, so the same port may be handed
+  straight back; a test required two consecutive probes to differ. Measured over
+  two thousand pairs on one station: one came back identical. It asserts
+  loopback and bindable now, which is what the function promises — its own
+  comment opens with "Racy by nature".
 
 - **A reset puts a firewall rule back on the interface, not only in the store**
   (#871). `Survey` answers names, and a rule set whose content changed keeps its
