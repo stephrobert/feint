@@ -27,7 +27,25 @@ terraform {
       # measured, per generation, in examples/stacks/surveyed.md. A resolution
       # below 1.7 would silently change how this stack must be pointed at the
       # emulator.
-      version = "~> 1.7"
+      #
+      # Exact rather than `~> 1.7`, since 2026-11-12. The floor was right and
+      # the FLOATING part was the accident #778 measured on the Exoscale stack:
+      # the two registries do not index together, so a floating constraint can
+      # resolve to two different versions under terraform and opentofu — the two
+      # engines driving this one stack with two different providers, both
+      # reporting that it passed. Measured on this stack, 2026-11-12: both
+      # `terraform init -upgrade` (1.13.3) and `tofu init -upgrade` (1.12.5)
+      # resolve `~> 1.7` to 1.8.1, and the conformance stacks legs on current
+      # main run it on 1.8.1, published 2026-09-30, on both engines.
+      #
+      # Not 1.8.0, the version #778 measured on 2026-09-14: that measurement is
+      # superseded — 1.8.1 is what both registries serve today. 1.8.0 also
+      # refuses its own `tags` blocks client-side (`Duplicate Tag key … []`)
+      # against the vendor's own example (surveyed.md), though this stack's tag
+      # keys are all literals, so the regression does not bite here. Moving the
+      # pin is now an act somebody performs and measures, which is the whole
+      # reason the Exoscale stack is pinned exactly too (#779).
+      version = "1.8.1"
     }
   }
 }
