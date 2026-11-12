@@ -1,0 +1,27 @@
+{
+ "package": "./tools/ci/",
+ "note": "The subject is a scheduled night telling a budget it reached from weather it did not (#890).\n\nMeasured: run 43154285437, the falsify night of 2026-11-12, started 04:21:45 and ended `cancelled` at 07:52:04. That is 210.3 minutes against the `timeout-minutes: 210` falsify.yml declares for itself, and its long step carried the conclusion `cancelled` rather than `failure`. The classification looked for a failing step, found none, and reported \"the run's own infrastructure — a lost runner, a cancellation, an unreachable dependency\".\n\nNone of those was true. The 0.16 batch had added 23 specs and 263 mutations and that night was the first to replay them: the work had outgrown its budget, which is a fact about this repository. Filing it as weather is how the one instrument that proves this repository's tests bite stopped going to the end with nobody owning it.\n\ntools/ci/testdata/budget-night is that run's field-trimmed payload, timestamps included, and cancelled-night is the counter-witness: no timestamps, so nothing may be claimed about a budget from it.",
+ "mutations": [
+  {
+   "label": "the budget branch is never taken, so a job that ran its declared ceiling to the end is reported as a lost runner again. The condition is neutralised rather than removed, so every name still evaluates",
+   "file": "tools/ci/night-report.sh",
+   "find": "           | if ($reached | length) > 0\n",
+   "replace": "           | if (($reached | length) > 0) and false\n",
+   "test": "TestANightCancelledAtItsOwnCeilingNamesTheBudget"
+  },
+  {
+   "label": "the budget findings are filtered out of the body, so the report measures the ceiling and then does not say it. A verdict computed and not printed is the same silence as one never computed",
+   "file": "tools/ci/night-report.sh",
+   "find": "  budget_lines=\"$(jq -r '.[] | select(.kind == \"budget\")",
+   "replace": "  budget_lines=\"$(jq -r '.[] | select(.kind == \"budget\" and false)",
+   "test": "TestANightCancelledAtItsOwnCeilingNamesTheBudget"
+  },
+  {
+   "label": "the grep that reads the declared budgets loses its failure guard. This file runs under `set -euo pipefail` and grep exits 1 when it matches nothing, which is the ordinary case for a workflow declaring no timeout — drift.yml is one — so every night with nothing to report here dies instead. The same trap that killed the backlog step of drift.yml the first time it met a run: block's own -e",
+   "file": "tools/ci/night-report.sh",
+   "find": "; } || true)\"",
+   "replace": "; } && true)\"",
+   "test": "TestADriftNightWhereNothingMovedIsGreen"
+  }
+ ]
+}

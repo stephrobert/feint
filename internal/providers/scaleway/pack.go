@@ -1449,7 +1449,7 @@ func (p *Pack) Declined() []emulator.Decline {
 		// fleet inventory enumerates its bare metal and does nothing else with
 		// it, measured on `scw baremetal server list` and on the Python SDK's
 		// list_servers_all; and ListOffers, because that same CLI command
-		// joins the catalogue right after the servers. These thirty-five are
+		// joins the catalogue right after the servers. These thirty-seven are
 		// the rest of the product, and each says what the emulator would have
 		// to have in order to answer. A bare-metal server here is seeded
 		// through the state door, and that one fact is behind most of them.
@@ -1458,6 +1458,41 @@ func (p *Pack) Declined() []emulator.Decline {
 			"baremetal/v1/API.CreateServer",
 			"baremetal/v1/API.BatchCreateServers",
 			"baremetal/v1/API.MigrateServerToMonthlyOffer"),
+
+		// The two commitment operations, arrived upstream with the baseline
+		// refresh of 2026-10-28 (#827) and untriaged since:
+		//
+		//   UpdateServerCommitment  -> toggle auto-renewal on a commitment
+		//   UpgradeServerCommitment -> start a commitment, or upgrade one to
+		//     a period of one month to three years
+		//
+		// Declined on the measured absence of a caller, and NOT on any claim
+		// that the emulator could not do it: toggling a boolean and recording
+		// a period on a seeded server would be ordinary work. What is missing
+		// is a client. Measured on 2026-11-11:
+		//
+		//   `scw baremetal commitment` is an empty parent node — no
+		//   subcommand, no verb — and the Terraform provider references
+		//   neither method
+		//
+		// The second measurement was taken with a positive control first,
+		// because an empty code search is indistinguishable from a broken one:
+		// UpdateServer resolves in the Terraform provider
+		// (internal/services/baremetal/server.go) and in scw's
+		// baremetal_cli.go, where server create and update call
+		// api.CreateServer and api.UpdateServer — the commitment-period flags
+		// on those commands are fields of those two requests, not calls to
+		// these methods — so the two empty results are an absence rather
+		// than an outage.
+		//
+		// A commitment is a billing term on a server this emulator never
+		// ordered, and answering either would invent a paid term a client
+		// could plan against — the same refusal GetServerTypesAvailability
+		// carries for capacity and quotas. The first client measured on
+		// either path reopens the entry.
+		emulator.Because("a server commitment is a paid billing term — UpdateServerCommitment toggles auto-renewal on an existing commitment and UpgradeServerCommitment starts or upgrades one to a period of one month to three years — and no client this project drives calls either: `scw baremetal commitment` is an empty parent node with no subcommand and the Terraform provider references neither method, both measured 2026-11-11 against a positive control; the server here is seeded through the state door, never ordered, so this is an absent caller rather than an absent capability, and the first client measured on either path reopens it",
+			"baremetal/v1/API.UpdateServerCommitment",
+			"baremetal/v1/API.UpgradeServerCommitment"),
 
 		emulator.Because("it acts on the hardware behind a server — an install writes an OS to its disks, a reboot, a start and a stop cycle its power, a delete returns it to stock — and there is no hardware behind a seeded server for any of that to happen to",
 			"baremetal/v1/API.InstallServer",

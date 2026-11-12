@@ -276,6 +276,14 @@ func (p *Pack) publicAddressesOf(server *resource.Resource) []string {
 	return out
 }
 
+// ipServerID is the server an address is attached to, or "" when it is
+// detached: attach writes Attrs["server"] as {id, name}, detach writes nil.
+func ipServerID(res *resource.Resource) string {
+	summary, _ := res.Attrs["server"].(map[string]any)
+	id, _ := summary["id"].(string)
+	return id
+}
+
 func (p *Pack) listIPs(w http.ResponseWriter, r *http.Request) {
 	zone, ok := zoneOf(w, r)
 	if !ok {
@@ -298,6 +306,26 @@ func (p *Pack) listIPs(w http.ResponseWriter, r *http.Request) {
 	if ipType := q.Get("type"); ipType != "" {
 		all = filterResources(all, func(res *resource.Resource) bool {
 			return textOf(res.Attrs["type"]) == ipType
+		})
+	}
+	// `server` and `detached` are precisely one of a pair in the SDK
+	// (ListIPsRequest: "Precisely one of Server, Detached must be set"), but
+	// the handler applies each filter it is given: an address attached to the
+	// named server is not detached, so both together narrow conjunctively
+	// rather than the handler inventing which one wins.
+	if serverID := q.Get("server"); serverID != "" {
+		all = filterResources(all, func(res *resource.Resource) bool {
+			return ipServerID(res) == serverID
+		})
+	}
+	detached, present, err := queryBool(q, "detached")
+	if err != nil {
+		writeParseFailure(w, "detached", err)
+		return
+	}
+	if present {
+		all = filterResources(all, func(res *resource.Resource) bool {
+			return (ipServerID(res) == "") == detached
 		})
 	}
 	// "With these exact tags", like the servers list next door: a conjunction.

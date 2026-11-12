@@ -220,7 +220,10 @@ pyrightconfig.json
 /dist/
 
 # Upstream SDK checkouts read by the drift scan (cloned by `mise run upstream:sync`)
-/.upstream/
+# No trailing slash: with one, the pattern matches a directory only, and a
+# symlink of this name — which is what a second worktree makes, to share the
+# one clone — was offered for commit instead. Caught by making it.
+/.upstream
 
 # Emulator state snapshots
 *.state.json

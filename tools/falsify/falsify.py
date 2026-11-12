@@ -263,6 +263,49 @@ def run(dst, cmd, extra_env=None):
     )
 
 
+# The baseline verdicts already proved in this process, keyed by the packages and
+# the environment they were proved under. Empty for a single-spec run, which
+# therefore behaves exactly as before.
+BASELINES = {}
+
+
+def baseline_key(packages, spec_env):
+    """What makes two baseline questions the same question.
+
+    The packages, and the environment: `env` arms tests that otherwise skip, so
+    two specs on one package with different env are two different questions and
+    must not share an answer.
+    """
+    return (tuple(packages), tuple(sorted((spec_env or {}).items())))
+
+
+def unrestored(dst, pristine):
+    """Every mutated file whose bytes are not what they were before any mutation.
+
+    This is the restore claim asked directly, and it replaces a second full test
+    run of the package. If every mutated file is byte-identical to the copy the
+    baseline was green on, the package IS that copy, and a test run can only
+    confirm what the bytes already settle.
+
+    Why it matters (#890): the baseline and the restoration runs were two full
+    suites per spec. Measured on 2026-11-12, that was ~69 minutes of a
+    ~123-minute replay on one station — 60 specs name ./internal/cli/ and each
+    ran its 11-second suite twice — and the night had just been cancelled at its
+    210-minute ceiling.
+
+    What it does NOT cover, said rather than implied: a test that writes
+    somewhere else in the copy. The old run would not have named that either —
+    it would have gone red somewhere unrelated — and the copy is deleted
+    immediately afterwards.
+    """
+    out = []
+    for name, body in pristine.items():
+        with open(os.path.join(dst, name), encoding="utf-8") as fh:
+            if fh.read() != body:
+                out.append(name)
+    return sorted(out)
+
+
 def refuse(message):
     print(f"falsify: {message}", file=sys.stderr)
     return 2
@@ -448,6 +491,8 @@ def lint_selftest():
 
     print()
     failures += _replay_reporting_cases()
+    print()
+    failures += _budget_cases()
     return failures
 
 
@@ -489,6 +534,101 @@ def _replay_reporting_cases():
         failures += 1
     else:
         print("ok  run() declares the copy trusted, so the toolchain starts in it")
+
+    return failures
+
+
+def _budget_cases():
+    """The two measurements the replay stopped repeating, and what keeps them honest (#890).
+
+    The night was cancelled at its 210-minute ceiling on 2026-11-12, and the
+    cost was not where it looked. Instrumented on one spec: the copy took 0.04 s
+    and the two full suites took 45 of the 53 seconds. Across a replay those are
+    242 baselines and 242 restorations for some fifteen distinct questions —
+    sixty specs name ./internal/cli/ and each ran its 11-second suite twice.
+
+    Measured on eight ./internal/cli/ specs, 54 mutations, every one still
+    biting: 441 s before, 181 s after.
+
+    Both shortcuts are only sound under a condition, and these cases hold the
+    conditions rather than the speed.
+    """
+    failures = 0
+
+    # A baseline answer may be reused only for the same question. The packages
+    # are the obvious half; the environment is the half that bites, because
+    # `env` arms tests that otherwise skip and a skip counts as a pass. Sharing
+    # one answer across two environments would report a suite as green that
+    # never ran in that environment.
+    for a, b, same, why in (
+        (
+            (["./internal/cli/"], {}),
+            (["./internal/cli/"], {}),
+            True,
+            "one package, no env: the same question",
+        ),
+        (
+            (["./internal/cli/"], {}),
+            (["./internal/s3/"], {}),
+            False,
+            "two packages are two questions",
+        ),
+        (
+            (["./internal/cli/"], {}),
+            (["./internal/cli/"], {"FEINT_TESTCONTAINER": "1"}),
+            False,
+            "an env that arms a skipped suite is a different question",
+        ),
+        (
+            (["./internal/cli/"], {"A": "1", "B": "2"}),
+            (["./internal/cli/"], {"B": "2", "A": "1"}),
+            True,
+            "the same env in another order is the same question",
+        ),
+        (
+            (["./a/", "./b/"], {}),
+            (["./b/", "./a/"], {}),
+            False,
+            "the list is taken as given, so a caller that sorts makes two orders meet",
+        ),
+    ):
+        got = baseline_key(*a) == baseline_key(*b)
+        if got != same:
+            print(f"!! baseline_key says same={got} for {why}, want {same}")
+            failures += 1
+        else:
+            print(f"ok  {why}")
+
+    # The restoration is now read off the bytes, so it has to NAME a file that
+    # did not come back. A check that always answers "nothing" would make every
+    # replay green on a broken restore, which is worse than the suite it
+    # replaces.
+    with tempfile.TemporaryDirectory() as tmp:
+        kept, lost = "kept.go", "lost.go"
+        with open(os.path.join(tmp, kept), "w", encoding="utf-8") as fh:
+            fh.write("package p\n")
+        with open(os.path.join(tmp, lost), "w", encoding="utf-8") as fh:
+            fh.write("package p // mutated and never put back\n")
+        pristine = {kept: "package p\n", lost: "package p\n"}
+
+        got = unrestored(tmp, pristine)
+        if got != [lost]:
+            print(
+                f"!! unrestored answers {got}, want [{lost!r}]: "
+                "a restore that did not happen is not named"
+            )
+            failures += 1
+        else:
+            print(f"ok  a file that did not come back is named: {got}")
+
+        # And the accepting half: a check that named everything would redden
+        # every replay and be just as useless.
+        got = unrestored(tmp, {kept: "package p\n"})
+        if got != []:
+            print(f"!! unrestored answers {got} for a file that did come back, want []")
+            failures += 1
+        else:
+            print("ok  a file that came back byte for byte is not named")
 
     return failures
 
@@ -724,16 +864,32 @@ def main(argv):
     # A spec may arm what its subject's tests need — see run().
     spec_env = spec.get("env") or {}
 
-    base = run(dst, ["go", "test", "-count=1", *packages], spec_env)
-    if base.returncode != 0:
-        print(
-            "the copy is red before any mutation, so nothing below measures a guard",
-            file=sys.stderr,
-        )
-        print(base.stdout[-2500:], file=sys.stderr)
-        shutil.rmtree(dst, ignore_errors=True)
-        return 2
-    print("baseline: green\n")
+    # "This copy is green before any mutation" is the same question for every
+    # spec naming the same packages under the same environment: every copy is a
+    # fresh copy of one unchanged tree. It was asked once per spec, so a replay
+    # of the whole directory asked it 242 times for some fifteen distinct
+    # answers — sixty of them for ./internal/cli/ alone (#890).
+    #
+    # What this gives up, and it is a real cost: a package that fails
+    # intermittently used to get one chance per spec to be caught before a
+    # mutation, and now gets one per replay. A flaky test is a defect to fix
+    # rather than a thing to average over, and a spec whose subject is a race
+    # declares `repeat`, which is how this harness measures one on purpose.
+    key = baseline_key(packages, spec_env)
+    if BASELINES.get(key):
+        print(f"baseline: green, proved earlier in this replay for {' '.join(packages)}\n")
+    else:
+        base = run(dst, ["go", "test", "-count=1", *packages], spec_env)
+        if base.returncode != 0:
+            print(
+                "the copy is red before any mutation, so nothing below measures a guard",
+                file=sys.stderr,
+            )
+            print(base.stdout[-2500:], file=sys.stderr)
+            shutil.rmtree(dst, ignore_errors=True)
+            return 2
+        BASELINES[key] = True
+        print("baseline: green\n")
 
     verdicts, pristine = [], {}
     for m in mutations:
@@ -781,13 +937,19 @@ def main(argv):
         with open(path, "w", encoding="utf-8") as fh:
             fh.write(pristine[m["file"]])
 
-    final = run(dst, ["go", "test", "-count=1", *packages], spec_env)
+    broken = unrestored(dst, pristine)
     print("=" * 72)
     for label, verdict, compiled in verdicts:
         print(f"  compiled={compiled:3}  {verdict:24}  {label}")
-    ok_final = final.returncode == 0
-    print(f"\nafter restoration: {'green' if ok_final else 'RED — the restore is broken'}")
-    if not ok_final:
+    ok_final = not broken
+    if ok_final:
+        print("\nafter restoration: green")
+    else:
+        print(f"\nafter restoration: RED — the restore is broken: {', '.join(broken)}")
+        # The suite, only now, and only to show what a broken restore did. A
+        # green byte comparison needs no suite: the bytes are the copy the
+        # baseline was green on.
+        final = run(dst, ["go", "test", "-count=1", *packages], spec_env)
         print(final.stdout[-2000:], file=sys.stderr)
     shutil.rmtree(dst, ignore_errors=True)
 

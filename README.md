@@ -975,12 +975,12 @@ this scan covers: 37% served, 62% declined on purpose, 0% untriaged.
 | `lb` | 43 | 66 | 0 | 109 |
 | `iam` | 12 | 72 | 0 | 84 |
 | `vpcgw` | 15 | 49 | 0 | 64 |
-| `baremetal` | 2 | 35 | 2 | 39 |
+| `baremetal` | 2 | 37 | 0 | 39 |
 | `vpc` | 19 | 18 | 0 | 37 |
 | `block` | 24 | 3 | 0 | 27 |
 | `account` | 5 | 7 | 0 | 12 |
 | *… 3 smaller groups* | 11 | 8 | 0 | 19 |
-| **Total** | **204** | **342** | **2** | **548** |
+| **Total** | **204** | **344** | **0** | **548** |
 
 #### Exoscale
 

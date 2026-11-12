@@ -2,8 +2,8 @@
   "provider": "scaleway",
   "total": 548,
   "implemented": 204,
-  "declined": 342,
-  "unknown": 2,
+  "declined": 344,
+  "unknown": 0,
   "orphans": null,
   "products": [
     {
@@ -26,15 +26,15 @@
       "product": "baremetal",
       "total": 39,
       "implemented": 2,
-      "declined": 35,
-      "unknown": 2,
+      "declined": 37,
+      "unknown": 0,
       "versions": [
         {
           "version": "v1",
           "total": 35,
           "implemented": 2,
-          "declined": 31,
-          "unknown": 2
+          "declined": 33,
+          "unknown": 0
         },
         {
           "version": "v3",
@@ -221,8 +221,8 @@
       "group": "baremetal",
       "total": 39,
       "implemented": 2,
-      "declined": 35,
-      "unknown": 2
+      "declined": 37,
+      "unknown": 0
     },
     {
       "group": "block",
@@ -558,8 +558,9 @@
     {
       "operation": "baremetal/v1/API.UpdateServerCommitment",
       "product": "baremetal",
+      "reason": "a server commitment is a paid billing term — UpdateServerCommitment toggles auto-renewal on an existing commitment and UpgradeServerCommitment starts or upgrades one to a period of one month to three years — and no client this project drives calls either: `scw baremetal commitment` is an empty parent node with no subcommand and the Terraform provider references neither method, both measured 2026-11-11 against a positive control; the server here is seeded through the state door, never ordered, so this is an absent caller rather than an absent capability, and the first client measured on either path reopens it",
       "version": "v1",
-      "status": "unknown"
+      "status": "declined"
     },
     {
       "operation": "baremetal/v1/API.UpdateSetting",
@@ -571,8 +572,9 @@
     {
       "operation": "baremetal/v1/API.UpgradeServerCommitment",
       "product": "baremetal",
+      "reason": "a server commitment is a paid billing term — UpdateServerCommitment toggles auto-renewal on an existing commitment and UpgradeServerCommitment starts or upgrades one to a period of one month to three years — and no client this project drives calls either: `scw baremetal commitment` is an empty parent node with no subcommand and the Terraform provider references neither method, both measured 2026-11-11 against a positive control; the server here is seeded through the state door, never ordered, so this is an absent caller rather than an absent capability, and the first client measured on either path reopens it",
       "version": "v1",
-      "status": "unknown"
+      "status": "declined"
     },
     {
       "operation": "baremetal/v1/API.ValidatePartitioningSchema",

@@ -34,8 +34,15 @@
 #
 # Usage: drift-report.sh [--apply] <undecided> <triage-file>
 #
-#   undecided     the outcome of the gate step: "failure" means the scan found
-#                 operations nobody has triaged, anything else means it did not
+#   undecided     the backlog verdict of the scan, and it has three values,
+#                 never two: "failure" means operations upstream are waiting
+#                 for a decision, "success" means none are, and anything else
+#                 means the scan could not say. The third one used to be
+#                 folded into the second — the argument was a step outcome,
+#                 which is also "cancelled" and "skipped" — so a scan that was
+#                 killed closed the issue with "Every operation upstream is
+#                 triaged". A verdict drawn from an absence of measurement is
+#                 the thing this repository has been bitten by most.
 #   triage-file   the triage view, or a path that does not exist
 #
 # Without --apply it prints the verdict and the body it would post, and writes
@@ -55,8 +62,38 @@ run_url="${FEINT_RUN_URL:-}"
 label="drift"
 title="Upstream API surface moved"
 
+# Its own issue, matched on the title it composes and not on the label alone.
+#
+# The label is not an identifier: anything about this mechanism carries it. On
+# 2026-11-12 three open issues wore `drift` — #800, which this script opened,
+# plus #874 and #886, which are human issues about the mechanism itself — and
+# `.[0]` is the newest. So the first quiet night would have closed #886, the
+# issue carrying the scope #892 deliberately left open, with the words "Every
+# operation upstream is triaged: implemented, or declined with a reason".
+#
+# The mechanism would have deleted the record of its own remaining work, and the
+# sentence it signed it with would have been true about the backlog and false
+# about the issue it was written on.
+#
+# TestTheDriftReportLeavesSomebodyElsesDriftIssueAlone fails without the title
+# filter.
 existing="$(gh issue list --repo "${repo}" --state open --label "${label}" \
-              --json number --jq '.[0].number' 2>/dev/null || true)"
+              --json number,title 2>/dev/null \
+              | jq -r --arg t "${title}" '[.[] | select(.title == $t)] | .[0].number // empty' \
+              2>/dev/null || true)"
+
+# THE SCAN COULD NOT SAY. Neither branch below applies: there is nothing to
+# report, and nothing has been measured that would justify closing anything.
+# Exits quiet rather than green, because the night job is what reports a scan
+# that could not conclude (#705) and it reads the run, not this script.
+#
+# TestADriftReportThatCouldNotMeasureNeitherClosesNorComments fails without
+# this: with the verdict folded into two values, "cancelled" took the closing
+# branch and the issue was closed on a night that measured nothing.
+if [ "${undecided}" != failure ] && [ "${undecided}" != success ]; then
+  echo "verdict: the scan did not conclude (${undecided}); closing nothing, saying nothing"
+  exit 0
+fi
 
 # NOTHING UNDECIDED. The scan ran and found no operation waiting for a decision.
 # Whatever else moved is an artefact the pull request carries, and a pull request
@@ -95,12 +132,17 @@ trap 'rm -f "${body_file}"' EXIT
 {
   echo "The nightly scan found operations upstream that nobody has triaged."
   echo
+  echo "Some of these may have been here a while. This report is drawn from what is"
+  echo "undecided today, not from what arrived last night: an operation written into"
+  echo "the baseline stops being new and does not stop being undecided, and that is"
+  echo "how two of them went fourteen days without a word (#875, #886)."
+  echo
   echo "Each one is a decision, not a task: **implement it**, or **add it to the"
   echo "pack's \`Declined()\` with the reason**. \"Not done yet\" and \"out of scope\""
   echo "are different answers and only the second belongs in Declined."
   echo
-  echo "The refreshed baseline is on the branch \`chore/upstream-drift\`. Opening a"
-  echo "pull request from it is a human step: this repository withholds that"
+  echo "When the surface moved tonight, the refreshed baseline is on the branch \`chore/upstream-drift\`."
+  echo "Opening a pull request from it is a human step: this repository withholds that"
   echo "permission from Actions on purpose. Merging it without deciding is what"
   echo "makes this report meaningless — the operations stop being reported and"
   echo "start being forgotten."

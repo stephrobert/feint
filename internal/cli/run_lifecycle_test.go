@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -221,6 +222,27 @@ func TestTheRunReceiptSaysTheSameThingInBothShapes(t *testing.T) {
 // TestAFreeLoopbackAddrIsLoopbackAndFree is cited by freeLoopbackAddr: the
 // address must be bindable, and it must be on loopback, because an owned lab
 // reachable from the network would be a cloud emulator listening to strangers.
+//
+// # WHAT THIS TEST USED TO ASSERT, AND WHY IT HAD TO GO
+//
+// It called the probe twice and required the two answers to differ, with the
+// message "so one lab would refuse to start". That is a property of the
+// kernel's ephemeral port allocator, not of this function, and the kernel does
+// not promise it: freeLoopbackAddr closes its listener before answering, so the
+// same port is free again and may be handed straight back.
+//
+// Measured on 2026-11-12, two thousand consecutive pairs on one station: one
+// pair came back identical, 0.05%. It went red on main the same day. A test
+// that fails one run in two thousand is not flaky by bad luck, it is asserting
+// something that was never true, and the subject says so itself — the
+// function's own comment begins "Racy by nature". The test contradicted its
+// own subject's documentation and passed for months because the odds were long.
+//
+// What is asserted instead is what the function actually promises: loopback,
+// and bindable when it answers. The race past that moment is real, documented
+// where the function is, and loud when it is lost — `start` refuses a port it
+// cannot bind. A test cannot close a window the design leaves open, and
+// pretending otherwise is how a green run stops meaning anything.
 func TestAFreeLoopbackAddrIsLoopbackAndFree(t *testing.T) {
 	addr, err := freeLoopbackAddr()
 	if err != nil {
@@ -229,12 +251,15 @@ func TestAFreeLoopbackAddrIsLoopbackAndFree(t *testing.T) {
 	if !strings.HasPrefix(addr, "127.0.0.1:") {
 		t.Fatalf("the lab would listen on %s, which is not loopback", addr)
 	}
-	second, err := freeLoopbackAddr()
+
+	// Bindable, which is the whole promise: an address the lab cannot listen
+	// on is worse than no address, because the failure arrives after the start.
+	listener, err := net.Listen("tcp", addr)
 	if err != nil {
-		t.Fatalf("second free address: %v", err)
+		t.Fatalf("the probe answered %s and nothing can listen on it: %v", addr, err)
 	}
-	if addr == second {
-		t.Errorf("two consecutive probes answered the same port %s, so one lab would refuse to start", addr)
+	if err := listener.Close(); err != nil {
+		t.Fatalf("close the test listener: %v", err)
 	}
 }
 

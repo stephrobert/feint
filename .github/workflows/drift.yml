@@ -42,15 +42,31 @@ jobs:
     outputs:
       changed: ${{ steps.diff.outputs.changed }}
       contracts: ${{ steps.contracts.outputs.changed }}
-      # The gate's own verdict, which `propose` already reads one job over and
-      # the issue job could not see: "failure" means operations upstream are
-      # undecided. `changed` means an artefact moved, which is not the same
-      # question and is what made the report say "nobody has triaged" over a
-      # list of "nothing left to triage" (#800).
-      undecided: ${{ steps.report.outcome }}
+      # Whether anything upstream is waiting for a decision, from the step that
+      # asks that question and no other. `changed` means an artefact moved,
+      # which is not the same question and is what made the report say "nobody
+      # has triaged" over a list of "nothing left to triage" (#800).
+      #
+      # It used to be `steps.report.outcome`, the gate's verdict, and the gate
+      # answers a narrower question: did something appear upstream that is not
+      # in the baseline. Once an undecided operation is written into the
+      # baseline the gate is silent about it forever, by construction
+      # (internal/drift/baseline.go compares against the recorded unknowns,
+      # internal/cli/baseline.go exits on diff.Added alone). So the night went
+      # quiet on a debt that was still there, and the two baremetal commitment
+      # operations of #875 sat for fourteen days under a green mechanism
+      # (#886).
+      undecided: ${{ steps.backlog.outputs.verdict }}
+      # Whether every source could be measured at all. An unmeasured provider
+      # must not read as a provider with nothing undecided.
+      health: ${{ steps.backlog.outputs.health }}
+      # And whether the second measurement happened. The step runs under
+      # continue-on-error, so its failure leaves no trace in the job's result:
+      # the outcome is the only place it is written down.
+      extraction: ${{ steps.contracts.outcome }}
     steps:
       - name: Harden runner
-        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
           egress-policy: audit
       - name: Checkout
@@ -106,6 +122,42 @@ jobs:
           cat /tmp/drift.txt
           exit $status
 
+      # THE DEBT, which the gate above cannot see.
+      #
+      # The gate answers "did something appear upstream that nobody triaged",
+      # which is a diff against the committed baseline. The baseline records the
+      # unknown operations, so the first refresh after an arrival writes the
+      # arrival down and every later night finds nothing new while the operation
+      # is still undecided. Measured: the two baremetal commitment operations
+      # arrived in the 2026-10-28 refresh (#827) and were undecided for fourteen
+      # green nights (#875, #886).
+      #
+      # The arithmetic is in tools/ci/drift-backlog.sh, not here, and that is the
+      # correction of this change's own first attempt. It was a run: block;
+      # GitHub runs those with `bash -e`, so the first probe to answer 2 — the
+      # normal answer, the one the step exists to produce — killed the step
+      # before the line that reads the code. tools/ci/drift_backlog_test.go now
+      # runs that script under `bash -e` with a stubbed feint and asserts a
+      # verdict comes out.
+      #
+      # The step does not fail: `propose` needs this job to finish for the
+      # refreshed baseline to reach a branch, and a pull request withheld
+      # because one probe broke would cost the half that worked. `health`
+      # carries that to the job that judges it.
+      #
+      # The pull-request gate below is deliberately NOT moved onto this verdict.
+      # It refuses NEW undecided drift, which is a thing a pull request can be
+      # asked to answer for. Gating every pull request on the standing backlog
+      # would redden work that has nothing to do with it, and a gate everyone
+      # learns to bypass is worse than no gate.
+      #
+      # TestTheNightReportsTheBacklogAndNotJustWhatIsNew fails when the output
+      # goes back to the gate's outcome.
+      - name: The undecided backlog
+        id: backlog
+        if: always()
+        run: tools/ci/drift-backlog.sh /tmp/feint
+
       - name: Refresh the baseline
         run: tools/drift/gate.sh update /tmp/feint
 
@@ -156,17 +208,38 @@ jobs:
               git diff --stat contracts/
               echo '```'
             } >> "$GITHUB_STEP_SUMMARY"
+          else
+            # Said out loud, because an empty output and a step that died before
+            # reaching this line are the same absence to every reader of it.
+            # This step has already died that way for weeks: `mise run` is not
+            # on a GitHub runner, the step failed with "command not found", and
+            # continue-on-error turned it into a quiet nothing. What tells the
+            # two apart is the step's `outcome`, which the job now publishes.
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo 'The providers'"'"' API descriptions have not moved.' >> "$GITHUB_STEP_SUMMARY"
           fi
 
       # The triage view, saved for the issue. A flat list of ninety operation
       # names is not a decision; grouped by API and by subject it usually turns
       # out to be five, one of which is a whole alpha product nobody will serve.
+      #
+      # The products come from tools/drift/gate.sh, which is the file that
+      # decides what is under the gate. This step used to carry its own list,
+      # `instance,vpc,ipam`, against the eleven the gate scans. The verdict one
+      # step above is therefore drawn from eleven products and the view attached
+      # to the issue from three, so an operation in any of the other eight was
+      # reported as undecided and never named. Measured: the two baremetal
+      # commitment operations of #875 sat undecided for fourteen days, and the
+      # issue that was supposed to name them could not have (#886).
+      #
+      # TestTheTriageViewCoversEveryProductTheGateScans fails on the hardcoded
+      # list, and on a gate list that stops matching the committed baseline.
       - name: The triage view
         if: always()
         continue-on-error: true
         run: |
           {
-            /tmp/feint coverage --sdk .upstream/scaleway-sdk-go --products instance,vpc,ipam --format triage
+            /tmp/feint coverage --sdk .upstream/scaleway-sdk-go --products "$(tools/drift/gate.sh products)" --format triage
             /tmp/feint coverage --provider outscale --sdk .upstream/osc-sdk-go --format triage
             /tmp/feint coverage --provider exoscale --contract contracts/exoscale.json --format triage
           } > /tmp/triage.txt 2>&1 || true
@@ -185,14 +258,44 @@ jobs:
       # docs/` therefore staged nothing. Every drift pull request was born with
       # last week's numbers and a red `docs --check` — the exact failure both
       # comments claimed was fixed.
+      #
+      # `contracts/` is here for the same reason, and it was missing until
+      # 2026-11-12: this step regenerated the API descriptions one step above,
+      # said so in the summary, and then uploaded everything except them. The
+      # branch the nightly pushed on 2026-11-09 (97c54a0) carries three files,
+      # none of them under contracts/, and contracts/scaleway.json had not
+      # moved since 2026-10-19 while the providers' documents moved under it.
+      # What that cost, measured when an outside contributor hit it in #884: a
+      # fresh extraction answered +328 lines, holding the two baremetal
+      # commitment operations a triage needed and twenty-one newly declared
+      # query parameters, six of them on routes this emulator serves and was
+      # silently dropping.
+      #
+      # README.fr.md is here for the third time the same question was asked.
+      # `feint docs` writes it as well — spliceTranslatedBanner and the
+      # translated quickstart — and the artefact listed only README.md. Nothing
+      # on a drift night happens to change it today, because the banner counts
+      # mounted routes and a baseline refresh mounts none, so this one is luck
+      # rather than design: a triage that adds a route changes it, and CI would
+      # then red the drift pull request on `feint docs --check`.
+      #
+      # The condition reads both halves for the same reason: keyed on the
+      # coverage diff alone, a week where only the descriptions moved uploaded
+      # nothing at all.
+      #
+      # TestTheDriftPullRequestCarriesEveryArtefactTheScanRegenerates fails on
+      # each half of this: on the path, on this condition, and on the `git add`
+      # of the propose job.
       - name: Upload the refreshed coverage
-        if: steps.diff.outputs.changed == 'true'
+        if: steps.diff.outputs.changed == 'true' || steps.contracts.outputs.changed == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage
           path: |
             coverage/
+            contracts/
             README.md
+            README.fr.md
             docs/
 
       # Uploaded when either half moved, because `report` runs on either. Keyed on
@@ -211,8 +314,14 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python3 tools/docs/limits-acks.py check
 
+      # The backlog is in this condition for the reason the whole change exists:
+      # on a night where nothing moved and something is still undecided, the
+      # issue is posted and the view it is supposed to name the operations from
+      # was never uploaded. The body then reads "the triage view did not make it
+      # to this run", which is the mechanism reporting its own gap as the
+      # finding.
       - name: Upload the triage view
-        if: steps.diff.outputs.changed == 'true' || steps.contracts.outputs.changed == 'true'
+        if: always() && (steps.diff.outputs.changed == 'true' || steps.contracts.outputs.changed == 'true' || steps.backlog.outputs.verdict == 'failure')
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: triage
@@ -221,7 +330,7 @@ jobs:
   propose:
     name: Open the drift pull request
     needs: drift
-    if: github.event_name == 'schedule' && needs.drift.outputs.changed == 'true'
+    if: github.event_name == 'schedule' && (needs.drift.outputs.changed == 'true' || needs.drift.outputs.contracts == 'true')
     runs-on: ubuntu-24.04
     permissions:
       contents: write        # push the branch
@@ -242,7 +351,7 @@ jobs:
       GIT_CRED_HELPER: '!f() { echo username=x-access-token; echo "password=${GH_TOKEN}"; }; f'
     steps:
       - name: Harden runner
-        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
           egress-policy: audit
       - name: Checkout
@@ -263,9 +372,9 @@ jobs:
           # control.
           persist-credentials: false
 
-      # Into the workspace root, not into coverage/: the artifact now carries
-      # coverage/, README.md and docs/ with their paths, so it unpacks over the
-      # checkout exactly where each file belongs.
+      # Into the workspace root, not into coverage/: the artifact carries
+      # coverage/, contracts/, both READMEs and docs/ with their paths, so it
+      # unpacks over the checkout exactly where each file belongs.
       - name: Download the refreshed coverage
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -285,8 +394,8 @@ jobs:
           # coverage/ produced a pull request whose README still carried last
           # week's numbers, so `feint docs --check` failed on it: every drift PR
           # was born red, which is how a gate becomes something people ignore.
-          git add coverage/ README.md docs/
-          git commit -m "chore(drift): refresh the upstream coverage baseline"
+          git add coverage/ contracts/ README.md README.fr.md docs/
+          git commit -m "chore(drift): refresh the upstream baseline and the API descriptions"
           # Fetch the branch first: checkout brings only the default branch, so
           # without a tracking ref --force-with-lease requires that the remote
           # branch not exist. Week one passed, week two was rejected with "stale
@@ -367,7 +476,7 @@ jobs:
       issues: write
     steps:
       - name: Harden runner
-        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
           egress-policy: audit
 
@@ -404,6 +513,67 @@ jobs:
           FEINT_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: tools/ci/drift-report.sh --apply "${{ needs.drift.outputs.undecided }}" /tmp/triage.txt
 
+  # EVERY SOURCE WAS MEASURED, OR THE NIGHT IS RED.
+  #
+  # Two steps of the scan run under continue-on-error, and for a good reason in
+  # both cases: the coverage report must not stop the baseline refresh, and a
+  # broken contract extraction must not cost the half that worked. The price is
+  # that a failure there leaves the `drift` job green, and a green scan is read
+  # as a scan that found nothing.
+  #
+  # It has already cost exactly that. The extraction step called `mise run`,
+  # which is not installed on a GitHub runner, so it failed with "command not
+  # found" every week — silently — and the contracts half of this mechanism
+  # measured nothing at all for as long as nobody looked. The repository's own
+  # note on that fix is three lines above the step.
+  #
+  # So the two verdicts are read here, in a job whose only job is to be red when
+  # a source could not be measured. It is a separate job rather than a step of
+  # the scan on purpose: failing the scan would skip `propose`, and a pull
+  # request withheld because an extraction broke would lose the measurement that
+  # did work. This way the night is red, night-report.yml (#705) opens the one
+  # issue it opens, and the branch still carries what was measured.
+  #
+  # "Could not measure" and "nothing to report" are different answers. This job
+  # exists so the second one is never printed for the first.
+  #
+  # TestAnUnmeasuredSourceMakesTheNightRed fails without it.
+  health:
+    name: Every source of the scan was measured
+    needs: drift
+    if: always() && github.event_name == 'schedule'
+    runs-on: ubuntu-24.04
+    permissions: {}
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+      - name: The verdicts of the two measurements
+        # Through the environment, never interpolated into the script: the
+        # repository's rule for every expression that reaches a shell.
+        env:
+          BACKLOG: ${{ needs.drift.outputs.health }}
+          EXTRACTION: ${{ needs.drift.outputs.extraction }}
+        run: |
+          set -uo pipefail
+          measured=0
+          if [ "${BACKLOG}" != ok ]; then
+            echo "The undecided backlog could not be measured (${BACKLOG:-no verdict at all})." >&2
+            echo "A provider nobody could scan is not a provider with nothing undecided." >&2
+            measured=1
+          fi
+          if [ "${EXTRACTION}" != success ]; then
+            echo "The API descriptions were not refreshed (${EXTRACTION:-no verdict at all})." >&2
+            echo "This night says nothing about what the providers publish today." >&2
+            measured=1
+          fi
+          if [ "${measured}" != 0 ]; then
+            echo "Reported as a red night rather than as an absence of drift." >&2
+            exit 1
+          fi
+          echo "Both measurements of this night ran: the upstream SDKs and the published descriptions."
+
   # A red night opens an issue, a green one closes it (#705): the mechanism
   # runtime-proof.yml adopted first, as a reusable workflow, because a block
   # copied into each scheduled caller is a control one caller forgets.
@@ -420,7 +590,7 @@ jobs:
   # one where the checkout failed.
   night:
     name: A red night opens the issue, a green one closes it
-    needs: [drift, propose, report]
+    needs: [drift, propose, report, health]
     if: always() && github.event_name == 'schedule'
     permissions:
       contents: read
