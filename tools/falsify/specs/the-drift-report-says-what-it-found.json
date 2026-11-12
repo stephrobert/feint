@@ -28,6 +28,13 @@
    "find": "  if [ -s \"${triage}\" ]; then\n    cat \"${triage}\"",
    "replace": "  if [ -s \"${triage}\" ] && false; then\n    cat \"${triage}\"",
    "test": "TestADriftReportWithUndecidedOperationsReports"
+  },
+  {
+   "label": "the issue lookup stops filtering on the title it composes, so the newest issue wearing the `drift` label is taken as this script's own. On 2026-11-12 that was #886, the issue carrying the scope #892 left open, and the first quiet night would have closed it with \"Every operation upstream is triaged\" — true about the backlog, false about the issue it was written on. The filter is made vacuous rather than deleted, so every name still reads",
+   "file": "tools/ci/drift-report.sh",
+   "find": "'[.[] | select(.title == $t)] | .[0].number // empty'",
+   "replace": "'[.[] | select(.title == $t or true)] | .[0].number // empty'",
+   "test": "TestTheDriftReportLeavesSomebodyElsesDriftIssueAlone"
   }
  ]
 }

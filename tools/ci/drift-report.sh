@@ -62,8 +62,25 @@ run_url="${FEINT_RUN_URL:-}"
 label="drift"
 title="Upstream API surface moved"
 
+# Its own issue, matched on the title it composes and not on the label alone.
+#
+# The label is not an identifier: anything about this mechanism carries it. On
+# 2026-11-12 three open issues wore `drift` — #800, which this script opened,
+# plus #874 and #886, which are human issues about the mechanism itself — and
+# `.[0]` is the newest. So the first quiet night would have closed #886, the
+# issue carrying the scope #892 deliberately left open, with the words "Every
+# operation upstream is triaged: implemented, or declined with a reason".
+#
+# The mechanism would have deleted the record of its own remaining work, and the
+# sentence it signed it with would have been true about the backlog and false
+# about the issue it was written on.
+#
+# TestTheDriftReportLeavesSomebodyElsesDriftIssueAlone fails without the title
+# filter.
 existing="$(gh issue list --repo "${repo}" --state open --label "${label}" \
-              --json number --jq '.[0].number' 2>/dev/null || true)"
+              --json number,title 2>/dev/null \
+              | jq -r --arg t "${title}" '[.[] | select(.title == $t)] | .[0].number // empty' \
+              2>/dev/null || true)"
 
 # THE SCAN COULD NOT SAY. Neither branch below applies: there is nothing to
 # report, and nothing has been measured that would justify closing anything.
