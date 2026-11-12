@@ -1,0 +1,41 @@
+{
+ "package": "./tools/ci/",
+ "note": "The subject is the nightly drift pull request carrying everything the scan regenerated. The job runs two measurements — the baseline from a released Go SDK, the contracts from the documents the providers serve — and until 2026-11-12 it uploaded only the first, so the second died with the runner. Measured: the branch the nightly pushed on 2026-11-09 (97c54a0) holds README.md and two files under coverage/ and nothing under contracts/, and contracts/scaleway.json had not moved since 2026-10-19 (#803) while the documents moved under it. A fresh extraction on 2026-11-12 answered +328 lines, holding the two baremetal commitment operations a triage was waiting for and twenty-one newly declared query parameters, six of them on served routes that were dropping them silently (#884).\n\nNothing in the repository would have said it. The issue reports what is undecided, and a contract that never travelled leaves nothing undecided to report, so the signal was absent rather than ignored. An outside contributor hit it as a side effect.\n\nThe defect had three independent halves and fixing one leaves the mechanism dead, which is why all three are mutated here plus the job's own condition: a path the artefact does not carry, a path propose does not stage, and a condition keyed on the coverage half alone — that last one uploaded nothing at all on a descriptions-only night, and the download one job over then failed on a missing artefact.",
+ "mutations": [
+  {
+   "label": "the artefact stops carrying contracts/, which is the state of the repository on the day this was found: the step regenerates the descriptions, says so in the summary, and uploads everything except them",
+   "file": ".github/workflows/drift.yml",
+   "find": "            contracts/\n",
+   "replace": "            # contracts/\n",
+   "test": "TestTheDriftPullRequestCarriesEveryArtefactTheScanRegenerates"
+  },
+  {
+   "label": "the upload is keyed on the coverage diff alone, so a night where only the API descriptions moved uploads nothing and the download in propose fails on a missing artefact. The narrower half, and the one a path alone cannot fix",
+   "file": ".github/workflows/drift.yml",
+   "find": "      - name: Upload the refreshed coverage\n        if: steps.diff.outputs.changed == 'true' || steps.contracts.outputs.changed == 'true'",
+   "replace": "      - name: Upload the refreshed coverage\n        if: steps.diff.outputs.changed == 'true'",
+   "test": "TestTheDriftPullRequestCarriesEveryArtefactTheScanRegenerates"
+  },
+  {
+   "label": "propose stops staging contracts/, so the pull request is born without the half the artefact now carries — the same shape as the README staleness this job already paid for",
+   "file": ".github/workflows/drift.yml",
+   "find": "          git add coverage/ contracts/ README.md README.fr.md docs/\n",
+   "replace": "          git add coverage/ README.md README.fr.md docs/ # contracts/\n",
+   "test": "TestTheDriftPullRequestCarriesEveryArtefactTheScanRegenerates"
+  },
+  {
+   "label": "the artefact stops carrying README.fr.md, which `feint docs` writes as well through spliceTranslatedBanner. It is the same defect one path over, and it had not fired yet only because the translated banner counts mounted routes while a baseline refresh mounts none",
+   "file": ".github/workflows/drift.yml",
+   "find": "            README.fr.md\n",
+   "replace": "            # README.fr.md\n",
+   "test": "TestTheDriftPullRequestCarriesEveryArtefactTheScanRegenerates"
+  },
+  {
+   "label": "the propose job runs on the coverage half alone, so a descriptions-only night opens no pull request at all. The accepting half is asserted with it: a condition that fired every night would teach everyone to close these unread, which is the failure the mechanism exists to avoid",
+   "file": ".github/workflows/drift.yml",
+   "find": "    if: github.event_name == 'schedule' && (needs.drift.outputs.changed == 'true' || needs.drift.outputs.contracts == 'true')\n",
+   "replace": "    if: github.event_name == 'schedule' && needs.drift.outputs.changed == 'true'\n",
+   "test": "TestTheDriftWorkflowReportsEveryNight"
+  }
+ ]
+}

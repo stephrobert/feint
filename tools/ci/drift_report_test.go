@@ -184,6 +184,64 @@ func TestADriftReportDoesNotPromiseAPullRequestActionsCannotOpen(t *testing.T) {
 	}
 }
 
+// A scan that could not conclude closes nothing and says nothing.
+//
+// The argument used to be a step outcome, which is "success", "failure",
+// "cancelled" or "skipped", and everything that was not "failure" took the
+// closing branch. So a scan that was killed — a lost runner, a cancelled job,
+// the 210-minute ceiling the falsify night hit on 2026-11-12 — closed the drift
+// issue with "Every operation upstream is triaged: implemented, or declined
+// with a reason."
+//
+// That sentence would then be a verdict drawn from an absence of measurement,
+// which is the failure this repository has paid for most. The backlog step now
+// answers with three values and this is the third one.
+func TestADriftReportThatCouldNotMeasureNeitherClosesNorComments(t *testing.T) {
+	for _, verdict := range []string{"cancelled", "skipped", "error"} {
+		code, out, writes := runDriftReport(t, verdict, "provider scaleway: nothing left to triage\n", "800\n", true)
+		if code != 0 {
+			t.Fatalf("exit %d on verdict %q: %s", code, verdict, out)
+		}
+		if writes != "" {
+			t.Errorf("verdict %q wrote to the issues although nothing was measured:\n%s", verdict, writes)
+		}
+		if !strings.Contains(out, "did not conclude") {
+			t.Errorf("verdict %q does not say the scan could not conclude: %s", verdict, out)
+		}
+	}
+}
+
+// An absent verdict fails loudly instead of quietly.
+//
+// The distinction matters: "cancelled" is a verdict the scan reported, and the
+// case above is right to be quiet about it. An EMPTY argument means the step
+// that was supposed to answer never ran at all, so there is no verdict to be
+// quiet about. The script exits non-zero, the report job fails, and the night
+// job (#705) reports a scan that could not conclude — which is the mechanism
+// that exists for this, instead of a silence this script would be inventing.
+func TestADriftReportWithNoVerdictAtAllFailsLoudly(t *testing.T) {
+	code, _, writes := runDriftReport(t, "", "provider scaleway: nothing left to triage\n", "800\n", true)
+	if code == 0 {
+		t.Error("a missing verdict exited zero: the step that answers it never ran, and nothing says so")
+	}
+	if writes != "" {
+		t.Errorf("a missing verdict still wrote to the issues:\n%s", writes)
+	}
+}
+
+// The report says the backlog may be old, because it is drawn from what is
+// undecided and not from what arrived.
+//
+// Without this the comment reads "the nightly scan found operations upstream",
+// which sends its reader looking for last night's upstream change. The two
+// baremetal commitment operations arrived fourteen nights earlier.
+func TestADriftReportDoesNotClaimTheBacklogIsNew(t *testing.T) {
+	_, _, writes := runDriftReport(t, "failure", "provider scaleway: 2 operations to triage\n", "800\n", true)
+	if !strings.Contains(writes, "may have been here a while") {
+		t.Errorf("the comment presents a standing backlog as last night's arrival:\n%s", writes)
+	}
+}
+
 // Without --apply it writes nothing, so the decision can be read against any
 // past night.
 func TestTheDriftReportWritesNothingWithoutApply(t *testing.T) {

@@ -1,0 +1,41 @@
+{
+ "package": "./tools/ci/",
+ "note": "The subject is a drift night telling \"could not measure\" apart from \"nothing to report\". Two steps of the scan run under continue-on-error, each for a good reason: the coverage report must not stop the baseline refresh, and a broken contract extraction must not cost the half that worked. The price is that a failure there leaves the job green, and a green scan is read as a scan that found nothing.\n\nIt has already cost exactly that, for weeks: the extraction step called `mise run`, which is not installed on a GitHub runner, so it failed with \"command not found\" every week and the contracts half of the mechanism measured nothing. The note on that fix sits three lines above the step, in the same file.\n\nThe health job is a separate job on purpose. Failing the scan itself would skip `propose`, and a pull request withheld because one extraction broke would lose the measurement that did work.\n\nFive mutations: the two verdicts it reads, the night job waiting for it, the output that carries the extraction's outcome, and the extraction saying out loud that nothing moved — without that last one, `no change` and `died before this line` are the same empty output.",
+ "mutations": [
+  {
+   "label": "the health job stops reading the backlog verdict, so a provider nobody could scan passes for a provider with nothing undecided. The condition is neutralised, not removed, so every name still evaluates",
+   "file": ".github/workflows/drift.yml",
+   "find": "          if [ \"${BACKLOG}\" != ok ]; then",
+   "replace": "          if [ \"${BACKLOG}\" != ok ] && false; then",
+   "test": "TestAnUnmeasuredSourceMakesTheNightRed"
+  },
+  {
+   "label": "the health job stops reading the extraction's verdict, which is the half that has actually been failing in silence: the night then says nothing about what the providers publish today and reports itself green",
+   "file": ".github/workflows/drift.yml",
+   "find": "          if [ \"${EXTRACTION}\" != success ]; then",
+   "replace": "          if [ \"${EXTRACTION}\" != success ] && false; then",
+   "test": "TestAnUnmeasuredSourceMakesTheNightRed"
+  },
+  {
+   "label": "the night job stops waiting for the health job, so it can judge the run green before the job that would redden it has finished. The same shape as a gate whose verdict is read before its subject ran",
+   "file": ".github/workflows/drift.yml",
+   "find": "    needs: [drift, propose, report, health]\n",
+   "replace": "    needs: [drift, propose, report] # health\n",
+   "test": "TestAnUnmeasuredSourceMakesTheNightRed"
+  },
+  {
+   "label": "the drift job stops publishing the extraction's outcome. The step runs under continue-on-error, so its outcome is the only place its failure is written down: without it there is nothing for the health job to read, and an absent output reads as no failure",
+   "file": ".github/workflows/drift.yml",
+   "find": "      extraction: ${{ steps.contracts.outcome }}\n",
+   "replace": "      # extraction: ${{ steps.contracts.outcome }}\n",
+   "test": "TestAnUnmeasuredSourceMakesTheNightRed"
+  },
+  {
+   "label": "the extraction goes back to saying nothing when nothing moved, so an unchanged night and a step that died before reaching the line are the same empty output to every reader of it. The echo is commented out rather than deleted, which is also the shape the step had before this change: an if with no else",
+   "file": ".github/workflows/drift.yml",
+   "find": "            echo \"changed=false\" >> \"$GITHUB_OUTPUT\"\n            echo 'The providers'\"'\"' API descriptions have not moved.'",
+   "replace": "            # echo \"changed=false\" >> \"$GITHUB_OUTPUT\"\n            echo 'The providers'\"'\"' API descriptions have not moved.'",
+   "test": "TestAnUnmeasuredSourceMakesTheNightRed"
+  }
+ ]
+}
