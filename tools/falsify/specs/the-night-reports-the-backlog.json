@@ -1,0 +1,48 @@
+{
+ "package": "./tools/ci/",
+ "note": "The subject is the drift night reporting a debt rather than only an arrival. The verdict it reported was the drift gate's outcome, and the gate answers the narrower question: did an operation appear that is not in the committed baseline. The baseline records the unknown operations, so the first refresh after an arrival writes the arrival down and every later night finds nothing new while the operation is still undecided.\n\nMeasured on 2026-11-12, against the Scaleway SDK of that morning: `coverage --fail-on-unknown` exits 2 and names baremetal/v1/API.UpdateServerCommitment and baremetal/v1/API.UpgradeServerCommitment, which arrived in the 2026-10-28 refresh (#827). Fourteen nights, all green, and the question was answerable on every one of them (#875, #886). The backlog was two operations for Scaleway and zero for the other two providers, which is what makes a standing report a reminder rather than the noise this mechanism already paid for.\n\nFive mutations, because the fix has five parts and each one alone leaves the night lying: the verdict's source, the three-value verdict that keeps an unmeasured scan from closing the issue, the triage view travelling on a night where nothing moved, every provider being asked, and the comment not presenting a fourteen-day-old backlog as last night's arrival.\n\nOne more mutation than the fix had parts, because the first attempt at this change shipped a defect of its own: the arithmetic was a `run:` block, GitHub runs those with `bash -e`, and the first probe to answer 2 — the answer the step exists to produce — killed the step before the line that read the code. It passed every local check and died on its first real run, because the Go test written with it executed the other step's shell. The arithmetic now lives in tools/ci/drift-backlog.sh and is driven under `bash -e` with a stubbed feint.",
+ "mutations": [
+  {
+   "label": "the night's verdict goes back to the drift gate's outcome, which is the state of the repository on the day this was found: the gate is silent on an undecided operation the moment it is written into the baseline, so the night reports nothing and the debt stands",
+   "file": ".github/workflows/drift.yml",
+   "find": "      undecided: ${{ steps.backlog.outputs.verdict }}\n",
+   "replace": "      undecided: ${{ steps.report.outcome }}\n",
+   "test": "TestTheNightReportsTheBacklogAndNotJustWhatIsNew"
+  },
+  {
+   "label": "the verdict folds back into two values, so a scan that could not conclude takes the closing branch and the issue is closed with \"Every operation upstream is triaged\" on a night that measured nothing. The condition is neutralised rather than removed, so every name still evaluates",
+   "file": "tools/ci/drift-report.sh",
+   "find": "if [ \"${undecided}\" != failure ] && [ \"${undecided}\" != success ]; then",
+   "replace": "if [ \"${undecided}\" != failure ] && [ \"${undecided}\" != success ] && false; then",
+   "test": "TestADriftReportThatCouldNotMeasureNeitherClosesNorComments"
+  },
+  {
+   "label": "the triage view is uploaded only when an artefact moved, so on a night where nothing moved and something is still undecided the issue is posted over a body reading \"the triage view did not make it to this run\". The report then names its own gap instead of the operations",
+   "file": ".github/workflows/drift.yml",
+   "find": "        if: always() && (steps.diff.outputs.changed == 'true' || steps.contracts.outputs.changed == 'true' || steps.backlog.outputs.verdict == 'failure')\n",
+   "replace": "        if: always() && (steps.diff.outputs.changed == 'true' || steps.contracts.outputs.changed == 'true')\n",
+   "test": "TestTheNightReportsTheBacklogAndNotJustWhatIsNew"
+  },
+  {
+   "label": "Exoscale stops being asked, so a finding that only Exoscale carries is never reported. A provider left out of the question reads as a provider with nothing undecided, which is the same arithmetic as a skipped suite reporting PASS. Caught by running the script, not by reading it: a commented-out probe still contains the words",
+   "file": "tools/ci/drift-backlog.sh",
+   "find": "probe exoscale \"${FEINT}\" coverage --provider exoscale \\\n  --contract contracts/exoscale.json\n",
+   "replace": "# probe exoscale \"${FEINT}\" coverage --provider exoscale\n#   --contract contracts/exoscale.json\n",
+   "test": "TestEachProviderCanCarryTheBacklogOnItsOwn"
+  },
+  {
+   "label": "the comment presents the backlog as last night's arrival again, sending its reader to look for an upstream change that happened fourteen nights earlier",
+   "file": "tools/ci/drift-report.sh",
+   "find": "  echo \"Some of these may have been here a while. This report is drawn from what is\"\n",
+   "replace": "  echo \"This report is drawn from what is\"\n",
+   "test": "TestADriftReportDoesNotClaimTheBacklogIsNew"
+  },
+  {
+   "label": "the probe reads its exit code on the next line instead of collecting it, which is the defect this change shipped and CI caught: under the `bash -e` that GitHub gives a run: block, the line is never reached and the step dies on the answer it exists to produce",
+   "file": "tools/ci/drift-backlog.sh",
+   "find": "  \"$@\" --fail-on-unknown || status=$?\n",
+   "replace": "  \"$@\" --fail-on-unknown\n  status=$?\n",
+   "test": "TestABacklogProbeExitingTwoStillProducesAVerdict"
+  }
+ ]
+}

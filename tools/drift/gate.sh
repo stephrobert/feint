@@ -14,7 +14,7 @@
 # Both callers now run this file. Divergence is no longer possible by editing one
 # of them.
 #
-# Usage: tools/drift/gate.sh check|update [feint-binary]
+# Usage: tools/drift/gate.sh check|update|products [feint-binary]
 # Exit:  0 nothing moved, 1 error, 2 drift detected.
 set -uo pipefail
 
@@ -45,6 +45,24 @@ OUTSCALE_SDK="${FEINT_SDK_OUTSCALE:-.upstream/osc-sdk-go}"
 # was mounted. Naming it here is what puts it in front of the triage instead
 # of leaving the scanned surface and the published document disagreeing.
 SCALEWAY_PRODUCTS="${FEINT_PRODUCTS:-instance,vpc,ipam,iam,marketplace,block,lb,vpcgw,account,baremetal,scw}"
+
+# The product list on stdout, for the caller that needs to name the products
+# without running a scan: the triage view of .github/workflows/drift.yml. That
+# step carried its own copy reading `instance,vpc,ipam` while this file scanned
+# eleven products, so the gate measured baremetal and the view attached to the
+# issue could not show it. That is how the two baremetal commitment operations
+# of #875 were undecided for fourteen days under a mechanism that was, in its
+# own terms, working (#886).
+#
+# Answered before the binary check below, because naming the products needs no
+# feint: the triage step runs it on a runner where the build may have failed,
+# and a list that cannot be printed would take the view down with it.
+#
+# TestTheTriageViewCoversEveryProductTheGateScans fails without this mode.
+if [ "$MODE" = products ]; then
+  echo "$SCALEWAY_PRODUCTS"
+  exit 0
+fi
 
 [ -x "$FEINT" ] || { echo "no feint binary at $FEINT (build it: mise run build)" >&2; exit 1; }
 
@@ -112,7 +130,7 @@ case "$MODE" in
     "$FEINT" docs
     ;;
   *)
-    echo "usage: $0 check|update [feint-binary]" >&2
+    echo "usage: $0 check|update|products [feint-binary]" >&2
     exit 1
     ;;
 esac
