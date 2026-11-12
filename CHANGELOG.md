@@ -19,6 +19,28 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Added
 
+- **A stack preflight reads what a configuration declares, before anything
+  starts** (#888). `feint run` reads the Terraform or OpenTofu stack its child
+  would read and refuses, before the lab is up, a configuration declaring a type
+  a pack refuses; `feint doctor --stack <dir>` asks the same question outright,
+  changing nothing. `--preflight` takes `auto` (the default, refuses only a
+  declined type), `strict` (also refuses an unmeasured one) and `off`;
+  `--preflight-json` and `feint doctor --stack-json` write the report where CI
+  can read it. A refusal is exit 1: 2 is drift, and the codes are a contract.
+
+  What it replaces, measured on 2026-11-12 with provider outscale/outscale
+  1.8.0: a stack with three declined types applied 48 resources, failed with two
+  404s, left 50 entries in the state, and never attempted the third declined
+  type at all, because its dependencies had failed — so fixing the two visible
+  errors bought a second full apply to find the third. The preflight names all
+  three in 12 ms, with nothing created.
+
+  `compatible` means a recorded run applied and destroyed those types against
+  this emulator. It is not a promise about every attribute, nor about anything
+  past the control plane, and a type whose product is outside the drift scan
+  reads as `unknown` rather than refused. `docs/limits.md` says what the reading
+  cannot cover.
+
 - **`feint checkpoint` and `feint reset`** (#853): a checkpoint records the
   control plane and the object bytes under one name, and a reset returns the
   lab to it — destroying what the checkpoint does not hold, starting again what
@@ -49,6 +71,22 @@ what this project is judged on: **a response shape a client can observe**, and
   list here.
 
 ### Changed
+
+- **The Outscale example stack pins its provider exactly** (#873, #898), at
+  `1.8.1`, where it floated at `~> 1.7`. `docs/clients.md`'s row for it goes
+  from "resolved fresh on each run, so the version that answered is not knowable
+  here" to "exact: the version that answered". The floor was right and the
+  floating part was the accident #778 measured on another stack: two engines
+  resolving one constraint to two different versions, both reporting success.
+  The module's own `~> 1.7` stays, deliberately — it is a floor for reuse, and
+  Terraform intersects it with the root's pin.
+- **The API descriptions are re-extracted, and Outscale's document moved from
+  `1.42.0` to `1.43.2`** (#900), 655 schemas to 656: `RequestedSnapshotMode`
+  added, `Snapshot`, `FiltersSnapshot`, `AccessKey`, `ApiAccessPolicy` and
+  `UpdateApiAccessPolicyRequest` changed. Scaleway's baremetal options moved
+  with them, gaining `private_network`, `public_bandwidth`, `remote_access`,
+  `license` and `certification`. No newly declared query parameter lands on a
+  route this emulator mounts, which is the case that would have cost code.
 
 - **The coverage headline names the population it counted.** It read "Of the
   548 operations upstream declares" while the Scaleway scan covers 11 of the 56

@@ -21,6 +21,29 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Ajouté
 
+- **Un préflight lit ce qu'une configuration déclare, avant que rien ne
+  démarre** (#888). `feint run` lit la stack Terraform ou OpenTofu que son
+  enfant lirait et refuse, avant que le labo ne soit monté, une configuration
+  qui déclare un type qu'un pack refuse ; `feint doctor --stack <dir>` pose la
+  même question à la demande, sans rien changer. `--preflight` accepte `auto`
+  (par défaut, ne refuse qu'un type décliné), `strict` (refuse aussi un type non
+  mesuré) et `off` ; `--preflight-json` et `feint doctor --stack-json` écrivent
+  le rapport là où une CI le lit. Un refus sort en 1 : le 2 est la dérive, et
+  les codes sont un contrat.
+
+  Ce que ça remplace, mesuré le 2026-11-12 avec le provider outscale/outscale
+  1.8.0 : une stack portant trois types déclinés a créé 48 ressources, a échoué
+  sur deux 404, a laissé 50 entrées dans l'état, et n'a jamais tenté le
+  troisième type décliné, ses dépendances ayant échoué. Corriger les deux
+  erreurs visibles coûtait donc un second apply complet pour trouver la
+  troisième. Le préflight nomme les trois en 12 ms, sans rien créer.
+
+  « compatible » veut dire qu'une exécution enregistrée a appliqué puis détruit
+  ces types contre cet émulateur. Ce n'est pas une promesse sur chaque attribut,
+  ni sur quoi que ce soit au-delà du plan de contrôle, et un type dont le
+  produit est hors du scan de dérive se lit « inconnu » et non « refusé ».
+  `docs/limits.md` dit ce que cette lecture ne couvre pas.
+
 - **`feint checkpoint` et `feint reset`** (#853) : un point de reprise
   enregistre le plan de contrôle et les octets sous un seul nom, et un reset y
   ramène le labo. Il détruit ce que le point de reprise ne contient pas,
@@ -53,6 +76,24 @@ change ni l'un ni l'autre a sa place dans `git log`.
   packs, et non depuis une seconde liste tenue ici.
 
 ### Modifié
+
+- **La stack d'exemple Outscale épingle son provider exactement** (#873, #898),
+  à `1.8.1`, là où elle flottait en `~> 1.7`. Sa ligne dans `docs/clients.md`
+  passe de « résolu à neuf à chaque exécution, donc la version qui a répondu
+  n'est pas connaissable ici » à « exacte : la version qui a répondu ». Le
+  plancher était juste, c'est le flottement qui était l'accident mesuré par
+  #778 sur une autre stack : deux moteurs résolvant une contrainte en deux
+  versions différentes, les deux rapportant un succès. Le `~> 1.7` du module
+  reste, volontairement : c'est un plancher de réutilisation, et Terraform
+  l'intersecte avec l'épingle de la racine.
+- **Les descriptions d'API sont ré-extraites, et le document Outscale passe de
+  `1.42.0` à `1.43.2`** (#900), 655 schémas à 656 : `RequestedSnapshotMode`
+  ajouté, `Snapshot`, `FiltersSnapshot`, `AccessKey`, `ApiAccessPolicy` et
+  `UpdateApiAccessPolicyRequest` modifiés. Les options baremetal de Scaleway
+  ont bougé avec, gagnant `private_network`, `public_bandwidth`,
+  `remote_access`, `license` et `certification`. Aucun paramètre de requête
+  nouvellement déclaré ne tombe sur une route que cet émulateur monte, ce qui
+  est le cas qui aurait coûté du code.
 
 - **Le chiffre de couverture nomme la population qu'il a comptée.** Il disait
   « Of the 548 operations upstream declares » alors que le scan Scaleway couvre

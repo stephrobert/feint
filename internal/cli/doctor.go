@@ -50,6 +50,9 @@ func doctor(args []string, stdout, stderr io.Writer) int {
 	addr := fs.String("addr", DefaultAddr, "the address serve would listen on")
 	vm := fs.String("vm", "auto", "the machine runtime to diagnose: off, incus, incus-vm, incus-ovn, auto")
 	withS3 := fs.Bool("s3", false, "require and diagnose live S3 activation on this address")
+	stackDir := fs.String("stack", "", "also read the Terraform or OpenTofu configuration in this directory and report what it appears to need")
+	stackEngine := fs.String("engine", "terraform", "which engine's loading rules to read the stack with: terraform or opentofu. They disagree about which files a module is")
+	stackJSON := fs.Bool("stack-json", false, "print the stack report as JSON instead of prose")
 	if err := fs.Parse(args); err != nil {
 		return exitError
 	}
@@ -66,6 +69,7 @@ func doctor(args []string, stdout, stderr io.Writer) int {
 	checks = append(checks, checkEnvHazards()...)
 	checks = append(checks, checkStackHazards()...)
 	checks = append(checks, checkSSHConfig())
+	checks = append(checks, checkStackPreflight(*stackDir, *stackEngine, *stackJSON, stdout, stderr)...)
 	if *withS3 {
 		checks = append(checks, checkObjectStorage(*addr))
 	}

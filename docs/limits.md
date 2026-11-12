@@ -535,6 +535,59 @@ client — never a system trust-store install, never a hosts file this binary ed
 itself, and now not even a namespace. What is left to cost is the S3 surface
 itself; that is a product call, and it is no longer an unmeasured one.
 
+## A stack preflight reads declarations, not what will run (#888)
+
+`feint run` and `feint doctor --stack` read the Terraform or OpenTofu
+configuration in front of them and report what it appears to need. **What they
+read is declarations. What they cannot read is what evaluation would decide,
+and that boundary is the whole shape of this feature.**
+
+What is exact, and why. The files read are the directory's own `*.tf` and
+`*.tf.json`, plus `*.tofu` under OpenTofu, where a `main.tofu` shadows a
+`main.tf` of the same name; override files are merged last; local modules are
+followed, and so is anything `terraform init` already installed under
+`.terraform/modules`. Over those files the set of declared resource and data
+**types** is exact, because block labels are literal by the language's own
+rules — Terraform 1.16.1 refuses `resource "${var.t}" "x"` with "Template
+sequences are not allowed in this string" (measured 2026-11-12).
+
+What it cannot say, each one measured on Terraform 1.16.1 and OpenTofu 1.11.4
+on 2026-11-12:
+
+- **whether a declared type will have any instance.** `count` and `for_each`
+  are plan-time. With `count = 0` the provider is still required and the
+  resource is still in the plan's `configuration`, so the report says
+  "declared" and marks the instance count as plan-time. It does not weaken the
+  verdict: reporting the declaration as unknown would hide a known-unsupported
+  type behind `count = var.enabled`.
+- **what a module it could not read contains.** A registry or git source with
+  no install, or a source written as an expression — Terraform 1.16 evaluates
+  locals and `const` variables at init, OpenTofu 1.11 evaluates input
+  variables, and this reader evaluates none of them. Named, never assumed
+  empty, and the verdict is `unknown` while one stands.
+- **what a provider will actually call.** `compatible` means a recorded
+  conformance run applied and destroyed that type against this emulator with
+  that provider version. It says nothing about every attribute or nested block
+  of the type, and nothing about behaviour past the control plane — a mounted
+  route is a protocol promise, not a behavioural one.
+- **a type whose product is outside the drift scan.** The Scaleway scan covers
+  11 of the 56 products in that SDK, so RDB, Registry, Kapsule and Domain among
+  others have no operation this emulator serves or declines. A stack using them
+  will fail, and the preflight still answers `unknown` rather than
+  `incompatible`: reporting them refused would mean naming a decision nobody
+  took. Treat `unknown` as "nothing here has measured this", never as "this
+  will work".
+- **where a request goes when the endpoint is an expression**, when a backend
+  is completed on the command line, when `dev_overrides` names another binary,
+  or when a client ignores proxy variables. Under `feint run` the transport
+  refuses a host it was not told about (#849); outside it, nothing here can.
+- **a plan file given to `apply`**, `-target`, `-replace` or a workspace: the
+  preflight reads a directory, not a plan.
+
+And what it is NOT for. It is not containment. The refusal saves a run that is
+going to fail and a lab half built; what keeps a run off the real cloud is the
+transport above, which is a stronger instrument than any reading of text.
+
 ## A run presented as local can still reach the real cloud (#280)
 
 Every sentence this project writes about locality has to be the one that is
@@ -3346,8 +3399,8 @@ proof.
 | Provider | API description | Schemas | Unknown fields |
 |---|---|--:|---|
 | Exoscale | `2.0.0` | 473 | *assumed* by this emulator |
-| Outscale | `1.42.0` | 655 | **declared** by the provider |
-| Scaleway | `instance/v1, instance/v2alpha1, vpc/v2, ipam/v1, iam/v1alpha1, marketplace/v2, block/v1, block/v1alpha1, lb/v1, vpcgw/v2, account/v3, baremetal/v1` | 718 | **declared** by the provider |
+| Outscale | `1.43.2` | 656 | **declared** by the provider |
+| Scaleway | `instance/v1, instance/v2alpha1, vpc/v2, ipam/v1, iam/v1alpha1, marketplace/v2, block/v1, block/v1alpha1, lb/v1, vpcgw/v2, account/v3, baremetal/v1` | 719 | **declared** by the provider |
 <!-- contracts:end -->
 
 **Declared** means the provider wrote `additionalProperties: false` themselves:

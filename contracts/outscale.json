@@ -1,7 +1,7 @@
 {
  "provider": "outscale",
  "source": "outscale/osc-sdk-go pkg/osc/api.yaml",
- "apiVersion": "1.42.0",
+ "apiVersion": "1.43.2",
  "pathPrefix": "/api/v1",
  "closedPolicy": "declared",
  "errorSchema": "ErrorResponse",
@@ -1719,6 +1719,9 @@
     },
     "Tag": {
      "type": "string"
+    },
+    "Trusted": {
+     "type": "boolean"
     }
    }
   },
@@ -1868,6 +1871,9 @@
      "type": "integer"
     },
     "RequireTrustedEnv": {
+     "type": "boolean"
+    },
+    "RequireTrustedEnvSecureMode": {
      "type": "boolean"
     }
    }
@@ -6956,6 +6962,12 @@
      }
     },
     "Descriptions": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "EffectiveSnapshotModes": {
      "type": "array",
      "items": {
       "type": "string"
@@ -12411,6 +12423,17 @@
     }
    }
   },
+  "RequestedSnapshotMode": {
+   "closed": true,
+   "properties": {
+    "Mode": {
+     "type": "string"
+    },
+    "OnFailure": {
+     "type": "string"
+    }
+   }
+  },
   "ResourceLoadBalancerTag": {
    "closed": true,
    "required": [
@@ -12801,11 +12824,17 @@
     "Description": {
      "type": "string"
     },
+    "EffectiveSnapshotMode": {
+     "type": "string"
+    },
     "PermissionsToCreateVolume": {
      "ref": "PermissionsOnResource"
     },
     "Progress": {
      "type": "integer"
+    },
+    "RequestedSnapshotMode": {
+     "ref": "RequestedSnapshotMode"
     },
     "SnapshotId": {
      "type": "string"
@@ -13434,7 +13463,8 @@
    "closed": true,
    "required": [
     "MaxAccessKeyExpirationSeconds",
-    "RequireTrustedEnv"
+    "RequireTrustedEnv",
+    "RequireTrustedEnvSecureMode"
    ],
    "properties": {
     "DryRun": {
@@ -13444,6 +13474,9 @@
      "type": "integer"
     },
     "RequireTrustedEnv": {
+     "type": "boolean"
+    },
+    "RequireTrustedEnvSecureMode": {
      "type": "boolean"
     }
    }

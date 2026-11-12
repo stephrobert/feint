@@ -85,6 +85,8 @@ func runCommand(args []string, stdout io.Writer, stderr io.Writer) int {
 	keep := fs.Bool("keep-on-failure", false, "when the child fails, leave the lab running and print how to reach and remove it")
 	receiptPath := fs.String("json", "", "write the receipt as JSON to this path; `-` means stdout, which is only safe when the command itself is quiet")
 	unsafe := fs.Bool("unsafe-real-credentials", false, "allow the child to carry credentials that are not known fakes. The emulator never checks a signature, so this buys nothing and risks sending real keys to a third party")
+	preflightMode := fs.String("preflight", "auto", "read the Terraform stack the child would read, before anything starts: auto refuses a type this emulator declines, strict also refuses an unmeasured one, off skips the reading")
+	preflightJSON := fs.String("preflight-json", "", "write the preflight report as JSON to this path; `-` means stdout")
 	if err := fs.Parse(args); err != nil {
 		return exitError
 	}
@@ -100,6 +102,16 @@ func runCommand(args []string, stdout io.Writer, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "  The emulator accepts any signature without checking it, so real keys buy")
 		fmt.Fprintln(stderr, "  nothing here. Use the repository's public fakes, or pass")
 		fmt.Fprintln(stderr, "  --unsafe-real-credentials if you have a reason this refusal does not cover.")
+		return exitError
+	}
+
+	// The stack, read before anything starts, which is the whole value of it:
+	// a refusal after the lab is up has already cost what it exists to save.
+	// Measured 2026-11-12 on a configuration holding three declined types: 48
+	// resources created, two errors, 50 entries left in the state, and the
+	// third declined type never even attempted because its dependencies had
+	// failed. TestARunRefusesADeclinedStackBeforeStartingAnything holds it.
+	if runStackPreflight(command, preflightPolicy(*preflightMode), *preflightJSON, stdout, stderr) {
 		return exitError
 	}
 
