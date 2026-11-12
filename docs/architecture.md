@@ -33,6 +33,9 @@ internal/probe/             drives every mounted route from its API description
 internal/replay/            reissues a recorded exchange here and grades the answer
 internal/proxy/             records what a real client and a real cloud say to each other
 internal/shape/             what a real cloud was observed to return, and what is omitted from it
+internal/stack/             reads what a Terraform or OpenTofu configuration declares: block
+                            headers, never expressions, so the set of declared types is exact
+                            and everything needing evaluation is reported unknown
 internal/trace/             the record of one HTTP exchange, for /_feint/trace and the log
 internal/transcript/        turns a proxy recording into what to serve next
 internal/upstream/          talks to the real clouds, so that nothing else has to
