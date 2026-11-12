@@ -29,10 +29,9 @@ import "github.com/stephrobert/feint/internal/stack"
 // # HOW THE ROWS WERE OBTAINED, WHICH IS THE ONLY THING THAT MAKES THEM TRUE
 //
 // The served rows: `terraform apply` of examples/stacks/outscale against an
-// emulator on 2026-11-12, provider outscale/outscale 1.8.0, 48 resources
-// created and the operations answered. A row claiming a type is served that
-// nothing has applied would be the "compatible" this preflight exists to avoid
-// printing.
+// emulator on 2026-11-12, 48 resources created and the operations answered. A
+// row claiming a type is served that nothing has applied would be the
+// "compatible" this preflight exists to avoid printing.
 //
 // The refused rows: the same apply, with three resources added. The emulator
 // answered 404 `OperationNotEmulated` naming CreateVirtualGateway and
@@ -41,6 +40,21 @@ import "github.com/stephrobert/feint/internal/stack"
 // dependencies had failed, so an operator who fixed the first two would pay a
 // second apply to discover it. Those three rows are the measurement that
 // justifies a preflight at all.
+//
+// # TWO PROVIDER VERSIONS, AND THAT IS THE POINT
+//
+// The apply above was run twice on 2026-11-12: once on outscale/outscale 1.8.0,
+// the copy that was on the machine, and once on 1.8.1, which is what the
+// registry's `~> 1.7` resolves to today and what #873 pins the stack to. Both
+// answered identically — 48 created, the same two operations refused by name,
+// the same 50 entries in the state, and outscale_vpn_connection never attempted
+// either time.
+//
+// The second run exists because the first measured a version nobody runs. A
+// table grounded on a build that only ever existed on one laptop is a table
+// nobody can re-derive, and this repository's rule is that a behaviour without
+// its version is a memory rather than a fact. Naming both is what says these
+// rows are not a property of one patch release.
 //
 // # WHAT A MISSING ROW MEANS
 //
