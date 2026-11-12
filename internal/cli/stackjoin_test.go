@@ -1,6 +1,9 @@
 package cli
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stephrobert/feint/internal/core/emulator"
@@ -137,5 +140,52 @@ resource "stub_thing" "c" {}
 	// report can say the count is not decided here without listing the three.
 	if !rep.Findings[0].Counted {
 		t.Error("a type declared three times, one of them counted, does not carry the plan-time mark")
+	}
+}
+
+// A module nobody could read makes the verdict unknown, whatever the types
+// that WERE read say.
+//
+// This is the rule that stops a report covering files nobody opened, and it
+// needs its own subject: the repository's own stacks call local modules the
+// loader follows, so none of them can exercise it. A registry source does —
+// reading it would need an install, which a preflight must not perform.
+//
+// The first version of this report had the opposite behaviour and answered
+// `compatible` over two unread files. The mutation that removes this rule is in
+// tools/falsify/specs/a-preflight-reads-declarations.json.
+func TestAnUnreadableModuleMakesTheVerdictUnknown(t *testing.T) {
+	p := stubStackPack{
+		name:   "stub",
+		routes: []emulator.Route{{Operation: "stub/Client.CreateThing"}},
+		table:  map[string]string{"stub_thing": "stub/Client.CreateThing"},
+	}
+
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte(`
+resource "stub_thing" "a" {}
+module "remote" {
+  source  = "terraform-aws-modules/vpc/aws"
+  version = "5.0.0"
+}
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	mod := stack.Load(dir, stack.EngineTerraform)
+	rep := stackReport([]emulator.Pack{p}, mod)
+
+	// Every type that was read is served, so without the module rule this
+	// would read `compatible`.
+	for _, f := range rep.Findings {
+		if f.Standing != stack.StandingServed {
+			t.Fatalf("a read type is %q, so this test would prove the wrong thing: %+v", f.Standing, f)
+		}
+	}
+	if rep.Verdict != stack.VerdictUnknown {
+		t.Errorf("verdict = %q while a module was not read, want unknown", rep.Verdict)
+	}
+	if len(rep.Unresolved) != 1 || !strings.Contains(rep.Unresolved[0], "remote") {
+		t.Errorf("unresolved = %v, want the module named with its reason", rep.Unresolved)
 	}
 }

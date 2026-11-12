@@ -1,9 +1,7 @@
 package cli
 
 import (
-	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/stephrobert/feint/internal/core/emulator"
@@ -181,36 +179,21 @@ resource "outscale_oks_cluster" "k8s" {
 	}
 }
 
-// A configuration whose every READ type is served still answers `unknown`
-// while a module of it has not been read.
+// The repository's own Outscale example, loaded with its modules, is
+// compatible.
 //
-// The subject is the repository's own Outscale example, which a real Terraform
-// and a real OpenTofu apply and destroy every night, and which calls
-// ./modules/net twice. Every type in its root module is served — that half must
-// work or no verdict is ever reachable — and the two modules are not read, so
-// the answer is `unknown` with both named.
+// It is applied and destroyed every night by a real Terraform and a real
+// OpenTofu, so if this stack cannot reach `compatible`, no stack can. It calls
+// ./modules/net twice, and the loader follows both: before it did, this report
+// had to answer `unknown` here, which was the honest verdict over an inventory
+// that stopped at the root module.
 //
-// This test exists because the first version of this code answered
-// `compatible` here. It named only the modules it could not have followed, so a
-// local path it simply does not follow yet counted as resolved, and the verdict
-// covered two files nobody had opened. Caught by running it against this stack.
-func TestTheRepositorysOwnOutscaleStackIsUnknownWhileItsModulesAreUnread(t *testing.T) {
+// The route from `unknown` to `compatible` is the loader reading two more
+// files, never the verdict relaxing. The test that held the old answer is the
+// same test, with the subject completed rather than the rule bent.
+func TestTheRepositorysOwnOutscaleStackIsCompatible(t *testing.T) {
 	dir := filepath.Join("..", "..", "examples", "stacks", "outscale")
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		t.Fatalf("%v", err)
-	}
-	var files []stack.File
-	for _, e := range entries {
-		if !e.IsDir() && strings.HasSuffix(e.Name(), ".tf") {
-			body, err := os.ReadFile(filepath.Join(dir, e.Name())) //nolint:gosec // a committed example
-			if err != nil {
-				t.Fatal(err)
-			}
-			files = append(files, stack.File{Name: e.Name(), Source: string(body)})
-		}
-	}
-	mod := stack.Read(dir, files)
+	mod := stack.Load(dir, stack.EngineTerraform)
 	rep := stackReport(packsForStackTest(t), mod)
 
 	// Every type the report did read is served. This is the accepting half: a
@@ -227,16 +210,23 @@ func TestTheRepositorysOwnOutscaleStackIsUnknownWhileItsModulesAreUnread(t *test
 			notServed)
 	}
 
-	// And the two modules are named rather than assumed empty.
-	if len(rep.Unresolved) != 2 {
-		t.Errorf("unresolved modules = %v, want the stack's two module calls named", rep.Unresolved)
+	// Nothing is left unresolved: both calls were followed.
+	if len(rep.Unresolved) != 0 {
+		t.Errorf("unresolved = %v, and the loader follows local modules", rep.Unresolved)
 	}
-	for _, u := range rep.Unresolved {
-		if !strings.Contains(u, "./modules/net") {
-			t.Errorf("an unresolved module does not say what it is: %q", u)
+	if rep.Verdict != stack.VerdictCompatible {
+		t.Errorf("verdict = %q on a stack applied every night, want compatible", rep.Verdict)
+	}
+	// The module's own type is in the inventory. Without it the verdict would
+	// be right by luck: the root module alone is also all-served.
+	found := false
+	for _, f := range rep.Findings {
+		if f.Name == "outscale_subnet" {
+			found = true
 		}
 	}
-	if rep.Verdict != stack.VerdictUnknown {
-		t.Errorf("verdict = %q while two modules of this stack have not been read, want unknown", rep.Verdict)
+	if !found {
+		t.Error("outscale_subnet, declared only inside ./modules/net, is missing from the inventory: " +
+			"the verdict covers the root module alone")
 	}
 }

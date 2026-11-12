@@ -1,6 +1,6 @@
 {
  "package": "./internal/cli/",
- "note": "The subject is a stack preflight that reads declarations and never evaluates them, and the verdict drawn from what it read.\n\nWhy it exists, measured 2026-11-12 against a real emulator with provider outscale/outscale 1.8.0: the repository's own Outscale example plus three resources this pack declines was applied. Plan 51 to add, 48 resources created, then two 404 OperationNotEmulated naming CreateVirtualGateway and CreateClientGateway, 50 entries left in the state. The third, outscale_vpn_connection, was never attempted, because its dependencies had failed: an operator who fixed the two visible errors would pay a second full apply to find it. Staged discovery, each step costing an apply and a half-built lab.\n\nThe lexer half carries its own measured defect. The mechanism this replaces strips comments with three states and no heredoc state, so a heredoc body holding one unbalanced quote — a shell script in user_data supplies one without trying — flips its string state, and a commented-out resource then survives the strip and the hazard scan fires on dead text.",
+ "note": "The subject is a stack preflight that reads declarations and never evaluates them, and the verdict drawn from what it read.\n\nWhy it exists, measured 2026-11-12 against a real emulator with provider outscale/outscale 1.8.0: the repository's own Outscale example plus three resources this pack declines was applied. Plan 51 to add, 48 resources created, then two 404 OperationNotEmulated naming CreateVirtualGateway and CreateClientGateway, 50 entries left in the state. The third, outscale_vpn_connection, was never attempted, because its dependencies had failed: an operator who fixed the two visible errors would pay a second full apply to find it. Staged discovery, each step costing an apply and a half-built lab.\n\nThe lexer half carries its own measured defect. The mechanism this replaces strips comments with three states and no heredoc state, so a heredoc body holding one unbalanced quote — a shell script in user_data supplies one without trying — flips its string state, and a commented-out resource then survives the strip and the hazard scan fires on dead text.\n\nThe loader half carries the rules that decide WHICH FILES are the module, and they are the engine's rules rather than HCL's — which is also why a dependency on hashicorp/hcl would not have bought them. Measured 2026-11-12 on Terraform 1.16.1 and OpenTofu 1.11.4: a module is its own directory's top level and not what sits below it; OpenTofu reads *.tofu as well and a main.tofu shadows a main.tf of the same name while Terraform ignores *.tofu entirely; override files are read last and replace what they name, including a module's source.",
  "mutations": [
   {
    "label": "the lexer loses its heredoc state, which is the defect as it stands in internal/cli today: a body with one unbalanced quote moves the scanner's idea of where strings are, and a commented-out resource comes back as declared",
@@ -34,11 +34,11 @@
    "test": "TestATypeNoTableKnowsIsUnknownAndNotCompatible"
   },
   {
-   "label": "a module whose contents were never read stops counting, so a verdict covers files nobody opened. Written that way first, and caught by running it against the repository's own Outscale example, which calls ./modules/net twice",
+   "label": "a module whose contents were never read stops counting, so a verdict covers files nobody opened. This report was written that way first and answered `compatible` for the repository's own Outscale example, which calls ./modules/net twice",
    "file": "internal/stack/verdict.go",
    "find": "\tif len(r.Unread) > 0 || len(r.Unresolved) > 0 {",
    "replace": "\tif (len(r.Unread) > 0 || len(r.Unresolved) > 0) && false {",
-   "test": "TestTheRepositorysOwnOutscaleStackIsUnknownWhileItsModulesAreUnread"
+   "test": "TestAnUnreadableModuleMakesTheVerdictUnknown"
   },
   {
    "label": "a refusal stops deciding the verdict, so a configuration holding a type a pack refuses is no longer incompatible and nothing would refuse before the client runs",
@@ -60,6 +60,54 @@
    "find": "\t\t\t\ta.reason = declined[op]\n",
    "replace": "\t\t\t\ta.reason = \"\" // declined[op]\n",
    "test": "TestThreeRefusedDeclarationsMakeTheConfigurationIncompatible"
+  },
+  {
+   "label": "Terraform starts reading *.tofu files, so the same directory stops being two configurations and a verdict computed for one engine is printed for the other",
+   "file": "internal/stack/load.go",
+   "package": "./internal/stack/",
+   "find": "\t\treturn engine == EngineOpenTofu",
+   "replace": "\t\treturn true || engine == EngineOpenTofu",
+   "test": "TestTheEngineDecidesWhichFilesAreTheModule"
+  },
+  {
+   "label": "a .tofu file stops shadowing the .tf of the same name, so under OpenTofu the inventory holds both and the engine reads one. Measured: with main.tf and main.tofu present, OpenTofu reads main.tofu INSTEAD of main.tf",
+   "file": "internal/stack/load.go",
+   "package": "./internal/stack/",
+   "find": "\tif engine == EngineOpenTofu {",
+   "replace": "\tif engine == EngineOpenTofu && false {",
+   "test": "TestTheEngineDecidesWhichFilesAreTheModule"
+  },
+  {
+   "label": "override files stop being merged, so a module source the operator replaced is read from the file the engine no longer uses, and the whole inventory below it comes from the wrong directory",
+   "file": "internal/stack/load.go",
+   "package": "./internal/stack/",
+   "find": "\tif len(overrides) > 0 {",
+   "replace": "\tif len(overrides) > 0 && false {",
+   "test": "TestAnOverrideFileReplacesAModuleSource"
+  },
+  {
+   "label": "a local module stops being followed, which is the state this change found the report in: the verdict then covers the root module alone and answers compatible over files nobody opened",
+   "file": "internal/stack/load.go",
+   "package": "./internal/stack/",
+   "find": "\tif call.SourceLiteral && isLocal(call.Source) {",
+   "replace": "\tif call.SourceLiteral && isLocal(call.Source) && false {",
+   "test": "TestALocalModuleIsFollowedAndCounted"
+  },
+  {
+   "label": "the resolution an init already wrote under .terraform/modules is ignored, so a module the engine has installed is reported unreadable although its files are on disk",
+   "file": "internal/stack/load.go",
+   "package": "./internal/stack/",
+   "find": "\tif d, ok := installed[call.Key]; ok {",
+   "replace": "\tif d, ok := installed[call.Key]; ok && false {",
+   "test": "TestAnInstalledModuleIsReadFromTheEnginesOwnResolution"
+  },
+  {
+   "label": "the second call of one directory is left looking unread, so a module that WAS read makes the verdict unknown. The repository's own Outscale example calls ./modules/net twice, so this is not a corner",
+   "file": "internal/stack/load.go",
+   "package": "./internal/stack/",
+   "find": "\t\t\troot.markRead(item.call.Name, target)\n\t\t\tcontinue",
+   "replace": "\t\t\t// root.markRead(item.call.Name, target)\n\t\t\tcontinue",
+   "test": "TestADirectoryCalledTwiceIsReadOnceAndBothCallsAreMarked"
   }
  ]
 }
