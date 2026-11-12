@@ -415,6 +415,19 @@ var rules = []rule{
 		Unproven: "redaction is proved by what the committed shapes contain, not by what this package intends",
 	},
 	{
+		Path: "internal/stack/",
+		Why:  "reading what a Terraform or OpenTofu configuration declares",
+		// Its own tests are the measurement, and they run in `mise run check`:
+		// the subjects are the repository's three example stacks, which a real
+		// Terraform and a real OpenTofu apply and destroy every night, plus the
+		// lexical cases a real configuration supplies and no stack of ours
+		// does — a heredoc holding an unbalanced quote above all.
+		Runs: []string{"check"},
+		Unproven: "the reader is checked against the stacks this repository ships; a construct no stack of " +
+			"ours carries is only proved by the engine itself, which is what the conformance suites' " +
+			"`terraform show -json` can be compared against and is not yet",
+	},
+	{
 		Path:     "internal/upstream/",
 		Why:      "reading the vendored SDK clones the drift scan measures",
 		Runs:     []string{"drift:check"},
