@@ -15,6 +15,8 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-11-12
+
 ### Added
 
 - **A stack preflight reads what a configuration declares, before anything
@@ -39,6 +41,20 @@ what this project is judged on: **a response shape a client can observe**, and
   reads as `unknown` rather than refused. `docs/limits.md` says what the reading
   cannot cover.
 
+- **`feint checkpoint` and `feint reset`** (#853): a checkpoint records the
+  control plane and the object bytes under one name, and a reset returns the
+  lab to it — destroying what the checkpoint does not hold, starting again what
+  the host no longer holds, and putting each pack's firewall rule sets back on
+  the runtime. The verdict is not the operation's own: it compares what a
+  client can observe, control plane, bytes read back through the doors, and
+  what the host holds, and it says `did not converge` rather than reporting the
+  intention.
+- **A Linux install route in the Quick Start** (#843), under the Homebrew one
+  and generated from the same version the install page is pinned to. Six lines,
+  and they verify: the bytes are checked against the published `checksums.txt`
+  before anything is installed. What that does not prove is said rather than
+  implied — it proves the bytes match the list, not who wrote the list, and the
+  signature over the list stays in `docs/install.md`.
 - **`feint run` owns the lab** (#848): with no `--endpoint` it starts an
   emulator, waits for it, resolves the provider environment the way `feint env`
   does, runs the command and stops everything it started. `--provider` narrows
@@ -56,6 +72,44 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Changed
 
+- **The Outscale example stack pins its provider exactly** (#873, #898), at
+  `1.8.1`, where it floated at `~> 1.7`. `docs/clients.md`'s row for it goes
+  from "resolved fresh on each run, so the version that answered is not knowable
+  here" to "exact: the version that answered". The floor was right and the
+  floating part was the accident #778 measured on another stack: two engines
+  resolving one constraint to two different versions, both reporting success.
+  The module's own `~> 1.7` stays, deliberately — it is a floor for reuse, and
+  Terraform intersects it with the root's pin.
+- **The API descriptions are re-extracted, and Outscale's document moved from
+  `1.42.0` to `1.43.2`** (#900), 655 schemas to 656: `RequestedSnapshotMode`
+  added, `Snapshot`, `FiltersSnapshot`, `AccessKey`, `ApiAccessPolicy` and
+  `UpdateApiAccessPolicyRequest` changed. Scaleway's baremetal options moved
+  with them, gaining `private_network`, `public_bandwidth`, `remote_access`,
+  `license` and `certification`. No newly declared query parameter lands on a
+  route this emulator mounts, which is the case that would have cost code.
+
+- **The coverage headline names the population it counted.** It read "Of the
+  548 operations upstream declares" while the Scaleway scan covers 11 of the 56
+  products in that SDK, so a third of the provider was printed as the provider.
+  A stack using a product outside the scan reaches the real endpoint, and the
+  README now says which scan it is talking about.
+- **`README.md` stops saying object storage is out of scope.** It shipped in
+  0.15.0; the sentence sat outside the generated blocks, where `feint docs
+  --check` could not reach it.
+- **A tag is refused while an open milestone claims a version already tagged**
+  (#877). `v0.14.0` and `v0.15.0` were both published while milestones named
+  after them stayed open with 19 and 10 issues, so the tracker said two
+  released versions were unfinished. `tools/release/milestone-gate.sh` asks
+  before each tag, and says when it could not measure rather than refusing for
+  a reason that is not about the repository.
+- **`docs/limits.md` caught up with behaviour that changed months ago** (#857).
+  Eleven sections cited issues that had closed since anyone last read them;
+  three were false, including a heading saying the Exoscale Terraform provider
+  is refused when it has been driving the pack since September.
+- **The boundary of this product is written down** (#196, #733):
+  `docs/limits.md` states that feint never manages a resource whose loss would
+  matter. Two current texts had said opposite things for two months, neither
+  citing the other.
 - **`feint run` leaves stdout to the command it runs.** Its own prose goes to
   stderr and the JSON receipt to a path. Measured rather than reasoned: the
   first version wrote the receipt to stdout, and replaying a surveyed stack
@@ -66,6 +120,85 @@ what this project is judged on: **a response shape a client can observe**, and
   intercepts, so the question is whether THIS run mounts a door for the pack
   that reported it. The receipt also reports the runtime and the capabilities
   the emulator declares, rather than the mode that was asked for.
+
+### Fixed
+
+- **Six query parameters a served route declared and dropped in silence**
+  (#884, #875). The Scaleway API description had not been re-extracted since
+  2026-10-19 while the documents moved under it; a fresh extraction answered
+  +328 lines, holding twenty-one newly declared query parameters, six of them on
+  routes this emulator serves. `server`, `detached`, `regional`, `image_id`,
+  `version_id` and `security_group_ids` are now served, or refused by name.
+  `version_id` is refused before anything else is resolved, so a request
+  carrying it with an unknown label is told which argument is the problem rather
+  than answered "no such image". Found by an outside contributor, as a side
+  effect of a triage.
+- **The nightly drift scan reports a debt, not only an arrival** (#892, #886).
+  The gate asked whether something appeared that is not in the committed
+  baseline, and the baseline records the unknown operations — so the first
+  refresh after an arrival wrote it down and every later night found nothing
+  new while the operation was still undecided. Measured: two baremetal
+  commitment operations sat undecided for fourteen green nights. Three more
+  halves of the same mechanism moved with it: the pull request now carries the
+  API descriptions it regenerated, which had not travelled since 2026-10-19; the
+  triage view covers the eleven products the gate scans rather than three, so an
+  operation outside those three can now be named; and a source that could not be
+  measured makes the night red instead of reading as an absence of drift.
+- **The drift report finds its own issue by title, not by label alone** (#894).
+  The lookup was `--label drift` plus the newest match, and three open issues
+  wear that label. With the backlog empty, the first quiet night would have
+  closed the issue carrying the work still to do, with the words "Every
+  operation upstream is triaged".
+- **The falsification replay fits its budget, and a ceiling it reached is a
+  measured fact** (#893, #890). The scheduled run of 2026-11-12 was cancelled
+  after 210.3 minutes against the `timeout-minutes: 210` it declares for itself,
+  and the issue it opened called that the run's own infrastructure. The cost was
+  in the repository: instrumented on one spec, the two full test suites it runs
+  per spec were 45 of 53 seconds, which across a replay is 242 baselines and 242
+  restorations for some fifteen distinct questions. The baseline is now answered
+  once per packages and environment, and the restoration is read off the bytes
+  of the files that were mutated. Eight `./internal/cli/` specs, 54 mutations,
+  every one still biting: 441 s before, 181 s after. The night report tells a
+  budget reached from a runner lost, and names the duration and the ceiling.
+- **A test asked the kernel for a promise it never made** (#896). The free-port
+  probe closes its listener before answering, so the same port may be handed
+  straight back; a test required two consecutive probes to differ. Measured over
+  two thousand pairs on one station: one came back identical. It asserts
+  loopback and bindable now, which is what the function promises — its own
+  comment opens with "Racy by nature".
+
+- **A reset puts a firewall rule back on the interface, not only in the store**
+  (#871). `Survey` answers names, and a rule set whose content changed keeps its
+  name, so nothing in the observation could see the difference: a reset reported
+  convergence while the runtime went on enforcing the rules of a state the
+  checkpoint does not describe. Reproduced with a TCP connection under
+  `--vm incus` before being fixed. The same pass fixed a reset starting the
+  machine of a record the checkpoint describes as stopped, and then writing
+  `running` over the state it had been asked to return to.
+- **The reset verdict compares the bytes of an object**, not just its name
+  (#871). It read the digest from a field `ListObjectsV2` does not emit, so the
+  field was always empty and two different contents under one key compared
+  equal. Each object is now fetched and hashed by the observer.
+- **`feint run` fails when it did not keep a promise** (#871). Only
+  `did not converge` used to fail the run, so a failed reset, one that could not
+  be read back, and a lab this command owned and could not stop all left the
+  exit code at the child's.
+- **A checkpoint is whole or it is the previous one** (#871). The bytes were
+  saved before the control-plane snapshot, so a failure in the second step left
+  an earlier checkpoint of that name holding its old store beside the new object
+  references.
+- **Named checkpoints stop overwriting each other** (#871): the emulator holds
+  any number and the CLI wrote one file per instance, so `checkpoint A` then
+  `checkpoint B` made `reset A` impossible.
+- **The `gofmt` pre-commit hook fails when gofmt cannot run** (#829). It read
+  the list of offending files and never the exit code, so any failure of gofmt
+  produced an empty list and the hook reported `Passed`. Its window is a fresh
+  clone before `mise trust`, which is a new contributor's first commit.
+- **A balancer verdict is drawn from twenty-four connections, not six** (#559).
+  Six is a coin flipped six times: a balancer that works sent every connection
+  to one side about one run in thirty-two, so the dataplane suite reddened on a
+  subject that was behaving. The same arithmetic ran the other way after an
+  unlink, as a false green over a real defect.
 
 ## [0.15.0] - 2026-11-11
 
