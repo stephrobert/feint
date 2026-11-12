@@ -108,6 +108,41 @@
    "find": "\t\t\troot.markRead(item.call.Name, target)\n\t\t\tcontinue",
    "replace": "\t\t\t// root.markRead(item.call.Name, target)\n\t\t\tcontinue",
    "test": "TestADirectoryCalledTwiceIsReadOnceAndBothCallsAreMarked"
+  },
+  {
+   "label": "the run stops refusing, so a configuration holding a type this emulator declines starts its lab and discovers it the way it did before: 48 resources created, two 404s, 50 entries left in the state, and a third declined type never even attempted",
+   "file": "internal/cli/run.go",
+   "find": "\tif runStackPreflight(command, preflightPolicy(*preflightMode), *preflightJSON, stdout, stderr) {\n\t\treturn exitError\n\t}",
+   "replace": "\tif runStackPreflight(command, preflightPolicy(*preflightMode), *preflightJSON, stdout, stderr) && false {\n\t\treturn exitError\n\t}",
+   "test": "TestARunRefusesADeclinedStackBeforeStartingAnything"
+  },
+  {
+   "label": "the child's -chdir stops being read, which is the state this package was in: stackEscapes took its directory from os.Getwd(), so a run naming -chdir=infra found no stack at all and every reading of it stayed silent on a configuration about to run",
+   "file": "internal/cli/stackpreflight.go",
+   "find": "\t\tif chdir, found := strings.CutPrefix(arg, \"-chdir=\"); found {\n\t\t\tdir = chdir\n\t\t\tcontinue\n\t\t}",
+   "replace": "\t\tif chdir, found := strings.CutPrefix(arg, \"-chdir=\"); found && false {\n\t\t\tdir = chdir\n\t\t\tcontinue\n\t\t}",
+   "test": "TestThePreflightReadsTheChildsChdir"
+  },
+  {
+   "label": "auto starts refusing an unmeasured type, which by the recorded-apply numbers — 26 of 155 Scaleway resource types, 29 of 57 Outscale ones — would refuse nearly every configuration anybody brings. A gate that refuses everything is a gate people turn off",
+   "file": "internal/cli/stackpreflight.go",
+   "find": "\tdefault:\n\t\treturn rep.Verdict == stack.VerdictIncompatible\n\t}",
+   "replace": "\tdefault:\n\t\treturn rep.Verdict != stack.VerdictCompatible || rep.Verdict == stack.VerdictIncompatible\n\t}",
+   "test": "TestStrictRefusesWhatAutoProceedsOn"
+  },
+  {
+   "label": "the declaration's mode is dropped from the lookup key, so a data source is answered with its resource twin's operation. Found in this change before it shipped: exoscale_nlb is create-load-balancer as a resource and get-load-balancer as a data source, and the standing was right by luck while the operation named was wrong",
+   "file": "internal/cli/stacktypes.go",
+   "find": "\t\tif a, ok := answers[stack.TypeKey{Mode: d.Mode, Type: d.Type}]; ok {",
+   "replace": "\t\tif a, ok := answers[stack.TypeKey{Mode: stack.ModeResource, Type: d.Type}]; ok {",
+   "test": "TestOneNameInTwoModesIsTwoQuestions"
+  },
+  {
+   "label": "a subcommand that reaches no provider is preflighted too, so an init and a fmt are interrogated about a compatibility they cannot fail on, and a Go test run is asked about a stack that does not exist",
+   "file": "internal/cli/stackpreflight.go",
+   "find": "\tcase \"plan\", \"apply\", \"destroy\", \"refresh\", \"import\", \"test\", \"console\":\n\t\treturn dir, engine, true\n\t}\n\treturn \"\", \"\", false",
+   "replace": "\tcase \"plan\", \"apply\", \"destroy\", \"refresh\", \"import\", \"test\", \"console\":\n\t\treturn dir, engine, true\n\t}\n\treturn dir, engine, true",
+   "test": "TestOnlyTheSubcommandsThatReachAProviderArePreflighted"
   }
  ]
 }

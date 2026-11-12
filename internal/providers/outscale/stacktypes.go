@@ -1,5 +1,7 @@
 package outscale
 
+import "github.com/stephrobert/feint/internal/stack"
+
 // What a Terraform type of this provider asks the API to do.
 //
 // # WHY THIS TABLE IS OPERATION NAMES AND NOTHING ELSE
@@ -45,51 +47,51 @@ package outscale
 // `unknown`, never `compatible`. This table does not enumerate the provider's
 // 57 resource types and must not pretend to: a type absent from it is a type
 // nothing here has measured.
-func (p *Pack) StackOperations() map[string]string {
-	return map[string]string{
+func (p *Pack) StackOperations() map[stack.TypeKey]string {
+	return map[stack.TypeKey]string{
 		// Served, each one applied and destroyed against the emulator.
-		"outscale_net":                      "osc/Client.CreateNet",
-		"outscale_net_attributes":           "osc/Client.UpdateNet",
-		"outscale_subnet":                   "osc/Client.CreateSubnet",
-		"outscale_internet_service":         "osc/Client.CreateInternetService",
-		"outscale_internet_service_link":    "osc/Client.LinkInternetService",
-		"outscale_route_table":              "osc/Client.CreateRouteTable",
-		"outscale_route_table_link":         "osc/Client.LinkRouteTable",
-		"outscale_main_route_table_link":    "osc/Client.LinkRouteTable",
-		"outscale_route":                    "osc/Client.CreateRoute",
-		"outscale_nat_service":              "osc/Client.CreateNatService",
-		"outscale_public_ip":                "osc/Client.CreatePublicIp",
-		"outscale_public_ip_link":           "osc/Client.LinkPublicIp",
-		"outscale_security_group":           "osc/Client.CreateSecurityGroup",
-		"outscale_security_group_rule":      "osc/Client.CreateSecurityGroupRule",
-		"outscale_keypair":                  "osc/Client.CreateKeypair",
-		"outscale_vm":                       "osc/Client.CreateVms",
-		"outscale_volume":                   "osc/Client.CreateVolume",
-		"outscale_volume_link":              "osc/Client.LinkVolume",
-		"outscale_nic":                      "osc/Client.CreateNic",
-		"outscale_nic_link":                 "osc/Client.LinkNic",
-		"outscale_nic_private_ip":           "osc/Client.LinkPrivateIps",
-		"outscale_image":                    "osc/Client.CreateImage",
-		"outscale_snapshot":                 "osc/Client.CreateSnapshot",
-		"outscale_dhcp_option":              "osc/Client.CreateDhcpOptions",
-		"outscale_net_peering":              "osc/Client.CreateNetPeering",
-		"outscale_net_peering_acceptation":  "osc/Client.AcceptNetPeering",
-		"outscale_load_balancer":            "osc/Client.CreateLoadBalancer",
-		"outscale_load_balancer_attributes": "osc/Client.UpdateLoadBalancer",
-		"outscale_load_balancer_vms":        "osc/Client.RegisterVmsInLoadBalancer",
-		"outscale_flexible_gpu":             "osc/Client.CreateFlexibleGpu",
+		stack.Resource("outscale_net"):                      "osc/Client.CreateNet",
+		stack.Resource("outscale_net_attributes"):           "osc/Client.UpdateNet",
+		stack.Resource("outscale_subnet"):                   "osc/Client.CreateSubnet",
+		stack.Resource("outscale_internet_service"):         "osc/Client.CreateInternetService",
+		stack.Resource("outscale_internet_service_link"):    "osc/Client.LinkInternetService",
+		stack.Resource("outscale_route_table"):              "osc/Client.CreateRouteTable",
+		stack.Resource("outscale_route_table_link"):         "osc/Client.LinkRouteTable",
+		stack.Resource("outscale_main_route_table_link"):    "osc/Client.LinkRouteTable",
+		stack.Resource("outscale_route"):                    "osc/Client.CreateRoute",
+		stack.Resource("outscale_nat_service"):              "osc/Client.CreateNatService",
+		stack.Resource("outscale_public_ip"):                "osc/Client.CreatePublicIp",
+		stack.Resource("outscale_public_ip_link"):           "osc/Client.LinkPublicIp",
+		stack.Resource("outscale_security_group"):           "osc/Client.CreateSecurityGroup",
+		stack.Resource("outscale_security_group_rule"):      "osc/Client.CreateSecurityGroupRule",
+		stack.Resource("outscale_keypair"):                  "osc/Client.CreateKeypair",
+		stack.Resource("outscale_vm"):                       "osc/Client.CreateVms",
+		stack.Resource("outscale_volume"):                   "osc/Client.CreateVolume",
+		stack.Resource("outscale_volume_link"):              "osc/Client.LinkVolume",
+		stack.Resource("outscale_nic"):                      "osc/Client.CreateNic",
+		stack.Resource("outscale_nic_link"):                 "osc/Client.LinkNic",
+		stack.Resource("outscale_nic_private_ip"):           "osc/Client.LinkPrivateIps",
+		stack.Resource("outscale_image"):                    "osc/Client.CreateImage",
+		stack.Resource("outscale_snapshot"):                 "osc/Client.CreateSnapshot",
+		stack.Resource("outscale_dhcp_option"):              "osc/Client.CreateDhcpOptions",
+		stack.Resource("outscale_net_peering"):              "osc/Client.CreateNetPeering",
+		stack.Resource("outscale_net_peering_acceptation"):  "osc/Client.AcceptNetPeering",
+		stack.Resource("outscale_load_balancer"):            "osc/Client.CreateLoadBalancer",
+		stack.Resource("outscale_load_balancer_attributes"): "osc/Client.UpdateLoadBalancer",
+		stack.Resource("outscale_load_balancer_vms"):        "osc/Client.RegisterVmsInLoadBalancer",
+		stack.Resource("outscale_flexible_gpu"):             "osc/Client.CreateFlexibleGpu",
 
 		// Refused, each one measured as a 404 OperationNotEmulated or declined
 		// beside the ones that were. The reason is NOT here: Declined() has it.
-		"outscale_virtual_gateway":      "osc/Client.CreateVirtualGateway",
-		"outscale_client_gateway":       "osc/Client.CreateClientGateway",
-		"outscale_vpn_connection":       "osc/Client.CreateVpnConnection",
-		"outscale_vpn_connection_route": "osc/Client.CreateVpnConnectionRoute",
+		stack.Resource("outscale_virtual_gateway"):      "osc/Client.CreateVirtualGateway",
+		stack.Resource("outscale_client_gateway"):       "osc/Client.CreateClientGateway",
+		stack.Resource("outscale_vpn_connection"):       "osc/Client.CreateVpnConnection",
+		stack.Resource("outscale_vpn_connection_route"): "osc/Client.CreateVpnConnectionRoute",
 
 		// Data sources, read-only, and kept here because a plan reads them
 		// before it creates anything: a stack whose first data source is not
 		// served fails before any of this matters.
-		"outscale_subregions": "osc/Client.ReadSubregions",
-		"outscale_images":     "osc/Client.ReadImages",
+		stack.Data("outscale_subregions"): "osc/Client.ReadSubregions",
+		stack.Data("outscale_images"):     "osc/Client.ReadImages",
 	}
 }

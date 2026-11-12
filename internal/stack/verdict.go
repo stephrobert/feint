@@ -133,3 +133,22 @@ func (r Report) Refused() []Finding {
 	}
 	return out
 }
+
+// TypeKey is a declaration's mode and type together, which is the only thing
+// that identifies what a declaration asks the API to do.
+//
+// The mode is half the key, and leaving it out was a defect this change found
+// before it shipped: `exoscale_nlb` is both a resource and a data source, and
+// they are `create-load-balancer` and `get-load-balancer`. A table keyed by the
+// type name alone answered the create for the read — the right standing, by
+// luck, over the wrong operation, which is exactly the kind of row this
+// repository's own gates exist to refuse.
+type TypeKey struct {
+	Mode Mode
+	Type string
+}
+
+// Resource and Data are the two keys, written this way so a pack's table reads
+// as a sentence and a wrong mode is a compile error rather than a surprise.
+func Resource(typ string) TypeKey { return TypeKey{Mode: ModeResource, Type: typ} }
+func Data(typ string) TypeKey     { return TypeKey{Mode: ModeData, Type: typ} }

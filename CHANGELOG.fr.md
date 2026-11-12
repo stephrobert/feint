@@ -19,6 +19,29 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Ajouté
 
+- **Un préflight lit ce qu'une configuration déclare, avant que rien ne
+  démarre** (#888). `feint run` lit la stack Terraform ou OpenTofu que son
+  enfant lirait et refuse, avant que le labo ne soit monté, une configuration
+  qui déclare un type qu'un pack refuse ; `feint doctor --stack <dir>` pose la
+  même question à la demande, sans rien changer. `--preflight` accepte `auto`
+  (par défaut, ne refuse qu'un type décliné), `strict` (refuse aussi un type non
+  mesuré) et `off` ; `--preflight-json` et `feint doctor --stack-json` écrivent
+  le rapport là où une CI le lit. Un refus sort en 1 : le 2 est la dérive, et
+  les codes sont un contrat.
+
+  Ce que ça remplace, mesuré le 2026-11-12 avec le provider outscale/outscale
+  1.8.0 : une stack portant trois types déclinés a créé 48 ressources, a échoué
+  sur deux 404, a laissé 50 entrées dans l'état, et n'a jamais tenté le
+  troisième type décliné, ses dépendances ayant échoué. Corriger les deux
+  erreurs visibles coûtait donc un second apply complet pour trouver la
+  troisième. Le préflight nomme les trois en 12 ms, sans rien créer.
+
+  « compatible » veut dire qu'une exécution enregistrée a appliqué puis détruit
+  ces types contre cet émulateur. Ce n'est pas une promesse sur chaque attribut,
+  ni sur quoi que ce soit au-delà du plan de contrôle, et un type dont le
+  produit est hors du scan de dérive se lit « inconnu » et non « refusé ».
+  `docs/limits.md` dit ce que cette lecture ne couvre pas.
+
 - **`feint run` possède son laboratoire** (#848) : sans `--endpoint`, il démarre
   un émulateur, l'attend, résout l'environnement du provider comme le fait
   `feint env`, lance la commande et arrête tout ce qu'il a démarré.

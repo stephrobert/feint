@@ -20,7 +20,7 @@ import (
 // days to reach the committed artefact while two gates agreed with each other
 // and both disagreed with the code.
 type packStackTypes interface {
-	StackOperations() map[string]string
+	StackOperations() map[stack.TypeKey]string
 }
 
 // typeAnswer is what one pack knows about one Terraform type.
@@ -37,8 +37,8 @@ type typeAnswer struct {
 // Three standings come out of it, and the third is the one that keeps the join
 // honest: an operation a table names that its own pack has not decided about is
 // undecided, never served. A wrong row must not become a promise.
-func stackAnswers(packs []emulator.Pack) map[string]typeAnswer {
-	out := map[string]typeAnswer{}
+func stackAnswers(packs []emulator.Pack) map[stack.TypeKey]typeAnswer {
+	out := map[stack.TypeKey]typeAnswer{}
 	for _, p := range packs {
 		table, ok := p.(packStackTypes)
 		if !ok {
@@ -52,7 +52,7 @@ func stackAnswers(packs []emulator.Pack) map[string]typeAnswer {
 		for _, d := range p.Declined() {
 			declined[d.Operation] = d.Reason
 		}
-		for typ, op := range table.StackOperations() {
+		for key, op := range table.StackOperations() {
 			a := typeAnswer{provider: p.Name(), operation: op}
 			switch {
 			case declined[op] != "":
@@ -70,7 +70,7 @@ func stackAnswers(packs []emulator.Pack) map[string]typeAnswer {
 				a.standing = stack.StandingUnknown
 				a.reason = "this pack neither serves nor declines " + op + ", so nothing here has decided it"
 			}
-			out[typ] = a
+			out[key] = a
 		}
 	}
 	return out
@@ -109,7 +109,7 @@ func stackReport(packs []emulator.Pack, mod stack.Module) stack.Report {
 		seen[k] = true
 
 		f := stack.Finding{Name: d.Type, Mode: d.Mode, Standing: stack.StandingUnknown}
-		if a, ok := answers[d.Type]; ok {
+		if a, ok := answers[stack.TypeKey{Mode: d.Mode, Type: d.Type}]; ok {
 			f.Standing, f.Provider, f.Operation, f.Reason = a.standing, a.provider, a.operation, a.reason
 		}
 		rep.Findings = append(rep.Findings, f)
