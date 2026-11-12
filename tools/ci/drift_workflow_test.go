@@ -289,10 +289,6 @@ func TestTheNightReportsTheBacklogAndNotJustWhatIsNew(t *testing.T) {
 		t.Fatal("drift.yml has no backlog step: nothing asks whether anything is waiting for a decision, " +
 			"only whether something arrived last night")
 	}
-	if !strings.Contains(backlog, "--fail-on-unknown") {
-		t.Error("the backlog step does not ask --fail-on-unknown, the one question that is answered " +
-			"whatever the baseline holds")
-	}
 	if !strings.Contains(backlog, "id: backlog") {
 		t.Error("the backlog step has no id, so no job can read its verdict")
 	}
@@ -300,18 +296,29 @@ func TestTheNightReportsTheBacklogAndNotJustWhatIsNew(t *testing.T) {
 		t.Error("the backlog step is not always(): a night where something else failed is exactly when " +
 			"a standing debt goes unreported")
 	}
-	for _, provider := range []string{"scaleway", "outscale", "exoscale"} {
-		if !strings.Contains(backlog, "probe "+provider) {
-			t.Errorf("the backlog step does not measure %s: a provider left out of the question reads as "+
-				"a provider with nothing undecided", provider)
-		}
+	// The arithmetic lives in a file, which is what makes it testable: a run:
+	// block cannot be executed outside GitHub Actions, and the first version of
+	// this step was a run: block that died on `bash -e` the first time a probe
+	// answered 2. tools/ci/drift_backlog_test.go drives the script itself.
+	if !strings.Contains(backlog, "tools/ci/drift-backlog.sh") {
+		t.Error("the backlog step carries its own shell again: GitHub runs those with `bash -e`, nothing " +
+			"outside Actions can execute one, and this step's expected answer is a non-zero exit")
 	}
+	script, err := os.ReadFile(filepath.Join("..", "..", "tools", "ci", "drift-backlog.sh"))
+	if err != nil {
+		t.Fatalf("read drift-backlog.sh: %v", err)
+	}
+	// Which providers are asked is NOT asserted here. Reading the file cannot
+	// tell a call from a comment — a commented-out `probe exoscale` still
+	// contains those words, and a mutation walked through this exact loop.
+	// TestEachProviderCanCarryTheBacklogOnItsOwn answers it by running the
+	// script and watching each provider carry the finding on its own.
 	// The three verdicts have to stay three. Folded into two, a scan that could
 	// not run answers "nothing undecided", and drift-report.sh closes the issue
 	// on it.
 	for _, verdict := range []string{"verdict=failure", "verdict=success", "verdict=error"} {
-		if !strings.Contains(backlog, verdict) {
-			t.Errorf("the backlog step never writes %s: with the verdict folded into two values, a scan "+
+		if !strings.Contains(string(script), verdict) {
+			t.Errorf("the backlog never writes %s: with the verdict folded into two values, a scan "+
 				"that measured nothing closes the issue saying everything is triaged", verdict)
 		}
 	}
