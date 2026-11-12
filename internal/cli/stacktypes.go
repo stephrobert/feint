@@ -139,23 +139,21 @@ func stackReport(packs []emulator.Pack, mod stack.Module) stack.Report {
 	// neither.
 	for _, m := range mod.ModuleCalls {
 		switch {
-		case !m.SourceLiteral:
-			rep.Unresolved = append(rep.Unresolved, m.Name+": its source is an expression, not read")
-		case isLocalModuleSource(m.Source):
-			rep.Unresolved = append(rep.Unresolved, m.Name+": "+m.Source+", a local path this report does not follow yet")
+		case m.ReadFrom != "":
+			// Read, so its declarations are in the inventory above and there is
+			// nothing to report.
+		case m.Unread != "":
+			rep.Unresolved = append(rep.Unresolved, m.Name+": "+m.Unread)
 		default:
-			rep.Unresolved = append(rep.Unresolved, m.Name+": "+m.Source+", not a local path; it would need an install to read")
+			// Neither read nor explained, which is what a module call looks
+			// like when the caller used stack.Read and followed nothing. The
+			// default is the honest one: a call nobody resolved is a hole,
+			// and the first version of this function silently skipped these
+			// and answered `compatible` over them.
+			rep.Unresolved = append(rep.Unresolved, m.Name+": its contents were not read")
 		}
 	}
 
 	rep.Decide()
 	return rep
-}
-
-// isLocalModuleSource reports whether Terraform would treat the source as a
-// local path, which is the only kind this preflight can follow without a
-// network or an init. Terraform's rule: a source beginning with ./ or ../ is a
-// local path, everything else is a module registry address or a go-getter URL.
-func isLocalModuleSource(src string) bool {
-	return len(src) > 1 && (src[:2] == "./" || (len(src) > 2 && src[:3] == "../"))
 }

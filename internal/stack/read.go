@@ -54,6 +54,11 @@ type Declaration struct {
 	// Dynamic holds the labels of any `dynamic` blocks inside, which is how a
 	// configuration generates nested blocks whose number is plan-time.
 	Dynamic []string
+
+	// Module is the call path this declaration was read under, empty for the
+	// root. A type is a type wherever it is declared, and the path is what lets
+	// a report say where to go and change it.
+	Module string
 }
 
 // Address is the declaration's Terraform address, without the module path.
@@ -94,6 +99,22 @@ type ModuleCall struct {
 	SourceLiteral bool
 	File          string
 	Line          int
+
+	// Key is the address the engine files this call under — "services", or
+	// "services.inner" for a nested one. It is the key of
+	// .terraform/modules/modules.json, which is how a module an init already
+	// installed can be read without one of our own.
+	Key string
+
+	// ReadFrom is the directory this call's module was read from, empty when
+	// it was not read. Unread then says why, in words a reader can act on.
+	//
+	// Both are here rather than inferred by a caller, because "not local" and
+	// "not read" are different facts and the first version of the report
+	// confused them: a local path it simply did not follow counted as
+	// resolved, and the verdict covered files nobody had opened.
+	ReadFrom string
+	Unread   string
 }
 
 // Backend is the state backend a module declares, if it declares one.
@@ -123,8 +144,9 @@ type FileProblem struct {
 // Module is what one directory declares, read from the files the engine would
 // load.
 type Module struct {
-	Dir   string
-	Files []string
+	Dir    string
+	Engine Engine
+	Files  []string
 
 	Unreadable []FileProblem
 
