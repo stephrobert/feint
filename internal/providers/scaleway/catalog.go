@@ -264,6 +264,24 @@ func (p *Pack) listVolumeTypes(w http.ResponseWriter, r *http.Request) {
 // no boot resolves, rather than onto an image the client never named (#83).
 func (p *Pack) listLocalImages(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
+	// `version_id` is refused, and it is asked before anything else is
+	// resolved: a refusal that comes after the label lookup answers "no such
+	// image" to a client whose label was fine and whose version was the
+	// problem, which names the wrong argument. TestListLocalImagesImageIDAndVersionID
+	// sends an unknown label together with a version and asserts the 400
+	// names version_id.
+	//
+	// This catalogue records no version for its images (docs/limits.md), so
+	// answering the one image for an arbitrary version would claim a version
+	// nobody recorded.
+	if versionID := q.Get("version_id"); versionID != "" {
+		writeInvalidArguments(w, ArgumentError{
+			ArgumentName: "version_id",
+			Reason:       "constraint",
+			HelpMessage:  "feint records no version for its marketplace images; filter by image_id or image_label instead",
+		})
+		return
+	}
 	label := q.Get("image_label")
 	// `image_id` names the same image the label names: the UUID a client
 	// sends after resolving a label through the marketplace (labelByID). It
@@ -286,17 +304,6 @@ func (p *Pack) listLocalImages(w http.ResponseWriter, r *http.Request) {
 	// names nothing is a 404, and this is the lookup the CLI makes first.
 	if p.undeclaredImage(label) {
 		refuseUndeclaredImage(w, label)
-		return
-	}
-	// `version_id` is refused: this catalogue records no version for its
-	// images (docs/limits.md), and answering the one image for an arbitrary
-	// version would claim a version nobody recorded.
-	if versionID := q.Get("version_id"); versionID != "" {
-		writeInvalidArguments(w, ArgumentError{
-			ArgumentName: "version_id",
-			Reason:       "constraint",
-			HelpMessage:  "feint records no version for its marketplace images; filter by image_id or image_label instead",
-		})
 		return
 	}
 	zone := q.Get("zone")

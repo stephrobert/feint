@@ -3698,6 +3698,13 @@ real cloud part ways:
 - **`order_by=attached_at_*` on ipam ListIPs is refused with a 400.** This
   emulator records no attachment time, and sorting by a stand-in would answer
   an order nobody asked for.
+- **`server` and `detached` on instance ListIPs are applied together.** The
+  SDK's request says "precisely one of Server, Detached must be set", so a
+  client that sends both is outside what the document describes and the real
+  API's answer to that pair has not been measured. This emulator applies each
+  filter it is given, which narrows: the address attached to the named server
+  is not detached, so the pair answers empty. Either filter alone is the
+  measured path and behaves as the SDK describes.
 - **`version_id` on marketplace ListLocalImages is refused with a 400.**
   This catalogue records no version for its images, and answering the one
   image for an arbitrary version would claim a version nobody recorded.

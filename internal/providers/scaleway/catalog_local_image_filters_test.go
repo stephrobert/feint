@@ -49,4 +49,25 @@ func TestListLocalImagesImageIDAndVersionID(t *testing.T) {
 	if status, _ := do(t, ts, "GET", "/marketplace/v2/local-images?version_id=1", ""); status != http.StatusBadRequest {
 		t.Errorf("version_id answered %d, want 400", status)
 	}
+
+	// And the refusal names version_id even when another filter would have
+	// answered empty on its own. Asked after the image_id lookup, an unknown
+	// id plus a version answered 200 with no image: that tells the client
+	// "no such image" when the image was never the problem, and it hides a
+	// filter this emulator cannot honour behind one it can. The refusal is
+	// therefore asked before anything is resolved.
+	status, out := do(t, ts, "GET",
+		"/marketplace/v2/local-images?image_id=99999999-9999-4999-8999-999999999999&version_id=1", "")
+	if status != http.StatusBadRequest {
+		t.Fatalf("an unknown image_id with a version_id answered %d, want 400 (%v)", status, out)
+	}
+	details, _ := out["details"].([]any)
+	named := ""
+	if len(details) > 0 {
+		first, _ := details[0].(map[string]any)
+		named, _ = first["argument_name"].(string)
+	}
+	if named != "version_id" {
+		t.Errorf("the refusal names %q, want version_id: a 400 that names the wrong argument sends the client to fix the wrong thing", named)
+	}
 }
