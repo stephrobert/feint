@@ -244,3 +244,22 @@ func TestAnInterfaceAnswersTheZoneItLivesIn(t *testing.T) {
 		t.Errorf("the single read answers zone = %v, want fr-par-1", one["zone"])
 	}
 }
+
+// `security_group_ids` is refused with a 400: this pack records no security
+// group on a private interface, so the filter cannot be served honestly
+// (docs/limits.md). The refusal, not a silently unfiltered list, is the
+// answer — #277's shape.
+func TestTheV2alpha1SecurityGroupFilterIsRefused(t *testing.T) {
+	ts := newTestServer(t)
+	attachedNIC(t, ts, "sg", "10.173.0.0/24")
+
+	status, _ := do(t, ts, "GET", v2alphaNICs+"?security_group_ids=11111111-1111-4111-8111-111111111111", "")
+	if status != http.StatusBadRequest {
+		t.Fatalf("security_group_ids answered %d, want 400", status)
+	}
+	// And the unfiltered list still serves the interface.
+	body := v2alphaList(t, ts, "")
+	if list, _ := body["private_network_interfaces"].([]any); len(list) != 1 {
+		t.Errorf("the unfiltered list has %d interface(s), want 1", len(list))
+	}
+}

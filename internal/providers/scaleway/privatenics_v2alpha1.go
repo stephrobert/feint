@@ -68,6 +68,22 @@ func (p *Pack) listPrivateNetworkInterfaces(w http.ResponseWriter, r *http.Reque
 	}
 
 	q := r.URL.Query()
+	// `security_group_ids` is refused: this pack records no security group on
+	// a private interface — create and update ignore the security_group_id the
+	// SDK's requests carry, and the view does not answer one — so filtering by
+	// it would answer over data this emulator does not keep (docs/limits.md).
+	// The SDK lets create and update set the interface's own group, so
+	// deriving it from the attached server would be a guess, not a
+	// measurement. No client this project drives passes it: the Terraform
+	// provider references SecurityGroupIDs nowhere.
+	if ids := csvValues(q, "security_group_ids"); len(ids) > 0 {
+		writeInvalidArguments(w, ArgumentError{
+			ArgumentName: "security_group_ids",
+			Reason:       "constraint",
+			HelpMessage:  "feint records no security group on a private interface; filter by server_ids, private_network_ids or tags instead",
+		})
+		return
+	}
 	servers := csvValues(q, "server_ids")
 	networks := csvValues(q, "private_network_ids")
 	tags := csvValues(q, "tags")

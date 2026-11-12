@@ -259,6 +259,17 @@ func (p *Pack) listIPAMIPs(w http.ResponseWriter, r *http.Request) {
 	if wantIPv6 || q.Get("zonal") != "" {
 		all = all[:0]
 	}
+	// `regional` is the opposite of the `zonal` filter above: every address
+	// served here is regional, so regional=true keeps everything and
+	// regional=false matches nothing.
+	wantRegional, present, err := queryBool(q, "regional")
+	if err != nil {
+		writeParseFailure(w, "regional", err)
+		return
+	}
+	if present && !wantRegional {
+		all = all[:0]
+	}
 
 	// Four of the five orders their enum declares are served; attached_at is
 	// refused because this emulator records no attachment time, and sorting by

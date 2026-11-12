@@ -3698,6 +3698,15 @@ real cloud part ways:
 - **`order_by=attached_at_*` on ipam ListIPs is refused with a 400.** This
   emulator records no attachment time, and sorting by a stand-in would answer
   an order nobody asked for.
+- **`version_id` on marketplace ListLocalImages is refused with a 400.**
+  This catalogue records no version for its images, and answering the one
+  image for an arbitrary version would claim a version nobody recorded.
+  `image_id` is served: it names the same image the label names.
+- **`security_group_ids` on instance/v2alpha1 ListPrivateNetworkInterfaces
+  is refused with a 400.** This pack records no security group on a private
+  interface — create and update ignore the `security_group_id` the SDK's
+  requests carry, and the view does not answer one — so filtering by it would
+  answer over data this emulator does not keep.
 - **`include_deleted` on block lists is read and never widens the answer.**
   Deletion here is immediate — the store retains no `deleted` volume or
   snapshot for the flag to reveal. The state filter is real code on the
