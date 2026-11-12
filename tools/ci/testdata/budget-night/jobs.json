@@ -1,0 +1,154 @@
+{
+ "jobs": [
+  {
+   "name": "Every declared falsification still holds",
+   "status": "completed",
+   "conclusion": "cancelled",
+   "started_at": "2026-11-12T04:21:45Z",
+   "completed_at": "2026-11-12T07:52:04Z",
+   "steps": [
+    {
+     "name": "Set up job",
+     "status": "completed",
+     "conclusion": "success",
+     "number": 1
+    },
+    {
+     "name": "Pre Harden the runner",
+     "status": "completed",
+     "conclusion": "success",
+     "number": 2
+    },
+    {
+     "name": "Harden the runner",
+     "status": "completed",
+     "conclusion": "success",
+     "number": 3
+    },
+    {
+     "name": "Checkout",
+     "status": "completed",
+     "conclusion": "success",
+     "number": 4
+    },
+    {
+     "name": "Setup Go",
+     "status": "completed",
+     "conclusion": "success",
+     "number": 5
+    },
+    {
+     "name": "The harness, against the mistakes it was written for",
+     "status": "completed",
+     "conclusion": "success",
+     "number": 6
+    },
+    {
+     "name": "The tree is green before it is broken",
+     "status": "completed",
+     "conclusion": "success",
+     "number": 7
+    },
+    {
+     "name": "Replay every declared falsification",
+     "status": "completed",
+     "conclusion": "cancelled",
+     "number": 8
+    },
+    {
+     "name": "The replay catches a test that stopped biting",
+     "status": "completed",
+     "conclusion": "skipped",
+     "number": 9
+    },
+    {
+     "name": "What is covered",
+     "status": "completed",
+     "conclusion": "success",
+     "number": 10
+    },
+    {
+     "name": "Post Setup Go",
+     "status": "completed",
+     "conclusion": "skipped",
+     "number": 18
+    },
+    {
+     "name": "Post Checkout",
+     "status": "completed",
+     "conclusion": "success",
+     "number": 19
+    },
+    {
+     "name": "Post Harden the runner",
+     "status": "completed",
+     "conclusion": "success",
+     "number": 20
+    },
+    {
+     "name": "Complete job",
+     "status": "completed",
+     "conclusion": "success",
+     "number": 21
+    }
+   ]
+  },
+  {
+   "name": "A red night opens the issue, a green one closes it / Open, update or close the red-night issue",
+   "status": "completed",
+   "conclusion": "success",
+   "started_at": "2026-11-12T07:52:06Z",
+   "completed_at": "2026-11-12T07:52:23Z",
+   "steps": [
+    {
+     "name": "Set up job",
+     "status": "completed",
+     "conclusion": "success",
+     "number": 1
+    },
+    {
+     "name": "Pre Harden the runner",
+     "status": "completed",
+     "conclusion": "success",
+     "number": 2
+    },
+    {
+     "name": "Harden the runner",
+     "status": "completed",
+     "conclusion": "success",
+     "number": 3
+    },
+    {
+     "name": "Checkout",
+     "status": "completed",
+     "conclusion": "success",
+     "number": 4
+    },
+    {
+     "name": "Open, update or close the issue for this night",
+     "status": "completed",
+     "conclusion": "success",
+     "number": 5
+    },
+    {
+     "name": "Post Checkout",
+     "status": "completed",
+     "conclusion": "success",
+     "number": 9
+    },
+    {
+     "name": "Post Harden the runner",
+     "status": "completed",
+     "conclusion": "success",
+     "number": 10
+    },
+    {
+     "name": "Complete job",
+     "status": "completed",
+     "conclusion": "success",
+     "number": 11
+    }
+   ]
+  }
+ ]
+}

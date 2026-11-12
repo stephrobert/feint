@@ -72,19 +72,55 @@ if [ "$(jq 'length' <<<"${jobs_json}")" -eq 0 ]; then
   exit 1
 fi
 
+# The timeouts this workflow declares for itself, read from the checkout. A job
+# that ran its whole budget and stopped is not a lost runner, and until
+# 2026-11-12 this script said it was (#890): the falsify night was cancelled
+# after 210.3 minutes against a declared `timeout-minutes: 210`, its long step
+# carried the conclusion `cancelled` rather than `failure`, and the issue
+# reported "the run's own infrastructure — a lost runner, a cancellation, an
+# unreachable dependency". The cause was in the repository: the replay had grown
+# past the budget it was given.
+#
+# Absent or unreadable, the list is empty and nothing is claimed. A fixture
+# without timestamps therefore keeps the old wording, which is the honest
+# answer when the duration is unknown.
+#
+# `|| true` is not decoration: this file runs under `set -euo pipefail`, grep
+# exits 1 when it matches nothing, and a workflow that declares no timeout is
+# the ordinary case — drift.yml is one. Without it the whole script dies on the
+# nights that have nothing to report here, which is the same trap that killed
+# the backlog step of drift.yml the first time it met a `run:` block's own -e.
+budgets="$( { grep -hoE '^[[:space:]]*timeout-minutes:[[:space:]]+[0-9]+' \
+  "${FEINT_WORKFLOW_DIR:-.github/workflows}/${wf_file}" 2>/dev/null \
+  | grep -oE '[0-9]+' | jq -Rs 'split("\n") | map(select(length > 0) | tonumber)'; } || true)"
+[ -n "${budgets}" ] || budgets="[]"
+
 # One finding per job that did not succeed. The first failing step of a job
 # carries the cause: the steps after it run under if: always() and fail
 # downstream of it (measured on 31716251612, where "Report what was exercised"
-# failed because the cancellation had killed the emulator it reads). A job with
-# no failing step at all — cancelled, timed out, runner lost — is the run's own
-# infrastructure, and naming a suite for it would invent a cause.
-findings="$(jq '
+# failed because the cancellation had killed the emulator it reads).
+#
+# A job with no failing step is one of two different things, and folding them
+# together is what #890 paid for: either it ran its declared budget to the end,
+# which is a measured fact about the work, or it did not, which is the run's own
+# infrastructure. Only the second may be called a lost runner.
+findings="$(jq --argjson budgets "${budgets}" '
   def failed_steps: [.steps[] | select(.conclusion == "failure")];
+  def minutes:
+    if (.started_at != null and .completed_at != null)
+    then (((.completed_at | fromdateiso8601) - (.started_at | fromdateiso8601)) / 60)
+    else null end;
   [.[]
    | select(.conclusion != "success" and .conclusion != "skipped" and .conclusion != "neutral")
    | if .conclusion == "failure" and (failed_steps | length) > 0
      then {kind: "measured", job: .name, step: (failed_steps | first).name}
-     else {kind: "infra", job: .name, conclusion: .conclusion}
+     else (minutes as $m
+           | ($budgets | map(select($m != null and $m >= .))) as $reached
+           | if ($reached | length) > 0
+             then {kind: "budget", job: .name, conclusion: .conclusion,
+                   minutes: ($m | floor), budget: ($reached | max)}
+             else {kind: "infra", job: .name, conclusion: .conclusion}
+             end)
      end
   ]' <<<"${jobs_json}")"
 
@@ -125,6 +161,8 @@ if [ "${verdict}" = "red" ]; then
     | "- step `\(.step)` — job `\(.job)`"' <<<"${findings}")"
   infra_lines="$(jq -r '.[] | select(.kind == "infra")
     | "- job `\(.job)` ended `\(.conclusion)` with no failing step"' <<<"${findings}")"
+  budget_lines="$(jq -r '.[] | select(.kind == "budget")
+    | "- job `\(.job)` ended `\(.conclusion)` after \(.minutes) minutes, and this workflow declares `timeout-minutes: \(.budget)`"' <<<"${findings}")"
   {
     echo "The scheduled run of ${run_date} is red: ${run_url}"
     echo
@@ -135,14 +173,26 @@ if [ "${verdict}" = "red" ]; then
       echo "${measured_lines}"
       echo
     fi
+    if [ -n "${budget_lines}" ]; then
+      echo "Where the job ran out of its own budget:"
+      echo
+      echo "${budget_lines}"
+      echo
+      echo "That is a measured fact about this repository, and not weather: the"
+      echo "work no longer fits the budget it was given. Read what grew before"
+      echo "touching the ceiling — raising it is how a budget stops measuring"
+      echo "anything."
+      echo
+    fi
     if [ -n "${infra_lines}" ]; then
       echo "Where no step carries the failure:"
       echo
       echo "${infra_lines}"
       echo
-      echo "A red with no failing step is the run's own infrastructure — a lost runner,"
-      echo "a cancellation, an unreachable dependency — not a measured verdict on any"
-      echo "suite. No suite is named for it because none failed."
+      echo "A red with no failing step, and no budget reached, is the run's own"
+      echo "infrastructure — a lost runner, a cancellation, an unreachable dependency —"
+      echo "not a measured verdict on any suite. No suite is named for it because none"
+      echo "failed."
       echo
     fi
     echo "Consecutive red scheduled nights, this one included: **${reds_total}**."
