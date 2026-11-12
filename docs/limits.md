@@ -651,7 +651,7 @@ paths before the run — which is what `feint doctor` now does.
 ## Elastic Metal is an inventory here, not a product (#631)
 
 Two operations of `baremetal/v1` are served, `ListServers` and `ListOffers`,
-and the thirty-five others of the product are declined with their reason in
+and the thirty-seven others of the product are declined with their reason in
 the pack. The listing exists because a fleet inventory has to enumerate the
 product to describe a mixed fleet, and it was measured before it was written,
 on 2026-09-06: `scw baremetal server list` (2.56.3) calls
@@ -3347,7 +3347,7 @@ proof.
 |---|---|--:|---|
 | Exoscale | `2.0.0` | 473 | *assumed* by this emulator |
 | Outscale | `1.42.0` | 655 | **declared** by the provider |
-| Scaleway | `instance/v1, instance/v2alpha1, vpc/v2, ipam/v1, iam/v1alpha1, marketplace/v2, block/v1, block/v1alpha1, lb/v1, vpcgw/v2, account/v3, baremetal/v1` | 712 | **declared** by the provider |
+| Scaleway | `instance/v1, instance/v2alpha1, vpc/v2, ipam/v1, iam/v1alpha1, marketplace/v2, block/v1, block/v1alpha1, lb/v1, vpcgw/v2, account/v3, baremetal/v1` | 718 | **declared** by the provider |
 <!-- contracts:end -->
 
 **Declared** means the provider wrote `additionalProperties: false` themselves:
@@ -3698,6 +3698,22 @@ real cloud part ways:
 - **`order_by=attached_at_*` on ipam ListIPs is refused with a 400.** This
   emulator records no attachment time, and sorting by a stand-in would answer
   an order nobody asked for.
+- **`server` and `detached` on instance ListIPs are applied together.** The
+  SDK's request says "precisely one of Server, Detached must be set", so a
+  client that sends both is outside what the document describes and the real
+  API's answer to that pair has not been measured. This emulator applies each
+  filter it is given, which narrows: the address attached to the named server
+  is not detached, so the pair answers empty. Either filter alone is the
+  measured path and behaves as the SDK describes.
+- **`version_id` on marketplace ListLocalImages is refused with a 400.**
+  This catalogue records no version for its images, and answering the one
+  image for an arbitrary version would claim a version nobody recorded.
+  `image_id` is served: it names the same image the label names.
+- **`security_group_ids` on instance/v2alpha1 ListPrivateNetworkInterfaces
+  is refused with a 400.** This pack records no security group on a private
+  interface — create and update ignore the `security_group_id` the SDK's
+  requests carry, and the view does not answer one — so filtering by it would
+  answer over data this emulator does not keep.
 - **`include_deleted` on block lists is read and never widens the answer.**
   Deletion here is immediate — the store retains no `deleted` volume or
   snapshot for the flag to reveal. The state filter is real code on the

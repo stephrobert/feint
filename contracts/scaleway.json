@@ -352,12 +352,26 @@
    "request": "baremetal/v1.UpdateServer.Request",
    "response": "baremetal/v1.scaleway.baremetal.v1.Server"
   },
+  "baremetal/v1.UpdateServerCommitment": {
+   "path": "/baremetal/v1/zones/{zone}/servers/{server_id}/update-commitment",
+   "method": "POST",
+   "group": "Commitment",
+   "request": "baremetal/v1.UpdateServerCommitment.Request",
+   "response": "baremetal/v1.scaleway.baremetal.v1.Server"
+  },
   "baremetal/v1.UpdateSetting": {
    "path": "/baremetal/v1/zones/{zone}/settings/{setting_id}",
    "method": "PATCH",
    "group": "Options",
    "request": "baremetal/v1.UpdateSetting.Request",
    "response": "baremetal/v1.scaleway.baremetal.v1.Setting"
+  },
+  "baremetal/v1.UpgradeServerCommitment": {
+   "path": "/baremetal/v1/zones/{zone}/servers/{server_id}/upgrade-commitment",
+   "method": "POST",
+   "group": "Commitment",
+   "request": "baremetal/v1.UpgradeServerCommitment.Request",
+   "response": "baremetal/v1.scaleway.baremetal.v1.Server"
   },
   "baremetal/v1.ValidatePartitioningSchema": {
    "path": "/baremetal/v1/zones/{zone}/partitioning-schemas/validate",
@@ -1009,6 +1023,12 @@
      "items": {
       "type": "string"
      }
+    },
+    "application_id": {
+     "type": "string"
+    },
+    "user_id": {
+     "type": "string"
     }
    }
   },
@@ -1821,6 +1841,12 @@
     },
     "type": {
      "type": "string"
+    },
+    "server": {
+     "type": "string"
+    },
+    "detached": {
+     "type": "boolean"
     }
    }
   },
@@ -2321,7 +2347,36 @@
    "path": "/instance/v2alpha1/zones/{zone}/servers/{server_id}",
    "method": "DELETE",
    "group": "Instances",
-   "noContent": 204
+   "noContent": 204,
+   "query": {
+    "delete_all_ips": {
+     "type": "boolean"
+    },
+    "delete_ip_ids": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "delete_all_volumes": {
+     "type": "boolean"
+    },
+    "delete_volume_ids": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "keep_all_private_nics": {
+     "type": "boolean"
+    },
+    "delete_private_nic_ids": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   }
   },
   "instance/v2alpha1.DeleteTemplate": {
    "path": "/instance/v2alpha1/zones/{zone}/templates/{template_id}",
@@ -2390,7 +2445,15 @@
    "path": "/instance/v2alpha1/zones/{zone}/resource-counts",
    "method": "GET",
    "group": "Resource Counts",
-   "response": "instance/v2alpha1.scaleway.instance.v2alpha1.ResourceCounts"
+   "response": "instance/v2alpha1.scaleway.instance.v2alpha1.ResourceCounts",
+   "query": {
+    "organization_id": {
+     "type": "string"
+    },
+    "project_id": {
+     "type": "string"
+    }
+   }
   },
   "instance/v2alpha1.GetSecurityGroup": {
    "path": "/instance/v2alpha1/zones/{zone}/security-groups/{security_group_id}",
@@ -2488,6 +2551,12 @@
      "type": "string"
     },
     "server_ids": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "security_group_ids": {
      "type": "array",
      "items": {
       "type": "string"
@@ -2920,6 +2989,21 @@
      "items": {
       "type": "string"
      }
+    },
+    "zonal": {
+     "type": "string"
+    },
+    "regional": {
+     "type": "boolean"
+    },
+    "private_network_id": {
+     "type": "string"
+    },
+    "subnet_id": {
+     "type": "string"
+    },
+    "source_vpc_id": {
+     "type": "string"
     }
    }
   },
@@ -3573,6 +3657,15 @@
     },
     "type": {
      "ref": "marketplace/v2.scaleway.marketplace.v2.LocalImage.Type"
+    },
+    "image_id": {
+     "type": "string"
+    },
+    "version_id": {
+     "type": "string"
+    },
+    "image_label": {
+     "type": "string"
     }
    }
   },
@@ -3696,15 +3789,8 @@
    "path": "/vpc/v2/regions/{region}/object-storage-private-access/{vpc_id}/enable",
    "method": "POST",
    "group": "Object Storage private access",
-   "response": "vpc/v2.scaleway.vpc.v2.VPC",
-   "query": {
-    "private_network_ids": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
-    }
-   }
+   "request": "vpc/v2.EnableObjectStoragePrivateAccess.Request",
+   "response": "vpc/v2.scaleway.vpc.v2.VPC"
   },
   "vpc/v2.EnableRouting": {
    "path": "/vpc/v2/regions/{region}/vpcs/{vpc_id}/enable-routing",
@@ -4674,6 +4760,9 @@
     "offer_id"
    ],
    "properties": {
+    "commitment_period": {
+     "ref": "baremetal/v1.scaleway.baremetal.v1.CommitmentPeriod"
+    },
     "description": {
      "type": "string"
     },
@@ -4721,6 +4810,12 @@
    ],
    "properties": {
     "hostname": {
+     "type": "string"
+    },
+    "network_boot_persistent": {
+     "type": "boolean"
+    },
+    "network_boot_url": {
      "type": "string"
     },
     "os_id": {
@@ -4811,6 +4906,9 @@
     "protected": {
      "type": "boolean"
     },
+    "scheduled_deletion": {
+     "type": "boolean"
+    },
     "tags": {
      "type": "array"
     },
@@ -4819,11 +4917,27 @@
     }
    }
   },
+  "baremetal/v1.UpdateServerCommitment.Request": {
+   "closed": false,
+   "properties": {
+    "auto_renewal": {
+     "type": "boolean"
+    }
+   }
+  },
   "baremetal/v1.UpdateSetting.Request": {
    "closed": false,
    "properties": {
     "enabled": {
      "type": "boolean"
+    }
+   }
+  },
+  "baremetal/v1.UpgradeServerCommitment.Request": {
+   "closed": false,
+   "properties": {
+    "period": {
+     "ref": "baremetal/v1.scaleway.baremetal.v1.CommitmentPeriod"
     }
    }
   },
@@ -4867,7 +4981,16 @@
     "password": {
      "type": "string"
     },
+    "server_id": {
+     "type": "string"
+    },
+    "srn": {
+     "type": "string"
+    },
     "url": {
+     "type": "string"
+    },
+    "zone": {
      "type": "string"
     }
    }
@@ -4923,6 +5046,18 @@
   "baremetal/v1.scaleway.baremetal.v1.CertificationOption": {
    "closed": false
   },
+  "baremetal/v1.scaleway.baremetal.v1.CommitmentPeriod": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "unknown_period",
+    "one_month",
+    "six_months",
+    "one_year",
+    "two_years",
+    "three_years"
+   ]
+  },
   "baremetal/v1.scaleway.baremetal.v1.CreateServerRequest": {
    "closed": false,
    "required": [
@@ -4932,6 +5067,9 @@
     "zone"
    ],
    "properties": {
+    "commitment_period": {
+     "ref": "baremetal/v1.scaleway.baremetal.v1.CommitmentPeriod"
+    },
     "description": {
      "type": "string"
     },
@@ -4985,6 +5123,12 @@
    "closed": false,
    "properties": {
     "hostname": {
+     "type": "string"
+    },
+    "network_boot_persistent": {
+     "type": "boolean"
+    },
+    "network_boot_url": {
      "type": "string"
     },
     "os_id": {
@@ -5260,6 +5404,12 @@
     "name": {
      "type": "string"
     },
+    "network_boot": {
+     "ref": "baremetal/v1.scaleway.baremetal.v1.OS.OSField"
+    },
+    "network_boot_persistent_editable": {
+     "type": "boolean"
+    },
     "password": {
      "ref": "baremetal/v1.scaleway.baremetal.v1.OS.OSField"
     },
@@ -5268,6 +5418,9 @@
     },
     "service_user": {
      "ref": "baremetal/v1.scaleway.baremetal.v1.OS.OSField"
+    },
+    "srn": {
+     "type": "string"
     },
     "ssh": {
      "ref": "baremetal/v1.scaleway.baremetal.v1.OS.OSField"
@@ -5305,6 +5458,12 @@
     },
     "commercial_range": {
      "type": "string"
+    },
+    "commitments_available": {
+     "type": "array",
+     "items": {
+      "ref": "baremetal/v1.scaleway.baremetal.v1.Offer.Commitment"
+     }
     },
     "cpus": {
      "type": "array",
@@ -5393,6 +5552,9 @@
     "shared_bandwidth": {
      "type": "boolean"
     },
+    "srn": {
+     "type": "string"
+    },
     "stock": {
      "ref": "baremetal/v1.scaleway.baremetal.v1.Offer.Stock"
     },
@@ -5407,6 +5569,20 @@
     },
     "zone": {
      "type": "string"
+    }
+   }
+  },
+  "baremetal/v1.scaleway.baremetal.v1.Offer.Commitment": {
+   "closed": false,
+   "properties": {
+    "discount_rate_percent": {
+     "type": "integer"
+    },
+    "no_fee": {
+     "type": "boolean"
+    },
+    "period": {
+     "ref": "baremetal/v1.scaleway.baremetal.v1.CommitmentPeriod"
     }
    }
   },
@@ -5495,6 +5671,12 @@
     },
     "remote_access": {
      "ref": "baremetal/v1.scaleway.baremetal.v1.RemoteAccessOption"
+    },
+    "srn": {
+     "type": "string"
+    },
+    "zone": {
+     "type": "string"
     }
    }
   },
@@ -5730,6 +5912,9 @@
     "boot_type": {
      "ref": "baremetal/v1.scaleway.baremetal.v1.Server.BootType"
     },
+    "commitment": {
+     "ref": "baremetal/v1.scaleway.baremetal.v1.Server.Commitment"
+    },
     "created_at": {
      "type": "string"
     },
@@ -5781,6 +5966,15 @@
     "rescue_server": {
      "ref": "baremetal/v1.scaleway.baremetal.v1.Server.RescueServer"
     },
+    "scheduled_deletion": {
+     "type": "boolean"
+    },
+    "scheduled_deletion_at": {
+     "type": "string"
+    },
+    "srn": {
+     "type": "string"
+    },
     "status": {
      "ref": "baremetal/v1.scaleway.baremetal.v1.Server.Status"
     },
@@ -5810,10 +6004,39 @@
     "rescue"
    ]
   },
+  "baremetal/v1.scaleway.baremetal.v1.Server.Commitment": {
+   "closed": false,
+   "properties": {
+    "auto_renewal": {
+     "type": "boolean"
+    },
+    "discount_rate_percent": {
+     "type": "integer"
+    },
+    "end_at": {
+     "type": "string"
+    },
+    "period": {
+     "ref": "baremetal/v1.scaleway.baremetal.v1.CommitmentPeriod"
+    },
+    "renew_at": {
+     "type": "string"
+    },
+    "started_at": {
+     "type": "string"
+    }
+   }
+  },
   "baremetal/v1.scaleway.baremetal.v1.Server.Install": {
    "closed": false,
    "properties": {
     "hostname": {
+     "type": "string"
+    },
+    "network_boot_persistent": {
+     "type": "boolean"
+    },
+    "network_boot_url": {
      "type": "string"
     },
     "os_id": {
@@ -5967,8 +6190,14 @@
     "project_id": {
      "type": "string"
     },
+    "srn": {
+     "type": "string"
+    },
     "type": {
      "ref": "baremetal/v1.scaleway.baremetal.v1.Setting.Type"
+    },
+    "zone": {
+     "type": "string"
     }
    }
   },
@@ -8368,6 +8597,9 @@
     "condition": {
      "type": "string"
     },
+    "deny": {
+     "type": "boolean"
+    },
     "id": {
      "type": "string"
     },
@@ -8393,6 +8625,9 @@
    "properties": {
     "condition": {
      "type": "string"
+    },
+    "deny": {
+     "type": "boolean"
     },
     "organization_id": {
      "type": "string"
@@ -10783,6 +11018,9 @@
     "scratch_storage_max_volumes_count": {
      "type": "integer"
     },
+    "sku": {
+     "type": "string"
+    },
     "volumes_constraint": {
      "ref": "instance/v1.scaleway.instance.v1.ServerType.VolumeConstraintSizes"
     }
@@ -11545,6 +11783,9 @@
     "project_id": {
      "type": "string"
     },
+    "security_group_id": {
+     "type": "string"
+    },
     "server_id": {
      "type": "string"
     },
@@ -11830,6 +12071,9 @@
   "instance/v2alpha1.UpdatePrivateNetworkInterface.Request": {
    "closed": false,
    "properties": {
+    "security_group_id": {
+     "type": "string"
+    },
     "tags": {
      "type": "array"
     }
@@ -12082,6 +12326,9 @@
    "closed": false,
    "properties": {
     "private_network_id": {
+     "type": "string"
+    },
+    "security_group_id": {
      "type": "string"
     }
    }
@@ -12386,6 +12633,9 @@
     "project_id": {
      "type": "string"
     },
+    "security_group_id": {
+     "type": "string"
+    },
     "server_id": {
      "type": "string"
     },
@@ -12445,6 +12695,9 @@
      "type": "string"
     },
     "project_id": {
+     "type": "string"
+    },
+    "security_group_id": {
      "type": "string"
     },
     "server_id": {
@@ -12970,6 +13223,9 @@
   "instance/v2alpha1.scaleway.instance.v2alpha1.Server.RuntimeInfo": {
    "closed": false,
    "properties": {
+    "physical_host_id": {
+     "type": "string"
+    },
     "spot": {
      "type": "boolean"
     }
@@ -13083,6 +13339,9 @@
      "type": "integer"
     },
     "name": {
+     "type": "string"
+    },
+    "sku": {
      "type": "string"
     },
     "spot_info": {
@@ -13553,6 +13812,7 @@
     "instance_ip",
     "instance_private_nic",
     "lb_server",
+    "lb_ip",
     "fip_ip",
     "vpc_gateway",
     "vpc_gateway_network",
@@ -13568,6 +13828,7 @@
     "apple_silicon_private_nic",
     "serverless_container",
     "serverless_function",
+    "serverless_job",
     "vpn_gateway",
     "ddl_datalab",
     "kafka_cluster",
@@ -14275,7 +14536,13 @@
     "name": {
      "type": "string"
     },
+    "srn": {
+     "type": "string"
+    },
     "updated_at": {
+     "type": "string"
+    },
+    "zone": {
      "type": "string"
     }
    }
@@ -14447,6 +14714,9 @@
     "send_proxy_v2": {
      "type": "boolean"
     },
+    "srn": {
+     "type": "string"
+    },
     "ssl_bridging": {
      "type": "boolean"
     },
@@ -14469,6 +14739,9 @@
      "type": "number"
     },
     "updated_at": {
+     "type": "string"
+    },
+    "zone": {
      "type": "string"
     }
    }
@@ -14544,6 +14817,9 @@
     "not_valid_before": {
      "type": "string"
     },
+    "srn": {
+     "type": "string"
+    },
     "status": {
      "ref": "lb/v1.scaleway.lb.v1.Certificate.Status"
     },
@@ -14560,6 +14836,9 @@
      "ref": "lb/v1.scaleway.lb.v1.Certificate.Type"
     },
     "updated_at": {
+     "type": "string"
+    },
+    "zone": {
      "type": "string"
     }
    }
@@ -14658,10 +14937,16 @@
     "name": {
      "type": "string"
     },
+    "srn": {
+     "type": "string"
+    },
     "timeout_client": {
      "type": "number"
     },
     "updated_at": {
+     "type": "string"
+    },
+    "zone": {
      "type": "string"
     }
    }
@@ -14835,6 +15120,9 @@
     "reverse": {
      "type": "string"
     },
+    "srn": {
+     "type": "string"
+    },
     "tags": {
      "type": "array",
      "items": {
@@ -14893,6 +15181,9 @@
     },
     "route_count": {
      "type": "integer"
+    },
+    "srn": {
+     "type": "string"
     },
     "ssl_compatibility_level": {
      "ref": "lb/v1.scaleway.lb.v1.SSLCompatibilityLevel"
@@ -14964,6 +15255,9 @@
      "type": "string"
     },
     "region": {
+     "type": "string"
+    },
+    "srn": {
      "type": "string"
     },
     "stock_status": {
@@ -15330,7 +15624,13 @@
     "match": {
      "ref": "lb/v1.scaleway.lb.v1.Route.Match"
     },
+    "srn": {
+     "type": "string"
+    },
     "updated_at": {
+     "type": "string"
+    },
+    "zone": {
      "type": "string"
     }
    }
@@ -15397,8 +15697,14 @@
     "name": {
      "type": "string"
     },
+    "srn": {
+     "type": "string"
+    },
     "webhook_config": {
      "ref": "lb/v1.scaleway.lb.v1.Subscriber.WebhookConfig"
+    },
+    "zone": {
+     "type": "string"
     }
    }
   },
@@ -15817,6 +16123,17 @@
     },
     "vpc_id": {
      "type": "string"
+    }
+   }
+  },
+  "vpc/v2.EnableObjectStoragePrivateAccess.Request": {
+   "closed": false,
+   "properties": {
+    "private_network_ids": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
     }
    }
   },

@@ -13,8 +13,5 @@
     "vpc",
     "vpcgw"
   ],
-  "unknown": [
-    "baremetal/v1/API.UpdateServerCommitment",
-    "baremetal/v1/API.UpgradeServerCommitment"
-  ]
+  "unknown": []
 }

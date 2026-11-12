@@ -430,7 +430,7 @@ reason that outlived its cause.
 - `ipam` — 1 operation — no official client calls it: the CLI has no detach subcommand, and the provider detaches by deleting the NIC that carries the address
 - `vpc` — 1 operation — no official client asks for the flat list: `scw vpc` has no subnet subcommand, and the Terraform provider reads the subnets a private network publishes inline through GetPrivateNetwork
 
-### Declined on purpose (342)
+### Declined on purpose (344)
 
 Operations this pack knowingly does not serve, and why. Declining is a
 decision the drift gate records, which is what separates it from having
@@ -449,6 +449,7 @@ are in `coverage/`, one artefact per provider.
 - `baremetal` — 3 operations — BMC access is a remote console on the hardware's management controller, opened with a password the cloud generates for the session; there is no controller behind a seeded server and no session to open on it
 - `baremetal` — 3 operations — it reads one server by identifier, its events or its metrics, and the measured clients never do: an inventory enumerates (the stephrobert.scaleway plugin's own comment says it never reads one by one), and the events and metrics of a seeded server would describe a life it did not live here
 - `baremetal` — 3 operations — ordering Elastic Metal is a paid commitment on hardware the cloud delivers in minutes to hours, and a server here is seeded through the state door, never ordered: an order this emulator accepted would be a delivery nobody makes
+- `baremetal` — 2 operations — a server commitment is a paid billing term — UpdateServerCommitment toggles auto-renewal on an existing commitment and UpgradeServerCommitment starts or upgrades one to a period of one month to three years — and no client this project drives calls either: `scw baremetal commitment` is an empty parent node with no subcommand and the Terraform provider references neither method, both measured 2026-11-11 against a positive control; the server here is seeded through the state door, never ordered, so this is an absent caller rather than an absent capability, and the first client measured on either path reopens it
 - `baremetal` — 2 operations — the product's settings are per-project switches on the real account, one type in the SDK today (smtp: whether a project's servers may send mail), and nothing here sends anything
 - `block` — 3 operations — it moves a snapshot's bytes through Object Storage, which is not emulated because the Terraform provider builds the S3 endpoint in code: supporting it needs DNS interception and a certificate, measured in docs/limits.md
 - `iam` — 72 operations — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
