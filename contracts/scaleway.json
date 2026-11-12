@@ -5624,6 +5624,9 @@
     },
     "subscription_period": {
      "ref": "baremetal/v1.scaleway.baremetal.v1.Offer.SubscriptionPeriod"
+    },
+    "type": {
+     "ref": "baremetal/v1.scaleway.baremetal.v1.OptionType"
     }
    }
   },
@@ -5675,10 +5678,25 @@
     "srn": {
      "type": "string"
     },
+    "type": {
+     "ref": "baremetal/v1.scaleway.baremetal.v1.OptionType"
+    },
     "zone": {
      "type": "string"
     }
    }
+  },
+  "baremetal/v1.scaleway.baremetal.v1.OptionType": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "option_type_unknown",
+    "private_network",
+    "license",
+    "remote_access",
+    "public_bandwidth",
+    "certification"
+   ]
   },
   "baremetal/v1.scaleway.baremetal.v1.PersistentMemory": {
    "closed": false,
@@ -6108,6 +6126,9 @@
     },
     "status": {
      "ref": "baremetal/v1.scaleway.baremetal.v1.Server.Option.OptionStatus"
+    },
+    "type": {
+     "ref": "baremetal/v1.scaleway.baremetal.v1.OptionType"
     }
    }
   },
