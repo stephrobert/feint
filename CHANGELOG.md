@@ -17,6 +17,28 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Added
 
+- **A stack preflight reads what a configuration declares, before anything
+  starts** (#888). `feint run` reads the Terraform or OpenTofu stack its child
+  would read and refuses, before the lab is up, a configuration declaring a type
+  a pack refuses; `feint doctor --stack <dir>` asks the same question outright,
+  changing nothing. `--preflight` takes `auto` (the default, refuses only a
+  declined type), `strict` (also refuses an unmeasured one) and `off`;
+  `--preflight-json` and `feint doctor --stack-json` write the report where CI
+  can read it. A refusal is exit 1: 2 is drift, and the codes are a contract.
+
+  What it replaces, measured on 2026-11-12 with provider outscale/outscale
+  1.8.0: a stack with three declined types applied 48 resources, failed with two
+  404s, left 50 entries in the state, and never attempted the third declined
+  type at all, because its dependencies had failed — so fixing the two visible
+  errors bought a second full apply to find the third. The preflight names all
+  three in 12 ms, with nothing created.
+
+  `compatible` means a recorded run applied and destroyed those types against
+  this emulator. It is not a promise about every attribute, nor about anything
+  past the control plane, and a type whose product is outside the drift scan
+  reads as `unknown` rather than refused. `docs/limits.md` says what the reading
+  cannot cover.
+
 - **`feint run` owns the lab** (#848): with no `--endpoint` it starts an
   emulator, waits for it, resolves the provider environment the way `feint env`
   does, runs the command and stops everything it started. `--provider` narrows

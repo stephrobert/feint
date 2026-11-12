@@ -245,11 +245,19 @@ const (
 // discovery to env/doctor (#850); existing flags and exit codes stay unchanged.
 // Version 27 adds --s3-host-doors to serve/start, retaining prefix addressing.
 //
+// Version 33 adds the stack preflight (#888): --preflight and --preflight-json
+// to run, --stack, --engine and --stack-json to doctor. Nothing was removed and
+// no exit code moved — a refusal is exit 1, because 2 is drift and the codes are
+// a contract the CI depends on. The default is auto, which refuses only a type
+// a pack declines, so a pipeline keyed on version 32 sees a run refused exactly
+// where it was going to fail anyway, and --preflight=off is the one-flag way
+// back to the old behaviour.
+//
 // The surface itself is frozen in testdata/frozen/cli.json, compared by
 // TestTheFrozenSurfacesStillMatchTheirFixture, and a fixture regenerated
 // without bumping this constant fails TestASurfaceChangeDemandsItsVersionBump.
 // The procedure for a deliberate change is in RELEASING.md ("Frozen surfaces").
-const cliSurfaceVersion = 32
+const cliSurfaceVersion = 33
 
 // Run executes one command and returns the process exit code.
 func Run(args []string, stdout, stderr io.Writer) int {
@@ -432,6 +440,7 @@ Usage:
                     The detached run's log.
 
   feint doctor     [--addr :4599] [--vm auto] [--s3]
+                    [--stack <dir>] [--engine terraform|opentofu] [--stack-json]
                     Diagnose the host: the port, the machine runtime and what it
                     can prove, the clients, and the ssh trap. A warning never
                     fails; only a broken thing does.
@@ -536,7 +545,8 @@ Usage:
 
   feint run        [--provider scaleway] [--endpoint http://127.0.0.1:4599]
                     [--addr 127.0.0.1:0] [--keep-on-failure] [--reset-after]
-                    [--json <path>]
+                    [--json <path>] [--preflight auto|strict|off]
+                    [--preflight-json <path>]
                     [--unsafe-real-credentials] -- <command> [args...]
                     Run one command against a local cloud this command owns.
                     With no --endpoint it starts an emulator, waits for it,

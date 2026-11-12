@@ -22,17 +22,17 @@ type stubStackPack struct {
 	name     string
 	routes   []emulator.Route
 	declined []emulator.Decline
-	table    map[string]string
+	table    map[stack.TypeKey]string
 }
 
 // Env is part of the Pack interface and no part of this test: a pack that
 // cannot say how a client reaches it is still a pack whose type table joins.
 func (p stubStackPack) Env(string) emulator.Environment { return emulator.Environment{} }
 
-func (p stubStackPack) Name() string                       { return p.name }
-func (p stubStackPack) Routes() []emulator.Route           { return p.routes }
-func (p stubStackPack) Declined() []emulator.Decline       { return p.declined }
-func (p stubStackPack) StackOperations() map[string]string { return p.table }
+func (p stubStackPack) Name() string                              { return p.name }
+func (p stubStackPack) Routes() []emulator.Route                  { return p.routes }
+func (p stubStackPack) Declined() []emulator.Decline              { return p.declined }
+func (p stubStackPack) StackOperations() map[stack.TypeKey]string { return p.table }
 
 // An operation the pack has not decided about is unknown, never served.
 //
@@ -46,10 +46,10 @@ func TestAnOperationThePackHasNotDecidedIsUnknownNotServed(t *testing.T) {
 		name:     "stub",
 		routes:   []emulator.Route{{Operation: "stub/Client.CreateThing"}},
 		declined: []emulator.Decline{{Operation: "stub/Client.CreateRefused", Reason: "out of scope here"}},
-		table: map[string]string{
-			"stub_thing":    "stub/Client.CreateThing",
-			"stub_refused":  "stub/Client.CreateRefused",
-			"stub_mistyped": "stub/Client.CraeteThing",
+		table: map[stack.TypeKey]string{
+			stack.Resource("stub_thing"):    "stub/Client.CreateThing",
+			stack.Resource("stub_refused"):  "stub/Client.CreateRefused",
+			stack.Resource("stub_mistyped"): "stub/Client.CraeteThing",
 		},
 	}
 
@@ -63,7 +63,7 @@ func TestAnOperationThePackHasNotDecidedIsUnknownNotServed(t *testing.T) {
 		{"stub_refused", stack.StandingDeclined},
 		{"stub_mistyped", stack.StandingUnknown},
 	} {
-		got, ok := answers[c.typ]
+		got, ok := answers[stack.Resource(c.typ)]
 		if !ok {
 			t.Errorf("%s is missing from the answers", c.typ)
 			continue
@@ -77,11 +77,11 @@ func TestAnOperationThePackHasNotDecidedIsUnknownNotServed(t *testing.T) {
 	// than copied into the table. That is what makes a reason rewritten in a
 	// pack reach this report with no second edit — #298 measured the four days
 	// the copy cost last time.
-	if got := answers["stub_refused"].reason; got != "out of scope here" {
+	if got := answers[stack.Resource("stub_refused")].reason; got != "out of scope here" {
 		t.Errorf("the refusal reason is %q, not the pack's own", got)
 	}
 	// And the mistyped row says what is wrong with it, naming the operation.
-	if got := answers["stub_mistyped"].reason; got == "" {
+	if got := answers[stack.Resource("stub_mistyped")].reason; got == "" {
 		t.Error("a row naming an undecided operation gives no reason, so nobody can tell a typo " +
 			"from a product this emulator has not reached yet")
 	}
@@ -96,9 +96,9 @@ func TestARefusalOutranksTheRestOfTheInventory(t *testing.T) {
 		name:     "stub",
 		routes:   []emulator.Route{{Operation: "stub/Client.CreateThing"}},
 		declined: []emulator.Decline{{Operation: "stub/Client.CreateRefused", Reason: "out of scope here"}},
-		table: map[string]string{
-			"stub_thing":   "stub/Client.CreateThing",
-			"stub_refused": "stub/Client.CreateRefused",
+		table: map[stack.TypeKey]string{
+			stack.Resource("stub_thing"):   "stub/Client.CreateThing",
+			stack.Resource("stub_refused"): "stub/Client.CreateRefused",
 		},
 	}
 	mod := stack.Read("d", []stack.File{{Name: "main.tf", Source: `
@@ -124,7 +124,7 @@ func TestOneRowPerTypeNotPerDeclaration(t *testing.T) {
 	p := stubStackPack{
 		name:   "stub",
 		routes: []emulator.Route{{Operation: "stub/Client.CreateThing"}},
-		table:  map[string]string{"stub_thing": "stub/Client.CreateThing"},
+		table:  map[stack.TypeKey]string{stack.Resource("stub_thing"): "stub/Client.CreateThing"},
 	}
 	mod := stack.Read("d", []stack.File{{Name: "main.tf", Source: `
 resource "stub_thing" "a" {}
@@ -158,7 +158,7 @@ func TestAnUnreadableModuleMakesTheVerdictUnknown(t *testing.T) {
 	p := stubStackPack{
 		name:   "stub",
 		routes: []emulator.Route{{Operation: "stub/Client.CreateThing"}},
-		table:  map[string]string{"stub_thing": "stub/Client.CreateThing"},
+		table:  map[stack.TypeKey]string{stack.Resource("stub_thing"): "stub/Client.CreateThing"},
 	}
 
 	dir := t.TempDir()
@@ -187,5 +187,47 @@ module "remote" {
 	}
 	if len(rep.Unresolved) != 1 || !strings.Contains(rep.Unresolved[0], "remote") {
 		t.Errorf("unresolved = %v, want the module named with its reason", rep.Unresolved)
+	}
+}
+
+// One name, two modes, two operations.
+//
+// THE DEFECT THIS CATCHES, found in this change before it shipped: the table
+// was keyed by the type name alone, and `exoscale_nlb` is both a resource and a
+// data source — `create-load-balancer` and `get-load-balancer`. A data source
+// was therefore answered with the create's operation. The standing happened to
+// be right, because both are served, so nothing went red and the report named
+// an operation the declaration does not call. A row that is right by luck is
+// what every gate in this repository exists to refuse.
+func TestOneNameInTwoModesIsTwoQuestions(t *testing.T) {
+	p := stubStackPack{
+		name: "stub",
+		routes: []emulator.Route{
+			{Operation: "stub/Client.CreateThing"},
+			{Operation: "stub/Client.ReadThing"},
+		},
+		table: map[stack.TypeKey]string{
+			stack.Resource("stub_thing"): "stub/Client.CreateThing",
+			stack.Data("stub_thing"):     "stub/Client.ReadThing",
+		},
+	}
+	mod := stack.Read("d", []stack.File{{Name: "main.tf", Source: `
+resource "stub_thing" "made" {}
+data "stub_thing" "read" {}
+`}})
+
+	rep := stackReport([]emulator.Pack{p}, mod)
+	if len(rep.Findings) != 2 {
+		t.Fatalf("findings = %d, want one per mode: %+v", len(rep.Findings), rep.Findings)
+	}
+	for _, f := range rep.Findings {
+		want := "stub/Client.CreateThing"
+		if f.Mode == stack.ModeData {
+			want = "stub/Client.ReadThing"
+		}
+		if f.Operation != want {
+			t.Errorf("%s %s reports operation %q, want %q: the mode is half the key",
+				f.Mode, f.Name, f.Operation, want)
+		}
 	}
 }

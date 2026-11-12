@@ -45,10 +45,11 @@ func TestEveryStackOperationIsOneThatPackDecided(t *testing.T) {
 		for _, d := range p.Declined() {
 			known[d.Operation] = true
 		}
-		for typ, op := range table.StackOperations() {
+		for key, op := range table.StackOperations() {
 			if !known[op] {
-				t.Errorf("%s: the table maps %s to %q, which this pack neither serves nor declines; "+
-					"a report would carry a verdict about an operation nobody has", p.Name(), typ, op)
+				t.Errorf("%s: the table maps %s %s to %q, which this pack neither serves nor declines; "+
+					"a report would carry a verdict about an operation nobody has",
+					p.Name(), key.Mode, key.Type, op)
 			}
 		}
 	}
@@ -61,17 +62,17 @@ func TestEveryStackOperationIsOneThatPackDecided(t *testing.T) {
 // answer about another provider's resource. A fourth pack is where that would
 // happen, and a fourth pack is exactly when nobody would be looking.
 func TestNoTwoPacksClaimTheSameStackType(t *testing.T) {
-	owner := map[string]string{}
+	owner := map[stack.TypeKey]string{}
 	for _, p := range packsForStackTest(t) {
 		table, ok := p.(packStackTypes)
 		if !ok {
 			continue
 		}
-		for typ := range table.StackOperations() {
-			if first, taken := owner[typ]; taken {
-				t.Errorf("%s and %s both claim %s", first, p.Name(), typ)
+		for key := range table.StackOperations() {
+			if first, taken := owner[key]; taken {
+				t.Errorf("%s and %s both claim %s %s", first, p.Name(), key.Mode, key.Type)
 			}
-			owner[typ] = p.Name()
+			owner[key] = p.Name()
 		}
 	}
 }
