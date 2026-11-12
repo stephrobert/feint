@@ -240,6 +240,97 @@ func TestTheTriageViewCoversEveryProductTheGateScans(t *testing.T) {
 	}
 }
 
+// TestTheNightReportsTheBacklogAndNotJustWhatIsNew is cited by the backlog step
+// of drift.yml.
+//
+// ## The defect it closes, as it was measured
+//
+// The night's verdict was the drift gate's outcome, and the gate answers a
+// narrower question than the one the issue claims to report. It compares the
+// current unknown operations with the ones written in the baseline and fails on
+// what is new (internal/drift/baseline.go Compare, internal/cli/baseline.go
+// exiting on diff.Added alone). So the first refresh after an arrival writes the
+// arrival into the baseline, and every night after that finds nothing new while
+// the operation is still undecided.
+//
+// Measured: baremetal/v1/API.UpdateServerCommitment and
+// baremetal/v1/API.UpgradeServerCommitment arrived in the 2026-10-28 refresh
+// (#827) and were undecided for fourteen days. Every night was green. On
+// 2026-11-12, against the upstream SDK of that morning, `coverage
+// --fail-on-unknown` exits 2 on Scaleway and 0 on the other two: the question
+// was answerable the whole time and nobody was asking it (#875, #886).
+//
+// ## What is asserted
+//
+// The verdict comes from the step that asks about the backlog, that step asks
+// about all three providers, and it runs under always() — an undecided
+// operation is most worth reporting on the night something else broke.
+//
+// And one accepting half, which matters as much: the pull-request gate still
+// reads the GATE's outcome, not this verdict. A pull request gated on the
+// standing backlog would be red for work that has nothing to do with it, and a
+// gate everyone learns to bypass is worse than no gate. The night reports the
+// debt; the gate refuses new debt.
+func TestTheNightReportsTheBacklogAndNotJustWhatIsNew(t *testing.T) {
+	workflow := readWorkflow(t, "drift.yml")
+
+	drift := jobSection(workflow, "drift")
+	if strings.Contains(drift, "undecided: ${{ steps.report.outcome }}") {
+		t.Error("the night's undecided verdict is the drift gate's outcome again: the gate fails on what " +
+			"is NEW against the baseline, so an operation written into the baseline is undecided and " +
+			"silent, which is how two sat for fourteen days under green nights")
+	}
+	if !strings.Contains(drift, "undecided: ${{ steps.backlog.outputs.verdict }}") {
+		t.Error("the undecided verdict does not come from the backlog step")
+	}
+
+	backlog := stepSection(workflow, "The undecided backlog")
+	if backlog == "" {
+		t.Fatal("drift.yml has no backlog step: nothing asks whether anything is waiting for a decision, " +
+			"only whether something arrived last night")
+	}
+	if !strings.Contains(backlog, "--fail-on-unknown") {
+		t.Error("the backlog step does not ask --fail-on-unknown, the one question that is answered " +
+			"whatever the baseline holds")
+	}
+	if !strings.Contains(backlog, "id: backlog") {
+		t.Error("the backlog step has no id, so no job can read its verdict")
+	}
+	if !strings.Contains(backlog, "if: always()") {
+		t.Error("the backlog step is not always(): a night where something else failed is exactly when " +
+			"a standing debt goes unreported")
+	}
+	for _, provider := range []string{"scaleway", "outscale", "exoscale"} {
+		if !strings.Contains(backlog, "probe "+provider) {
+			t.Errorf("the backlog step does not measure %s: a provider left out of the question reads as "+
+				"a provider with nothing undecided", provider)
+		}
+	}
+	// The three verdicts have to stay three. Folded into two, a scan that could
+	// not run answers "nothing undecided", and drift-report.sh closes the issue
+	// on it.
+	for _, verdict := range []string{"verdict=failure", "verdict=success", "verdict=error"} {
+		if !strings.Contains(backlog, verdict) {
+			t.Errorf("the backlog step never writes %s: with the verdict folded into two values, a scan "+
+				"that measured nothing closes the issue saying everything is triaged", verdict)
+		}
+	}
+
+	upload := stepSection(workflow, "Upload the triage view")
+	if !strings.Contains(upload, "steps.backlog.outputs.verdict == 'failure'") {
+		t.Error("the triage view is not uploaded on a backlog night: the issue is then posted over a body " +
+			"reading `the triage view did not make it to this run`, which is the mechanism reporting " +
+			"its own gap as the finding")
+	}
+
+	gate := stepSection(workflow, "Fail the pull request on undecided drift")
+	if !strings.Contains(gate, "steps.report.outcome == 'failure'") {
+		t.Error("the pull-request gate no longer reads the gate's own outcome: moved onto the standing " +
+			"backlog it would redden every pull request until the backlog is empty, and a gate " +
+			"everyone bypasses is worse than no gate")
+	}
+}
+
 // stepSection is the text of one step of a workflow, from its name to the next
 // step or the end of the file.
 func stepSection(workflow, name string) string {
