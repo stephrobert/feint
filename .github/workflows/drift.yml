@@ -161,12 +161,24 @@ jobs:
       # The triage view, saved for the issue. A flat list of ninety operation
       # names is not a decision; grouped by API and by subject it usually turns
       # out to be five, one of which is a whole alpha product nobody will serve.
+      #
+      # The products come from tools/drift/gate.sh, which is the file that
+      # decides what is under the gate. This step used to carry its own list,
+      # `instance,vpc,ipam`, against the eleven the gate scans. The verdict one
+      # step above is therefore drawn from eleven products and the view attached
+      # to the issue from three, so an operation in any of the other eight was
+      # reported as undecided and never named. Measured: the two baremetal
+      # commitment operations of #875 sat undecided for fourteen days, and the
+      # issue that was supposed to name them could not have (#886).
+      #
+      # TestTheTriageViewCoversEveryProductTheGateScans fails on the hardcoded
+      # list, and on a gate list that stops matching the committed baseline.
       - name: The triage view
         if: always()
         continue-on-error: true
         run: |
           {
-            /tmp/feint coverage --sdk .upstream/scaleway-sdk-go --products instance,vpc,ipam --format triage
+            /tmp/feint coverage --sdk .upstream/scaleway-sdk-go --products "$(tools/drift/gate.sh products)" --format triage
             /tmp/feint coverage --provider outscale --sdk .upstream/osc-sdk-go --format triage
             /tmp/feint coverage --provider exoscale --contract contracts/exoscale.json --format triage
           } > /tmp/triage.txt 2>&1 || true

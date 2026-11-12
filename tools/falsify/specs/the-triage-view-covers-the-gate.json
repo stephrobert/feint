@@ -1,0 +1,27 @@
+{
+ "package": "./tools/ci/",
+ "note": "The subject is the triage view the drift night attaches to its issue. The night drew two things from one scan and from two different product lists: the verdict from tools/drift/gate.sh over eleven Scaleway products, and the view from this workflow's own copy over three — instance, vpc, ipam. An undecided operation in any of the other eight was therefore counted in the verdict and could not be named in the view.\n\nMeasured: baremetal joined the gate on 2026-09-06 with #631 and never joined the workflow's list, so when the two baremetal commitment operations arrived upstream the issue could only have said that something was undecided (#875, #886). They sat for fourteen days.\n\nThree mutations, because the fix has three parts and each one alone leaves the view lying: the workflow must ask gate.sh rather than keep a copy, gate.sh must answer without a feint binary since the triage step runs under always() on a night whose build may have failed, and the answer must still match the products the committed baseline was written from.",
+ "mutations": [
+  {
+   "label": "the triage step takes its product list back, at the three products it carried until 2026-11-12. The gate goes on scanning eleven, so the view attached to the issue cannot name an operation outside the three",
+   "file": ".github/workflows/drift.yml",
+   "find": "--products \"$(tools/drift/gate.sh products)\" --format triage",
+   "replace": "--products instance,vpc,ipam --format triage",
+   "test": "TestTheTriageViewCoversEveryProductTheGateScans"
+  },
+  {
+   "label": "gate.sh stops scanning baremetal, so the list it hands the view no longer matches the products the committed baseline was written from. This is the configuration skew gate.sh's own header was written for, now one file away from the verdict instead of inside it",
+   "file": "tools/drift/gate.sh",
+   "find": "account,baremetal,scw}\"\n",
+   "replace": "account,scw}\" # baremetal\n",
+   "test": "TestTheTriageViewCoversEveryProductTheGateScans"
+  },
+  {
+   "label": "the products mode moves behind the binary check, so naming the products needs a feint build. The triage step runs under always(), which is precisely the night where the build is the thing that failed: the view would then be empty for a reason that has nothing to do with the products",
+   "file": "tools/drift/gate.sh",
+   "find": "if [ \"$MODE\" = products ]; then\n  echo \"$SCALEWAY_PRODUCTS\"\n  exit 0\nfi\n",
+   "replace": "# if [ \"$MODE\" = products ]; then\n#   echo \"$SCALEWAY_PRODUCTS\"\n#   exit 0\n# fi\n",
+   "test": "TestTheTriageViewCoversEveryProductTheGateScans"
+  }
+ ]
+}
