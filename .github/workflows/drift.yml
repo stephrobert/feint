@@ -185,14 +185,44 @@ jobs:
       # docs/` therefore staged nothing. Every drift pull request was born with
       # last week's numbers and a red `docs --check` — the exact failure both
       # comments claimed was fixed.
+      #
+      # `contracts/` is here for the same reason, and it was missing until
+      # 2026-11-12: this step regenerated the API descriptions one step above,
+      # said so in the summary, and then uploaded everything except them. The
+      # branch the nightly pushed on 2026-11-09 (97c54a0) carries three files,
+      # none of them under contracts/, and contracts/scaleway.json had not
+      # moved since 2026-10-19 while the providers' documents moved under it.
+      # What that cost, measured when an outside contributor hit it in #884: a
+      # fresh extraction answered +328 lines, holding the two baremetal
+      # commitment operations a triage needed and twenty-one newly declared
+      # query parameters, six of them on routes this emulator serves and was
+      # silently dropping.
+      #
+      # README.fr.md is here for the third time the same question was asked.
+      # `feint docs` writes it as well — spliceTranslatedBanner and the
+      # translated quickstart — and the artefact listed only README.md. Nothing
+      # on a drift night happens to change it today, because the banner counts
+      # mounted routes and a baseline refresh mounts none, so this one is luck
+      # rather than design: a triage that adds a route changes it, and CI would
+      # then red the drift pull request on `feint docs --check`.
+      #
+      # The condition reads both halves for the same reason: keyed on the
+      # coverage diff alone, a week where only the descriptions moved uploaded
+      # nothing at all.
+      #
+      # TestTheDriftPullRequestCarriesEveryArtefactTheScanRegenerates fails on
+      # each half of this: on the path, on this condition, and on the `git add`
+      # of the propose job.
       - name: Upload the refreshed coverage
-        if: steps.diff.outputs.changed == 'true'
+        if: steps.diff.outputs.changed == 'true' || steps.contracts.outputs.changed == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage
           path: |
             coverage/
+            contracts/
             README.md
+            README.fr.md
             docs/
 
       # Uploaded when either half moved, because `report` runs on either. Keyed on
@@ -221,7 +251,7 @@ jobs:
   propose:
     name: Open the drift pull request
     needs: drift
-    if: github.event_name == 'schedule' && needs.drift.outputs.changed == 'true'
+    if: github.event_name == 'schedule' && (needs.drift.outputs.changed == 'true' || needs.drift.outputs.contracts == 'true')
     runs-on: ubuntu-24.04
     permissions:
       contents: write        # push the branch
@@ -263,9 +293,9 @@ jobs:
           # control.
           persist-credentials: false
 
-      # Into the workspace root, not into coverage/: the artifact now carries
-      # coverage/, README.md and docs/ with their paths, so it unpacks over the
-      # checkout exactly where each file belongs.
+      # Into the workspace root, not into coverage/: the artifact carries
+      # coverage/, contracts/, both READMEs and docs/ with their paths, so it
+      # unpacks over the checkout exactly where each file belongs.
       - name: Download the refreshed coverage
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -285,8 +315,8 @@ jobs:
           # coverage/ produced a pull request whose README still carried last
           # week's numbers, so `feint docs --check` failed on it: every drift PR
           # was born red, which is how a gate becomes something people ignore.
-          git add coverage/ README.md docs/
-          git commit -m "chore(drift): refresh the upstream coverage baseline"
+          git add coverage/ contracts/ README.md README.fr.md docs/
+          git commit -m "chore(drift): refresh the upstream baseline and the API descriptions"
           # Fetch the branch first: checkout brings only the default branch, so
           # without a tracking ref --force-with-lease requires that the remote
           # branch not exist. Week one passed, week two was rejected with "stale
