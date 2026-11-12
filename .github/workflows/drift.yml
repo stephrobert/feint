@@ -42,12 +42,24 @@ jobs:
     outputs:
       changed: ${{ steps.diff.outputs.changed }}
       contracts: ${{ steps.contracts.outputs.changed }}
-      # The gate's own verdict, which `propose` already reads one job over and
-      # the issue job could not see: "failure" means operations upstream are
-      # undecided. `changed` means an artefact moved, which is not the same
-      # question and is what made the report say "nobody has triaged" over a
-      # list of "nothing left to triage" (#800).
-      undecided: ${{ steps.report.outcome }}
+      # Whether anything upstream is waiting for a decision, from the step that
+      # asks that question and no other. `changed` means an artefact moved,
+      # which is not the same question and is what made the report say "nobody
+      # has triaged" over a list of "nothing left to triage" (#800).
+      #
+      # It used to be `steps.report.outcome`, the gate's verdict, and the gate
+      # answers a narrower question: did something appear upstream that is not
+      # in the baseline. Once an undecided operation is written into the
+      # baseline the gate is silent about it forever, by construction
+      # (internal/drift/baseline.go compares against the recorded unknowns,
+      # internal/cli/baseline.go exits on diff.Added alone). So the night went
+      # quiet on a debt that was still there, and the two baremetal commitment
+      # operations of #875 sat for fourteen days under a green mechanism
+      # (#886).
+      undecided: ${{ steps.backlog.outputs.verdict }}
+      # Whether every source could be measured at all. An unmeasured provider
+      # must not read as a provider with nothing undecided.
+      health: ${{ steps.backlog.outputs.health }}
     steps:
       - name: Harden runner
         uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
@@ -105,6 +117,90 @@ jobs:
           tools/drift/gate.sh check /tmp/feint > /tmp/drift.txt || status=$?
           cat /tmp/drift.txt
           exit $status
+
+      # THE DEBT, which the gate above cannot see.
+      #
+      # The gate answers "did something appear upstream that nobody triaged",
+      # and that is a diff against the committed baseline. The baseline records
+      # the unknown operations, so the first refresh after an arrival writes the
+      # arrival down and every later night compares against it and finds
+      # nothing new. The operation is still undecided. Nothing says so.
+      #
+      # Measured: the two baremetal commitment operations arrived in the
+      # 2026-10-28 refresh (#827) and were undecided for fourteen days. No
+      # night was red, no issue was open, and the mechanism was working as
+      # designed (#875, #886).
+      #
+      # So this step asks the other question directly. `--fail-on-unknown`
+      # exits 2 when an upstream operation is neither served nor declined,
+      # whatever the baseline holds, and it is the committed baselines that
+      # tell us the backlog is small enough to name: two operations on
+      # 2026-11-12, both Scaleway, zero for Outscale and Exoscale. A persistent
+      # issue over a backlog of two is a reminder; over a backlog of three
+      # hundred it would be the noise this mechanism already paid for once.
+      #
+      # Three verdicts, kept apart on purpose:
+      #
+      #   verdict=failure  something is undecided, which earns the issue;
+      #   verdict=success  nothing is, which is what closes it;
+      #   verdict=error    a source could not be measured, which closes
+      #                    nothing. An absence of findings from a scan that did
+      #                    not run is not a finding of absence, and
+      #                    drift-report.sh refuses to act on it.
+      #
+      # The step does not fail: `propose` needs this job to finish for the
+      # refreshed baseline to reach a branch, and a pull request withheld
+      # because a contract extraction broke would cost the half that did work.
+      # `health` carries that to the job that judges it.
+      #
+      # The pull-request gate below is deliberately NOT moved onto this
+      # verdict. It refuses NEW undecided drift, which is a thing a pull
+      # request can be asked to answer for. Gating every pull request on the
+      # standing backlog would redden work that has nothing to do with it, and
+      # a gate everyone learns to bypass is worse than no gate.
+      #
+      # TestTheNightReportsTheBacklogAndNotJustWhatIsNew fails when the output
+      # goes back to the gate's outcome.
+      - name: The undecided backlog
+        id: backlog
+        if: always()
+        run: |
+          set -uo pipefail
+          undecided=0
+          unmeasured=0
+          probe() {
+            local name="$1"
+            shift
+            echo "::group::backlog: ${name}"
+            "$@" --fail-on-unknown
+            case $? in
+              0) echo "${name}: nothing undecided" ;;
+              2) echo "${name}: operations are waiting for a decision"; undecided=1 ;;
+              *) echo "${name}: could not be measured"; unmeasured=1 ;;
+            esac
+            echo "::endgroup::"
+          }
+          probe scaleway /tmp/feint coverage --sdk .upstream/scaleway-sdk-go \
+            --products "$(tools/drift/gate.sh products)"
+          probe outscale /tmp/feint coverage --provider outscale --sdk .upstream/osc-sdk-go \
+            --contract contracts/outscale.json
+          probe exoscale /tmp/feint coverage --provider exoscale \
+            --contract contracts/exoscale.json
+          if [ "$unmeasured" = 1 ]; then
+            echo "verdict=error" >> "$GITHUB_OUTPUT"
+            echo "health=unmeasured" >> "$GITHUB_OUTPUT"
+            echo 'A source could not be measured, so this night says nothing about the backlog.' \
+              >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          echo "health=ok" >> "$GITHUB_OUTPUT"
+          if [ "$undecided" = 1 ]; then
+            echo "verdict=failure" >> "$GITHUB_OUTPUT"
+            echo '## Operations upstream are waiting for a decision' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "verdict=success" >> "$GITHUB_OUTPUT"
+            echo 'Every operation upstream is served or declined with a reason.' >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Refresh the baseline
         run: tools/drift/gate.sh update /tmp/feint
@@ -253,8 +349,14 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python3 tools/docs/limits-acks.py check
 
+      # The backlog is in this condition for the reason the whole change exists:
+      # on a night where nothing moved and something is still undecided, the
+      # issue is posted and the view it is supposed to name the operations from
+      # was never uploaded. The body then reads "the triage view did not make it
+      # to this run", which is the mechanism reporting its own gap as the
+      # finding.
       - name: Upload the triage view
-        if: steps.diff.outputs.changed == 'true' || steps.contracts.outputs.changed == 'true'
+        if: always() && (steps.diff.outputs.changed == 'true' || steps.contracts.outputs.changed == 'true' || steps.backlog.outputs.verdict == 'failure')
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: triage
