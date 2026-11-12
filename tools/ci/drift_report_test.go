@@ -49,7 +49,8 @@ esac
 
 // runDriftReport executes drift-report.sh and returns its exit code, its
 // output, and every gh write the stub received. open is what
-// `gh issue list --json number --jq '.[0].number'` would answer.
+// `gh issue list --label drift --json number,title` would answer: the open
+// issues wearing the label, newest first, which is the API's own order.
 func runDriftReport(t *testing.T, undecided, triage, open string, apply bool) (int, string, string) {
 	t.Helper()
 
@@ -98,13 +99,70 @@ func runDriftReport(t *testing.T, undecided, triage, open string, apply bool) (i
 	return code, string(out), string(written)
 }
 
+// What `gh issue list --label drift` answers, in the three shapes that matter.
+//
+// The label is not an identifier: anything about this mechanism wears it. On
+// 2026-11-12 three open issues did — #800, which this script opened, plus #874
+// and #886, which are humans writing about the mechanism itself.
+const (
+	noDriftIssue = `[]`
+
+	ourIssueOpen = `[{"number": 800, "title": "Upstream API surface moved"}]`
+
+	// Newest first, the API's own order, so somebody else's issue is the one
+	// `.[0]` would have picked.
+	someoneElsesIssueOpen = `[{"number": 886, "title": "fix(drift): make undecided backlog, contract changes and scan failures impossible to miss"},` +
+		`{"number": 800, "title": "Upstream API surface moved"}]`
+
+	onlySomeoneElsesIssue = `[{"number": 886, "title": "fix(drift): make undecided backlog, contract changes and scan failures impossible to miss"}]`
+)
+
+// Somebody else's drift issue is left alone, and ours is still found under it.
+//
+// The lookup was `--label drift` plus `.[0].number`, and the label is worn by
+// every issue about this mechanism. With #886 open and newer than #800, the
+// first quiet night would have closed #886 — the issue carrying the scope #892
+// deliberately left open — with the words "Every operation upstream is triaged:
+// implemented, or declined with a reason". True about the backlog, false about
+// the issue it was written on, and the mechanism would have deleted the record
+// of its own remaining work.
+//
+// Both halves are asserted: the one that must not be touched, and ours that
+// must still be found beneath it.
+func TestTheDriftReportLeavesSomebodyElsesDriftIssueAlone(t *testing.T) {
+	_, out, writes := runDriftReport(t, "success", "provider scaleway: nothing left to triage\n",
+		someoneElsesIssueOpen, true)
+	if strings.Contains(writes, "886") {
+		t.Errorf("it wrote to somebody else's drift issue:\n%s", writes)
+	}
+	if !strings.Contains(writes, "issue close") || !strings.Contains(writes, "800") {
+		t.Errorf("it did not close its own issue, which sits under the newer one:\n%s\n%s", out, writes)
+	}
+}
+
+// And with only somebody else's issue open, a quiet night writes nothing at
+// all: there is nothing of ours to close.
+func TestAQuietNightWithOnlySomebodyElsesIssueIsSilent(t *testing.T) {
+	code, out, writes := runDriftReport(t, "success", "provider scaleway: nothing left to triage\n",
+		onlySomeoneElsesIssue, true)
+	if code != 0 {
+		t.Fatalf("exit %d: %s", code, out)
+	}
+	if writes != "" {
+		t.Errorf("a quiet night wrote to an issue this script did not open:\n%s", writes)
+	}
+	if !strings.Contains(out, "nothing to say") {
+		t.Errorf("the verdict does not say it had nothing to report: %s", out)
+	}
+}
+
 // Nothing undecided, an issue open: it closes, and says why.
 //
 // This is the case that produced twenty-one comments. The mechanism that opens
 // on a finding must close on its absence, or the issue outlives its cause and
 // reads as a standing problem nobody is fixing.
 func TestADriftReportWithNothingUndecidedClosesTheIssue(t *testing.T) {
-	code, out, writes := runDriftReport(t, "success", "provider scaleway: nothing left to triage\n", "800\n", true)
+	code, out, writes := runDriftReport(t, "success", "provider scaleway: nothing left to triage\n", ourIssueOpen, true)
 	if code != 0 {
 		t.Fatalf("exit %d with nothing undecided: %s", code, out)
 	}
@@ -120,7 +178,7 @@ func TestADriftReportWithNothingUndecidedClosesTheIssue(t *testing.T) {
 //
 // The ordinary night. A comment here is the noise this change removes.
 func TestADriftReportWithNothingUndecidedAndNoIssueIsSilent(t *testing.T) {
-	code, out, writes := runDriftReport(t, "success", "provider scaleway: nothing left to triage\n", "", true)
+	code, out, writes := runDriftReport(t, "success", "provider scaleway: nothing left to triage\n", noDriftIssue, true)
 	if code != 0 {
 		t.Fatalf("exit %d on a quiet night: %s", code, out)
 	}
@@ -139,7 +197,7 @@ func TestADriftReportWithNothingUndecidedAndNoIssueIsSilent(t *testing.T) {
 // this whole scan exists to prevent.
 func TestADriftReportWithUndecidedOperationsReports(t *testing.T) {
 	const triage = "provider scaleway: 2 operations to triage\n  iam/v1alpha1  tokens  2  API.GetX, API.GetY\n"
-	code, out, writes := runDriftReport(t, "failure", triage, "800\n", true)
+	code, out, writes := runDriftReport(t, "failure", triage, ourIssueOpen, true)
 	if code != 0 {
 		t.Fatalf("exit %d with undecided operations: %s", code, out)
 	}
@@ -161,7 +219,7 @@ func TestADriftReportWithUndecidedOperationsReports(t *testing.T) {
 
 // With no issue open and something undecided, it opens one.
 func TestADriftReportOpensAnIssueWhenNoneExists(t *testing.T) {
-	_, _, writes := runDriftReport(t, "failure", "provider scaleway: 1 operation to triage\n", "", true)
+	_, _, writes := runDriftReport(t, "failure", "provider scaleway: 1 operation to triage\n", noDriftIssue, true)
 	if !strings.Contains(writes, "issue create") {
 		t.Errorf("nothing was opened although an operation was undecided:\n%s", writes)
 	}
@@ -175,7 +233,7 @@ func TestADriftReportOpensAnIssueWhenNoneExists(t *testing.T) {
 // purpose, so the sentence sent its reader looking for something that was never
 // there.
 func TestADriftReportDoesNotPromiseAPullRequestActionsCannotOpen(t *testing.T) {
-	_, _, writes := runDriftReport(t, "failure", "provider scaleway: 1 operation to triage\n", "800\n", true)
+	_, _, writes := runDriftReport(t, "failure", "provider scaleway: 1 operation to triage\n", ourIssueOpen, true)
 	if !strings.Contains(writes, "chore/upstream-drift") {
 		t.Errorf("the comment does not name the branch carrying the baseline:\n%s", writes)
 	}
@@ -198,7 +256,7 @@ func TestADriftReportDoesNotPromiseAPullRequestActionsCannotOpen(t *testing.T) {
 // answers with three values and this is the third one.
 func TestADriftReportThatCouldNotMeasureNeitherClosesNorComments(t *testing.T) {
 	for _, verdict := range []string{"cancelled", "skipped", "error"} {
-		code, out, writes := runDriftReport(t, verdict, "provider scaleway: nothing left to triage\n", "800\n", true)
+		code, out, writes := runDriftReport(t, verdict, "provider scaleway: nothing left to triage\n", ourIssueOpen, true)
 		if code != 0 {
 			t.Fatalf("exit %d on verdict %q: %s", code, verdict, out)
 		}
@@ -220,7 +278,7 @@ func TestADriftReportThatCouldNotMeasureNeitherClosesNorComments(t *testing.T) {
 // job (#705) reports a scan that could not conclude — which is the mechanism
 // that exists for this, instead of a silence this script would be inventing.
 func TestADriftReportWithNoVerdictAtAllFailsLoudly(t *testing.T) {
-	code, _, writes := runDriftReport(t, "", "provider scaleway: nothing left to triage\n", "800\n", true)
+	code, _, writes := runDriftReport(t, "", "provider scaleway: nothing left to triage\n", ourIssueOpen, true)
 	if code == 0 {
 		t.Error("a missing verdict exited zero: the step that answers it never ran, and nothing says so")
 	}
@@ -236,7 +294,7 @@ func TestADriftReportWithNoVerdictAtAllFailsLoudly(t *testing.T) {
 // which sends its reader looking for last night's upstream change. The two
 // baremetal commitment operations arrived fourteen nights earlier.
 func TestADriftReportDoesNotClaimTheBacklogIsNew(t *testing.T) {
-	_, _, writes := runDriftReport(t, "failure", "provider scaleway: 2 operations to triage\n", "800\n", true)
+	_, _, writes := runDriftReport(t, "failure", "provider scaleway: 2 operations to triage\n", ourIssueOpen, true)
 	if !strings.Contains(writes, "may have been here a while") {
 		t.Errorf("the comment presents a standing backlog as last night's arrival:\n%s", writes)
 	}
@@ -245,7 +303,7 @@ func TestADriftReportDoesNotClaimTheBacklogIsNew(t *testing.T) {
 // Without --apply it writes nothing, so the decision can be read against any
 // past night.
 func TestTheDriftReportWritesNothingWithoutApply(t *testing.T) {
-	_, out, writes := runDriftReport(t, "failure", "provider scaleway: 1 operation to triage\n", "800\n", false)
+	_, out, writes := runDriftReport(t, "failure", "provider scaleway: 1 operation to triage\n", ourIssueOpen, false)
 	if writes != "" {
 		t.Errorf("it wrote without --apply:\n%s", writes)
 	}
