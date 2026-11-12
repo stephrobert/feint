@@ -119,6 +119,11 @@ func runReport(t *testing.T, night, runID, openIssues string, apply bool) (int, 
 		"GH_STUB_LOG="+log,
 		"GITHUB_REPOSITORY=stephrobert/feint",
 		"NIGHT_STREAK_TARGET=14",
+		// The script reads the budget a workflow declares for itself, and these
+		// tests run from the package directory rather than the repository root.
+		// A seam, like the injectable runner of the Incus driver: on a runner
+		// the default is the checkout's own .github/workflows.
+		"FEINT_WORKFLOW_DIR="+filepath.Join("..", "..", ".github", "workflows"),
 	)
 	out, err := cmd.CombinedOutput()
 	code := 0
@@ -252,6 +257,63 @@ func TestARedWithNoFailingStepBlamesTheRunNotASuite(t *testing.T) {
 			t.Errorf("the report names %q for a run where no suite failed; "+
 				"a cause was invented:\n%s", invented, out)
 		}
+	}
+}
+
+// A job that ran its whole budget is a measured fact, not a lost runner (#890).
+//
+// budget-night is the field-trimmed payload of run 43154285437, the scheduled
+// falsify run of 2026-11-12: the job started at 04:21:45 and ended `cancelled`
+// at 07:52:04, which is 210.3 minutes against the `timeout-minutes: 210` that
+// falsify.yml declares for itself. Its long step carries the conclusion
+// `cancelled` rather than `failure`, so the classification found no failing
+// step and reported the run's own infrastructure — "a lost runner, a
+// cancellation, an unreachable dependency".
+//
+// None of those was true. The replay had grown past the budget it was given:
+// the 0.16 batch added 23 specs and 263 mutations, and that night was the first
+// to run them. Reading that as infrastructure is how a real finding gets filed
+// as weather, and the one instrument that proves this repository's tests bite
+// stopped going to the end with nobody owning the fact.
+func TestANightCancelledAtItsOwnCeilingNamesTheBudget(t *testing.T) {
+	code, out, _ := runReport(t, "budget-night", "43154285437", noOpenIssue, false)
+	if code != 0 {
+		t.Fatalf("exit %d:\n%s", code, out)
+	}
+	if !strings.Contains(out, "ran out of its own budget") {
+		t.Errorf("a job cancelled at its declared ceiling is not reported as a budget:\n%s", out)
+	}
+	// The two numbers, because a sentence without them cannot be acted on: the
+	// duration measured, and the ceiling the workflow declares.
+	if !strings.Contains(out, "210 minutes") {
+		t.Errorf("the report does not say how long the job ran:\n%s", out)
+	}
+	if !strings.Contains(out, "timeout-minutes: 210") {
+		t.Errorf("the report does not name the declared ceiling it reached:\n%s", out)
+	}
+	// And it must stop reaching for infrastructure, which is the paragraph that
+	// was posted on this very run. Asserted on the word, not on the sentence
+	// that denies it: the budget paragraph used to say "and not a lost runner",
+	// so a search for that phrase passed on a report that still blamed one.
+	if strings.Contains(out, "infrastructure") {
+		t.Errorf("the report still reaches for infrastructure on a job that ran its ceiling:\n%s", out)
+	}
+}
+
+// And the other half: a cancellation that reached no budget is still the run's
+// own infrastructure, and must still say so.
+//
+// cancelled-night carries no timestamps, which is the honest shape of "the
+// duration is unknown": nothing may be claimed about a budget from it. A
+// classification that answered "budget" whenever a job was cancelled would pass
+// the test above and lie here.
+func TestACancellationThatReachedNoBudgetIsStillInfrastructure(t *testing.T) {
+	_, out, _ := runReport(t, "cancelled-night", "31716251612", noOpenIssue, false)
+	if strings.Contains(out, "ran out of its own budget") {
+		t.Errorf("a cancellation with no measured duration was reported as a budget:\n%s", out)
+	}
+	if !strings.Contains(out, "infrastructure") {
+		t.Errorf("a cancellation that reached no budget is no longer reported as infrastructure:\n%s", out)
 	}
 }
 
