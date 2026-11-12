@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -63,10 +64,109 @@ func TestTheDriftWorkflowReportsEveryNight(t *testing.T) {
 	}
 
 	propose := jobSection(workflow, "propose")
-	if !strings.Contains(propose, "\n    if: github.event_name == 'schedule' && needs.drift.outputs.changed == 'true'\n") {
-		t.Error("the pull request is no longer conditional on a real diff: a pull request every night " +
-			"teaches everyone to close them unread")
+	if !strings.Contains(propose, "\n    if: github.event_name == 'schedule' && (needs.drift.outputs.changed == 'true' || needs.drift.outputs.contracts == 'true')\n") {
+		t.Error("the pull request is no longer conditional on a real diff of either half: a pull request " +
+			"every night teaches everyone to close them unread, and a condition on the coverage half " +
+			"alone skipped the job entirely on a night where only the API descriptions moved")
 	}
+}
+
+// TestTheDriftPullRequestCarriesEveryArtefactTheScanRegenerates is cited by the
+// upload step of drift.yml.
+//
+// ## The defect it closes, as it was measured
+//
+// The nightly regenerates two kinds of artefact, and they are two different
+// measurements: `coverage/` comes from reading a released Go SDK, `contracts/`
+// from the documents the providers serve. The job ran both. It uploaded only
+// the first, so the second died with the runner:
+//
+//   - the branch the nightly pushed on 2026-11-09 (97c54a0) holds README.md and
+//     two files under coverage/, and nothing under contracts/;
+//   - contracts/scaleway.json had not moved since 2026-10-19 (#803) while the
+//     providers' documents moved under it every night;
+//   - on 2026-11-12 a fresh extraction answered +328 lines: the two baremetal
+//     commitment operations a triage was waiting for, and twenty-one newly
+//     declared query parameters, six of them on routes this emulator serves and
+//     was dropping without saying so (#884).
+//
+// An outside contributor hit it as a side effect of a triage. Nothing in the
+// repository would have said it: the issue reports what is undecided, and a
+// contract that has not travelled leaves nothing undecided to report.
+//
+// ## What is asserted, and why the condition is part of it
+//
+// Three things, because the defect had three independent halves and fixing one
+// leaves the mechanism dead: the artefact must carry each path, `propose` must
+// stage each path, and both must run when EITHER half moved. Keyed on the
+// coverage diff alone, a descriptions-only night uploaded nothing at all, and
+// the download one job over then failed on a missing artefact.
+func TestTheDriftPullRequestCarriesEveryArtefactTheScanRegenerates(t *testing.T) {
+	body, err := os.ReadFile(filepath.Join("..", "..", ".github", "workflows", "drift.yml"))
+	if err != nil {
+		t.Fatalf("read drift.yml: %v", err)
+	}
+	workflow := string(body)
+
+	// What the scan writes back into the checkout: gate.sh update writes
+	// coverage/ and then runs `feint docs`, which regenerates README.md,
+	// README.fr.md and docs/ from it, and tools/contract/update.sh writes
+	// contracts/.
+	//
+	// README.fr.md is in this list because the same command writes it, not
+	// because a drift night was seen changing it: the translated banner counts
+	// mounted routes, so a triage that adds a route changes it and a baseline
+	// refresh does not. A path the generator writes and the artefact drops is
+	// the defect, whether or not it has fired yet.
+	regenerated := []string{"coverage/", "contracts/", "README.md", "README.fr.md", "docs/"}
+
+	upload := stepSection(workflow, "Upload the refreshed coverage")
+	if upload == "" {
+		t.Fatal("drift.yml no longer uploads the refreshed artefacts: propose checks out main fresh and would stage nothing")
+	}
+	for _, path := range regenerated {
+		if !strings.Contains(upload, "\n            "+path+"\n") {
+			t.Errorf("the artefact does not carry %s: the step regenerates it and it dies with the runner, "+
+				"which is how contracts/scaleway.json went twenty-four days without moving", path)
+		}
+	}
+	if !strings.Contains(upload, "steps.contracts.outputs.changed == 'true'") {
+		t.Error("the upload is keyed on the coverage diff alone: a night where only the API descriptions " +
+			"moved uploads nothing, and the download in propose fails on a missing artefact")
+	}
+
+	propose := jobSection(workflow, "propose")
+	add := regexp.MustCompile(`(?m)^\s+git add ([^\n]+)$`).FindStringSubmatch(propose)
+	if add == nil {
+		t.Fatal("the propose job stages nothing")
+	}
+	// The staged paths as arguments, not as text: anything after a `#` is a
+	// comment the shell never passes to git, and a substring search would read
+	// a commented-out path as staged.
+	staged := add[1]
+	if hash := strings.Index(staged, "#"); hash >= 0 {
+		staged = staged[:hash]
+	}
+	for _, path := range regenerated {
+		if !slices.Contains(strings.Fields(staged), path) {
+			t.Errorf("propose does not stage %s, so the pull request is born without it: `git add %s`", path, add[1])
+		}
+	}
+}
+
+// stepSection is the text of one step of a workflow, from its name to the next
+// step or the end of the file.
+func stepSection(workflow, name string) string {
+	start := strings.Index(workflow, "- name: "+name+"\n")
+	if start < 0 {
+		return ""
+	}
+	rest := workflow[start+1:]
+	next := regexp.MustCompile(`(?m)^      - name: `).FindStringIndex(rest)
+	if next == nil {
+		return rest
+	}
+	return rest[:next[0]]
 }
 
 // jobSection is the text of one job of a workflow, from its key to the next

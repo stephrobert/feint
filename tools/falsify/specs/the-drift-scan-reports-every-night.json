@@ -20,8 +20,8 @@
       "label": "the pull request opens every scheduled night whatever the scan found, which teaches everyone to close them unread",
       "file": ".github/workflows/drift.yml",
       "package": "./tools/ci/",
-      "find": "    if: github.event_name == 'schedule' && needs.drift.outputs.changed == 'true'\n    runs-on: ubuntu-24.04\n    permissions:\n      contents: write        # push the branch",
-      "replace": "    if: github.event_name == 'schedule' && (needs.drift.outputs.changed == 'true' || true)\n    runs-on: ubuntu-24.04\n    permissions:\n      contents: write        # push the branch",
+      "find": "    if: github.event_name == 'schedule' && (needs.drift.outputs.changed == 'true' || needs.drift.outputs.contracts == 'true')\n    runs-on: ubuntu-24.04\n    permissions:\n      contents: write        # push the branch",
+      "replace": "    if: github.event_name == 'schedule' && (needs.drift.outputs.changed == 'true' || needs.drift.outputs.contracts == 'true' || true)\n    runs-on: ubuntu-24.04\n    permissions:\n      contents: write        # push the branch",
       "test": "TestTheDriftWorkflowReportsEveryNight"
     },
     {
