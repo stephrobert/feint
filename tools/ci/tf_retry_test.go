@@ -218,6 +218,19 @@ exit 1
 // So this reads the relative path out of each caller's own line and resolves it
 // against that caller's own directory, which is what ${BASH_SOURCE[0]} means by
 // definition — the one assumption that cannot be wrong.
+// The two reds this test exists for, both on #895:
+//
+//  1. the path was built from $DIR, a variable that in the provider suites holds
+//     the stack directory, so the wrapper resolved to tools/conformance/ci;
+//  2. the definition sat next to its first use, which in three scripts is after
+//     a top-level `cd`, so the expression relative to ${BASH_SOURCE[0]} no
+//     longer resolved: "cd: tools/conformance/scaleway/../../ci: No such file
+//     or directory".
+//
+// Neither was visible to a check that reads the line and joins the path in Go,
+// because both depend on the working directory the line runs in. So this one
+// runs each script's own expression, from the directory CI invokes it from, and
+// then requires the definition to precede any top-level `cd`.
 func TestEveryCallerResolvesTheWrapperFromItself(t *testing.T) {
 	root := filepath.Join("..", "..")
 	conformance := filepath.Join(root, "tools", "conformance")
@@ -244,28 +257,61 @@ func TestEveryCallerResolvesTheWrapperFromItself(t *testing.T) {
 			"scan is broken or a caller went back to its own init", len(callers))
 	}
 
-	// TF_RETRY="$(cd "$(dirname "${BASH_SOURCE[0]}")/<rel>" && pwd)/tf-retry.sh"
-	line := regexp.MustCompile(`TF_RETRY="\$\(cd "\$\(dirname "\$\{BASH_SOURCE\[0\]\}"\)/([^"]+)" && pwd\)/tf-retry\.sh"`)
+	definition := regexp.MustCompile(`(?m)^[ \t]*TF_RETRY=.*$`)
+	// A `cd` in column zero: the one that moved the working directory under the
+	// definition. An indented `cd` lives in a function or a subshell and does
+	// not, so it is not the subject.
+	topLevelCd := regexp.MustCompile(`(?m)^cd[ \t]`)
 
 	for _, caller := range callers {
 		body, err := os.ReadFile(caller) //nolint:gosec // a committed script
 		if err != nil {
 			t.Fatal(err)
 		}
-		m := line.FindStringSubmatch(string(body))
-		if m == nil {
-			t.Errorf("%s computes the wrapper's path from something other than its own file; a borrowed "+
-				"directory variable is exactly what pointed at a stack and not at a script", caller)
+		text := string(body)
+
+		at := definition.FindStringIndex(text)
+		if at == nil {
+			t.Errorf("%s uses TF_RETRY without defining it", caller)
 			continue
 		}
-		resolved := filepath.Join(filepath.Dir(caller), m[1], "tf-retry.sh")
+		line := strings.TrimSpace(text[at[0]:at[1]])
+
+		// Run the script's own expression, from the repository root, invoking the
+		// probe by the relative path CI uses. A borrowed variable or a preceding
+		// `cd` both fail here, and only here.
+		probe := filepath.Join(filepath.Dir(caller), ".tf-retry-probe.sh")
+		script := "#!/usr/bin/env bash\nset -u\n" + line + "\nprintf '%s' \"$TF_RETRY\"\n"
+		if err := os.WriteFile(probe, []byte(script), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		rel, err := filepath.Rel(root, probe)
+		if err != nil {
+			t.Fatal(err)
+		}
+		cmd := exec.Command("bash", rel)
+		cmd.Dir = root
+		out, runErr := cmd.CombinedOutput()
+		_ = os.Remove(probe)
+		if runErr != nil {
+			t.Errorf("%s: its own definition fails when run from the repository root: %v\n%s",
+				caller, runErr, out)
+			continue
+		}
+		resolved := strings.TrimSpace(string(out))
 		info, err := os.Stat(resolved)
 		if err != nil {
-			t.Errorf("%s resolves the wrapper to %s, which does not exist", caller, resolved)
+			t.Errorf("%s resolves the wrapper to %q, which does not exist", caller, resolved)
 			continue
 		}
 		if info.Mode()&0o111 == 0 {
 			t.Errorf("%s resolves the wrapper to %s, which is not executable", caller, resolved)
+		}
+
+		if cd := topLevelCd.FindStringIndex(text); cd != nil && cd[0] < at[0] {
+			t.Errorf("%s defines TF_RETRY after a top-level `cd`; the expression is relative to the "+
+				"script's own file, so it has to be made absolute while the working directory is "+
+				"still the caller's", caller)
 		}
 	}
 }

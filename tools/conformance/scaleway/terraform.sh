@@ -37,6 +37,13 @@ if [ -z "$TF" ]; then
 fi
 command -v "$TF" >/dev/null 2>&1 || { echo "FAIL: neither tofu nor terraform is installed" >&2; exit 1; }
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/terraform" && pwd)"
+
+# Resolved here rather than where it is used, and that is the whole point:
+# the expression is relative to the script's own file, so it has to be made
+# absolute while the working directory is still the one the caller started
+# in. Placed next to the first use, it ran after a `cd` and answered "No such
+# file or directory" on tools/conformance/<provider>/../../ci (#895).
+TF_RETRY="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../ci" && pwd)/tf-retry.sh"
 WORK="$(mktemp -d)"
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
@@ -71,7 +78,6 @@ echo "conformance: $TF against $ENDPOINT"
 # not know about would make it plan a change while tearing down.
 export TF_VAR_phase=one
 
-TF_RETRY="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../ci" && pwd)/tf-retry.sh"
 "$TF_RETRY" "$TF" scaleway init -no-color -upgrade
 "$TF" validate -no-color
 "$TF" plan -no-color -var "endpoint=$ENDPOINT" -out tfplan
