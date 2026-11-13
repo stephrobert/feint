@@ -102,8 +102,9 @@ names the reporter unless they prefer otherwise. A fixed vulnerability would
 therefore be identified both in its advisory and in the release note.
 
 Dependency vulnerabilities are out of this criterion's scope, and are covered
-anyway: govulncheck and OSV-Scanner run on every pull request and weekly, with
-Dependabot for the Go modules and the GitHub Actions.
+anyway: govulncheck runs nightly on a schedule and on demand with
+`mise run vulncheck`, OSV-Scanner runs weekly, with Dependabot for the Go
+modules and the GitHub Actions.
 ```
 
 ---
@@ -193,9 +194,10 @@ generate values that must be unpredictable, and it uses the right source.
 
 **Answer: Met.**
 
-> No known vulnerability is outstanding. Dependencies are checked on every pull
-> request by `govulncheck` and OSV-Scanner, and weekly on a schedule; Dependabot
-> covers the Go modules and the GitHub Actions. `go.mod` has three lines, which
+> No known vulnerability is outstanding. Dependencies are checked nightly by
+> `govulncheck` on a schedule (and on demand with `mise run vulncheck`) and
+> weekly by OSV-Scanner; Dependabot covers the Go modules and the GitHub
+> Actions. `go.mod` has three lines, which
 > is itself a policy — a new external dependency has to be justified in the pull
 > request.
 

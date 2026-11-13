@@ -1,0 +1,204 @@
+# A vulnerability scan is a night, not a gate (#865).
+#
+# govulncheck's verdict changes without a single line of this repository
+# changing. Four times in 2026 a standard-library advisory reddened pull
+# requests that touched no Go file — go1.26.6, go1.26.9, go1.26.10, go1.26.11 —
+# and each time the red landed on whoever pushed next. Nothing here was the
+# cause and nothing here could fix it; the pin is what moves.
+#
+# So the question is asked here, on a schedule, the way drift.yml asks about the
+# upstream surface. It is deliberately NOT in `mise run prepush` and NOT in
+# .pre-commit-config.yaml: prepush is offline, deterministic and a few seconds
+# long, and a hook that reddens on the network teaches --no-verify, which
+# disarms every other hook at once. `mise run vulncheck` stays the way to ask by
+# hand.
+#
+# The decisions live in tools/ci/vulncheck.py rather than in a run: block, for
+# the reason this repository has audited three times — a run: block executes
+# only on GitHub's runners, so a fix written there exists as a comment until the
+# night it is needed. tools/ci/vulncheck_test.go drives the script with a
+# stubbed govulncheck over a quiet night, a night with an advisory, and a scan
+# that cannot conclude.
+
+name: Vulnerability watch
+
+on:
+  schedule:
+    # Nightly, offset from conformance.yml's 03:43 and runtime-proof.yml's 02:31
+    # so the three never compete for the same third-party servers at the minute.
+    - cron: '17 4 * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: vulncheck
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    name: Scan the pinned toolchain
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    outputs:
+      moved: ${{ steps.scan.outputs.moved }}
+      target: ${{ steps.scan.outputs.target }}
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.26.11'
+          cache: false
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.3.0
+
+      # Exit 2 is the answer this job exists to produce, not a failure, so it is
+      # collected rather than allowed to end the step under `bash -e`. The same
+      # shape tools/ci/drift-backlog.sh uses, and for the same reason: GitHub
+      # runs every `run:` block under `bash -e {0}`.
+      - name: Scan, and move the pins when an advisory reaches them
+        id: scan
+        run: |
+          gobin=$(go env GOPATH)/bin
+          export PATH="$gobin:$PATH"
+          status=0
+          python3 tools/ci/vulncheck.py bump | tee scan.out || status=$?
+          case "$status" in
+            0)
+              echo "moved=false" >> "$GITHUB_OUTPUT"
+              {
+                printf '### No advisory moves the pin\n\n'
+                printf 'The scan concluded. This line exists because a silent schedule is\n'
+                printf 'indistinguishable from a dead one (#705).\n'
+              } >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            2)
+              echo "moved=true" >> "$GITHUB_OUTPUT"
+              target=$(sed -n 's/^the pin moves from go[0-9.]* to go\([0-9.]*\)$/\1/p' scan.out)
+              echo "target=${target}" >> "$GITHUB_OUTPUT"
+              {
+                printf '### An advisory reaches the pinned toolchain\n\n'
+                printf '```\n'
+                cat scan.out
+                printf '```\n'
+              } >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            *)
+              echo "the scan could not conclude (exit $status)" >&2
+              exit "$status"
+              ;;
+          esac
+
+      - name: Upload the moved pins
+        if: steps.scan.outputs.moved == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pins
+          path: |
+            mise.toml
+            .github/workflows/
+          retention-days: 7
+
+  propose:
+    name: Push the branch that moves every pin
+    needs: scan
+    if: needs.scan.outputs.moved == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write # push the branch
+      pull-requests: write # try to open the pull request
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Proved in drift.yml before it was written here: `git credential fill`
+      # returns username=x-access-token and the token; the string passed to -c
+      # carries the literal `${GH_TOKEN}` and not its value; and no file under
+      # .git holds the token.
+      GIT_CRED_HELPER: '!f() { echo username=x-access-token; echo "password=${GH_TOKEN}"; }; f'
+      TARGET: ${{ needs.scan.outputs.target }}
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download the moved pins
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: pins
+
+      - name: Push the branch, and open the pull request if policy allows it
+        run: |
+          branch="chore/go-${TARGET}"
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$branch"
+          git add mise.toml .github/workflows/
+          if git diff --cached --quiet; then
+            echo "the artefact carried no change; nothing to push" >&2
+            exit 1
+          fi
+          git commit -m "chore(ci): move every Go pin to ${TARGET}"
+          git fetch origin "+refs/heads/$branch:refs/remotes/origin/$branch" || true
+          git -c credential.helper= -c "credential.helper=${GIT_CRED_HELPER}" \
+              push --force-with-lease origin "$branch"
+          if [ -n "$(gh pr list --head "$branch" --json number --jq '.[0].number')" ]; then
+            echo "a pull request is already open on $branch; the push above updated it"
+            exit 0
+          fi
+
+          # This repository deliberately withholds pull-request creation from
+          # Actions, which is a hardening choice the Scorecard reads. GitHub
+          # answers with a policy message, and failing on it would turn the
+          # ordinary case into a red night — the defect drift.yml already paid
+          # for twice. So this one answer is reported and tolerated, and every
+          # other error still fails the job.
+          if out=$(gh pr create --head "$branch" \
+              --title "chore(ci): move every Go pin to ${TARGET}" \
+              --body "A scheduled govulncheck found an advisory reaching the pinned toolchain. Every pin moves together; the job summary names the advisory, the version it was found in and the version that fixes it." 2>&1); then
+            echo "$out"
+            exit 0
+          fi
+          echo "$out" >&2
+          case "$out" in
+            *"not permitted to create or approve pull requests"*)
+              {
+                printf '### The branch is pushed, the pull request is not\n\n'
+                printf 'This repository does not let Actions open pull requests, which is a\n'
+                printf 'deliberate hardening choice. The moved pins are on branch %s\n\n' "$branch"
+                printf 'Open it by hand: https://github.com/%s/compare/main...%s?expand=1\n' \
+                  "$GITHUB_REPOSITORY" "$branch"
+              } >> "$GITHUB_STEP_SUMMARY"
+              echo "the pull request was refused by repository policy; the branch carries the signal"
+              exit 0
+              ;;
+          esac
+          exit 1
+
+  night:
+    name: A red night opens the issue, a green one closes it
+    needs: [scan, propose]
+    if: always() && github.event_name == 'schedule'
+    permissions:
+      contents: read
+      actions: read
+      issues: write
+    uses: ./.github/workflows/night-report.yml

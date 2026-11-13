@@ -183,10 +183,16 @@ jobs:
           go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
           "$(go env GOPATH)/bin/golangci-lint" run ./...
 
-      - name: govulncheck
-        run: |
-          go install golang.org/x/vuln/cmd/govulncheck@v1.3.0
-          "$(go env GOPATH)/bin/govulncheck" ./...
+      # govulncheck used to run here, and #865 moved it to a schedule.
+      #
+      # Its verdict changes without a line of this repository changing: four
+      # standard-library advisories in 2026 reddened pull requests that touched
+      # no Go file, and each red landed on whoever pushed next. A gate that is
+      # red on something nobody here can fix is a gate people stop reading.
+      #
+      # It now runs nightly in .github/workflows/vulncheck.yml, which moves
+      # every pin together and pushes the branch. `mise run vulncheck` is still
+      # how a human asks the question on demand.
 
   # Does this branch say what it changed about the surface it serves (#326).
   #
