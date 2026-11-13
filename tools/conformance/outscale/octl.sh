@@ -186,7 +186,16 @@ osc() { octl --config "$WORK/config.json" --no-upgrade -o raw iaas api "$@" </de
 # still writing. Met on the `fields` leg, which died silently after the scw
 # suite. A substitution reads to the end, so nothing is ever signalled.
 octl_min="v0.0.32"
-octl_version_out="$(octl --version 2>/dev/null || true)"
+# And `</dev/null`, which is point 5 of the header applied to the one call that
+# bypasses the `osc` wrapper. octl reads ALL of stdin whenever stdin is not a
+# terminal and decodes it as the request body, so this probe inherits whatever
+# stdin the suite was started with. Measured 2026-11-13: with a pipe that never
+# closes on stdin, `octl --version` blocks forever; with `</dev/null` it answers
+# in 109 ms. It cost 25 minutes of a `fields` leg that printed nothing after the
+# scw suite - the same silent death as the SIGPIPE above, at the same call, for
+# a different reason. Interactive runs never see it, because a terminal is a
+# terminal.
+octl_version_out="$(octl --version </dev/null 2>/dev/null || true)"
 octl_have="$(printf '%s\n' "$octl_version_out" | awk 'NR == 1 { print $3 }')"
 [ -n "$octl_have" ] || fail "octl --version printed no version: cannot tell which --PublicKey form it takes"
 octl_oldest="$(printf '%s\n%s\n' "$octl_min" "$octl_have" | sort -V | awk 'NR == 1')"

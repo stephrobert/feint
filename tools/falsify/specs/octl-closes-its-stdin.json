@@ -1,0 +1,20 @@
+{
+ "package": "./tools/conformance/",
+ "note": "The subject is a rule this repository already wrote down and did not enforce.\n\nPoint 5 of the header of tools/conformance/outscale/octl.sh says: octl reads ALL of stdin whenever stdin is not a terminal and decodes it as the request body, so \"Every call here is </dev/null, in the wrapper, so the body can only come from flags.\" It held for every call that went through the `osc` wrapper, and for neither of the two version probes that bypass it.\n\nMeasured 2026-11-13: `octl --version` with a pipe nobody closes on stdin blocks until it is killed; with `</dev/null` it answers in 109 ms. The cost was 25 minutes of a `fields` leg whose log stopped after the scw suite and printed nothing more, twice, before the cause was found. Interactive runs never meet it, because a terminal is a terminal: the failure only appears where nobody is watching.\n\nThe same call had already killed the same leg silently once before, through SIGPIPE from a `| head -1`. That was fixed by reading the output whole; stdin was not part of that fix. Two silent deaths, one call, two causes - which is why the control is a walk over every suite rather than a redirect on two lines.",
+ "mutations": [
+  {
+   "label": "the version probe of octl.sh stops closing its standard input, which is the state the repository shipped in. On any run whose stdin is not a terminal the leg blocks with no output at all, and the walk is what names it",
+   "file": "tools/conformance/outscale/octl.sh",
+   "find": "octl_version_out=\"$(octl --version </dev/null 2>/dev/null || true)\"",
+   "replace": "octl_version_out=\"$(octl --version 2>/dev/null || true)\"",
+   "test": "TestEveryOctlCallClosesItsStandardInput"
+  },
+  {
+   "label": "the same probe in ssh.sh. Two files carry it, so a walk that only read one would pass while the other blocked - and ssh.sh is the suite nobody runs in CI, which is exactly where an unwatched failure lives longest",
+   "file": "tools/conformance/outscale/ssh.sh",
+   "find": "octl_version_out=\"$(octl --version </dev/null 2>/dev/null || true)\"",
+   "replace": "octl_version_out=\"$(octl --version 2>/dev/null || true)\"",
+   "test": "TestEveryOctlCallClosesItsStandardInput"
+  }
+ ]
+}
