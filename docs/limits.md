@@ -2132,6 +2132,34 @@ whatever the caller sent, and clearing it makes the same request succeed. An
 injected refusal proves what the *client* does with a refusal, never that this
 emulator — or the real cloud — would refuse that call.
 
+## A mutated state is marked; a state document composed by hand is not (#193)
+
+`feint mutate` changes a stored resource outside the API a provider calls, so a
+client's next read sees a drift nobody's client produced. A run that held such a
+state can never be scored again: the ledger of mutations is published on
+`/_feint/conformance`, `tools/conformance/score.sh` refuses a run carrying one,
+and the mark is append-only — loading a clean snapshot over a mutated emulator
+restores clean resources and does not restore a clean history.
+
+**The mark covers what the verb did, and only that.** It travels inside the state
+document, which is what makes it survive a snapshot taken from a mutated
+emulator and loaded into another one. What carries no mark is a state document
+somebody composed by hand and sent with `curl -X PUT $ENDPOINT/_feint/state`.
+That is not a theoretical case: `tools/conformance/scaleway/scw-cli.sh` seeds an
+Elastic Metal server exactly that way, deliberately, because the pack serves no
+create for it — and that seed is part of a run the score accepts today.
+
+So the boundary is: **the state door has always accepted a state no client
+produced, and this change does not close that; it closes the one path a verb of
+this repository offers.** A suite that seeds through the door is making a claim
+about its own fixture, the way it always was. A suite that drifts a resource
+with `feint mutate` is marked, and its numbers are refused.
+
+Closing the rest would mean marking every `PUT /_feint/state`, which would turn
+the Elastic Metal seed above — and every `feint snapshot load` — into an
+unscorable run. That is a decision about what a fixture is, not about #193, and
+it is not taken here.
+
 ## A fault schedule counts arrivals, and no client sends an identity to replay (#851)
 
 `nth` on a fault rule answers the Nth call to an operation and no other. **The

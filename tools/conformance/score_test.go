@@ -47,6 +47,34 @@ func TestTheScoreRefusesARunCarryingAnInjectedAnswer(t *testing.T) {
 	}
 }
 
+// The same refusal, for a state nobody's API produced (#193).
+//
+// `feint mutate` changes a stored resource behind the provider's back so a
+// suite can watch a client react to a drift. The answers the emulator gives
+// afterwards describe a state an operator wrote, so scoring them would count
+// fiction — the boundary the injected gate above holds, applied to the other
+// way a run stops describing a cloud.
+func TestTheScoreRefusesARunCarryingAMutation(t *testing.T) {
+	code, output := runScore(t, `{
+		"served": 2, "exercised": 1, "probed": 0,
+		"calls": {"stub/v1/API.ListThings": 1},
+		"injected": {},
+		"mutations": ["2026-11-13T09:00:00Z set instance/server abc tags=[]"],
+		"probes": {}, "untouched": [], "contracts": [],
+		"violations": {}, "unread_request_fields": {},
+		"fields": {"missing": {}, "excused": {}, "unconfirmed": {}, "stale_declines": [], "compared": []},
+		"machines": "none", "evidence": {}
+	}`)
+	if code == 0 {
+		t.Errorf("the score accepted a run whose state was changed outside any API:\n%s", output)
+	}
+	for _, want := range []string{"instance/server abc", "outside any provider API"} {
+		if !strings.Contains(output, want) {
+			t.Errorf("the refusal never says %q, so nobody reading it knows what happened:\n%s", want, output)
+		}
+	}
+}
+
 // The other half, without which the gate above is satisfied by a script that
 // refuses everything: an ordinary run — the default, since rules are off unless
 // somebody arms them — still scores.

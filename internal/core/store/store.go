@@ -40,6 +40,13 @@ type Store struct {
 	// on the way in to decide which lock to take, and scanning the store to
 	// answer that would cost more than the chains do.
 	onlySignal int
+	// mutations is the append-only ledger of changes made outside any provider
+	// API — what `feint mutate` did (#193). See mutation.go for why it lives in
+	// the state document rather than beside it.
+	mutations []string
+	// mutationCount counts every record offered, including the ones the bound
+	// above dropped, so an overflowing ledger is visible rather than silent.
+	mutationCount int
 }
 
 // countOnlySignal adjusts the tally when a stored resource is replaced. Called
@@ -545,6 +552,12 @@ func (s *Store) Snapshot(w io.Writer) error {
 		Format:    snapshotFormat,
 		Version:   snapshotVersion,
 		Resources: list,
+		// The ledger travels with the state it describes. A snapshot taken from
+		// a mutated emulator says so wherever it is loaded next, which is what
+		// keeps the mark from being lost at the one boundary built to cross
+		// instances. TestAMutatedStateCarriesItsLedgerAcrossASnapshot fails
+		// without this line.
+		Mutations: slices.Clone(s.mutations),
 	})
 	s.mu.RUnlock()
 
@@ -583,6 +596,15 @@ type snapshotFile struct {
 	Format    string               `json:"format"`
 	Version   int                  `json:"version"`
 	Resources []*resource.Resource `json:"resources"`
+	// Mutations is the ledger of out-of-band changes this state carries (#193).
+	//
+	// Additive and omitted when empty, so every snapshot written before the
+	// ledger existed still restores and every snapshot of an unmutated store
+	// still reads byte-for-byte as it did. The version does not move for that
+	// reason: a reader of version 1 that ignores an absent key loses nothing,
+	// and a state that *is* mutated is one no older build should be quietly
+	// reading as clean anyway.
+	Mutations []string `json:"mutations,omitempty"`
 }
 
 // Restore replaces the store content with a snapshot produced by Snapshot.
@@ -633,8 +655,20 @@ func (s *Store) Restore(r io.Reader) error {
 			file.Version, snapshotVersion)
 	}
 
+	// Validated before anything is replaced: a ledger this build refuses must
+	// leave the store exactly as it was, not half-restored with the mark
+	// missing. TestARestoredMutationLedgerIsValidated fails without this.
+	if err := checkMutations(file.Mutations); err != nil {
+		return fmt.Errorf("restore store: %w", err)
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	// Merged, never replaced. Loading a clean snapshot over a mutated emulator
+	// restores clean resources and does not restore a clean history: the
+	// process held a state no provider API produced, and that stays true.
+	// TestACleanSnapshotDoesNotLaunderAMutatedRun fails without this.
+	s.mergeMutations(file.Mutations)
 	s.items = make(map[string]*resource.Resource, len(file.Resources))
 	for _, res := range file.Resources {
 		// A snapshot is operator-supplied, and a null element in the array
