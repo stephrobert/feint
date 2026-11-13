@@ -30,7 +30,7 @@
 > [!IMPORTANT]
 > **What is safe to point at this emulator, and what is not.**
 >
-> **Proven**: 384 of the 409 mounted operations are driven by a real client, on every pull request: each pack's own official CLI, and an infrastructure engine wherever a pack admits one, all of them running against the emulator in CI, and machines really boot: an ssh login on each provider's own default account, isolated subnets, a firewall that filters. The whole chain is described in [docs/conformance.md](docs/conformance.md).
+> **Proven**: 384 of the 409 mounted operations are driven by a real client, on every pull request: each pack's own official CLI, and an infrastructure engine wherever a pack admits one, all of them running against the emulator in CI. And every night, machines really boot: an ssh login on each provider's own default account, a firewall that filters, and subnets isolated under `incus-ovn`, the one mode that declares it. Starting machines needs a runtime the pull-request path does not have. The whole chain is described in [docs/conformance.md](docs/conformance.md).
 >
 > **Not proven**: quotas, prices, real capacity, identifier validation, authentication, eventual consistency. The 62 sections of [docs/limits.md](docs/limits.md) each say what one costs. An emulator with a single implicit account and no price list would have to invent those figures, and somebody would act on them.
 >

@@ -31,6 +31,12 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Modifié
 
+- L'encadré de sécurité disait que les machines démarrent réellement « à
+  chaque pull request ». Seul `runtime-proof.yml` les démarre, et il se
+  déclenche sur `schedule` et `workflow_dispatch` ; le chemin des pull
+  requests tourne en `--vm off`. La cadence est maintenant lue dans le bloc
+  `on:` de ce workflow, et la phrase nomme `incus-ovn` pour l'isolation au
+  lieu de la revendiquer pour tous les modes.
 - La promesse en tête des deux README n'affirme plus que rien n'est créé
   nulle part. Elle dit ce qui est vrai et borné : les API que Feint sert
   répondent sur votre machine, et ce qu'il ne sert pas, un client peut encore

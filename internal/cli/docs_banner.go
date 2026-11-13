@@ -55,6 +55,12 @@ type safetyFacts struct {
 	// work. The banner prints both, so the figure a reader meets first is the
 	// one the artefact can defend.
 	Explained int
+	// MachineProof is how often the machine runtime is actually proven,
+	// read off the workflow that proves it rather than assumed. The banner
+	// said "on every pull request" for the whole sentence, machines
+	// included, while .github/workflows/runtime-proof.yml triggers on
+	// schedule and workflow_dispatch only.
+	MachineProof string
 }
 
 // readBannerFacts gathers the counts from the evidence record and the limits
@@ -64,7 +70,7 @@ type safetyFacts struct {
 // claiming "0 operations are proven" because a file moved would be worse than
 // no banner, and it is exactly the failure mode a generated block is supposed
 // to remove.
-func readSafetyFacts(evidencePath, limitsPath string) (safetyFacts, error) {
+func readSafetyFacts(evidencePath, limitsPath, machineProofPath string) (safetyFacts, error) {
 	raw, err := os.ReadFile(evidencePath) //nolint:gosec // a path this repository owns
 	if err != nil {
 		return safetyFacts{}, fmt.Errorf("read the evidence record: %w", err)
@@ -108,7 +114,69 @@ func readSafetyFacts(evidencePath, limitsPath string) (safetyFacts, error) {
 	if facts.Mounted == 0 || facts.Limits == 0 {
 		return safetyFacts{}, fmt.Errorf("the artefacts report nothing to describe")
 	}
+
+	facts.MachineProof, err = proofCadence(machineProofPath)
+	if err != nil {
+		return safetyFacts{}, err
+	}
 	return facts, nil
+}
+
+// proofCadence says how often a workflow runs, from its own `on:` block.
+//
+// No YAML parser: the block is read line by line, which this repository can do
+// without a dependency. The keys are the ones GitHub defines, and an `on:` block
+// that names none of them is an error rather than a guess — a banner that
+// claims a cadence nobody measured is the defect this whole function exists to
+// remove.
+//
+// TestTheBannerReadsTheCadenceOffTheWorkflow fails without it.
+func proofCadence(workflowPath string) (string, error) {
+	raw, err := os.ReadFile(workflowPath) //nolint:gosec // a path this repository owns
+	if err != nil {
+		return "", fmt.Errorf("read the workflow that proves the machine runtime: %w", err)
+	}
+	inOn, onPullRequest, onSchedule := false, false, false
+	for _, line := range strings.Split(string(raw), "\n") {
+		switch {
+		case strings.HasPrefix(line, "on:"):
+			inOn = true
+			continue
+		case inOn && len(line) > 0 && !strings.HasPrefix(line, " ") && !strings.HasPrefix(line, "\t"):
+			inOn = false
+		}
+		if !inOn {
+			continue
+		}
+		key := strings.TrimSpace(line)
+		switch {
+		case strings.HasPrefix(key, "pull_request:"), key == "pull_request":
+			onPullRequest = true
+		case strings.HasPrefix(key, "schedule:"), key == "schedule":
+			onSchedule = true
+		}
+	}
+	switch {
+	case onPullRequest:
+		return "on every pull request", nil
+	case onSchedule:
+		return "every night", nil
+	}
+	return "", fmt.Errorf("%s triggers on neither pull_request nor schedule, so no cadence can be "+
+		"stated for what it proves", workflowPath)
+}
+
+// frenchCadence translates what proofCadence measured. The measurement happens
+// once, in English, and the French page says the same thing rather than reading
+// the workflow a second time with its own rules.
+func frenchCadence(cadence string) string {
+	switch cadence {
+	case "on every pull request":
+		return "à chaque pull request"
+	case "every night":
+		return "chaque nuit"
+	}
+	return cadence
 }
 
 // countLimitSections counts the sections of the limits page that state a limit,
@@ -222,9 +290,12 @@ func renderSafety(facts safetyFacts, french bool) string {
 		b.WriteString("> **Ce qu'on peut pointer vers cet émulateur, et ce qu'on ne peut pas.**\n>\n")
 		fmt.Fprintf(&b, "> **Prouvé** : %d des %d opérations montées sont pilotées par un vrai client, "+
 			"à chaque pull request. `scw`, `octl`, `exo`, Terraform et OpenTofu tournent contre "+
-			"l'émulateur en CI, et les machines démarrent réellement : connexion ssh sur le compte par "+
-			"défaut de chaque provider, subnets isolés, pare-feu qui filtre. La chaîne complète est "+
-			"décrite dans [docs/conformance.md](docs/conformance.md).\n>\n", facts.Driven, facts.Mounted)
+			"l'émulateur en CI. Et %s, les machines démarrent réellement : connexion ssh sur le compte "+
+			"par défaut de chaque provider, pare-feu qui filtre, et subnets isolés sous `incus-ovn`, "+
+			"le seul mode qui le déclare. Démarrer des machines demande un runtime que le chemin des "+
+			"pull requests n'a pas. La chaîne complète est décrite dans "+
+			"[docs/conformance.md](docs/conformance.md).\n>\n",
+			facts.Driven, facts.Mounted, frenchCadence(facts.MachineProof))
 		fmt.Fprintf(&b, "> **Pas prouvé** : quotas, prix, capacité réelle, validation des identifiants, "+
 			"authentification, cohérence à terme. Les %d sections de "+
 			"[docs/limits.md](docs/limits.md) disent chacune ce qu'elle coûte. Un émulateur avec un "+
@@ -246,9 +317,11 @@ func renderSafety(facts safetyFacts, french bool) string {
 	fmt.Fprintf(&b, "> **Proven**: %d of the %d mounted operations are driven by a real client, on every "+
 		"pull request: each pack's own official CLI, and an infrastructure engine "+
 		"wherever a pack admits one, all of them running against the emulator in "+
-		"CI, and machines really boot: an ssh login on each provider's own default account, isolated "+
-		"subnets, a firewall that filters. The whole chain is described in "+
-		"[docs/conformance.md](docs/conformance.md).\n>\n", facts.Driven, facts.Mounted)
+		"CI. And %s, machines really boot: an ssh login on each provider's own default account, a "+
+		"firewall that filters, and subnets isolated under `incus-ovn`, the one mode that declares "+
+		"it. Starting machines needs a runtime the pull-request path does not have. The whole "+
+		"chain is described in [docs/conformance.md](docs/conformance.md).\n>\n",
+		facts.Driven, facts.Mounted, facts.MachineProof)
 	fmt.Fprintf(&b, "> **Not proven**: quotas, prices, real capacity, identifier validation, "+
 		"authentication, eventual consistency. The %d sections of "+
 		"[docs/limits.md](docs/limits.md) each say what one costs. An emulator with a single implicit "+
@@ -295,7 +368,8 @@ func spliceSafety(root string) (bool, error) {
 	}
 	facts, err := readSafetyFacts(
 		filepath.Join(root, "coverage", "evidence.json"),
-		filepath.Join(root, "docs", "limits.md"))
+		filepath.Join(root, "docs", "limits.md"),
+		filepath.Join(root, ".github", "workflows", "runtime-proof.yml"))
 	if err != nil {
 		return false, err
 	}
@@ -329,7 +403,8 @@ func writeSplicedSafety(root string) error {
 	}
 	facts, err := readSafetyFacts(
 		filepath.Join(root, "coverage", "evidence.json"),
-		filepath.Join(root, "docs", "limits.md"))
+		filepath.Join(root, "docs", "limits.md"),
+		filepath.Join(root, ".github", "workflows", "runtime-proof.yml"))
 	if err != nil {
 		return err
 	}

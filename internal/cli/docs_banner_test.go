@@ -32,6 +32,7 @@ func TestTheBannerCountsComeFromTheArtefacts(t *testing.T) {
 		"a/API.Three": {"driven": false}
 	}}`)
 	write("docs/limits.md", "# Limits\n\n## One\n\n## Two\n\n## Three\n\n## Four\n")
+	write(".github/workflows/runtime-proof.yml", "name: p\non:\n  schedule:\n    - cron: '31 2 * * *'\n  workflow_dispatch:\n\njobs: {}\n")
 	write("README.md", "# feint\n\n<!-- safety:start -->\n<!-- safety:end -->\n\nrest\n")
 
 	if err := writeSplicedSafety(root); err != nil {
@@ -98,6 +99,7 @@ func TestTheBannerSeparatesExplainedFromUnknown(t *testing.T) {
 		"instance/v1/API.ListServers": {"driven": true}
 	}}`)
 	write("docs/limits.md", "# Limits\n\n## One\n")
+	write(".github/workflows/runtime-proof.yml", "name: p\non:\n  schedule:\n    - cron: '31 2 * * *'\n  workflow_dispatch:\n\njobs: {}\n")
 	write("README.md", "# feint\n\n<!-- safety:start -->\n<!-- safety:end -->\n\nrest\n")
 
 	if err := writeSplicedSafety(root); err != nil {
