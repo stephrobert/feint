@@ -28,8 +28,8 @@
     {
       "label": "the instance ownership question is dropped, so a restored snapshot naming production-database gets its device removed",
       "file": "internal/core/machine/incus.go",
-      "find": "\tif err := d.mustOwnInstance(ctx, name); err != nil {",
-      "replace": "\tif err := d.mustOwnInstance(ctx, name); err != nil && false {",
+      "find": "\tif err := d.mustOwnInstance(ctx, name); err != nil {\n\t\tif isNotFound(err) {\n\t\t\treturn nil",
+      "replace": "\tif err := d.mustOwnInstance(ctx, name); err != nil && false {\n\t\tif isNotFound(err) {\n\t\t\treturn nil",
       "test": "TestDetachRefusesAnInstanceItDoesNotOwn",
       "package": "./internal/core/machine/"
     },
