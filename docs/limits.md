@@ -5193,41 +5193,65 @@ measurement, and it is written here as one.
 
 ## The Exoscale stack's second plan is not empty: two per-id outputs read back null at apply time (#520)
 
-`feint up --runtime incus-ovn` applies `examples/stacks/exoscale` (the pinned
-maintainer fork, `dev_overrides`) green, and the apply's own `Outputs:` block
-lists five outputs — `front_by_id` and `ingress_address_by_id` are missing
-from it. The second plan is then not empty:
+**Re-measured on 2026-11-13. The symptom still happens, and the cause written
+here for two months was wrong.** This section used to say that nothing drove
+this stack and that upstream
+[exoscale/terraform-provider-exoscale#573][exo-573] would lift it. Both
+sentences are false, and they are named below rather than quietly deleted,
+because a plausible cause that installs itself in a limit is the failure this
+file exists to prevent.
 
-```console
-$ terraform plan -detailed-exitcode        # exit 2
-Changes to Outputs:
-  + front_by_id           = "platform-front"
-  + ingress_address_by_id = "192.0.2.2"
-```
+**What a reader meets.** `examples/stacks/exoscale` applies green, `16 added, 0
+changed, 0 destroyed`. `main.tf` declares eight outputs and the apply's own
+`Outputs:` block prints six. Terraform omits an output whose value is null, so
+two of them were null at apply time:
 
-No resource changes: the whole diff is those two outputs appearing, and
-applying that plan changes 0 resources and converges — the third plan exits 0
-(#506, the earlier filing of the same defect). Reproduced on **three
-independent trees** on 2026-08-26 — `main@46230cc`,
-`fix/473-493-ovn-under-concurrency`, `fix/481-483-…@f11d384` — with the same
-two lines, so it is deterministic and belongs to no branch. The two outputs
-are exactly the per-id doors #478 added: data sources that read the NLB and
-the elastic IP back **by id** (`data.exoscale_nlb.front.name`, the ingress
-address by its id); every output that reads the resources or the list-shaped
-data sources is present from the first apply. The clean second plan
-`docs/clients.md` records for 2026-08-18 was measured on the 13-resource
-stack, before those doors existed.
+| output | what it reads | first apply |
+|---|---|---|
+| `front_by_id` | `data.exoscale_nlb.front.name` | absent, null |
+| `ingress_address_by_id` | `data.exoscale_elastic_ip.ingress.ip_address` | absent, null |
+| `pool_size_by_id` | `data.exoscale_instance_pool.app.size` | present |
 
-The reading above was deduced rather than instrumented: Terraform omits an
-output whose value is null, so the first apply's by-id read — issued
-immediately after the create — must have answered a document whose `name` (and
-the elastic IP's address) was empty. That pointed at the pack's by-id GET
-racing its own async create-completion.
+`terraform.tfstate` carries the same two nulls, so the omission is the value and
+not the printing. The third by-id data source has the same shape as the other
+two and answers, which is what rules out the way the stack is written.
 
-**Measured on 2026-08-28, and that reading is wrong.** The by-id read was
-driven against the pack directly, which is the surface this repository has
-decided to drive, with `--vm off` because the question is the document and not
-the runtime:
+Versions, because this is a behaviour and not a law: Terraform v1.16.1,
+OpenTofu v1.11.4, `exoscale/exoscale` **0.72.0**, the published provider, no
+fork and no `dev_overrides`, `FEINT_VM=off`.
+
+The second plan then reports those two outputs as additions with every resource
+a no-op, and applying it converges: the third plan is clean (#506, the earlier
+filing of the same defect). The two outputs are the per-id doors #478 added.
+
+**What it costs.** An empty value, with no error and no message, on an output a
+platform typically wires into a DNS record or into a cloud-init. The apply is
+green and the artefact behind it is wrong. `tools/conformance/stacks.sh` judges
+resource changes rather than `-detailed-exitcode`, for the reason written in
+that file, so these two outputs surface there as a printed note and no gate
+turns red on them.
+
+**This stack is driven.** `tools/conformance/stacks.sh` has applied it since
+2026-09-05, both from `mise run conformance` and in CI on the `terraform` and
+the `opentofu` legs of `.github/workflows/conformance.yml`. The refusal of
+2026-08-26 (#525) came off that day, on a measurement rather than on a release
+note, and the section above on the provider's version floor carries it. Any
+sentence here or elsewhere describing this stack as driven by a pinned
+maintainer fork through `dev_overrides` is stale: it has not been applied that
+way since 2026-09-05.
+
+**What would not lift it.** Upstream #573 was fixed by upstream #576 and
+published in v0.71.0. The stack has been pinned past that for weeks, and the
+symptom is measured unchanged on 0.72.0. So #573 is not the cause, and the
+reading that pointed at it, that the provider builds two clients and only one
+honours `EXOSCALE_API_ENDPOINT`, is withdrawn here. It was a deduction from the
+provider's source, never a measurement of these two outputs, and it was written
+as such at the time. The `setEndpointFromContext` limit it came from is a real
+and separate one; it is not this.
+
+**What the emulator answers, and it is not empty.** Measured on 2026-08-28,
+driven against the pack directly, with `--vm off` because the question is the
+document and not the runtime:
 
 | what was asked | reads | empty answers |
 |---|--:|--:|
@@ -5237,31 +5261,54 @@ the runtime:
 | create an instance pool, read its size by id with no delay | 50 | **0** |
 
 There is no window to race. `createLoadBalancer` puts the resource with `name`
-and `ip` in its attributes **before** it writes the operation, and the
-operation it writes is already `state: success` — the async shape is in the
-envelope, never in the document. The same holds for the elastic IP. The `exo`
-CLI reads the same balancer back with its name and `ip_address` filled.
+and `ip` in its attributes **before** it writes the operation, and the operation
+it writes is already `state: success`: the async shape is in the envelope, never
+in the document. The same holds for the elastic IP. The `exo` CLI reads the same
+balancer back with its name and `ip_address` filled. The emulator also serves
+the three by-id doors from one store and answers all three completely.
 
-Two consequences, and the second is why this stays here rather than becoming a
-fix:
+**And that table measures a door these two data sources do not open.** Measured
+on 2026-11-13, by capturing every call of a full `stacks.sh` pass. During the
+apply, the two failing reads are list calls, not reads by id:
 
-- **The emulator does not discriminate between the three per-id doors.** The
-  stack has three by-id data sources — the NLB, the elastic IP and the instance
-  pool — and only the first two came back null. The emulator serves all three
-  from one store and answers all three completely, so whatever produced the
-  nulls tells them apart and this pack does not.
-- **What tells them apart is on the client side, and it is the client this
-  repository refuses.** The provider builds two clients and only one honours
-  `EXOSCALE_API_ENDPOINT` (the section above, and
-  [#573][exo-573]); `setEndpointFromContext` in `egoscale/v2` does not rewrite
-  a literal address, so which door answers depends on which client the provider
-  built for it. That is a reading of the provider, not a measurement of it —
-  the fork is not checked out here — and it is written as one.
+| seq | call | status | what asked it |
+|--:|---|--:|---|
+| 975 | `GET /v2/load-balancer` | 200 | `data.exoscale_nlb.front` |
+| 976 | `GET /v2/elastic-ip` | 200 | `data.exoscale_elastic_ip.ingress` |
+| 988 | `GET /v2/instance-pool/{id}` | 200 | `data.exoscale_instance_pool.app` |
 
-What to do with it: nothing drives this stack, by decision (#525), so this is
-not a defect anybody can meet through a supported path. The replay that found
-it was the pinned maintainer fork, and `-detailed-exitcode` does not
-distinguish an outputs-only diff from a resource diff either, so an honest
-replay reports "exit 2, outputs-only, resources at zero" rather than "red".
-What would lift it is upstream [#573][exo-573]; what would **not** lift it is
-any change to this pack, and the table above is why.
+The provider's own source says why: at v0.72.0 the NLB data source goes through
+`FindNetworkLoadBalancer`, which lists then filters, and the elastic IP through
+`ListElasticIPs` plus a client-side filter. Only the pool reads by id, and the
+pool is the one that answers.
+
+So the 2026-08-28 table above still stands as a measurement, and it no longer
+stands as the argument it was written for: it proves the by-id doors answer, and
+these two data sources do not use them to search. Kept rather than deleted,
+because a measurement that turns out to be about something else is worth more
+read with its correction than removed.
+
+**Two things that measurement does settle.** The second plan issues exactly the
+same calls, to the same doors, and gets the values, so the emulator is not the
+variable. And the reads arrive after the creations, with 200s, so "called too
+early" is out: a `Find…` against a missing resource would have failed the apply,
+not returned null.
+
+**What is not known, and it is the whole of it.** Why these two reads come back
+null on the first apply, when the call was made and answered. Two of the three
+candidates are now closed by the measurement above: it is not a different route
+in the sense #520 meant (the route is a list, and it answers), and it is not too
+early. What remains is the third: the answer reaches the provider and does not
+reach the output.
+
+One lead, open and unproven: in the provider's schema, `name` on the NLB data
+source and `ip_address` on the elastic IP one are `Optional` **without**
+`Computed` : they are search keys. `size` on the pool is purely computed, and it
+is the one that survives the apply. That would explain all three at once, and
+nobody has seen the value the provider actually returns. Saying it here as a
+lead and not as a cause is the whole point of this rewrite. That measurement is #911, item 2. Until it reports, this
+section names the symptom, its versions and its date, and names no cause.
+
+**It is awkward to reproduce on purpose.** The second apply repairs the outputs,
+so a tree that has been applied twice shows nothing. Reproducing it needs a
+clean state, and it is the first apply that carries the evidence.
