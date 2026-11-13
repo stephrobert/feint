@@ -1,0 +1,314 @@
+name: Nightly govulncheck
+
+# The scan whose verdict moves on its own (#865).
+#
+# govulncheck queries vuln.go.dev, so its verdict changes without a single
+# line of this repository changing. That is why it ran in the pull-request
+# gate four times red on pull requests that touched no Go file — 1.26.6,
+# 1.26.9, 1.26.10, 1.26.11 — and why it no longer runs there. A gate like that
+# in a pull request fails on the network rather than on the code, and teaches
+# --no-verify. It belongs on a schedule, the way drift.yml already scans the
+# upstream surface every night.
+#
+# Four outcomes, kept apart on purpose, because each one is a different job
+# for a human:
+#
+#   - an advisory touches the pinned Go: a pull request moving all nineteen
+#     pins together (mise.toml and every workflow that names a Go version),
+#     citing the advisory, the version it was found in and the version that
+#     fixes it — and an issue carrying the signal, because this repository
+#     withholds pull-request creation from Actions on purpose, so a pushed
+#     branch alone is a signal nobody opens;
+#   - the scan could not conclude: one `scheduled-red` issue through
+#     night-report.yml (#705), closed by the first green night;
+#   - a clean night: neither a pull request nor an issue — and the job's log
+#     says it concluded, with the database timestamp it read, because a silent
+#     schedule is indistinguishable from a dead one;
+#   - the question asked by hand: `mise run vulncheck`, unchanged.
+#
+# tools/ci/vulncheck_workflow_test.go holds the shape: nightly, reporting,
+# conditional on an advisory, and never on a pull request.
+
+on:
+  schedule:
+    - cron: '47 5 * * *'   # 05:47 UTC, every night; the other nightly workflows sit at 01:23, 02:31, 03:43, 04:17 and 07:41
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  scan:
+    name: Scan the pinned Go against vuln.go.dev
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      verdict: ${{ steps.scan.outputs.verdict }}
+      advisory: ${{ steps.scan.outputs.advisory }}
+      found: ${{ steps.scan.outputs.found }}
+      fixed: ${{ steps.scan.outputs.fixed }}
+      db: ${{ steps.scan.outputs.db }}
+      conclusion: ${{ steps.scan.outputs.conclusion }}
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.26.11'
+          # No go.sum to key a cache on: the zero-dependency rule keeps this module
+          # dependency-free, and a pre-commit hook fails if the file ever
+          # appears. Pointing the cache at it warned on every run and never
+          # hit, which is a cache that costs and returns nothing.
+          cache: false
+
+      # The version mise pins for the workstation, so the nightly scan judges
+      # the toolchain a contributor runs, not the version of the day.
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.3.0
+
+      # continue-on-error, because the verdict is read from the findings and
+      # an advisory is not a failure of this job: it is the signal the next
+      # job acts on. The step below is what decides whether the night is red.
+      - name: Ask whether an advisory touches the pin
+        id: scan
+        continue-on-error: true
+        run: tools/ci/vulncheck-scan.sh
+
+      # The conclusion is written to the summary on every night, whatever the
+      # verdict: a clean night proves itself by saying so, with the database
+      # timestamp the scan read, rather than by leaving no trace.
+      - name: Say whether the night concluded
+        env:
+          VERDICT: ${{ steps.scan.outputs.verdict }}
+          CONCLUSION: ${{ steps.scan.outputs.conclusion }}
+        run: |
+          set -uo pipefail
+          printf '%s\n' "${CONCLUSION:-the scan wrote no conclusion}" >> "${GITHUB_STEP_SUMMARY}"
+          if [ "${VERDICT}" != "clean" ] && [ "${VERDICT}" != "advisory" ]; then
+            echo "The scan could not conclude; the night job reports it." >&2
+            exit 1
+          fi
+
+  propose:
+    name: Open the pin-bump pull request
+    needs: scan
+    if: github.event_name == 'schedule' && needs.scan.outputs.verdict == 'advisory'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write        # push the branch
+      pull-requests: write   # open the PR
+    outputs:
+      branch: ${{ steps.pull.outputs.branch }}
+      pr_url: ${{ steps.pull.outputs.pr_url }}
+    env:
+      # How this job pushes without a token in .git/config. git calls the helper
+      # when the remote asks for credentials, and the helper echoes GH_TOKEN
+      # from its own environment: the secret is never written to a file, and
+      # never appears in a command line where `ps` would expose it. The literal
+      # ${GH_TOKEN} below is expanded by the helper's shell, not by the step's,
+      # which is the whole point.
+      #
+      # Proved before it was written, in a throwaway repository with a known
+      # token value: `git credential fill` returns username=x-access-token and
+      # the token; the string passed to -c carries the literal `${GH_TOKEN}` and
+      # not its value; and no file under .git holds the token, with
+      # .git/config left carrying an empty `[credential]` section.
+      GIT_CRED_HELPER: '!f() { echo username=x-access-token; echo "password=${GH_TOKEN}"; }; f'
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # This job PUSHES a branch, which is why this checkout used to keep its
+          # credentials: `git push` reads them from .git/config. They do not have
+          # to live there. The push step below supplies the token through the
+          # credential helper above, which reads it from the environment, so the
+          # secret never touches a file on disk and the branch is still pushed.
+          #
+          # Plumber ISSUE-307: a token left in .git/config is latent until a
+          # later step packs .git into an artefact. The comment here used to
+          # argue that the risk did not apply because this job uploads nothing —
+          # true today, and an argument that has to be re-made by whoever adds
+          # the first upload. The helper removes the finding instead of
+          # accepting it, which is the shape pavois settled on for the same
+          # control.
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.26.11'
+          # No go.sum to key a cache on: the zero-dependency rule keeps this module
+          # dependency-free, and a pre-commit hook fails if the file ever
+          # appears. Pointing the cache at it warned on every run and never
+          # hit, which is a cache that costs and returns nothing.
+          cache: false
+
+      # The bump moves all nineteen pins together, and the pin test is what
+      # proves it did: a half-moved tree would fail it, and the pull request
+      # would be born red.
+      - name: Move every pin to the fixed version
+        run: tools/ci/vulncheck-bump.sh "${{ needs.scan.outputs.fixed }}"
+
+      - name: Prove the bumped tree is consistent
+        run: go test ./internal/cli/ -run 'TestTheGoWorkflowPinsTheVersionMiseDoes'
+
+      # gh rather than a third-party PR action: one less dependency with write access to the repo.
+      - name: Open or update the pull request
+        id: pull
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ADVISORY: ${{ needs.scan.outputs.advisory }}
+          FOUND: ${{ needs.scan.outputs.found }}
+          FIXED: ${{ needs.scan.outputs.fixed }}
+        run: |
+          branch="chore/govulncheck-$(printf '%s' "${ADVISORY}" | tr '[:upper:]' '[:lower:]')"
+          echo "branch=${branch}" >> "${GITHUB_OUTPUT}"
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$branch"
+          git add mise.toml .github/workflows/
+          git commit -m "chore(go): move the pin to ${FIXED} (${ADVISORY})"
+          # Fetch the branch first: checkout brings only the default branch, so
+          # without a tracking ref --force-with-lease requires that the remote
+          # branch not exist. The normal case is an advisory still open from
+          # last night, whose pull request this push updates.
+          git fetch origin "+refs/heads/$branch:refs/remotes/origin/$branch" || true
+          # An empty credential.helper first, to drop anything configured
+          # system-wide, then ours. The fetch above needs none: this repository
+          # is public and reads anonymously.
+          git -c credential.helper= -c "credential.helper=${GIT_CRED_HELPER}" \
+              push --force-with-lease origin "$branch"
+          if existing="$(gh pr list --head "$branch" --json number,url --jq '.[0] | select(. != null) | .url')"; then
+            echo "a pull request is already open on $branch; the push above updated it"
+            echo "pr_url=${existing}" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          cat > "$RUNNER_TEMP/body.md" <<BODY
+          ${ADVISORY} was found in the pinned Go ${FOUND} and is fixed in ${FIXED}.
+
+          This moves all nineteen pins together — mise.toml and every workflow that
+          names a Go version — so the next night scans with the fixed toolchain.
+          Its CI must be green: a pin-bump pull request that is born red is a gate
+          people stop reading.
+          BODY
+          # This repository deliberately withholds pull-request creation from
+          # Actions: `can_approve_pull_request_reviews` is false and the default
+          # workflow permission is `read`, which is a hardening choice the
+          # Scorecard reads. GitHub then answers createPullRequest with
+          # "GitHub Actions is not permitted to create or approve pull requests".
+          #
+          # That is a POLICY answer, not a failure of the scan, and failing the
+          # job on it would turn an ordinary event — a new advisory for the
+          # pinned toolchain — into a red night. A gate that is red on the
+          # normal case is a gate people stop reading, which is the failure
+          # mode CLAUDE.md names.
+          #
+          # So this one answer is reported and tolerated. The branch is pushed
+          # either way, the issue job carries the signal, and the summary says
+          # where the diff is. EVERY OTHER error still fails the job: a token
+          # without scope, a rate limit, a branch that does not exist are real
+          # problems and must not hide behind this.
+          if out=$(gh pr create --head "$branch" \
+              --title "chore(go): move the pinned Go to ${FIXED} (${ADVISORY})" \
+              --body-file "$RUNNER_TEMP/body.md" 2>&1); then
+            echo "$out"
+            echo "pr_url=${out}" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+          echo "$out" >&2
+          case "$out" in
+            *"not permitted to create or approve pull requests"*)
+              {
+                printf '### The pin-bump branch is pushed, the pull request is not\n\n'
+                printf 'This repository does not let Actions open pull requests, which is a\n'
+                printf 'deliberate hardening choice. The moved pin is on branch %s\n\n' "$branch"
+                printf 'Open it by hand: https://github.com/%s/compare/main...%s?expand=1\n\n' \
+                  "$GITHUB_REPOSITORY" "$branch"
+                printf 'The govulncheck issue carries the signal itself.\n'
+              } >> "$GITHUB_STEP_SUMMARY"
+              echo "the pull request was refused by repository policy; the branch and the issue carry the signal"
+              echo "pr_url=" >> "${GITHUB_OUTPUT}"
+              exit 0
+              ;;
+          esac
+          exit 1
+
+  # An issue rather than only a pull request, because the two say different
+  # things. The pull request carries the mechanical part — a pin moved to a
+  # newer patch. The issue carries the signal itself, which is the only part a
+  # human has to see when the pull request could not be opened: a pushed
+  # branch is invisible in a backlog, and an issue is what a maintainer
+  # triages. And the two are linked, so neither is read alone.
+  report:
+    name: Open the govulncheck issue
+    needs: [scan, propose]
+    # always(), because the issue matters most when `propose` failed: an
+    # advisory nobody was told about is an advisory nobody merges. Runs on an
+    # advisory AND on a clean night, because it has two things to do: report
+    # what the scan found, and CLOSE the issue when the pin has moved past it.
+    # A condition that fired only on a finding could never close what it opened.
+    if: always() && github.event_name == 'schedule' && (needs.scan.outputs.verdict == 'advisory' || needs.scan.outputs.verdict == 'clean')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # One issue, updated, never a new one per night — and closed when the pin
+      # has moved past the advisory. The decision lives in
+      # tools/ci/vulncheck-report.sh rather than here, for the reason
+      # night-report.sh states: a run: block cannot be executed outside GitHub
+      # Actions, and this repository has paid for CI fixes described in comments
+      # and never executed.
+      - name: Say what the scan found, or close the issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          FEINT_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          VERDICT: ${{ needs.scan.outputs.verdict }}
+          ADVISORY: ${{ needs.scan.outputs.advisory }}
+          FOUND: ${{ needs.scan.outputs.found }}
+          FIXED: ${{ needs.scan.outputs.fixed }}
+          BRANCH: ${{ needs.propose.outputs.branch }}
+          PR_URL: ${{ needs.propose.outputs.pr_url }}
+        run: tools/ci/vulncheck-report.sh --apply "${VERDICT}" "${ADVISORY}" "${FOUND}" "${FIXED}" "${BRANCH}" "${PR_URL}"
+
+  # A red night opens an issue, a green one closes it (#705): the mechanism
+  # runtime-proof.yml adopted first, as a reusable workflow, because a block
+  # copied into each scheduled caller is a control one caller forgets.
+  #
+  # What it reports is the other outcome from the jobs above: not "an advisory
+  # touches the pin", which the pull request and the govulncheck issue already
+  # carry, but "the scan could not conclude" — a network the runner could not
+  # reach, a database it could not read, a toolchain other than the pinned one.
+  night:
+    name: A red night opens the issue, a green one closes it
+    needs: [scan, propose, report]
+    if: always() && github.event_name == 'schedule'
+    permissions:
+      contents: read
+      actions: read
+      issues: write
+    uses: ./.github/workflows/night-report.yml

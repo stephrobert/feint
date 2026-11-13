@@ -1,7 +1,7 @@
 name: Go
 
 # Quality gate for the feint binary: formatting, vet, build, race-tested units, fuzzing,
-# golangci-lint and govulncheck. Mirrors .pre-commit-config.yaml and the go-production-engineer
+# and golangci-lint. Mirrors .pre-commit-config.yaml and the go-production-engineer
 # standard. Actions pinned by commit SHA; tools pinned by version.
 
 on:
@@ -14,7 +14,7 @@ permissions: {}
 
 jobs:
   quality:
-    name: Build, test, lint, vuln-scan
+    name: Build, test, lint
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -70,20 +70,22 @@ jobs:
           # could fix it, the pin is what moves.
           #
           # FOUR TIMES IS A PATTERN, AND THE PATTERN IS WHERE THE QUESTION IS
-          # ASKED. govulncheck runs in this workflow and nowhere else: not in
-          # `mise run prepush`, not in .pre-commit-config.yaml. That absence is
-          # deliberate and CLAUDE.md states the reason — prepush is offline,
-          # deterministic and a few seconds long, while govulncheck queries
-          # vuln.go.dev and its verdict changes without a single line of this
-          # repository changing. A gate like that in a hook fails on the
-          # network rather than on the code, and teaches --no-verify.
+          # ASKED. govulncheck used to run in this workflow and nowhere else:
+          # not in `mise run prepush`, not in .pre-commit-config.yaml. That
+          # absence is deliberate — prepush is offline, deterministic and a few
+          # seconds long, while govulncheck queries vuln.go.dev and its verdict
+          # changes without a single line of this repository changing. A gate
+          # like that in a hook fails on the network rather than on the code,
+          # and teaches --no-verify.
           #
-          # So the answer is not to move it into the hook: it is that a scan
-          # whose verdict moves on its own belongs on a SCHEDULE, the way
-          # drift.yml already scans the upstream surface every night and opens
-          # a pull request. Until that exists, this red lands on whoever
-          # happens to push next, which is what it did all four times.
-          # Tracked in the issue this comment's commit names.
+          # So it was not moved into the hook: a scan whose verdict moves on
+          # its own belongs on a SCHEDULE. That schedule is now
+          # .github/workflows/vulncheck.yml (#865): every night it scans the
+          # pinned Go, opens a pull request moving all eighteen pins together
+          # when an advisory touches the pin, and reports through
+          # night-report.yml on a night it could not conclude. The history
+          # above stops here because the schedule owns the moves from here on;
+          # `mise run vulncheck` stays the manual way to ask the question.
           go-version: '1.26.11'
           # No go.sum to key a cache on: the zero-dependency rule keeps this module
           # dependency-free, and a pre-commit hook fails if the file ever
@@ -182,11 +184,6 @@ jobs:
         run: |
           go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
           "$(go env GOPATH)/bin/golangci-lint" run ./...
-
-      - name: govulncheck
-        run: |
-          go install golang.org/x/vuln/cmd/govulncheck@v1.3.0
-          "$(go env GOPATH)/bin/govulncheck" ./...
 
   # Does this branch say what it changed about the surface it serves (#326).
   #

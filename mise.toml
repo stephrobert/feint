@@ -483,12 +483,19 @@ run = "git ls-files -z '*.sh' | xargs -0 shellcheck --severity=style"
 #
 # It is here so the question can be ASKED before pushing, by whoever wants to
 # ask it, and so that the answer to "why did CI see this and I did not" is one
-# command rather than a workflow file. The scan that should catch it before
-# anybody pushes belongs on a schedule, the way drift.yml works.
+# command rather than a workflow file. The scan that catches it before
+# anybody pushes is on a schedule now: .github/workflows/vulncheck.yml (#865),
+# the way drift.yml works. This task stays the manual way to ask.
+# GOBIN is set on the install, not assumed: mise sets GOBIN to its own install
+# bin dir, so a bare `go install` lands the binary where the second line never
+# looks. Measured 2026-11-13: `mise run vulncheck` failed on a clean checkout
+# with "govulncheck: not found", twice, while the binary sat in mise's bin dir.
+# Pinning the install to GOPATH/bin keeps the two lines agreeing under mise
+# and under a plain shell alike.
 [tasks.vulncheck]
 description = "govulncheck against the pinned toolchain (network, non-deterministic verdict)"
 run = """
-go install golang.org/x/vuln/cmd/govulncheck@v1.3.0
+GOBIN="$(go env GOPATH)/bin" go install golang.org/x/vuln/cmd/govulncheck@v1.3.0
 "$(go env GOPATH)/bin/govulncheck" ./...
 """
 

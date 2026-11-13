@@ -19,6 +19,16 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Ajouté
 
+- **govulncheck passe de la porte des pull requests à un planning nocturne** (#865).
+  `.github/workflows/vulncheck.yml` scanne le Go épinglé contre `vuln.go.dev`
+  chaque nuit : un avis qui touche l'épingle ouvre une pull request qui déplace
+  les dix-neuf épingles ensemble, une nuit où le scan ne peut pas conclure ouvre
+  une issue `scheduled-red` via `night-report.yml`, et une nuit propre le dit
+  dans son journal. `mise run vulncheck` reste la façon de poser la question à
+  la main. Le même changement le répare sur une installation propre : mise
+  définit `GOBIN` sur son propre répertoire, si bien que l'installation et
+  l'appel ne s'accordaient pas sur l'emplacement du binaire.
+
 - **Un index de couverture des produits en haut de `docs/limits.md`** (#872).
   `coverage/*.json` gagne un champ additif `unscanned` — les produits que le scan
   a réellement vus déclarés en amont mais que la restriction `--products` a
