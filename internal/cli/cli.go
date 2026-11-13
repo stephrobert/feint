@@ -1498,7 +1498,14 @@ func coverage(args []string, stdout, stderr io.Writer) int {
 	// asking it to account for all 1700 upstream operations would fail forever
 	// and teach everyone to ignore it.
 	productList := splitProducts(*products)
+	// The full surface, kept before the restriction drops it: the products it
+	// drops are the ones the scan proved exist but does not measure (#872), and
+	// the report is where they are recorded. A restriction that named a
+	// product the scan never saw is already refused above, so what is left
+	// here is unscanned, not a typo.
+	var fullUpstream []drift.Operation
 	if len(productList) > 0 {
+		fullUpstream = upstream
 		upstream = drift.OnlyProducts(upstream, productList)
 		if len(upstream) == 0 {
 			fmt.Fprintf(stderr, "feint: no upstream operation matches products %q\n", *products)
@@ -1554,6 +1561,9 @@ func coverage(args []string, stdout, stderr io.Writer) int {
 	}
 
 	rep := drift.Compare(*provider, upstream, served, declined)
+	if fullUpstream != nil {
+		rep.Unscanned = drift.UnscannedProducts(fullUpstream, upstream)
+	}
 
 	if *baseline != "" {
 		code, err := applyBaseline(*baseline, *writeBaseline, rep, *products, stdout)

@@ -69,8 +69,17 @@ type Report struct {
 	// field the wire never has is the same lie one layer down. CoverageFile is
 	// what the artefact is, and it names the fields it really has.
 	Unexplained []string `json:"-"`
-	Unknown     int      `json:"unknown"`
-	Entries     []Entry  `json:"entries"`
+	// Unscanned names the upstream products the scan saw but the --products
+	// restriction excluded (#872). The scan is the one place that can name
+	// them: the artefact lists only the products it covers, and no committed
+	// file lists the rest — tools/contract/scaleway-products.txt is the
+	// portal-download index, restricted by design to the products the
+	// emulator has actually started. A product the scan never saw is not
+	// unscanned, it is a mistake in the restriction, and OnlyProducts guards
+	// that side; this list holds only products the scan proved exist.
+	Unscanned []string `json:"unscanned,omitempty"`
+	Unknown   int      `json:"unknown"`
+	Entries   []Entry  `json:"entries"`
 	// Orphans are routes whose Operation matches nothing upstream: either a
 	// typo, or an operation upstream just removed. Both need a human.
 	Orphans []string `json:"orphans"`
@@ -149,6 +158,30 @@ func OnlyProducts(ops []Operation, products []string) []Operation {
 			out = append(out, op)
 		}
 	}
+	return out
+}
+
+// UnscannedProducts names the products in the full upstream surface that the
+// restricted surface no longer contains, sorted so two runs agree. The
+// comparison is on products the scan actually saw, never on a hand-written
+// list: a name here is a product upstream declares, and the day upstream
+// removes one it leaves this list without anyone editing a file.
+func UnscannedProducts(all, scanned []Operation) []string {
+	seen := make(map[string]bool, len(scanned))
+	for _, op := range scanned {
+		seen[op.Product] = true
+	}
+	unscanned := make(map[string]bool)
+	for _, op := range all {
+		if op.Product != "" && !seen[op.Product] {
+			unscanned[op.Product] = true
+		}
+	}
+	out := make([]string, 0, len(unscanned))
+	for product := range unscanned {
+		out = append(out, product)
+	}
+	sort.Strings(out)
 	return out
 }
 
