@@ -18,15 +18,26 @@ import (
 // both directions, when an operation in the committed record has no domain,
 // and when a domain entry names an operation the record does not have.
 //
+// The population, named here because a verdict that does not name its
+// population is this repository's cardinal failure. The record is
+// coverage/evidence.json: the operations this emulator SERVES, 409 of them the
+// day this was written. The scan reports 776 further operations as declined in
+// coverage/*-coverage.json, and none of them is judged here — an operation
+// upstream declares and this emulator declines has no parity domain by design.
+// So this test covers the "mounted without an owner" half of #874 and not the
+// "scanned without an owner" half, which stays open.
+//
 // Like evidence_axes_test.go, both records are decoded into map[string]any
 // with an explicit type assertion per field, not into the command's own
 // structs. A field that changes JSON type, `domains` that becomes a map,
 // `operations` that becomes a list of objects: each is a named failure here
 // rather than a zero value counted as owned.
 //
-// The falsification is tools/falsify/specs/domain-classifier.json: remove
-// one product's entries from the classifier — the baremetal pair — and this
-// test goes red naming them.
+// The falsification is tools/falsify/specs/domain-classifier.json, one
+// mutation per direction: remove one product's entries from the classifier —
+// the baremetal pair — and this test goes red naming them; file one operation
+// the record does not hold and it goes red naming that one. A direction that
+// nothing falsifies is a comment.
 
 const committedDomains = "../../coverage/domains.json"
 
@@ -44,10 +55,31 @@ func readCommittedRecord(t *testing.T, path string) map[string]any {
 	return decoded
 }
 
+// recordedOperations is the population this test judges, read once and refused
+// when it is empty.
+//
+// The refusal is not decoration. The unowned loop below is the only thing that
+// reports an operation with no domain, and it iterates this map: over an empty
+// one it cannot be entered, so the test would pass while measuring nothing.
+// readRecordRaw in evidence_axes_test.go refuses on the same sentence.
+func recordedOperations(t *testing.T, evidence map[string]any) map[string]any {
+	t.Helper()
+	ops, ok := evidence["operations"].(map[string]any)
+	if !ok {
+		t.Fatalf("%s: \"operations\" is %T, want an object keyed by operation",
+			committedEvidence, evidence["operations"])
+	}
+	if len(ops) == 0 {
+		t.Fatalf("%s holds no operation, so this test would pass while measuring nothing",
+			committedEvidence)
+	}
+	return ops
+}
+
 // domainOwners reads the classifier and returns operation -> domain, failing
 // on any shape it does not recognise. A domain entry naming an operation the
 // record does not have is reported here, at the entry, not in the caller.
-func domainOwners(t *testing.T, domains map[string]any, evidence map[string]any) map[string]string {
+func domainOwners(t *testing.T, domains map[string]any, evOps map[string]any) map[string]string {
 	t.Helper()
 
 	format, ok := domains["format"].(string)
@@ -63,11 +95,6 @@ func domainOwners(t *testing.T, domains map[string]any, evidence map[string]any)
 	}
 	if version != 1 {
 		t.Fatalf("domains.json: version %v, want 1; a new classifier version updates this test with it", version)
-	}
-
-	evOps, ok := evidence["operations"].(map[string]any)
-	if !ok {
-		t.Fatalf("evidence.json: \"operations\" is %T, want an object keyed by operation", evidence["operations"])
 	}
 
 	list, ok := domains["domains"].([]any)
@@ -88,8 +115,18 @@ func domainOwners(t *testing.T, domains map[string]any, evidence map[string]any)
 		if !ok || name == "" {
 			t.Fatalf("domains.json: a domain entry has no name")
 		}
-		if _, ok := domain["issue"]; !ok {
+		issue, present := domain["issue"]
+		if !present {
 			t.Fatalf("domains.json: domain %q names no parity issue, not even null; a domain with no issue says so", name)
+		}
+		// Presence is not type. An issue written as a string — "409" for 409,
+		// which is what a hand edit produces — passes a presence check, and
+		// then domainList below falls to its else branch and prints "no parity
+		// issue yet" for a domain that names one. The only message anybody
+		// reads would be wrong about the only thing it is for.
+		if _, isNumber := issue.(float64); issue != nil && !isNumber {
+			t.Fatalf("domains.json: domain %q: \"issue\" is %T (%v), want a number or null",
+				name, issue, issue)
 		}
 		notes, ok := domain["notes"].(string)
 		if !ok || strings.TrimSpace(notes) == "" {
@@ -112,7 +149,10 @@ func domainOwners(t *testing.T, domains map[string]any, evidence map[string]any)
 			}
 			owned[opName] = name
 			if _, ok := evOps[opName]; !ok {
-				t.Errorf("domain %q names %q, which no coverage artefact reports as implemented by any provider", name, opName)
+				t.Errorf("domain %q names %q, which %s does not hold, so the entry answers for no "+
+					"operation; either the operation left the record and the entry survived it, or "+
+					"the name is a typo. Remove the entry, or correct the name.",
+					name, opName, committedEvidence)
 			}
 		}
 	}
@@ -121,7 +161,7 @@ func domainOwners(t *testing.T, domains map[string]any, evidence map[string]any)
 
 // domainList renders the domains with their parity issues, so a red test
 // tells the next person where to file the operation instead of leaving them
-// guessing which of #409–#414 it belongs to. Read from the classifier
+// guessing which parity issue it belongs to. Read from the classifier
 // itself, so the list stays true as domains change. (#874, stephrobert:
 // "The same test with the six domains and their issue numbers in the
 // message turns a blocker into a two-minute edit.")
@@ -146,16 +186,19 @@ func domainList(domains map[string]any) string {
 // disappears from every parity issue, silently, which is the defect #874
 // names.
 //
+// The population is coverage/evidence.json, the operations this emulator
+// serves; the operations the scan reports as declined are not judged here.
+//
 // The unowned direction names the file to edit and the domains with their
-// parity issues: a new operation appears when drift:update rewrites the
-// record, and the message naming the file to edit is what keeps the two in
+// parity issues: a new served operation appears when evidence:update rewrites
+// the record, and the message naming the file to edit is what keeps the two in
 // step.
 func TestEveryOperationHasExactlyOneDomain(t *testing.T) {
 	evidence := readCommittedRecord(t, committedEvidence)
 	domains := readCommittedRecord(t, committedDomains)
-	owned := domainOwners(t, domains, evidence)
+	evOps := recordedOperations(t, evidence)
+	owned := domainOwners(t, domains, evOps)
 
-	evOps := evidence["operations"].(map[string]any)
 	var unowned []string
 	for op := range evOps {
 		if _, ok := owned[op]; !ok {
@@ -164,6 +207,12 @@ func TestEveryOperationHasExactlyOneDomain(t *testing.T) {
 	}
 	sort.Strings(unowned)
 	if len(unowned) > 0 {
-		t.Errorf("%d operation(s) match no domain and so are counted in no parity issue:\n%s\n\nFile each one in %s, under the domain that owns it:\n%s\n\nA new operation appears when drift:update rewrites the record; the file to edit is the classifier, not the record.", len(unowned), strings.Join(unowned, "\n"), committedDomains, domainList(domains))
+		t.Errorf("%d of the %d operation(s) %s reports as served match no domain, and so are "+
+			"counted in no parity issue:\n%s\n\nFile each one in %s, under the domain that owns "+
+			"it:\n%s\n\nA served operation appears when evidence:update rewrites the record "+
+			"(drift:update rewrites coverage/*-coverage.json, which this test does not read); "+
+			"the file to edit is the classifier, not the record.",
+			len(unowned), len(evOps), committedEvidence,
+			strings.Join(unowned, "\n"), committedDomains, domainList(domains))
 	}
 }
