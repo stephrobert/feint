@@ -48,6 +48,13 @@ command -v "$TF" >/dev/null 2>&1 || { echo "FAIL: neither tofu nor terraform is 
 command -v jq >/dev/null 2>&1 || { echo "FAIL: jq is not installed" >&2; exit 1; }
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/terraform" && pwd)"
+
+# Resolved here rather than where it is used, and that is the whole point:
+# the expression is relative to the script's own file, so it has to be made
+# absolute while the working directory is still the one the caller started
+# in. Placed next to the first use, it ran after a `cd` and answered "No such
+# file or directory" on tools/conformance/<provider>/../../ci (#895).
+TF_RETRY="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../ci" && pwd)/tf-retry.sh"
 WORK="$(mktemp -d)"
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
@@ -121,7 +128,8 @@ while IFS= read -r line; do
 done < <("$FEINT_BIN" env outscale --endpoint "$ENDPOINT" 2>/dev/null)
 [ "${#doorway_env[@]}" -gt 0 ] || fail "feint env outscale printed nothing; an eval of nothing is the accident guard.sh exists for"
 
-(cd "$doorway" && "$TF" init -no-color -upgrade >/dev/null) || fail "doorway init failed"
+(cd "$doorway" && "$TF_RETRY" "$TF" doorway init -no-color -upgrade) \
+  || fail "doorway init failed"
 # 60 seconds, not six minutes: the failure this step exists to catch used to
 # present as a retry backoff indistinguishable from a dead emulator.
 if ! (cd "$doorway" && timeout 60 env -i HOME="$doorway/home" PATH="$PATH" TF_IN_AUTOMATION=1 TF_INPUT=0 \
@@ -137,7 +145,7 @@ ok "provider $doorway_version planned with nothing but the feint env exports"
 
 cd "$WORK"
 
-"$TF" init -no-color -upgrade >/dev/null
+"$TF_RETRY" "$TF" outscale init -no-color -upgrade
 "$TF" validate -no-color >/dev/null
 "$TF" plan -no-color -var "endpoint=$ENDPOINT" -out tfplan >/dev/null
 

@@ -42,6 +42,13 @@ PORT="${FEINT_FAULTS_PORT:-4663}"
 ADDR="127.0.0.1:$PORT"
 ENDPOINT="http://$ADDR"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Resolved here rather than where it is used, and that is the whole point:
+# the expression is relative to the script's own file, so it has to be made
+# absolute while the working directory is still the one the caller started
+# in. Placed next to the first use, it ran after a `cd` and answered "No such
+# file or directory" on tools/conformance/<provider>/../../ci (#895).
+TF_RETRY="$(cd "$(dirname "${BASH_SOURCE[0]}")/../ci" && pwd)/tf-retry.sh"
 REPO_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 # The rule files and the Terraform fixture, located the way every suite here
 # locates its own. The idiom is what the generated fixture table reads to know
@@ -180,7 +187,8 @@ ok "octl: Code 4120 inside a ResponseContext, which osc.IsAuthError reads"
 
 echo "- terraform apply survives 503, 503, 200 on ReadNets"
 cp "$RULES_DIR"/*.tf "$WORK/"
-(cd "$WORK" && "$TF" init -no-color -upgrade >/dev/null) || fail "terraform init failed"
+(cd "$WORK" && "$TF_RETRY" "$TF" faults init -no-color -upgrade) \
+  || fail "terraform init failed"
 arm "$RULES_DIR/transients.json"
 if ! (cd "$WORK" && TF_IN_AUTOMATION=1 TF_INPUT=0 timeout 300 "$TF" apply -no-color -auto-approve \
       -var "endpoint=$ENDPOINT" >apply.out 2>&1); then

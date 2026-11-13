@@ -63,6 +63,13 @@ command -v "$TF" >/dev/null 2>&1 || { echo "FAIL: neither tofu nor terraform is 
 command -v jq >/dev/null 2>&1 || { echo "FAIL: jq is not installed" >&2; exit 1; }
 
 STACK="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../examples/stacks/exoscale" && pwd)"
+
+# Resolved here rather than where it is used, and that is the whole point:
+# the expression is relative to the script's own file, so it has to be made
+# absolute while the working directory is still the one the caller started
+# in. Placed next to the first use, it ran after a `cd` and answered "No such
+# file or directory" on tools/conformance/<provider>/../../ci (#895).
+TF_RETRY="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../ci" && pwd)/tf-retry.sh"
 # Resolved BEFORE the cd below, or the relative path names nothing: measured on
 # the first full conformance pass, which failed with `cd: tools/conformance/exoscale:
 # No such file or directory` from inside the work directory.
@@ -107,7 +114,7 @@ export TF_VAR_zone="$EXOSCALE_ZONE"
 
 echo "conformance: $TF against $ENDPOINT"
 
-"$TF" init -no-color -upgrade
+"$TF_RETRY" "$TF" exoscale init -no-color -upgrade
 "$TF" validate -no-color
 
 # The floor, asserted rather than assumed: a run that resolved an older provider

@@ -1,0 +1,41 @@
+{
+ "package": "./tools/ci/",
+ "note": "The subject is the wrapper around a Terraform command that downloads: it survives a registry outage and it says what the engine resolved (#895, #899).\n\nMeasured on 2026-11-12, pull request #893, whose diff touched no route and no pack: the same branch and the same commit passed at 15:18 and failed at 15:34 with `github.com: bad response code: 500`, while main passed at 15:34. Two verdicts on one tree, and the red reads as a red on the change under review.\n\nThe budget is not a new guess: tools/ci/fetch.sh carries the measurement, taken on a Terraform provider asset on 2026-09-14 — 200 to five requests in fifteen for twenty minutes, so four attempts fail 19.8% of the time and ten fail 1.7%.\n\nAnd the other half: `init` was silenced in four callers, so on run 43271335604 the conformance log carried no provider version at all for the three example stacks it applies. A version without its run is a memory.\n\nOne mutation more than the fix has parts, because the first version of this change shipped a defect of its own and CI caught it within the hour: the wrapper was wired in by reusing each caller's existing directory variable, and in the three provider suites that variable is the STACK rather than the script — `DIR=\"$(cd \"$(dirname \"${BASH_SOURCE[0]}\")/terraform\" && pwd)\"`. So the path resolved to tools/conformance/ci and the leg died on `No such file or directory`. What let it ship was the check: the paths were verified by building them by hand in a shell, which tested an assumption about those variables rather than the expression the scripts run.",
+ "mutations": [
+  {
+   "label": "the retry disappears and every failure is fatal, which is where the leg was: one 5xx from the registry reds a change that touched no route",
+   "file": "tools/ci/tf-retry.sh",
+   "find": "  if ! grep -qiE 'bad response code: 5[0-9][0-9]",
+   "replace": "  if true || ! grep -qiE 'bad response code: 5[0-9][0-9]",
+   "test": "TestATransientRegistryFailureIsRetried"
+  },
+  {
+   "label": "everything is retried, including a pinned version that does not exist. Retrying what cannot succeed turns a clear error into a slow one, which is the line tools/ci/fetch.sh already draws at 404",
+   "file": "tools/ci/tf-retry.sh",
+   "find": "  if ! grep -qiE 'bad response code: 5[0-9][0-9]",
+   "replace": "  if false && ! grep -qiE 'bad response code: 5[0-9][0-9]",
+   "test": "TestAFailureThatIsNotAnOutageIsNotRetried"
+  },
+  {
+   "label": "the resolved versions stop being printed, so no green run can be attributed to a version again. The command still succeeds, which is exactly what made this invisible for months",
+   "file": "tools/ci/tf-retry.sh",
+   "find": "    grep -E '^- (Installing|Using|Finding) ' \"${log}\" | sed 's/^/  /' || true",
+   "replace": "    : # grep -E '^- (Installing|Using|Finding) ' \"${log}\" | sed 's/^/  /' || true",
+   "test": "TestTheResolvedVersionsReachTheOutput"
+  },
+  {
+   "label": "the budget falls to three attempts, which against the measured 67% failure rate fails roughly a third of the time: back where the leg was, with a retry that looks like protection",
+   "file": "tools/ci/tf-retry.sh",
+   "find": "attempts=\"${FEINT_TF_RETRY_ATTEMPTS:-10}\"",
+   "replace": "attempts=\"${FEINT_TF_RETRY_ATTEMPTS:-3}\"",
+   "test": "TestTheRetryBudgetIsTheMeasuredOne"
+  },
+  {
+   "label": "a caller computes the wrapper's path from a borrowed directory variable again, which is the defect CI caught: $DIR in the provider suites is the stack directory, so the path resolves to tools/conformance/ci and the leg dies before it measures anything",
+   "file": "tools/conformance/scaleway/terraform.sh",
+   "find": "TF_RETRY=\"$(cd \"$(dirname \"${BASH_SOURCE[0]}\")/../../ci\" && pwd)/tf-retry.sh\"",
+   "replace": "TF_RETRY=\"$DIR/../../ci/tf-retry.sh\" # cd ci $(dirname \"${BASH_SOURCE[0]}\") && pwd",
+   "test": "TestEveryCallerResolvesTheWrapperFromItself"
+  }
+ ]
+}
