@@ -162,3 +162,73 @@ func TestAnAbandonedCallIsRecordedAsAbandoned(t *testing.T) {
 		t.Errorf("an abandoned call recorded status %v; nothing was answered", line["status"])
 	}
 }
+
+// The epoch guard, and the only shape that measures it: the new campaign must
+// have reserved the SAME slot, or nothing can be overwritten and the slot bound
+// alone explains the empty receipt.
+//
+// Found by a falsification pass: the first test written for this guard passed
+// with the guard removed.
+func TestAStaleFiringDoesNotOverwriteTheNewCampaignsLine(t *testing.T) {
+	ts := faultServer(t, faultingPack{stubPack: auditPack(), statuses: []int{503}})
+	arm(t, ts, `{"faults":[{"operation":"stub/v1/API.ListThings","status":503,"delay":"400ms"}]}`)
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		_, _ = call(t, ts, http.MethodGet, "/stub/things", "", false)
+	}()
+	time.Sleep(100 * time.Millisecond)
+	// A new campaign while the 503 is still being delayed.
+	arm(t, ts, `{"faults":[{"operation":"stub/v1/API.ListThings","truncate_bytes":4}]}`)
+	// One call of the new campaign: it takes slot 0 of the new receipt.
+	if _, status := call(t, ts, http.MethodGet, "/stub/things", "", false); status != 200 {
+		t.Fatalf("the call of the new campaign answered %d, want 200", status)
+	}
+	wg.Wait()
+	time.Sleep(50 * time.Millisecond)
+
+	got := firedLines(t, ts)
+	if len(got) != 1 {
+		t.Fatalf("the receipt holds %d line(s), want 1: %v", len(got), got)
+	}
+	line, _ := got[0].(map[string]any)
+	if status, _ := line["status"].(float64); status != 200 {
+		t.Errorf("the only line of this campaign reads status %v: a firing from the previous "+
+			"campaign wrote into the slot this one reserved: %v", line["status"], got)
+	}
+}
+
+// The counter that protects the evidence is published at arrival, like the
+// receipt line, and not when the answer finishes.
+//
+// Counted at the end, a rule with a long `delay` left `/_feint/conformance`
+// saying `injected` was empty while a fault was being injected into the run —
+// and `tools/conformance/score.sh` reads exactly that map to refuse a pass
+// carrying an injected answer. Meanwhile `/_feint/faults` already showed the
+// reserved line, so the two published views contradicted each other.
+//
+// Found by a security review of this lot, which named this measurement rather
+// than running it.
+func TestTheInjectedCounterIsVisibleWhileTheFaultIsStillInFlight(t *testing.T) {
+	ts := faultServer(t, faultingPack{stubPack: auditPack(), statuses: []int{503}})
+	arm(t, ts, `{"faults":[{"operation":"stub/v1/API.ListThings","status":503,"delay":"400ms"}]}`)
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		_, _ = call(t, ts, http.MethodGet, "/stub/things", "", false)
+	}()
+
+	// Halfway through the delay: the answer has not been written yet.
+	time.Sleep(150 * time.Millisecond)
+	view := conformanceView(t, ts)
+	if view.Injected["stub/v1/API.ListThings"] == 0 {
+		t.Errorf("a fault is being injected and /_feint/conformance reports none: a score read in "+
+			"this window would call the run clean. injected=%v", view.Injected)
+	}
+
+	wg.Wait()
+}

@@ -208,10 +208,11 @@ type FiredFault struct {
 	Operation string `json:"operation"`
 	Rank      int    `json:"rank"`
 	Status    int    `json:"status"`
-	// Abandoned says the client left before the answer reached it, which a
-	// delayed rule makes ordinary. Without it the line reads `status: 0`, and
-	// 0 is not an HTTP status: a reader has to guess. The rule published the
-	// state the effect produced, so the receipt does too.
+	// Abandoned says no answer reached the client: it gave up during a delay,
+	// which a delayed rule makes ordinary, or the handler never finished.
+	// Without it the line reads `status: 0`, and 0 is not an HTTP status, so a
+	// reader has to guess. The rule publishes the state the effect produced,
+	// and so does the receipt.
 	Abandoned bool `json:"abandoned"`
 }
 
@@ -221,6 +222,9 @@ const maxFiredReceipt = 256
 // recordFired appends one line to the receipt, and stops appending rather than
 // growing without bound. The count keeps rising so a reader can see that the
 // receipt is partial instead of believing it complete.
+// reserve takes the line this firing will fill, at arrival, under the caller's
+// lock. The slot is -1 when the cap refused it, and recordFired then does
+// nothing.
 func (fs *faultSet) reserve(operation string, rank int) firing {
 	if len(fs.fired) >= maxFiredReceipt {
 		fs.dropped++
@@ -234,7 +238,12 @@ func (fs *faultSet) reserve(operation string, rank int) firing {
 //
 // A line whose campaign is gone is dropped: replace has bumped the epoch, and
 // writing into the new set would attribute this firing to rules nobody armed.
-// TestAFiringInFlightDoesNotLandInTheNextCampaign fails without that check.
+// TestAStaleFiringDoesNotOverwriteTheNewCampaignsLine fails without that
+// check. Not TestAFiringInFlightDoesNotLandInTheNextCampaign, which this
+// comment cited first and which passes with the epoch guard removed: after
+// a clear the receipt is empty, so the slot bound alone already drops the
+// line, and the test cannot tell the two guards apart. A review of this lot
+// measured it.
 func (fs *faultSet) recordFired(f firing, status int, abandoned bool) {
 	if fs == nil || f.slot < 0 {
 		return

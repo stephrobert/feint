@@ -175,16 +175,27 @@ func (o *observer) wrap(provider string, r Route) http.HandlerFunc {
 		if !synthetic {
 			if f, _, slot, claimed := o.faults.fire(r.Operation); claimed {
 				started := time.Now()
-				status := o.serveFault(w, req, provider, r, f)
+				// Counted at arrival, like the receipt line reserved under the
+				// lock above. Counted at the end, a rule with a long `delay`
+				// left /_feint/conformance saying the run was clean while a
+				// fault was being injected into it, and /_feint/faults already
+				// showed the line: two published views contradicting each
+				// other.
 				o.recordInjected(r.Operation)
+
+				// Completed in a defer so the line is never left at `status: 0,
+				// abandoned: false` — the reading the field exists to prevent.
+				// serveFault runs the pack's own handler on the truncate path,
+				// and a panic there would otherwise skip the completion.
+				status := 0
+				answered := false
+				defer func() { o.faults.recordFired(slot, status, !answered || status == 0) }()
+				status = o.serveFault(w, req, provider, r, f)
+				answered = true
 				// Offered to the open spans, marked injected, so a `negative`
 				// span cannot close on it — and published on the log, because
 				// the operator watching the emulator must see the refusal.
 				o.spanExchangeInjected(r.Operation, status)
-				// status 0 means the delay was cancelled with the request: the client
-				// left before the answer reached it, and the receipt says so
-				// rather than printing a status nobody received.
-				o.faults.recordFired(slot, status, status == 0)
 				o.stream.publishExchange(trace.Exchange{
 					Method:    req.Method,
 					Path:      req.URL.Path,
