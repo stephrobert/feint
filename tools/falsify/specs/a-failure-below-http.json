@@ -1,0 +1,55 @@
+{
+ "package": "./internal/cli/",
+ "note": "The subject is #851's second half: the two failures a status injection cannot express, and the refusal that stands where a seeded campaign was asked for.\n\nA status is a response. A client parses it, branches on it, and its retry budget sees a thing that arrived. A dropped connection and a connection that never answers are the absence of a response, and they are what a client's timeout and its reconnect exist for. The package comment of internal/core/emulator/faults.go said for two releases that they would need 'a hook at the net/http server'; the hook is http.Hijacker, which net/http has always offered, so the sentence was a limit nobody had tried rather than a limit that held.\n\nThe seed is the other direction. #851 asked for campaigns that replay from a seed and bound the ask itself: the decision must be a pure function of stable inputs, and if no stable request identity exists the CLI must say so rather than pretend reproducibility. Measured 2026-11-13 over the 1088 exchanges committed under corpus/: the official clients send nine distinct request header names, and not one is minted per call. So the only input left is arrival order, which two concurrent clients reorder between runs. The flag exists in order to refuse with that measurement, because a flag that is simply absent teaches nothing and the next person builds a replay on arrival order believing it holds.",
+ "mutations": [
+  {
+   "label": "the transport branch never runs, so a rule armed with --close answers 200 like any other call. The client sees a response where the whole point was that none arrives, and a suite asserting resilience would pass on a connection that was never dropped",
+   "file": "internal/core/emulator/faults.go",
+   "find": "\tif f.Transport != \"\" {\n\t\t// Below HTTP, so before the header: there is no response to mark.",
+   "replace": "\tif f.Transport != \"\" && false {\n\t\t// Below HTTP, so before the header: there is no response to mark.",
+   "test": "TestACloseRuleDropsTheConnectionWithoutAnAnswer"
+  },
+  {
+   "label": "a hang closes the connection instead of holding it open, which collapses the two failures into one. The client then reports a reset in milliseconds where it should have spent its own timeout, and the case a retry budget exists for is never exercised",
+   "file": "internal/core/emulator/faults.go",
+   "find": "\tif kind == TransportHang {",
+   "replace": "\tif kind == TransportHang && false {",
+   "test": "TestAHangRuleHoldsTheConnectionAndNeverAnswers"
+  },
+  {
+   "label": "the receipt line is completed with an empty transport, so a reader of `status: 0, abandoned: true` cannot tell a connection this emulator dropped on purpose from a client that walked away during a delay. Two different facts, one line. The name is kept and truncated rather than removed, so every identifier still evaluates. Retargeted when the name moved from reserve to recordFired, which is where the guard lives now that the transport is recorded at injection rather than at arrival",
+   "file": "internal/core/emulator/faults.go",
+   "find": "\tfs.fired[f.slot].Transport = transport",
+   "replace": "\tfs.fired[f.slot].Transport = transport[:0]",
+   "test": "TestACloseRuleDropsTheConnectionWithoutAnAnswer"
+  },
+  {
+   "label": "--seed is accepted silently, so a campaign rests on arrival order and the caller is told nothing. It replays under one sequential client and nowhere else, which is the exact promise #851 forbade making",
+   "file": "internal/cli/fault.go",
+   "find": "\tif wasSet(fs, \"seed\") {\n\t\treportNoSeed(stderr, *seed)\n\t\treturn exitError\n\t}",
+   "replace": "\tif wasSet(fs, \"seed\") && false {\n\t\treportNoSeed(stderr, *seed)\n\t\treturn exitError\n\t}",
+   "test": "TestSeedIsRefusedWithItsMeasurement"
+  },
+  {
+   "label": "a status and a transport failure are armed together. The rule then means whichever branch serveFault reaches first, which is a reading that depends on the code rather than on the command",
+   "file": "internal/core/emulator/faults.go",
+   "find": "\t\t\tif r.Status != 0 {\n\t\t\t\treturn nil, fmt.Errorf(\"rule %q sets both status %d and the %q transport failure",
+   "replace": "\t\t\tif r.Status != 0 && false {\n\t\t\t\treturn nil, fmt.Errorf(\"rule %q sets both status %d and the %q transport failure",
+   "test": "TestATransportRuleRefusesAStatus"
+  },
+  {
+   "label": "--close and --hang are accepted together, and the switch picks one. The operator asked for two failures and got whichever came first in the source",
+   "file": "internal/cli/fault.go",
+   "find": "\tif *dropConn && *hangConn {",
+   "replace": "\tif *dropConn && *hangConn && false {",
+   "test": "TestTheTwoTransportFailuresAreRefusedTogether"
+  },
+  {
+   "label": "the receipt line's JSON key is renamed, and the frozen surface must notice. This is the mutation a reviewer ran against the first version of this lot and watched stay GREEN: the frozen population armed only a status rule, so `fired[].transport` carried omitempty and never reached the fixture. A gate whose population cannot contain the thing it judges is not a gate, and the population now arms a close rule for exactly this reason",
+   "file": "internal/core/emulator/faults.go",
+   "find": "\t// lie this emulator exists to avoid.\n\tTransport string `json:\"transport,omitempty\"`",
+   "replace": "\t// lie this emulator exists to avoid.\n\tTransport string `json:\"transport_renamed,omitempty\"`",
+   "test": "TestTheFrozenSurfacesStillMatchTheirFixture"
+  }
+ ]
+}

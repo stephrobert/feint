@@ -39,6 +39,42 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Added
 
+- **Two fault failures below HTTP** (#851): `feint fault add --close` drops the
+  connection with a reset and `--hang` holds it open and never answers. A
+  status injection is a response a client parses; these are the absence of one,
+  which is what a client's timeout and its reconnect exist for. The package
+  comment had said for two releases that this needed "a hook at the net/http
+  server" — the hook is `http.Hijacker`. Measured against `scw`, which reports
+  a transport error for the first, spends its own timeout on the second, and
+  decodes neither into a provider error. `/_feint/faults` carries the failure
+  on the rule and on the receipt line (schema version 3), so `status: 0,
+  abandoned: true` can no longer mean two different things.
+- **`feint run --fault <campaign.json>`** (#851): arms a committed campaign for
+  the child, clears it when the run ends, and reports what the lab had armed in
+  the prose receipt and in the JSON one (`faults_armed`, `faults_campaign`,
+  `faults_read`, `faults`, `faults_dropped`; schema version 2). A file rather
+  than flags, because the document is what the endpoint takes, so what replays
+  is what the file says.
+  `faults_armed` is what the **lab** carried, whoever armed it, and
+  `faults_campaign` is whether this run armed one. A security review
+  reproduced what one field cannot say: a campaign armed on an attached lab
+  used to outlive the run, so a second run met the first one's injected 503
+  and published `faults_armed: false`.
+- **A transport fault is bounded, and the bounds are measured** (#851): at most
+  64 connections are held at once, because hijacked connections and the
+  `/_feint` door that disarms them share one listener — 61 connections against
+  a server with `ulimit -n 64` made both unreachable. A held connection is read
+  in 32 KiB rather than one byte at a time: one byte cost 302 CPU-seconds for
+  300 seconds of hang, one core pinned by one client. And the five-minute hold
+  is fired by a test rather than described by a comment.
+- **`feint fault add --seed` exists in order to refuse**, and prints the
+  measurement behind the refusal (#851): across the 1088 exchanges in
+  `corpus/`, the official clients send nine request header names and none is
+  minted per call, so a seeded decision could only rest on arrival order, which
+  concurrent clients reorder. A flag that is simply absent teaches nothing. The
+  measurement is recomputed by a test that fails the day a recording carries a
+  tenth name, so the refusal cannot outlive its own premise.
+
 - **`feint mutate`, a change the provider did not make** (#193): `--set
   <path>=<json>` and `--unset <path>` change a stored resource behind the
   provider's back, so a client's next read sees a drift it did not cause, and

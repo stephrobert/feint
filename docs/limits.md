@@ -2227,22 +2227,51 @@ The path is not stable either: identifiers come from `crypto/rand`, so the
 ### What is served, and what is refused
 
 Served: deterministic schedules under a client that does not parallelise, and a
-receipt — which rule fired, against which operation and rank, with what status —
-which records what happened rather than promising what will happen again.
+receipt — which rule fired, against which operation and rank, with what status,
+and which transport failure when the answer never became a response — which
+records what happened rather than promising what will happen again. A campaign
+armed from a committed file by `feint run --fault` replays exactly, because the
+file is the document the endpoint takes and nothing is reconstructed from a
+command line. The file is decoded and its rules marshalled again on the way, so
+it is not forwarded byte for byte: a key spelled out with a zero value is
+dropped. Nothing observable depends on that today, and it is written here
+because the first version of this section claimed the opposite.
+
+Served too, since 0.15: the two failures below HTTP. `--close` drops the
+connection with a reset and `--hang` holds it open and never answers. They are
+what a status injection cannot express, since there is no response to parse at
+all, and they are the failures a client's timeout and its reconnect exist for.
+Measured against `scw`, which reports a transport error for the first and
+spends its own timeout on the second, and decodes neither into a provider
+error.
 
 Refused: a seeded mode. It would be a sentence this project cannot hold, and
 the whole of `docs/confidence.md` exists so that no such sentence is written.
 
+**And the refusal is a control, not this paragraph.** `feint fault add --seed`
+exists in order to refuse, and prints the measurement above. A flag that is
+simply absent teaches nothing: the next person writes a loop around arrival
+order and believes it replays. The measurement itself is recomputed by
+`TestTheCorpusCarriesNoClientMintedRequestIdentity` over the committed
+recordings, so the day a client sends a tenth header name that test fails and
+this section has to be read again. That is the answer to the paragraph below,
+which said nothing here would notice.
+
 It goes the day an official client sends something stable, which is a change
 upstream and not here.
 
-**And nothing here would notice.** The drift scan reads the SDK's operation
-surface — `Operation{Name, Product, Version, Group}` — and never a request
-header; no gate in `tools/` compares the header names of one recording to the
-next. A client that started sending `X-Idempotency-Key` would pass unremarked.
-What would see it is a fresh `feint proxy` recording added to `corpus/` and
-read by a person. Said plainly, because naming an instrument that does not
-carry the measurement is how a limit outlives its truth.
+**What would notice, and what would not.** The drift scan reads the SDK's
+operation surface — `Operation{Name, Product, Version, Group}` — and never a
+request header; no gate in `tools/` watches the real clouds for a new header.
+So a client that *started* sending `X-Idempotency-Key` upstream would pass
+unremarked until somebody recorded it.
+
+What does notice is the moment that recording lands here:
+`TestTheCorpusCarriesNoClientMintedRequestIdentity` holds the nine names above
+and fails on a tenth, which is what turns this section from a dated measurement
+into one that cannot quietly outlive its truth. The gap that remains is the
+delay between a client changing and `corpus/` being refreshed, and refreshing
+it is a person's decision, not a gate's.
 
 ### Two `feint fault add` at once can lose a rule
 

@@ -81,7 +81,7 @@ func TestTheReceiptNamesTheCallThatWasHit(t *testing.T) {
 	fs := &faultSet{rules: []*Fault{{Operation: "a/API.One", Status: 503, Nth: 3}}}
 	for range 4 {
 		if _, _, slot, claimed := fs.fire("a/API.One"); claimed {
-			fs.recordFired(slot, 503, false)
+			fs.recordFired(slot, 503, false, "")
 		}
 	}
 
@@ -100,7 +100,7 @@ func TestTheReceiptNamesTheCallThatWasHit(t *testing.T) {
 func TestArmingANewSetClearsTheReceipt(t *testing.T) {
 	fs := &faultSet{rules: []*Fault{{Operation: "a/API.One", Status: 503}}}
 	_, _, slot, _ := fs.fire("a/API.One")
-	fs.recordFired(slot, 503, false)
+	fs.recordFired(slot, 503, false, "")
 	if lines, _ := fs.receipt(); len(lines) != 1 {
 		t.Fatal("nothing was recorded, so the rest of this test would prove nothing")
 	}
@@ -118,7 +118,7 @@ func TestTheReceiptStopsGrowing(t *testing.T) {
 	fs.rules = []*Fault{{Operation: "a/API.One", Status: 503}}
 	for i := 0; i < maxFiredReceipt+10; i++ {
 		_, _, slot, _ := fs.fire("a/API.One")
-		fs.recordFired(slot, 503, false)
+		fs.recordFired(slot, 503, false, "")
 	}
 	lines, dropped := fs.receipt()
 	if dropped != 10 {

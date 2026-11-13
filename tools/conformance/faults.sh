@@ -82,7 +82,12 @@ trap 'rm -rf "$WORK"; "$FEINT_BIN" stop --addr "$ADDR" >/dev/null 2>&1 || true' 
 echo "conformance: fault injection against $ENDPOINT"
 
 echo "- an emulator of its own, so no armed rule ever reaches the shared run"
-"$FEINT_BIN" start --addr "$ADDR" --contracts "$REPO_DIR/contracts" --timeout 60s
+# --objectstore is here for the `feint run` leg below and for nothing else:
+# that command asks the emulator which S3 doors it serves and refuses a lab
+# with none, because intercepting a client's object storage is half of what it
+# promises. It changes no other leg: no suite here writes a byte.
+"$FEINT_BIN" start --addr "$ADDR" --contracts "$REPO_DIR/contracts" \
+  --objectstore "$WORK/objects" --timeout 60s
 
 # arm replaces the whole rule set from a committed file, which is what makes a
 # scenario replayable: whatever ran before, the emulator is in the state the
@@ -321,6 +326,133 @@ printf '%s' "$report" | jq -e --arg op "$staged" '.evidence[$op].negative == fal
 printf '%s' "$report" | jq -e --arg op "$staged" 'any(.untouched[]; . == $op)' >/dev/null \
   || fail "an operation answered only by injected faults left the backlog: it looks exercised and is not"
 ok "injected answers are counted, and count for nothing else"
+
+# ------------------------------------------------------- below HTTP (#851) ---
+# A status injection is a response: the client parses it and branches on it.
+# These two are the absence of a response, which is the half of a client's
+# resilience a status can never exercise. Held against `scw` rather than curl
+# because the question is what an OFFICIAL client does when the socket dies
+# under it, and a hand-written request would only measure curl.
+echo "- scw meets a dropped connection, and does not read it as a provider error"
+arm "$RULES_DIR/transport-close.json"
+dropped="$(scw instance server list zone=fr-par-1 </dev/null 2>&1 || true)"
+# Whatever the wording, it must not be a decoded provider error: a dropped
+# connection carries no body, so a client reporting one would be inventing it.
+if printf '%s' "$dropped" | grep -qiE "insufficient permissions|too many requests|cannot find resource"; then
+  fail "scw decoded a provider error out of a dropped connection: $dropped"
+fi
+printf '%s' "$dropped" | grep -qiE "EOF|reset|connection|refused" \
+  || fail "scw did not report a transport failure: $dropped"
+# And the emulator says which failure it staged, rather than leaving a reader
+# with `status 0` to interpret.
+receipt="$(curl -sf "$ENDPOINT/_feint/faults")"
+printf '%s' "$receipt" | jq -e '.fired | map(select(.transport == "close")) | length >= 1' >/dev/null \
+  || fail "the receipt does not name the dropped connection: $receipt"
+disarm
+ok "a dropped connection reaches the client as one, and the receipt names it"
+
+echo "- scw meets a connection that never answers, and times out on its own"
+arm "$RULES_DIR/transport-hang.json"
+started="$(date +%s)"
+hung="$(SCW_DEFAULT_TIMEOUT=5 timeout 40s scw instance server list zone=fr-par-1 </dev/null 2>&1 || true)"
+elapsed="$(( $(date +%s) - started ))"
+[ "$elapsed" -ge 1 ] || fail "the call returned in ${elapsed}s, so nothing hung: $hung"
+if printf '%s' "$hung" | grep -qiE "insufficient permissions|too many requests"; then
+  fail "a hang was decoded as a provider error: $hung"
+fi
+receipt="$(curl -sf "$ENDPOINT/_feint/faults")"
+printf '%s' "$receipt" | jq -e '.fired | map(select(.transport == "hang")) | length >= 1' >/dev/null \
+  || fail "the receipt does not name the held connection: $receipt"
+disarm
+ok "a connection held open reaches the client as a timeout, and the receipt names it"
+
+# -------------------------------------------- the receipt a client earns (#851) ---
+# #851 asks that a client which does NOT retry produce a clear failure receipt.
+# curl is that client, and it is the right one: every official client here
+# retries something, so a suite built only on them could never show the case
+# where the first failure is the last word.
+echo "- a client that does not retry leaves a receipt naming what hit it"
+arm "$RULES_DIR/refusals.json"
+code="$(curl -s -o /dev/null -w '%{http_code}' "$ENDPOINT/instance/v1/zones/fr-par-1/servers")"
+[ "$code" = "403" ] || fail "the non-retrying client got $code, not the injected 403"
+line="$("$FEINT_BIN" fault list --addr "$ADDR")"
+printf '%s' "$line" | grep -q "instance/v1/API.ListServers call 1 answered 403" \
+  || fail "the receipt does not say which call was answered with what: $line"
+disarm
+ok "the receipt names the operation, the rank and the status"
+
+# ------------------------------------------- the campaign feint run arms (#851) ---
+# The product integration #851 names: a campaign armed for the child, and the
+# receipt printed with the run's own. Driven with a real client as the child,
+# because a campaign that only works when the child is curl proves nothing
+# about the thing users will do with it.
+echo "- feint run arms a committed campaign for its child and reports what fired"
+RECEIPT="$WORK/run-receipt.json"
+run_out="$("$FEINT_BIN" run --endpoint "$ENDPOINT" --fault "$RULES_DIR/campaign.json" \
+  --json "$RECEIPT" -- scw instance server list zone=fr-par-1 2>&1 </dev/null || true)"
+[ -s "$RECEIPT" ] || fail "feint run wrote no receipt: $run_out"
+jq -e '.faults_armed == true' "$RECEIPT" >/dev/null \
+  || fail "the run receipt does not say a campaign was armed: $(cat "$RECEIPT")"
+jq -e '.faults_read == true' "$RECEIPT" >/dev/null \
+  || fail "the run receipt could not read the campaign back: $(cat "$RECEIPT")"
+jq -e '.faults | map(select(.operation == "instance/v1/API.ListServers" and .status == 503)) | length == 1' \
+  "$RECEIPT" >/dev/null \
+  || fail "the run receipt does not name the 503 the campaign armed: $(cat "$RECEIPT")"
+# The prose half, which is what a person reads. A receipt only a jq filter can
+# find is a receipt nobody reads at the moment the run surprised them.
+printf '%s' "$run_out" | grep -q "faults" \
+  || fail "the run printed no fault line in its prose receipt: $run_out"
+# NO disarm here, deliberately. This line used to call it, and that was the
+# suite covering for the product: a security review found that a campaign armed
+# on an attached lab outlived the run, and the next run against that lab met
+# injected answers while publishing `faults_armed: false`. The run clears what
+# it armed now, and this asserts it rather than doing it.
+left="$(curl -sf "$ENDPOINT/_feint/faults" | jq -r '.faults | length')"
+[ "$left" = "0" ] || fail "the run left $left rule(s) armed on a lab it does not own: the next client \
+to call those operations meets a campaign nobody armed for it"
+ok "the campaign was armed for the child, reported, and cleared from the lab"
+
+echo "- a second run on the same lab meets nothing, and its receipt says so"
+RECEIPT2="$WORK/run-second.json"
+second_out="$("$FEINT_BIN" run --endpoint "$ENDPOINT" --json "$RECEIPT2" \
+  -- scw instance server list zone=fr-par-1 2>&1 </dev/null || true)"
+[ -s "$RECEIPT2" ] || fail "the second run wrote no receipt: $second_out"
+jq -e '.faults_armed == false and .faults_campaign == false' "$RECEIPT2" >/dev/null \
+  || fail "the second run reports a campaign: $(cat "$RECEIPT2")"
+jq -e '.faults_read == true' "$RECEIPT2" >/dev/null \
+  || fail "the second run could not read the lab's fault state, so a false faults_armed claims \
+something it did not measure: $(cat "$RECEIPT2")"
+jq -e '(.faults // []) | length == 0' "$RECEIPT2" >/dev/null \
+  || fail "the second run met injected answers: $(cat "$RECEIPT2")"
+ok "no campaign survives the run that armed it"
+
+echo "- a receipt never denies a campaign the lab is carrying"
+# The other direction, and the one the defect lived in: rules armed on the lab
+# by somebody else, and a run that never asked for any. The receipt must report
+# what the lab HAS, not what this invocation asked for.
+arm "$RULES_DIR/refusals.json"
+RECEIPT3="$WORK/run-foreign.json"
+"$FEINT_BIN" run --endpoint "$ENDPOINT" --json "$RECEIPT3" \
+  -- scw instance server list zone=fr-par-1 >/dev/null 2>&1 </dev/null || true
+[ -s "$RECEIPT3" ] || fail "the run wrote no receipt"
+jq -e '.faults_campaign == false' "$RECEIPT3" >/dev/null \
+  || fail "a run with no --fault claims it armed one: $(cat "$RECEIPT3")"
+jq -e '.faults_armed == true' "$RECEIPT3" >/dev/null \
+  || fail "the run denies the campaign its own child met: $(cat "$RECEIPT3")"
+# And it did not clear what it never armed.
+[ "$(curl -sf "$ENDPOINT/_feint/faults" | jq -r '.faults | length')" != "0" ] \
+  || fail "the run cleared rules it did not arm"
+disarm
+ok "the receipt reports the lab's campaign, and leaves it alone"
+
+echo "- a run with no campaign reports no faults, and says so by saying nothing"
+RECEIPT_CLEAN="$WORK/run-clean.json"
+"$FEINT_BIN" run --endpoint "$ENDPOINT" --json "$RECEIPT_CLEAN" \
+  -- scw instance server list zone=fr-par-1 >/dev/null 2>&1 </dev/null || true
+[ -s "$RECEIPT_CLEAN" ] || fail "the clean run wrote no receipt"
+jq -e '.faults_armed == false' "$RECEIPT_CLEAN" >/dev/null \
+  || fail "a run with no --fault reports a campaign: $(cat "$RECEIPT_CLEAN")"
+ok "no campaign, no claim"
 
 echo "- clearing puts the emulator back where it started"
 disarm

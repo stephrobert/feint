@@ -3,8 +3,10 @@ package emulator
 import (
 	"bytes"
 	"fmt"
+	"net"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -108,6 +110,24 @@ type Fault struct {
 	// sequential client and nowhere else, and callers are told so rather than
 	// sold a seed that cannot hold.
 	Nth int `json:"nth,omitempty"`
+	// Transport takes the failure below HTTP: "close" drops the connection
+	// without a status line, "hang" holds it open and never answers. They are
+	// the two failures a status injection cannot express, and a client tells
+	// them apart from a 503 because there is no response to parse at all: one
+	// surfaces as a reset or an unexpected EOF, the other as the client's own
+	// timeout.
+	//
+	// The package comment used to say this could not be delivered without "a
+	// hook at the net/http server". The hook is http.Hijacker, which net/http
+	// has always offered: the handler takes the connection and net/http stops
+	// managing it. That also costs what hijacking costs, and the cost is the
+	// reason the two bounds below exist.
+	//
+	// Exclusive with Status and Truncate: both describe a response body, and
+	// there is no response here. A Delay before "close" is meaningful and
+	// allowed ("the connection drops after two seconds"); a Delay before "hang"
+	// is refused, because hang already never answers.
+	Transport string `json:"transport,omitempty"`
 
 	// hits, calls and delay are computed here, never read from the request.
 	//
@@ -131,6 +151,81 @@ const (
 	// a fault that never fires is indistinguishable from a client that survived
 	// it — the same reasoning that refuses a rule on an unmounted operation.
 	maxFaultNth = 1000
+	// maxFaultHang bounds how long a hung connection is held before this
+	// emulator closes it itself.
+	//
+	// A hijacked connection is nobody's responsibility but ours: net/http no
+	// longer tracks it, so it is not closed by a server shutdown and its
+	// request context is never cancelled when the peer goes away. Without a
+	// bound, one `hang` rule and one client that exits leaks a goroutine and a
+	// file descriptor for the life of the process. The rule is still a hang
+	// from every client's point of view, because every client here times out in
+	// seconds.
+	maxFaultHang = 5 * time.Minute
+	// maxHeldConnections bounds how many connections may be hijacked at once.
+	//
+	// Measured before it existed: one `hang` rule and 61 connections against a
+	// server started with `ulimit -n 64` consumed every descriptor, and the
+	// admin plane went with them. `GET /_feint/health` and `DELETE
+	// /_feint/faults` both hung, the log repeated `accept4: too many open
+	// files` once a second, and the only way to disarm the rule was gone until
+	// the peers left. The hijacked connections and the door that would disarm
+	// them share one listener, so a rule with no bound can lock the operator
+	// out of their own emulator. A container with the usual LimitNOFILE=1024
+	// wedges at a thousand.
+	//
+	// 64 is far above any suite — a client's connection pool is single digits —
+	// and far below the headroom the admin plane needs.
+	maxHeldConnections = 64
+	// hangReadBuffer is how much a held connection reads at a time, and it is a
+	// performance bound, not a protocol one: the bytes are discarded, the read
+	// exists only to learn that the peer has gone.
+	//
+	// Measured at one byte, which is what the first version used: a peer
+	// sending 64 KiB chunks for 300 seconds cost 302 CPU-seconds, one core
+	// pinned at 100% by one connection, through 707 million read syscalls
+	// against 10 800 writes on the peer's side. Sixteen such connections
+	// saturate a sixteen-core station, and maxFaultHang guarantees the burn
+	// cannot be ended early, because the peer feeding it is the one that would
+	// have to leave.
+	hangReadBuffer = 32 << 10
+)
+
+// faultHangLimit is maxFaultHang, settable so that a test can fire the bound
+// instead of describing it.
+//
+// A five-minute constant is a bound no suite can reach, which is how "one
+// `hang` rule and one client that exits leaks a goroutine and a file
+// descriptor for the life of the process" stayed a comment rather than a
+// control. TestAHeldConnectionIsReleasedWhenTheBoundExpires shortens it and
+// asserts the release.
+//
+// Atomic, and not a plain variable, because the plain variable was a data
+// race and `go test -race` said so: the test writes it from its own goroutine
+// while a request already in flight reads it on the server's. Caught on the
+// rebase, after the lot was otherwise green. A seam added to make a guard
+// testable has to be correct itself, or the guard it proves is proven by a
+// broken instrument.
+var faultHangLimit = func() *atomic.Int64 {
+	v := new(atomic.Int64)
+	v.Store(int64(maxFaultHang))
+	return v
+}()
+
+// The two transport failures, by name. Strings rather than an enum because
+// this field crosses the wire in JSON and is typed by a caller on a command
+// line, so the spelling is the API.
+//
+// Exported because the CLI renders them too, and a second copy of a spelling
+// is a copy that disagrees with the first the week after. The arming direction
+// would fail loudly if it drifted — the emulator refuses a value it does not
+// know — but the RENDERING direction degrades quietly: a `switch` on a literal
+// falls through to its default, and `fault list` would print "the client left
+// before the answer" for a connection this emulator dropped on purpose. A
+// review of this lot named that path before it existed.
+const (
+	TransportClose = "close"
+	TransportHang  = "hang"
 )
 
 // Faulter is the optional half of a Pack that can render a failure in its own
@@ -214,6 +309,17 @@ type FiredFault struct {
 	// reader has to guess. The rule publishes the state the effect produced,
 	// and so does the receipt.
 	Abandoned bool `json:"abandoned"`
+	// Transport names the failure when it happened below HTTP, so that a reader
+	// of `status: 0, abandoned: true` is not left guessing between "the client
+	// gave up during a delay" and "we dropped the connection on purpose". It is
+	// recorded when the failure is INJECTED, not when the line is reserved. The
+	// first version recorded it at arrival, and a review measured what that
+	// costs: with `{"transport":"close","delay":"8s"}` and a client that gives
+	// up after a second, the delay's select returns on the request context and
+	// Hijack is never reached — yet the receipt said "the connection was
+	// dropped". A receipt that claims an effect nobody produced is the exact
+	// lie this emulator exists to avoid.
+	Transport string `json:"transport,omitempty"`
 }
 
 // maxFiredReceipt bounds the receipt.
@@ -244,7 +350,7 @@ func (fs *faultSet) reserve(operation string, rank int) firing {
 // a clear the receipt is empty, so the slot bound alone already drops the
 // line, and the test cannot tell the two guards apart. A review of this lot
 // measured it.
-func (fs *faultSet) recordFired(f firing, status int, abandoned bool) {
+func (fs *faultSet) recordFired(f firing, status int, abandoned bool, transport string) {
 	if fs == nil || f.slot < 0 {
 		return
 	}
@@ -255,6 +361,7 @@ func (fs *faultSet) recordFired(f firing, status int, abandoned bool) {
 	}
 	fs.fired[f.slot].Status = status
 	fs.fired[f.slot].Abandoned = abandoned
+	fs.fired[f.slot].Transport = transport
 }
 
 // receipt copies what the rules did, in arrival order, and says how many lines
@@ -335,6 +442,7 @@ func (fs *faultSet) snapshot() []faultView {
 			Delay:         r.Delay,
 			Times:         r.Times,
 			Nth:           r.Nth,
+			Transport:     r.Transport,
 			TruncateBytes: r.Truncate,
 			Hits:          r.hits,
 			Calls:         r.calls,
@@ -369,6 +477,7 @@ type faultView struct {
 	Delay     string `json:"delay"`
 	Times     int    `json:"times"`
 	Nth       int    `json:"nth"`
+	Transport string `json:"transport"`
 	// Calls is every call this rule saw, fired or not. Hits is the subset it
 	// answered. Under `nth` the two differ by construction, and a suite
 	// asserting "it fired on the third call" needs both.
@@ -479,13 +588,33 @@ func validateFaults(rules []Fault, owner map[string]string, faulters map[string]
 				"counts from the first, so the two together have no single reading. Use nth for "+
 				"\"the third call\", times for \"the first two\"", r.Operation, r.Nth, r.Times)
 		}
+		if r.Transport != "" {
+			if r.Transport != TransportClose && r.Transport != TransportHang {
+				return nil, fmt.Errorf("rule %q: transport %q is neither %q nor %q", r.Operation,
+					r.Transport, TransportClose, TransportHang)
+			}
+			if r.Status != 0 {
+				return nil, fmt.Errorf("rule %q sets both status %d and the %q transport failure: a status "+
+					"is a response and a transport failure is the absence of one, so the two cannot both "+
+					"reach the client", r.Operation, r.Status, r.Transport)
+			}
+			if r.Truncate != nil {
+				return nil, fmt.Errorf("rule %q sets both a truncation and the %q transport failure: a "+
+					"truncation cuts a body short, and there is no body here", r.Operation, r.Transport)
+			}
+			if r.Transport == TransportHang && r.delay > 0 {
+				return nil, fmt.Errorf("rule %q sets a delay of %s before %q: a hang never answers, so the "+
+					"delay would change nothing a client can observe. Use %q with a delay for \"the "+
+					"connection drops after %s\"", r.Operation, r.Delay, TransportHang, TransportClose, r.Delay)
+			}
+		}
 		if r.Status != 0 && r.Truncate != nil {
 			return nil, fmt.Errorf("rule %q sets both a status and a truncation: a status answer is the "+
 				"pack's own error body, so there is no handler answer left to cut short", r.Operation)
 		}
-		if r.Status == 0 && r.Truncate == nil && r.delay == 0 {
-			return nil, fmt.Errorf("rule %q asks for nothing: set a status, a truncation or a delay",
-				r.Operation)
+		if r.Status == 0 && r.Truncate == nil && r.delay == 0 && r.Transport == "" {
+			return nil, fmt.Errorf("rule %q asks for nothing: set a status, a truncation, a delay or a "+
+				"transport failure", r.Operation)
 		}
 		if r.Truncate != nil {
 			if *r.Truncate < 0 {
@@ -534,7 +663,7 @@ func statusRenderable(f Faulter, status int) bool {
 // no flight token, no contract check, no unread-field report, no span entry
 // beyond the one marked injected. See bound 4 in the package comment — an
 // answer this produced must not be able to prove anything about the operation.
-func (o *observer) serveFault(w http.ResponseWriter, req *http.Request, provider string, route Route, f Fault) int {
+func (o *observer) serveFault(w http.ResponseWriter, req *http.Request, provider string, route Route, f Fault) (int, string) {
 	operation := route.Operation
 	if f.delay > 0 {
 		// Cancelled with the request. A client that gave up must not leave a
@@ -549,8 +678,15 @@ func (o *observer) serveFault(w http.ResponseWriter, req *http.Request, provider
 		select {
 		case <-timer.C:
 		case <-req.Context().Done():
-			return 0
+			// Nothing was injected: the client left during the delay. The empty
+			// transport name is what keeps the receipt from claiming a drop that
+			// never happened.
+			return 0, ""
 		}
+	}
+	if f.Transport != "" {
+		// Below HTTP, so before the header: there is no response to mark.
+		return o.serveTransportFault(w, operation, f.Transport)
 	}
 	w.Header().Set(FaultHeader, operation)
 
@@ -565,10 +701,10 @@ func (o *observer) serveFault(w http.ResponseWriter, req *http.Request, provider
 				"error": "feint: a status fault is armed on " + operation + " but the " + provider +
 					" pack renders no error dialect; this is a defect in feint, not an injected fault",
 			})
-			return http.StatusInternalServerError
+			return http.StatusInternalServerError, ""
 		}
 		faulter.WriteFault(w, req, f.Status)
-		return f.Status
+		return f.Status, ""
 	}
 
 	// A truncation, or a delay alone. The handler produces its real answer into
@@ -588,7 +724,98 @@ func (o *observer) serveFault(w http.ResponseWriter, req *http.Request, provider
 	w.Header().Del("Content-Length")
 	w.WriteHeader(buf.status)
 	_, _ = w.Write(body)
-	return buf.status
+	return buf.status, ""
+}
+
+// serveTransportFault takes the connection away from net/http and fails it
+// without a response.
+//
+// It answers 0, which the caller's deferred recordFired turns into
+// `abandoned: true`, and the receipt line already carries the transport name
+// reserved at arrival. No FaultHeader is set and no body is written, because
+// setting either would mean writing a response, which is the one thing this
+// path exists not to do.
+//
+// ## What it costs, and why it is bounded
+//
+// After Hijack, net/http no longer owns the connection: it is not closed by a
+// server shutdown, and req.Context() is never cancelled when the peer goes
+// away. So a hang that waited on the request context would wait forever. This
+// waits on the peer instead, with a deadline, and closes either way.
+//
+// ## Why a reset rather than a clean close
+//
+// A clean close sends FIN, and a client reading a response sees an unexpected
+// EOF. A reset (SO_LINGER 0) sends RST, which is what a middlebox dropping a
+// connection produces and what a client reports as "connection reset by peer".
+// Both are real failures a client must survive; the reset is the one a status
+// injection can least resemble, so it is what "close" means here. A connection
+// that is not TCP, which on this emulator means a test using a pipe, falls back
+// to the clean close rather than refusing.
+func (o *observer) serveTransportFault(w http.ResponseWriter, operation, kind string) (int, string) {
+	// The bound first, before the connection is taken. A refusal here is not
+	// an injected failure and must not read as one: the client gets an answer
+	// saying so, and the receipt carries no transport name, so nothing claims
+	// a drop that did not happen.
+	if held := o.heldConnections.Add(1); held > maxHeldConnections {
+		o.heldConnections.Add(-1)
+		writeJSON(w, http.StatusInternalServerError, map[string]any{
+			"error": "feint: a " + kind + " transport fault is armed on " + operation +
+				" and this emulator already holds the maximum number of connections it will take " +
+				"over, so the failure was not injected. The bound exists because hijacked " +
+				"connections and the /_feint door that would disarm the rule share one listener",
+		})
+		return http.StatusInternalServerError, ""
+	}
+	defer o.heldConnections.Add(-1)
+	hj, ok := w.(http.Hijacker)
+	if !ok {
+		// Unreachable on this server, which serves HTTP/1.1 over TCP on
+		// loopback. Said rather than assumed: if it ever becomes reachable, a
+		// client receiving a clean 500 instead of a dropped connection must be
+		// able to tell that the emulator failed to inject, not that the rule
+		// fired.
+		writeJSON(w, http.StatusInternalServerError, map[string]any{
+			"error": "feint: a " + kind + " transport fault is armed on " + operation +
+				" but this connection cannot be hijacked, so the failure could not be injected; " +
+				"this is a defect in feint, not an injected fault",
+		})
+		return http.StatusInternalServerError, ""
+	}
+	conn, _, err := hj.Hijack()
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{
+			"error": "feint: a " + kind + " transport fault is armed on " + operation +
+				" and the connection could not be taken over (" + err.Error() + "); this is a defect " +
+				"in feint, not an injected fault",
+		})
+		return http.StatusInternalServerError, ""
+	}
+	if kind == TransportHang {
+		// Hold it open and answer nothing. The read returns when the client
+		// gives up and closes, or when the bound expires.
+		if err := conn.SetReadDeadline(time.Now().Add(time.Duration(faultHangLimit.Load()))); err != nil {
+			// Without a deadline the loop below has no bound at all, and the
+			// connection would be held for the life of the process. Unreachable
+			// on a TCP or TLS connection; closed rather than held, because a
+			// bound that could not be set is not a bound.
+			_ = conn.Close()
+			return 0, kind
+		}
+		discard := make([]byte, hangReadBuffer)
+		for {
+			if _, err := conn.Read(discard); err != nil {
+				break
+			}
+		}
+		_ = conn.Close()
+		return 0, kind
+	}
+	if tcp, ok := conn.(*net.TCPConn); ok {
+		_ = tcp.SetLinger(0)
+	}
+	_ = conn.Close()
+	return 0, kind
 }
 
 // bufferedResponse collects a handler's whole answer so it can be cut short.

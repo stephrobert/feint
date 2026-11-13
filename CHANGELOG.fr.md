@@ -42,6 +42,46 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Ajouté
 
+- **Deux pannes de faute sous HTTP** (#851) : `feint fault add --close` coupe la
+  connexion par un reset, `--hang` la tient ouverte et ne répond jamais. Une
+  injection de statut est une réponse que le client analyse ; celles-ci sont
+  l'absence de réponse, ce pour quoi existent le délai d'attente d'un client et
+  sa reconnexion. Le commentaire du paquet affirmait depuis deux versions qu'il
+  fallait « un crochet dans le serveur net/http » : ce crochet est
+  `http.Hijacker`. Mesuré contre `scw`, qui signale une erreur de transport sur
+  la première, consomme son propre délai sur la seconde, et ne décode ni l'une
+  ni l'autre en erreur de provider. `/_feint/faults` porte la panne sur la règle
+  et sur la ligne de reçu (schéma version 3), donc `status: 0, abandoned: true`
+  ne peut plus vouloir dire deux choses différentes.
+- **`feint run --fault <campagne.json>`** (#851) : arme une campagne versionnée
+  pour le processus fils, la désarme à la fin de la course, et rapporte ce que
+  le lab avait armé, dans le reçu en prose comme dans le reçu JSON
+  (`faults_armed`, `faults_campaign`, `faults_read`, `faults`,
+  `faults_dropped`, schéma version 2). Un fichier plutôt que des drapeaux,
+  parce que le document est ce que le point d'entrée accepte : ce qui rejoue
+  est ce que le fichier dit.
+  `faults_armed` dit ce que le **lab** portait, quel qu'en soit l'auteur, et
+  `faults_campaign` dit si cette course en a armé une. Un audit de sécurité a
+  reproduit ce qu'un seul champ ne peut pas dire : une campagne armée sur un
+  lab attaché survivait à la course, donc une seconde course rencontrait le 503
+  injecté par la première tout en publiant `faults_armed: false`.
+- **Une faute de transport est bornée, et les bornes sont mesurées** (#851) :
+  au plus 64 connexions tenues à la fois, parce que les connexions détournées
+  et la porte `/_feint` qui les désarme partagent un seul écouteur. Soixante et
+  une connexions contre un serveur à `ulimit -n 64` rendaient les deux
+  injoignables. Une connexion tenue se lit par 32 Kio et non octet par octet :
+  un octet coûtait 302 secondes de CPU pour 300 secondes d'attente, un cœur
+  saturé par un seul client. Et la tenue de cinq minutes est désormais
+  déclenchée par un test, pas décrite par un commentaire.
+- **`feint fault add --seed` existe pour refuser**, et imprime la mesure qui
+  fonde ce refus (#851) : sur les 1088 échanges de `corpus/`, les clients
+  officiels envoient neuf noms d'en-tête de requête, aucun forgé par appel. Une
+  décision à graine ne pourrait donc reposer que sur l'ordre d'arrivée, que des
+  clients concurrents réordonnent. Un drapeau simplement absent n'apprend rien.
+  La mesure est recalculée par un test qui échoue le jour où un enregistrement
+  porte un dixième nom : le refus ne peut pas survivre à sa propre prémisse.
+
+
 - **`feint mutate`, un changement que le provider n'a pas fait** (#193) :
   `--set <chemin>=<json>` et `--unset <chemin>` changent une ressource stockée
   dans le dos du provider, pour que la lecture suivante du client voie une
