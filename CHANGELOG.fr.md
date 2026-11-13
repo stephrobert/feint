@@ -31,6 +31,12 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Modifié
 
+- L'index de couverture par produit dit ce que son tableau ne peut pas dire.
+  Un provider dont le SDK expose moins de produits qu'upstream n'a de
+  groupes, Exoscale avec un et Outscale avec deux, l'écrit désormais au
+  lieu de se lire comme une réponse complète, et la première colonne est
+  nommée pour ce qu'elle est : des noms de paquets du SDK, pas ceux du
+  portail.
 - L'encadré de sécurité disait que les machines démarrent réellement « à
   chaque pull request ». Seul `runtime-proof.yml` les démarre, et il se
   déclenche sur `schedule` et `workflow_dispatch` ; le chemin des pull

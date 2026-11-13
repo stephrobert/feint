@@ -40,7 +40,9 @@ small enough to read, and no cloud account.
   refuses it.
 - [limits.md](limits.md) — the record behind every **no**, measured rather than
   assumed. It is long on purpose and not meant to be read through: search it for
-  the section a verdict sent you to.
+  the section a verdict sent you to. Its first section,
+  [Product coverage at a glance](limits.md#product-coverage-at-a-glance),
+  answers "is my stack in scope" from a generated table.
 - [routes.md](routes.md) — the fine view, generated: what every mounted operation
   has earned, operation by operation.
 

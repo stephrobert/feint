@@ -28,6 +28,11 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Changed
 
+- The product coverage index says what its table cannot. A provider whose
+  SDK exposes fewer products than upstream has groups — Exoscale with one,
+  Outscale with two — now says so instead of reading as a complete answer,
+  and the first column is named for what it is: SDK package names, not the
+  portal's.
 - The safety banner said that machines really boot "on every pull
   request". Only `runtime-proof.yml` boots them, and it triggers on
   `schedule` and `workflow_dispatch`; the pull-request path runs `--vm off`.
