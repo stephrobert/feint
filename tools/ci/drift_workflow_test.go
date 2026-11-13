@@ -462,6 +462,74 @@ func runBlock(t *testing.T, section, step string) string {
 	return script
 }
 
+// TestTheDriftNightFetchesTheDocumentsItExtracts is cited by
+// tools/contract/documents.sh and by the step of drift.yml that runs it.
+//
+// ## The defect it closes, as it was measured
+//
+// tools/contract/update.sh reads three sources and only two are git
+// repositories: Exoscale publishes a single OpenAPI document and Scaleway one
+// per product, both over HTTP. `mise run upstream:sync` fetches them, and mise
+// is not installed on a GitHub runner — so the nightly ran the extraction
+// against files that were never there.
+//
+// Read off the scheduled run of 2026-11-13 (43344711412):
+//
+// \tcontracts/outscale.json: outscale api 1.43.2, 236 operations, 656 schemas
+// \tFileNotFoundError: '/home/runner/work/feint/feint/.upstream/exoscale-openapi.yaml'
+//
+// It had never produced a complete result in CI. The step runs under
+// continue-on-error, so its failure left the contracts half of the mechanism
+// measuring nothing while the night stayed green — and the health job of #892
+// is what finally made it visible, on its first real night (#901).
+//
+// ## What is asserted
+//
+// The fetch exists, it runs BEFORE the extraction, and both callers run the
+// same file. The order is the half a presence check would miss: a step that
+// fetches after the thing that reads is a step that changes nothing.
+func TestTheDriftNightFetchesTheDocumentsItExtracts(t *testing.T) {
+	workflow := readWorkflow(t, "drift.yml")
+	drift := jobSection(workflow, "drift")
+
+	fetch := strings.Index(drift, "- name: Fetch the published API documents")
+	extract := strings.Index(drift, "- name: Refresh the API descriptions")
+	if fetch < 0 {
+		t.Fatal("the drift job never fetches the published documents: the extraction then reads files " +
+			"that are not in either checkout, which is how it died every night under continue-on-error")
+	}
+	if extract < 0 {
+		t.Fatal("the drift job no longer refreshes the API descriptions")
+	}
+	if fetch > extract {
+		t.Error("the documents are fetched after the step that extracts them, so the extraction still " +
+			"reads what is not there yet")
+	}
+	if !strings.Contains(stepSection(drift, "Fetch the published API documents"), "tools/contract/documents.sh") {
+		t.Error("the fetch step does not run tools/contract/documents.sh")
+	}
+
+	// One file, two callers. A second copy of these two fetches is the shape
+	// tools/drift/gate.sh was written to end: the same procedure written twice
+	// drifts, and the copy that drifts is the one nobody runs by hand.
+	mise, err := os.ReadFile(filepath.Join("..", "..", "mise.toml"))
+	if err != nil {
+		t.Fatalf("read mise.toml: %v", err)
+	}
+	if !strings.Contains(string(mise), "tools/contract/documents.sh") {
+		t.Error("upstream:sync does not run the same script, so a workstation and a runner fetch by two " +
+			"different procedures")
+	}
+	for _, host := range []string{"openapi-v2.exoscale.com", "scaleway.com/en/developers/api"} {
+		if strings.Contains(string(mise), host) {
+			t.Errorf("mise.toml still carries its own fetch of %s beside the script", host)
+		}
+		if strings.Contains(workflow, host) {
+			t.Errorf("drift.yml carries its own fetch of %s beside the script", host)
+		}
+	}
+}
+
 // stepSection is the text of one step of a workflow, from its name to the next
 // step or the end of the file.
 func stepSection(workflow, name string) string {
