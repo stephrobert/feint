@@ -9,6 +9,7 @@
     "A public address is the provider's value, made to answer on the host": "2026-08-27",
     "A reverse that does not resolve is accepted here and refused upstream (#676)": "2026-09-04",
     "A run presented as local can still reach the real cloud (#280)": "2026-11-11",
+    "A stack preflight reads declarations, not what will run (#888)": "2026-11-13",
     "An API reboot used to log `Failed to add route: file exists` for its own public /32 (#498, lifted 2026-08-27)": "2026-08-27",
     "An ERROR is a failure and a WARN is a decline, and one refusal was on the wrong side (#474)": "2026-08-28",
     "An Exoscale network load balancer records its configuration, names its backends, and grades none of them": "2026-08-27",
