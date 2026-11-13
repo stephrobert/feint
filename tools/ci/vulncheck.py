@@ -133,11 +133,25 @@ def rewrite(root, target):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
+    # Two verbs rather than one flag, because they are two jobs carrying two
+    # risks: `scan` only asks a question whose answer moves on its own, and
+    # `bump` is the half that writes to files. The separation is a
+    # contributor's idea, from the shell implementation this replaced (#906).
     ap.add_argument(
-        "--apply", action="store_true", help="rewrite the pins rather than only reporting"
+        "verb",
+        nargs="?",
+        default="scan",
+        choices=("scan", "bump"),
+        help="scan reports and writes nothing; bump also moves every pin",
+    )
+    ap.add_argument(
+        "--apply",
+        action="store_true",
+        help="the older spelling of `bump`, kept so an existing caller does not break",
     )
     ap.add_argument("--root", default=os.environ.get("FEINT_ROOT", "."))
     args = ap.parse_args()
+    rewriting = args.apply or args.verb == "bump"
 
     root = pathlib.Path(args.root).resolve()
     pinned = pinned_version(root)
@@ -154,7 +168,7 @@ def main():
         print(f"{advisory}: found in go{pinned}, fixed in go{fixed}")
     print(f"the pin moves from go{pinned} to go{target}")
 
-    if args.apply:
+    if rewriting:
         changed = rewrite(root, target)
         print(f"{len(changed)} file(s) moved: {', '.join(changed)}")
     return 2

@@ -75,7 +75,7 @@ jobs:
           gobin=$(go env GOPATH)/bin
           export PATH="$gobin:$PATH"
           status=0
-          python3 tools/ci/vulncheck.py --apply | tee scan.out || status=$?
+          python3 tools/ci/vulncheck.py bump | tee scan.out || status=$?
           case "$status" in
             0)
               echo "moved=false" >> "$GITHUB_OUTPUT"

@@ -492,7 +492,7 @@ description = "govulncheck against the pinned toolchain (network, non-determinis
 # reports, exits 2 when an advisory reaches the pin, and rewrites nothing.
 run = """
 go install golang.org/x/vuln/cmd/govulncheck@v1.3.0
-PATH="$(go env GOPATH)/bin:$PATH" python3 tools/ci/vulncheck.py
+PATH="$(go env GOPATH)/bin:$PATH" python3 tools/ci/vulncheck.py scan
 """
 
 [tasks."compat:check"]
