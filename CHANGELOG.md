@@ -15,6 +15,15 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ## [Unreleased]
 
+### Changed
+
+- **`govulncheck` runs on a schedule, not on your pull request** (#865).
+  Four standard-library advisories in 2026 reddened pull requests that
+  touched no Go file, and each red landed on whoever pushed next. A nightly
+  job now scans the pinned toolchain, moves all 18 pins together when an
+  advisory reaches them, and pushes the branch; `mise run vulncheck` runs
+  the same script by hand, without rewriting anything.
+
 ### Added
 
 - **A product coverage index at the top of `docs/limits.md`** (#872).

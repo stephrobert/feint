@@ -487,9 +487,12 @@ run = "git ls-files -z '*.sh' | xargs -0 shellcheck --severity=style"
 # anybody pushes belongs on a schedule, the way drift.yml works.
 [tasks.vulncheck]
 description = "govulncheck against the pinned toolchain (network, non-deterministic verdict)"
+# The same script the nightly watch runs (#865), without --apply: a human and
+# the schedule ask one question, so an answer here is the answer there. It
+# reports, exits 2 when an advisory reaches the pin, and rewrites nothing.
 run = """
 go install golang.org/x/vuln/cmd/govulncheck@v1.3.0
-"$(go env GOPATH)/bin/govulncheck" ./...
+PATH="$(go env GOPATH)/bin:$PATH" python3 tools/ci/vulncheck.py
 """
 
 [tasks."compat:check"]

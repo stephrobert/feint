@@ -17,6 +17,16 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ## [Unreleased]
 
+### Modifié
+
+- **`govulncheck` tourne sur une planification, plus sur votre pull
+  request** (#865). Quatre avis sur la bibliothèque standard ont fait rougir
+  en 2026 des pull requests qui ne touchaient aucun fichier Go, et le rouge
+  tombait à chaque fois sur la personne qui poussait ensuite. Un job
+  nocturne scanne désormais la version épinglée, déplace les 18 épingles
+  ensemble quand un avis les atteint, et pousse la branche ;
+  `mise run vulncheck` lance le même script à la main, sans rien réécrire.
+
 ### Ajouté
 
 - **Un index de couverture des produits en haut de `docs/limits.md`** (#872).
