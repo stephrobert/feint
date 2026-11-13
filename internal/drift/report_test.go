@@ -330,3 +330,62 @@ func TestTheArtefactIsByteStableAcrossRuns(t *testing.T) {
 		t.Error("the artefact carries today's date; a timestamp here opens a drift pull request every week")
 	}
 }
+
+// UnscannedProducts (#872): the drift scan walks the whole SDK, then the
+// --products restriction throws the rest away. The thrown-away products are
+// exactly the rows the limits index must name, because "not scanned" is the
+// state a reader most needs and the one the document hides. A product the
+// scan never saw (a typo in --products, say) is not unscanned — it is a
+// mistake, and OnlyProducts already guards that side.
+func TestUnscannedProductsNamesWhatTheScopeExcluded(t *testing.T) {
+	all := []drift.Operation{
+		{Name: "instance/v1/API.ListServers", Product: "instance", Version: "v1"},
+		{Name: "rdb/v1/API.ListInstances", Product: "rdb", Version: "v1"},
+		{Name: "k8s/v1/API.ListClusters", Product: "k8s", Version: "v1"},
+		{Name: "registry/v1/API.ListImages", Product: "registry", Version: "v1"},
+	}
+	scanned := drift.OnlyProducts(all, []string{"instance"})
+	got := drift.UnscannedProducts(all, scanned)
+	want := []string{"k8s", "rdb", "registry"}
+	if len(got) != len(want) {
+		t.Fatalf("unscanned = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("unscanned = %v, want %v (sorted)", got, want)
+		}
+	}
+}
+
+func TestUnscannedProductsIsEmptyWhenNothingWasExcluded(t *testing.T) {
+	all := upstream()
+	if got := drift.UnscannedProducts(all, all); len(got) != 0 {
+		t.Fatalf("unscanned = %v, want empty", got)
+	}
+}
+
+// The unscanned list travels with the artefact (#872): the docs generator is
+// a reader over coverage/, so the scan is the one place that can name the
+// products it excluded. A field the scan does not write is a table the
+// generator invents, and this repository does not invent formats.
+func TestWriteJSONCarriesTheUnscannedProducts(t *testing.T) {
+	rep := drift.Compare("scaleway", upstream(),
+		[]string{"instance/v1/API.ListServers"},
+		map[string]string{"instance/v1/API.GetDashboard": "out of scope for this test"},
+	)
+	rep.Unscanned = []string{"k8s", "rdb"}
+
+	var buf bytes.Buffer
+	if err := rep.WriteJSON(&buf); err != nil {
+		t.Fatalf("write json: %v", err)
+	}
+	var got struct {
+		Unscanned []string `json:"unscanned"`
+	}
+	if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
+		t.Fatalf("parse report: %v", err)
+	}
+	if len(got.Unscanned) != 2 || got.Unscanned[0] != "k8s" || got.Unscanned[1] != "rdb" {
+		t.Fatalf("unscanned in the artefact = %v", got.Unscanned)
+	}
+}

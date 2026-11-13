@@ -15,6 +15,17 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ## [Unreleased]
 
+### Added
+
+- **A product coverage index at the top of `docs/limits.md`** (#872).
+  `coverage/*.json` gains an additive `unscanned` field — the products the scan
+  actually saw upstream declare but the `--products` restriction excluded — so
+  the index is a reader over committed data, and a reader can now answer "is my
+  stack in scope" from the top of the page instead of line 3316. The table names
+  the 45 Scaleway products the scan does not cover at all, and says what not
+  scanned costs: a client calling one of them does not hit the emulator, it
+  reaches the real endpoint with whatever credentials the shell holds.
+
 ## [0.16.0] - 2026-11-12
 
 ### Added

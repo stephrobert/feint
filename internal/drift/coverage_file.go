@@ -40,6 +40,13 @@ type CoverageFile struct {
 	// row, and the difference read as depth when it was only SDK layout.
 	// Additive: readers of the fields above are unaffected.
 	Groups []GroupCount `json:"groups,omitempty"`
+	// Unscanned names the upstream products the scan saw but the --products
+	// restriction excluded (#872): Scaleway's 45, where the scan covers 11 of
+	// the 56 the SDK declares. Empty for a provider scanned whole, and omitted
+	// then, so a reader of the fields above is unaffected. Sorted: the artefact
+	// is committed, and two runs over an unchanged SDK must produce the same
+	// bytes.
+	Unscanned []string `json:"unscanned,omitempty"`
 	// Entries is the per-operation verdict, sorted by operation name.
 	//
 	// It carries the reason a declined operation is declined, and that is the
@@ -104,6 +111,10 @@ func (r Report) File() CoverageFile {
 	copy(entries, r.Entries)
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Operation < entries[j].Operation })
 
+	unscanned := make([]string, len(r.Unscanned))
+	copy(unscanned, r.Unscanned)
+	sort.Strings(unscanned)
+
 	return CoverageFile{
 		Provider:    r.Provider,
 		Total:       r.Total,
@@ -113,6 +124,7 @@ func (r Report) File() CoverageFile {
 		Orphans:     r.Orphans,
 		Products:    views,
 		Groups:      r.Groups(),
+		Unscanned:   unscanned,
 		Entries:     entries,
 	}
 }

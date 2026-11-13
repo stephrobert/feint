@@ -17,6 +17,18 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ## [Unreleased]
 
+### Ajouté
+
+- **Un index de couverture des produits en haut de `docs/limits.md`** (#872).
+  `coverage/*.json` gagne un champ additif `unscanned` — les produits que le scan
+  a réellement vus déclarés en amont mais que la restriction `--products` a
+  exclus — l'index est donc une lecture des données commitées, et un lecteur
+  peut désormais répondre « ma stack est-elle dans le périmètre ? » depuis le
+  haut de la page au lieu de la ligne 3316. Le tableau nomme les 45 produits
+  Scaleway que le scan ne couvre pas du tout, et dit ce que « non scanné »
+  coûte : un client qui appelle l'un d'eux ne touche pas l'émulateur, il atteint
+  le vrai endpoint avec les identifiants que le shell détient.
+
 ## [0.16.0] - 2026-11-12
 
 ### Ajouté
