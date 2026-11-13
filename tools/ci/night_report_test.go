@@ -27,6 +27,23 @@ import (
 //	                          with conclusion "failure" is "Report what was
 //	                          exercised", an if: always() step that failed
 //	                          downstream of the cancellation, not a cause
+//	testdata/race-night-completed
+//	                  run 43353368876 — schedule, success, every proof job
+//	                  green, except the streak job, flipped to failure with
+//	                  no failing step (its shape on the fourteen nights of
+//	                  #830); the report job itself is in_progress, as it is
+//	                  while the script runs
+//	testdata/race-night-running
+//	                  the same night, the same flip, except the streak job
+//	                  is still in_progress — the only field that differs
+//	testdata/race-night-red
+//	                  the same night, the streak job flipped as above and
+//	                  the incus job failing on "Scaleway ssh suite": the
+//	                  control that a judged list still measures
+//	testdata/race-night-verdict-red
+//	                  the same night, the verdict job ("Us, or the world?")
+//	                  flipped to failure instead: it sits in the same race
+//	                  as streak, and its red must be ignored the same way
 //	testdata/history.json     every completed scheduled run of the workflow
 //
 // The writes land in a log instead of on GitHub, so the create/update/close
@@ -80,8 +97,13 @@ esac
 // returns its exit code, its stdout+stderr, and the log of every gh write the
 // stub received. openIssues is a JSON array in `gh issue list --json
 // number,title` shape: what the repository's open scheduled-red issues look
-// like at that moment.
+// like at that moment. judged is the NIGHT_JUDGED_JOBS value: empty judges
+// every completed job, as before.
 func runReport(t *testing.T, night, runID, openIssues string, apply bool) (int, string, string) {
+	return runReportJudged(t, night, runID, openIssues, apply, "")
+}
+
+func runReportJudged(t *testing.T, night, runID, openIssues string, apply bool, judged string) (int, string, string) {
 	t.Helper()
 
 	stubDir := t.TempDir()
@@ -119,6 +141,7 @@ func runReport(t *testing.T, night, runID, openIssues string, apply bool) (int, 
 		"GH_STUB_LOG="+log,
 		"GITHUB_REPOSITORY=stephrobert/feint",
 		"NIGHT_STREAK_TARGET=14",
+		"NIGHT_JUDGED_JOBS="+judged,
 		// The script reads the budget a workflow declares for itself, and these
 		// tests run from the package directory rather than the repository root.
 		// A seam, like the injectable runner of the Incus driver: on a runner
@@ -383,5 +406,73 @@ func TestADriftNightThatCouldNotConcludeOpensTheIssue(t *testing.T) {
 	}
 	if !strings.Contains(calls, "issue create") {
 		t.Errorf("the first red drift night did not open the issue:\n%s", calls)
+	}
+}
+
+// judgedRuntimeProof is the list runtime-proof.yml passes (#830): the display
+// names of the two jobs that measure, as the jobs API reports them — runtime
+// is a matrix over incus/incus-ovn, stacks over its control leg. Measured on
+// run 43353368876 (2026-11-13), the run the race-night fixtures are built
+// from.
+const judgedRuntimeProof = "incus\nincus-ovn\nstacks (incus-ovn)\nstacks (incus-ovn, last release)"
+
+// A red auxiliary job running beside the report must not decide the verdict
+// (#830). The payloads are the same night — run 43353368876, every proof
+// job green — with one auxiliary job flipped to failure and no failing step.
+// race-night-completed and race-night-running differ in exactly one field,
+// the streak job's status; race-night-verdict-red flips the other auxiliary
+// job instead, since verdict sits in the same race. Without the judged list
+// the first two produced opposite verdicts, red when completed and green
+// while still running, which is the race the issue measures over fourteen
+// nights; with it, all three must agree, and agree green.
+func TestARedAuxiliaryJobBesideTheReportDoesNotDecideTheVerdict(t *testing.T) {
+	for _, night := range []string{"race-night-completed", "race-night-running", "race-night-verdict-red"} {
+		code, out, calls := runReportJudged(t, night, "43353368876", noOpenIssue, true, judgedRuntimeProof)
+		if code != 0 {
+			t.Fatalf("%s: exit %d:\n%s", night, code, out)
+		}
+		if !strings.Contains(out, "verdict: green") {
+			t.Errorf("%s: an auxiliary job red beside the report still decides the verdict:\n%s", night, out)
+		}
+		if calls != "" {
+			t.Errorf("%s: a night whose proof jobs are green still wrote something:\n%s", night, calls)
+		}
+	}
+}
+
+// And the control the other way: the judged list must not blind the script
+// to a real red. race-night-red is the same night with the incus job failing
+// on a step, and the streak job red beside it as above. The verdict must be
+// red, it must name the step, and it must not name the streak job at all —
+// the auxiliary red is ignored, the measured red is reported.
+func TestAJudgedListStillMeasuresTheJobsItNames(t *testing.T) {
+	code, out, calls := runReportJudged(t, "race-night-red", "43353368876", noOpenIssue, true, judgedRuntimeProof)
+	if code != 0 {
+		t.Fatalf("exit %d:\n%s", code, out)
+	}
+	if !strings.Contains(out, "verdict: red") {
+		t.Fatalf("a judged job failing on a step is not a red night:\n%s", out)
+	}
+	if !strings.Contains(out, "- step `Scaleway ssh suite` — job `incus`") {
+		t.Errorf("the report does not name the failed step and job:\n%s", out)
+	}
+	if strings.Contains(out, "Consecutive green scheduled runs") {
+		t.Errorf("the report names the auxiliary job whose red it must ignore:\n%s", out)
+	}
+	if !strings.Contains(calls, "issue create") {
+		t.Errorf("the red night did not open the issue:\n%s", calls)
+	}
+}
+
+// A judged name that matches no job of the run is an error, not a green
+// night: a renamed job would otherwise narrow the verdict silently, and the
+// silence would read exactly like a green night.
+func TestAJudgedJobThatNeverRanIsAnErrorNotAGreenNight(t *testing.T) {
+	code, out, _ := runReportJudged(t, "race-night-completed", "43353368876", noOpenIssue, false, "incus\nno-such-job")
+	if code == 0 {
+		t.Fatalf("a judged list naming a job that never ran was accepted:\n%s", out)
+	}
+	if !strings.Contains(out, "no-such-job") {
+		t.Errorf("the failure does not name the missing job:\n%s", out)
 	}
 }

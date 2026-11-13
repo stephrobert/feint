@@ -17,7 +17,9 @@
 #   - tools/ci/night_report_test.go drives it with a stubbed `gh` over
 #     field-trimmed payloads of real runs of runtime-proof.yml — a red night
 #     (32924409224), a green one (32441329459) and a cancellation with no
-#     failing step (31716251612);
+#     failing step (31716251612), plus a night where an auxiliary job is red
+#     beside the report (43353368876, three times: the streak job completed
+#     and still running, and the verdict job red — #830);
 #   - tools/falsify/specs/a-red-night-opens-an-issue.json replays those tests
 #     with each decision neutralised, so a mutation that silences the report
 #     makes a named test fail.
@@ -30,7 +32,9 @@
 # --apply; a human proving the script points it at any past run and reads.
 #
 # Environment: GITHUB_REPOSITORY (owner/repo, required), GH_TOKEN (for gh),
-# NIGHT_STREAK_TARGET (optional; empty hides the target sentence).
+# NIGHT_STREAK_TARGET (optional; empty hides the target sentence),
+# NIGHT_JUDGED_JOBS (optional; one job display name per line — empty judges
+# every completed job, as before).
 set -euo pipefail
 
 usage() {
@@ -61,8 +65,31 @@ run_date="${run_created%%T*}"
 # The run's jobs, completed ones only: when this runs inside the run it judges
 # (needs: on the measuring jobs), its own job is still in_progress and must not
 # sit in its own verdict.
+#
+# NIGHT_JUDGED_JOBS names the jobs whose conclusion is the verdict, one display
+# name per line, as the jobs API reports them. A caller that waits for every
+# other job of its workflow leaves it empty and the verdict reads every
+# completed job, as before. A caller with a job running beside the report —
+# runtime-proof.yml's streak and verdict — sets it, and every other job is
+# ignored whatever its status (#830): a verdict that depends on whether an
+# auxiliary job happened to finish before this call is a verdict by lot. A
+# name that matches no job of the run is an error, not a green night: a
+# renamed job would otherwise narrow the verdict silently.
 jobs_json="$(gh api --paginate "repos/${repo}/actions/runs/${run_id}/jobs?per_page=100" \
-  | jq -s '[.[].jobs[] | select(.status == "completed")]')"
+  | jq -s '[.[].jobs[]]')"
+if [ -n "${NIGHT_JUDGED_JOBS:-}" ]; then
+  missing="$(jq -r --arg judged "${NIGHT_JUDGED_JOBS}" '
+    ($judged | split("\n") | map(select(length > 0))) as $names
+    | ($names - [.[].name]) | join(", ")' <<<"${jobs_json}")"
+  if [ -n "${missing}" ]; then
+    echo "FAIL: judged job(s) not found in run ${run_id}: ${missing}; the judged list no longer matches this workflow." >&2
+    exit 1
+  fi
+  jobs_json="$(jq --arg judged "${NIGHT_JUDGED_JOBS}" '
+    ($judged | split("\n") | map(select(length > 0))) as $names
+    | map(select(.name as $n | $names | index($n) != null))' <<<"${jobs_json}")"
+fi
+jobs_json="$(jq '[.[] | select(.status == "completed")]' <<<"${jobs_json}")"
 
 # Three outcomes, never two (measurement-integrity): a run with no completed
 # job is not green and not red — it is a run this script cannot judge, and

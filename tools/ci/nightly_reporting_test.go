@@ -115,6 +115,81 @@ func TestEveryScheduledWorkflowReportsOrSaysWhyNot(t *testing.T) {
 	}
 }
 
+// TestANightReportCallerWaitsForEveryJobOrNamesTheOnesItJudges is the static
+// half of #830: a job that calls night-report.yml either waits for every other
+// job of its workflow, or the script is told which jobs to judge. The verdict
+// reads the run it is part of, and a job running beside the report enters the
+// verdict or not depending on a few seconds — the race the issue measures over
+// fourteen nights. Five of the six callers satisfy the first half today; the
+// sixth, runtime-proof.yml, passes judged-jobs.
+func TestANightReportCallerWaitsForEveryJobOrNamesTheOnesItJudges(t *testing.T) {
+	dir := filepath.Join("..", "..", ".github", "workflows")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("read the workflow directory: %v", err)
+	}
+
+	needsList := regexp.MustCompile(`(?m)^\s+needs:\s*\[([^\]]+)\]`)
+	needsOne := regexp.MustCompile(`(?m)^\s+needs:\s*([A-Za-z0-9_-]+)\s*$`)
+	jobKey := regexp.MustCompile(`(?m)^  ([A-Za-z0-9_-]+):$`)
+
+	callers := 0
+
+	for _, entry := range entries {
+		name := entry.Name()
+		if !strings.HasSuffix(name, ".yml") || name == "night-report.yml" {
+			continue
+		}
+		body, err := os.ReadFile(filepath.Join(dir, name))
+		if err != nil {
+			t.Fatalf("read %s: %v", name, err)
+		}
+		workflow := string(body)
+		jobsAt := strings.Index(workflow, "\njobs:\n")
+		if jobsAt < 0 {
+			continue
+		}
+		var ids []string
+		for _, m := range jobKey.FindAllStringSubmatch(workflow[jobsAt:], -1) {
+			ids = append(ids, m[1])
+		}
+		for _, id := range ids {
+			section := jobSection(workflow, id)
+			if !strings.Contains(section, "uses: ./.github/workflows/night-report.yml") {
+				continue
+			}
+			callers++
+			// The jobs this reporter waits for, in either spelling of needs:.
+			waited := map[string]bool{}
+			if m := needsList.FindStringSubmatch(section); m != nil {
+				for _, job := range strings.Split(m[1], ",") {
+					waited[strings.TrimSpace(job)] = true
+				}
+			} else if m := needsOne.FindStringSubmatch(section); m != nil {
+				waited[m[1]] = true
+			}
+			var beside []string
+			for _, other := range ids {
+				if other != id && !waited[other] {
+					beside = append(beside, other)
+				}
+			}
+			if len(beside) > 0 && !strings.Contains(section, "judged-jobs:") {
+				t.Errorf("%s: the %s job runs beside %s without waiting for them and passes no judged-jobs list: "+
+					"a job finishing beside the report enters the verdict or not depending on a few seconds (#830)",
+					name, id, strings.Join(beside, ", "))
+			}
+		}
+	}
+
+	// The accepting half: without it, a pattern that matched no caller at all
+	// would pass every case above and this test would assert nothing.
+	if callers < 6 {
+		t.Fatalf("only %d night-report caller(s) found, want at least 6: the caller pattern has "+
+			"stopped matching and this test is measuring an empty set", callers)
+	}
+}
+
 // TestTheFalsifySuiteIsGivenTimeToFinish holds the other half of #737.
 //
 // The budget is not a preference: 1271 mutations, each a tree copy plus a build

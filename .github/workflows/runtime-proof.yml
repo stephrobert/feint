@@ -1159,3 +1159,14 @@ jobs:
       # The promotion criterion of #125, the number the `streak` job above
       # publishes; the issue carries it so nobody has to open a summary.
       streak-target: '14'
+      # The two jobs that measure, by the display names the jobs API reports
+      # (#830): runtime is a matrix over incus/incus-ovn, stacks over its
+      # control leg. streak and verdict run beside this job and must not enter
+      # the verdict whatever their status — update this list when a measured
+      # job is renamed or its matrix gains a leg, or the script refuses the
+      # night rather than judging a narrowed population.
+      judged-jobs: |
+        incus
+        incus-ovn
+        stacks (incus-ovn)
+        stacks (incus-ovn, last release)
