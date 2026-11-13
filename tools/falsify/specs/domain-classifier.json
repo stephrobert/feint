@@ -1,0 +1,20 @@
+{
+ "package": "./internal/cli/",
+ "note": "The subject is #874: an upstream operation that matches no domain is counted in no parity issue, and nothing says so. The classifier is data in coverage/domains.json, and the guard is TestEveryOperationHasExactlyOneDomain, which fails in both directions — an operation with no domain, and a domain entry naming an operation the record does not have. There is one mutation per direction, because a direction nothing falsifies is a comment.\n\nThe first mutation removes one product's entries whole — the baremetal pair, the smallest product with more than one operation (marketplace/v2 and scw have one each) — rather than one operation. #874's falsification is stated per product (\"remove the classifier entry for one product\"), and a single operation going missing is the typo class, not the product-mounted-without-an-owner class the test exists for. The fragment carries the operations array's opener and leaves it standing: the harness refuses an empty replacement, so the opener is the anchor and the two entries are what leaves. The two baremetal lines are the first two entries of the machines domain, so removing them leaves valid JSON; the fragment is two string literals, which carry no identifiers, so the harness's dropped-identifier rule does not apply.\n\nNothing else produces the same red, and that is checked rather than assumed: the harness runs the named test alone (go test -run), coverage/domains.json is read by this test and by nothing else in the repository, and baremetal is a product of Scaleway, whose other 202 served operations stay, so no provider count moves — the trap #874's comment warns about.\n\nThe second mutation is the other direction, isolated: it ADDS one operation the record does not hold, so the classifier still owns all 409 and only the stale-entry assertion can fire. Adding rather than deleting on this side is deliberate. A classifier entry goes stale either because the operation left upstream or because a hand edit misspelled it, and the classifier is hand-written, so the typo is the live risk. The alternative — deleting the operation's entry from coverage/evidence.json — reddens the same assertion, and was rejected for a harness reason: the fragment would have to pin seven generated axis values of a record that evidence:update rewrites, and falsify --lint runs in prepush, so the next run of evidence:update would turn somebody else's push red with a dead fragment.",
+ "mutations": [
+  {
+   "label": "one product's classifier entries are removed, so its operations match no domain and are counted in no parity issue. The test must go red naming both baremetal operations",
+   "file": "coverage/domains.json",
+   "find": "      \"operations\": [\n        \"baremetal/v1/API.ListOffers\",\n        \"baremetal/v1/API.ListServers\",\n",
+   "replace": "      \"operations\": [\n",
+   "test": "TestEveryOperationHasExactlyOneDomain"
+  },
+  {
+   "label": "the classifier names an operation the record does not hold, the way a hand-filed name goes stale. Every served operation still has a domain, so only the stale-entry direction can redden, and it must name baremetal/v1/API.ListOffersV2",
+   "file": "coverage/domains.json",
+   "find": "        \"baremetal/v1/API.ListOffers\",\n",
+   "replace": "        \"baremetal/v1/API.ListOffers\",\n        \"baremetal/v1/API.ListOffersV2\",\n",
+   "test": "TestEveryOperationHasExactlyOneDomain"
+  }
+ ]
+}
