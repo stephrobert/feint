@@ -31,6 +31,13 @@ ENDPOINT="${1:-http://127.0.0.1:4599}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
+# Resolved here rather than where it is used, and that is the whole point:
+# the expression is relative to the script's own file, so it has to be made
+# absolute while the working directory is still the one the caller started
+# in. Placed next to the first use, it ran after a `cd` and answered "No such
+# file or directory" on tools/conformance/<provider>/../../ci (#895).
+TF_RETRY="$(cd "$(dirname "${BASH_SOURCE[0]}")/../ci" && pwd)/tf-retry.sh"
+
 # Never let a client reach anything but the local emulator. Without this, a
 # missing endpoint does not fail: every official client falls back to the
 # operator's stored credentials, and a test creates billable resources on a real
@@ -159,7 +166,11 @@ run_stack() { # name
   export TF_IN_AUTOMATION=1 TF_INPUT=0
 
   echo "- $name: init and apply"
-  "$TF" init -no-color -upgrade >/dev/null || fail "$name: init failed"
+  # leg on a change that touched no route (#895), and the version the engine
+  # resolved reached no log at all, so no green run could be attributed to
+  # one (#899). The wrapper survives the first and prints the second.
+  "$TF_RETRY" "$TF" "$name" init -no-color -upgrade \
+    || fail "$name: init failed"
   "$TF" apply -no-color -auto-approve ${VARS[@]+"${VARS[@]}"} >/dev/null \
     || fail "$name: apply failed"
   ok "applied"
