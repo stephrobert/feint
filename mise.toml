@@ -240,21 +240,12 @@ sync() {
 sync https://github.com/scaleway/scaleway-sdk-go.git "$FEINT_SDK_SCALEWAY"
 sync https://github.com/outscale/osc-sdk-go.git "$FEINT_SDK_OUTSCALE"
 
-# Exoscale ships no OpenAPI document inside its SDK; it publishes one, and their
-# own Go SDK is generated from it. So the document is the source here, the way a
-# checkout is for the other two.
-curl -sSfL https://openapi-v2.exoscale.com/source.yaml -o "$FEINT_SPEC_EXOSCALE"
-
-# Scaleway publishes one document per product, as the "Download schema" link of
-# each product page. No repository carries them and there is no machine-readable
-# index, so tools/contract/scaleway-products.txt is the index.
-mkdir -p "$FEINT_SPEC_SCALEWAY"
-# The second field, when a line carries one, is the SDK name the contract uses;
-# only the first names the portal download (tools/contract/scaleway-products.txt).
-grep -v '^\\s*#' tools/contract/scaleway-products.txt | grep -v '^\\s*$' | while read -r product _sdkname; do
-  curl -sSfL "https://www.scaleway.com/en/developers/api/$product/schema.yml" \\
-    -o "$FEINT_SPEC_SCALEWAY/$(echo "$product" | tr / -).yml"
-done
+# The published documents, in tools/contract/documents.sh rather than here.
+# The drift workflow needs exactly these two fetches and cannot run `mise`, so a
+# copy of them lived on a runner that never had one: measured on the scheduled
+# run of 2026-11-13, the extraction died on the Exoscale document it could not
+# open, and had never produced a complete result in CI (#901).
+tools/contract/documents.sh
 """
 
 # The Scaleway gate is restricted to the products the emulator has started:

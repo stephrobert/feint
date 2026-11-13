@@ -1,0 +1,27 @@
+{
+ "package": "./tools/ci/",
+ "note": "The subject is the drift night fetching the documents it then extracts.\n\ntools/contract/update.sh reads three sources and only two are git repositories: Exoscale publishes one OpenAPI document and Scaleway one per product, both over HTTP, both fetched by `mise run upstream:sync` — which a GitHub runner does not run, since mise is not installed there. So the nightly ran the extraction against files that were never on the machine.\n\nMeasured on the scheduled run of 2026-11-13 (43344711412): the extraction got through Outscale, printing `outscale api 1.43.2, 236 operations, 656 schemas`, then died with `FileNotFoundError: '.upstream/exoscale-openapi.yaml'`. It had never produced a complete result in CI, and the step runs under continue-on-error, so the failure left the contracts half of the mechanism measuring nothing while the night stayed green. The health job added in #892 is what made it visible, on its first real night (#901).\n\nThree mutations. The order is the half a presence check would miss, and it is expressed here by swapping the two step names rather than moving a block, which is what a single fragment can do; the move itself was run by hand and the assertion fires with `the documents are fetched after the step that extracts them`.",
+ "mutations": [
+  {
+   "label": "the fetch step is commented out, which is the state the workflow was in until 2026-11-13: the extraction then reads files that are in neither checkout and dies on the first of them, quietly, under continue-on-error",
+   "file": ".github/workflows/drift.yml",
+   "find": "      - name: Fetch the published API documents\n        id: documents\n        run: tools/contract/documents.sh\n",
+   "replace": "      # - name: Fetch the published API documents\n      #   id: documents\n      #   run: tools/contract/documents.sh\n",
+   "test": "TestTheDriftNightFetchesTheDocumentsItExtracts"
+  },
+  {
+   "label": "the two step names are swapped, so the fetch happens after the extraction. The step still exists and still runs, which is exactly what a presence check would accept; a fetch that runs after the thing that reads changes nothing",
+   "file": ".github/workflows/drift.yml",
+   "find": "      - name: Fetch the published API documents\n        id: documents\n        run: tools/contract/documents.sh\n\n      - name: Refresh the API descriptions\n",
+   "replace": "      - name: Refresh the API descriptions\n        id: documents\n        run: tools/contract/documents.sh\n\n      - name: Fetch the published API documents\n",
+   "test": "TestTheDriftNightFetchesTheDocumentsItExtracts"
+  },
+  {
+   "label": "upstream:sync takes back its own copy of the Exoscale fetch, so a workstation and a runner get the documents by two procedures. The same procedure written twice drifts, and the copy that drifts is the one nobody runs by hand — the rule tools/drift/gate.sh was written to end",
+   "file": "mise.toml",
+   "find": "tools/contract/documents.sh\n",
+   "replace": "curl -sSfL https://openapi-v2.exoscale.com/source.yaml -o \"$FEINT_SPEC_EXOSCALE\"\n# tools/contract/documents.sh\n",
+   "test": "TestTheDriftNightFetchesTheDocumentsItExtracts"
+  }
+ ]
+}
