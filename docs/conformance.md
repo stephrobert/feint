@@ -222,7 +222,10 @@ publishing a smaller truth quietly.
 ### An injected refusal is not evidence
 
 The emulator can be made to refuse on purpose: `PUT /_feint/faults` arms a rule
-naming an operation and a status, off by default, deterministic, cleared by a
+naming an operation and a status, off by default, deterministic under a client
+that does not parallelise (the schedule counts arrivals:
+[limits.md](limits.md#a-fault-schedule-counts-arrivals-and-no-client-sends-an-identity-to-replay-851)),
+cleared by a
 `DELETE`. It exists because `negative` stood at 34 of 357 while every other axis
 stood far above it — this emulator proved what its routes answer when everything
 goes well and almost nothing about what they answer when it does not,

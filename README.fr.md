@@ -579,9 +579,28 @@ curl -s localhost:4599/_feint/faults | jq '.faults[].hits'   # 2
 curl -X DELETE localhost:4599/_feint/faults
 ```
 
+Ou le verbe, qui fait la même chose et relit le reçu :
+
+```bash
+feint fault add instance/v1/API.ListServers --status 503 --nth 3
+scw instance server list zone=fr-par-1     # répond
+scw instance server list zone=fr-par-1     # répond
+scw instance server list zone=fr-par-1     # 503
+feint fault list        # ... call 3 answered 503
+feint fault clear
+```
+
+`--nth` nomme un appel, `--times` les N premiers ; les deux ensemble sont
+refusés, parce qu'ils n'ont pas de lecture unique. Le rang compte les
+**arrivées**, donc il se reproduit sous un client qui ne parallélise pas et
+nulle part ailleurs :
+[docs/limits.md](docs/limits.md#a-fault-schedule-counts-arrivals-and-no-client-sends-an-identity-to-replay-851)
+mesure pourquoi aucun client n'envoie mieux.
+
 Quatre propriétés, et chacune est un refus dans le code plutôt qu'une promesse
-ici. **Éteint par défaut** : un émulateur neuf n'arme rien. **Déterministe** :
-« les N premiers appels de cette opération », jamais une probabilité, parce
+ici. **Éteint par défaut** : un émulateur neuf n'arme rien. **Déterministe sous un
+seul client** : « les N premiers appels de cette opération » ou « le N-ième
+appel » (`--times`, `--nth`), jamais une probabilité, parce
 qu'une faute qui se déclenche au hasard ne peut pas être le sujet d'un test.
 **Par opération**, au nom amont que publie `/_feint/routes`, et une règle qui
 nomme une opération que rien ne sert est refusée à l'écriture plutôt que muette

@@ -741,9 +741,27 @@ curl -s localhost:4599/_feint/faults | jq '.faults[].hits'   # 2
 curl -X DELETE localhost:4599/_feint/faults
 ```
 
+Or the verb, which does the same and reads the receipt back:
+
+```bash
+feint fault add instance/v1/API.ListServers --status 503 --nth 3
+scw instance server list zone=fr-par-1     # answers
+scw instance server list zone=fr-par-1     # answers
+scw instance server list zone=fr-par-1     # 503
+feint fault list        # ... call 3 answered 503
+feint fault clear
+```
+
+`--nth` names one call, `--times` the first N; the two together are refused,
+because they have no single reading. The rank counts **arrivals**, so it
+reproduces under a client that does not parallelise and nowhere else —
+[docs/limits.md](docs/limits.md#a-fault-schedule-counts-arrivals-and-no-client-sends-an-identity-to-replay-851)
+measures why no client sends anything better.
+
 Four properties, and each is a refusal somewhere in the code rather than a
 promise here. **Off by default** — a fresh emulator arms nothing.
-**Deterministic** — "the first N calls of this operation", never a probability,
+**Deterministic under one client** — "the first N calls of this operation" or
+  "the Nth call" (`--times`, `--nth`), never a probability,
 because a fault that fires at random cannot be the subject of a test. **Per
 operation**, at the upstream name `/_feint/routes` publishes, and a rule naming
 an operation nothing serves is refused when you write it rather than never

@@ -2145,7 +2145,8 @@ identity exists. It does not exist.
 
 Measured on 2026-11-13 across the 1088 exchanges in `corpus/`, which are
 recordings of real traffic from the official clients. The complete set of
-request header names any of them sends is nine:
+recorded request header names is nine — `Host` has a field of its own, and is
+not an identity:
 
 | header | exchanges |
 |---|--:|
@@ -2182,8 +2183,9 @@ Per provider, and each one read rather than assumed:
 Two reasons, both measured here rather than reasoned about.
 
 **It confuses identical polls.** In `corpus/scaleway/terraform.jsonl`,
-`GET /vpc/v2/regions/fr-par/vpcs/{id}` appears four times with the same method,
-the same path, no query and an empty body. A request hash gives one identity for
+`vpc/v2/API.GetVPC` appears five times with the same method, the same path, no
+query and an empty body, out of sixteen exchanges — and `GetPrivateNetwork`
+does the same. A request hash gives one identity for
 four distinct calls, and the SDK's wait loops repeat the same GET on purpose.
 
 **It turns "fail once" into "fail forever".** A retry carries exactly the same
@@ -2204,7 +2206,15 @@ Refused: a seeded mode. It would be a sentence this project cannot hold, and
 the whole of `docs/confidence.md` exists so that no such sentence is written.
 
 It goes the day an official client sends something stable, which is a change
-upstream and not here. The drift scan is what would notice.
+upstream and not here.
+
+**And nothing here would notice.** The drift scan reads the SDK's operation
+surface — `Operation{Name, Product, Version, Group}` — and never a request
+header; no gate in `tools/` compares the header names of one recording to the
+next. A client that started sending `X-Idempotency-Key` would pass unremarked.
+What would see it is a fresh `feint proxy` recording added to `corpus/` and
+read by a person. Said plainly, because naming an instrument that does not
+carry the measurement is how a limit outlives its truth.
 
 ### Two `feint fault add` at once can lose a rule
 
