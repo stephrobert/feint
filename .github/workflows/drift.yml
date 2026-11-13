@@ -180,6 +180,23 @@ jobs:
       # appears there weeks before it reaches a Go SDK release — so the two drift
       # apart legitimately, and only watching both catches a response shape that
       # changed under the emulator.
+      # The documents the extraction reads, which are not in either checkout.
+      #
+      # Exoscale publishes one OpenAPI document and Scaleway one per product,
+      # both over HTTP; only the two Go SDKs arrive by actions/checkout above.
+      # `mise run upstream:sync` fetches them on a workstation and mise is not
+      # installed here, so until 2026-11-13 this job ran the extraction against
+      # files that did not exist and it died on the first of them — every night,
+      # under continue-on-error, while the night stayed green. #892's health job
+      # is what made it visible (#901).
+      #
+      # The same script the mise task runs, never a second copy of its two
+      # fetches: that is the rule tools/drift/gate.sh states for the same
+      # reason, and this job is where the copy would have rotted unseen.
+      - name: Fetch the published API documents
+        id: documents
+        run: tools/contract/documents.sh
+
       - name: Refresh the API descriptions
         id: contracts
         continue-on-error: true
