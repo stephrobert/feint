@@ -125,7 +125,16 @@ const (
 	// often it has. It is frozen from the start rather than "once it settles",
 	// because a suite that arms a fault from a committed file is a consumer on
 	// day one — the same reasoning that put the other four here.
-	FaultsSchemaVersion = 1
+	//
+	// 2 adds the call rank (#851): `nth` on a rule, `calls` beside `hits` in
+	// the view, and the receipt — `fired`, in arrival order, naming which call
+	// each firing hit, whether the client stayed for the answer (`abandoned`),
+	// and how many firings the cap refused (`fired_dropped`).
+	//
+	// A consumer reading version 1 sees how often a rule fired; it cannot see
+	// *which* call was hit, and "hits: 2" is true of a rule that answered calls
+	// 1 and 2 and of one that answered calls 3 and 7.
+	FaultsSchemaVersion = 2
 	// CheckpointSchemaVersion is the shape of POST /_feint/checkpoint/{name},
 	// DELETE /_feint/checkpoint/{name} and POST /_feint/reset/{name}.
 	//

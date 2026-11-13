@@ -137,6 +137,35 @@ scw instance server list zone=fr-par-1 </dev/null >/dev/null 2>&1 \
 [ "$(hits instance/v1/API.ListServers)" = "2" ] \
   || fail "the 429 rule fired $(hits instance/v1/API.ListServers) times, want exactly 2"
 ok "scw retried through two 429s and completed"
+disarm
+
+# A schedule, and the receipt that says which call it hit (#851).
+#
+# The rule names the third call and no other. Driven by the real client, so the
+# claim is not "the unit test agrees with itself": scw makes three list calls,
+# the first two answer and the third does not, and the receipt names the rank.
+#
+# This is the only place a real client exercises `nth` and `fired`, and without
+# it the whole schedule rests on unit tests and a frozen fixture.
+echo "- a rule can name the third call, and the receipt says which one it hit"
+arm "$RULES_DIR/third-call.json"
+for n in 1 2; do
+  scw instance server list zone=fr-par-1 </dev/null >/dev/null 2>&1 \
+    || fail "call $n of the campaign failed, and only the third should"
+done
+if scw instance server list zone=fr-par-1 </dev/null >/dev/null 2>&1; then
+  fail "the third call succeeded; the rule named it and did not fire"
+fi
+[ "$(hits instance/v1/API.ListServers)" = "1" ] \
+  || fail "the nth rule fired $(hits instance/v1/API.ListServers) times, want exactly 1"
+rank="$(curl -sf "$ENDPOINT/_feint/faults" | jq -r '.fired[0].rank')"
+[ "$rank" = "3" ] \
+  || fail "the receipt says the firing hit call $rank, want 3"
+calls="$(curl -sf "$ENDPOINT/_feint/faults" | jq -r '.faults[0].calls')"
+[ "$calls" = "3" ] \
+  || fail "the rule saw $calls call(s), want 3: a declined call must still be counted"
+ok "scw: calls 1 and 2 answered, call 3 refused, and the receipt names rank 3"
+
 
 # --------------------------------------------------------------- Outscale ---
 set -a

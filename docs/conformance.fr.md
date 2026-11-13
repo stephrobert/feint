@@ -181,7 +181,10 @@ plus petite.
 ### Une faute injectée n'est pas une preuve
 
 L'émulateur sait refuser à dessein : `PUT /_feint/faults` arme une règle qui
-nomme une opération et un statut, éteinte par défaut, déterministe, effacée par
+nomme une opération et un statut, éteinte par défaut, déterministe sous un
+client qui ne parallélise pas (la planification compte les arrivées :
+[limits.md](limits.md#a-fault-schedule-counts-arrivals-and-no-client-sends-an-identity-to-replay-851)),
+effacée par
 un `DELETE`. Elle existe parce que `negative` tenait à 34 sur 357 quand tous les
 autres axes se tenaient loin au-dessus : cet émulateur prouvait ce que ses routes
 répondent quand tout va bien et presque rien de ce qu'elles répondent quand ça se

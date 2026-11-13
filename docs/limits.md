@@ -2132,6 +2132,116 @@ whatever the caller sent, and clearing it makes the same request succeed. An
 injected refusal proves what the *client* does with a refusal, never that this
 emulator — or the real cloud — would refuse that call.
 
+## A fault schedule counts arrivals, and no client sends an identity to replay (#851)
+
+`nth` on a fault rule answers the Nth call to an operation and no other. **The
+rank is arrival order.** Under one sequential client it reproduces; under two
+calls in flight at once it does not, and nothing here can make it.
+
+#851 asked for seeded campaigns whose outcome is a pure function of stable
+inputs — seed, operation, a stable request identity, a named decision point —
+and said the CLI must say so rather than pretend reproducibility when no such
+identity exists. It does not exist.
+
+Measured on 2026-11-13 across the 1088 exchanges in `corpus/`, which are
+recordings of real traffic from the official clients. The complete set of
+recorded request header names is nine — `Host` has a field of its own, and is
+not an identity:
+
+| header | exchanges |
+|---|--:|
+| `User-Agent` | 1088 |
+| `Authorization` | 704 |
+| `Accept-Encoding` | 622 |
+| `Content-Length` | 592 |
+| `Content-Type` | 592 |
+| `Accept` | 466 |
+| `X-Amz-Date` | 466 |
+| `X-Auth-Token` | 384 |
+| `Connection` | 1 |
+
+None is minted by the client. The absence counts as evidence because
+`internal/proxy/redact.go` never removes a header *name*, only its value — its
+own comment says what matters is *which* headers a client sent, and that the
+name always survives. An `X-Idempotency-Key` would have left its name in the
+recording.
+
+Per provider, and each one read rather than assumed:
+
+- **Scaleway** — the SDK builds its headers in `scw/request_header.go`: auth,
+  `User-Agent`, `Content-Type`. The `X-Request-Id` the corpus carries is in the
+  response headers, minted by the cloud.
+- **Outscale** — `contracts/outscale.json` does declare a `ClientToken` on
+  `CreateVms`, `CreateVolume`, `CreateSnapshot` and `CreateNatService`.
+  `oapi-cli` never sends it: zero occurrences across all five recordings. The
+  only per-request varying field is `X-Amz-Date`, a wall clock.
+- **Exoscale** — the `request-id` in the OpenAPI document is a property of the
+  `event` schema, the server-side audit log. Nothing on the request carries it.
+
+### Why a content-derived identity is not the way out
+
+Two reasons, both measured here rather than reasoned about.
+
+**It confuses identical polls.** In `corpus/scaleway/terraform.jsonl`,
+`vpc/v2/API.GetVPC` appears five times with the same method, the same path, no
+query and an empty body, out of sixteen exchanges — and `GetPrivateNetwork`
+does the same. A request hash gives one identity for
+four distinct calls, and the SDK's wait loops repeat the same GET on purpose.
+
+**It turns "fail once" into "fail forever".** A retry carries exactly the same
+identity as the call it retries, so a rule keyed on content would fire on every
+attempt and the client would loop. That breaks the one acceptance criterion this
+feature exists for: a real client recovering from a measured retryable fault.
+
+The path is not stable either: identifiers come from `crypto/rand`, so the
+`{id}` in a URL differs between two runs of the same suite.
+
+### What is served, and what is refused
+
+Served: deterministic schedules under a client that does not parallelise, and a
+receipt — which rule fired, against which operation and rank, with what status —
+which records what happened rather than promising what will happen again.
+
+Refused: a seeded mode. It would be a sentence this project cannot hold, and
+the whole of `docs/confidence.md` exists so that no such sentence is written.
+
+It goes the day an official client sends something stable, which is a change
+upstream and not here.
+
+**And nothing here would notice.** The drift scan reads the SDK's operation
+surface — `Operation{Name, Product, Version, Group}` — and never a request
+header; no gate in `tools/` compares the header names of one recording to the
+next. A client that started sending `X-Idempotency-Key` would pass unremarked.
+What would see it is a fresh `feint proxy` recording added to `corpus/` and
+read by a person. Said plainly, because naming an instrument that does not
+carry the measurement is how a limit outlives its truth.
+
+### Two `feint fault add` at once can lose a rule
+
+`PUT /_feint/faults` replaces the whole set, so `add` reads the armed set,
+appends to it and writes the result back. Two `add` running at the same time can
+therefore each write a set built from what they read before the other wrote: the
+loser's rule is gone, and nothing says so. The population is an operator at a
+terminal, where this does not happen; it is written here rather than left in a
+code comment, because a limit in a comment is not a limit anybody finds.
+
+A campaign armed from a committed file is the shape that avoids it entirely: one
+`PUT`, one set, whatever ran before.
+
+### Arming again restarts every campaign
+
+`PUT` rebuilds the rules, so the call counters go back to zero — including those
+of rules the new set keeps unchanged. Arming a second rule in the middle of a
+`--nth 3` campaign therefore makes that rule wait for three *more* calls, and
+the call that would have been the third answers normally.
+
+The receipt is cleared with them, for the reason above: a line from a campaign
+that is gone would read as part of this one.
+
+So a campaign is armed once, from one document. `feint fault add` is for
+building that document before the run, not for changing it during one.
+
+
 ## Docker was removed: it cannot back an emulated network
 
 Feint shipped a Docker driver and no longer does. Incus is the only machine

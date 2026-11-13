@@ -26,6 +26,25 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Added
 
+- The fault schedule's rank is arrival order, and `docs/limits.md` says so:
+  no official client sends a request identity that would survive a replay,
+  measured across the 1088 exchanges in `corpus/`. A seeded mode is refused
+  rather than promised.
+- **A fault rule can name the call it answers** (#851): `nth` fires on the
+  Nth call to an operation and no other. The rank counts every call the
+  rule saw, declined ones included, which the hit count could not.
+  `/_feint/faults` gains `nth` and `calls` per rule and a `fired` receipt in
+  arrival order, naming which call each firing hit, whether the client stayed
+  for the answer, and how many firings the cap refused — schema version 2. The rank is arrival
+  order, not a replay key, and the field's own documentation says so.
+- **`feint fault`, the verb over that injector** (#851): `fault list` prints
+  what is armed and the receipt, `fault add <operation>` arms one more rule
+  with `--status`, `--delay`, `--nth`, `--times` and `--truncate`, and
+  `fault clear` disarms everything. `add` reads the armed set and writes it
+  back with the new rule, because `PUT /_feint/faults` replaces the whole
+  set. Every bound stays in the emulator, which refuses a rule when it is
+  written; the verb prints the sentence it refused with. CLI surface
+  version 34.
 - **A product coverage index at the top of `docs/limits.md`** (#872).
   `coverage/*.json` gains an additive `unscanned` field — the products the scan
   actually saw upstream declare but the `--products` restriction excluded — so

@@ -31,7 +31,7 @@
 >
 > **Prouvé** : 384 des 409 opérations montées sont pilotées par un vrai client, à chaque pull request. `scw`, `octl`, `exo`, Terraform et OpenTofu tournent contre l'émulateur en CI. Et chaque nuit, les machines démarrent réellement : connexion ssh sur le compte par défaut de chaque provider, pare-feu qui filtre, et subnets isolés sous `incus-ovn`, le seul mode qui le déclare. Démarrer des machines demande un runtime que le chemin des pull requests n'a pas. La chaîne complète est décrite dans [docs/conformance.md](docs/conformance.md).
 >
-> **Pas prouvé** : quotas, prix, capacité réelle, validation des identifiants, authentification, cohérence à terme. Les 62 sections de [docs/limits.md](docs/limits.md) disent chacune ce qu'elle coûte. Un émulateur avec un seul compte implicite et aucune grille tarifaire devrait inventer ces chiffres, et quelqu'un agirait dessus.
+> **Pas prouvé** : quotas, prix, capacité réelle, validation des identifiants, authentification, cohérence à terme. Les 63 sections de [docs/limits.md](docs/limits.md) disent chacune ce qu'elle coûte. Un émulateur avec un seul compte implicite et aucune grille tarifaire devrait inventer ces chiffres, et quelqu'un agirait dessus.
 >
 > **Inconnu** : 25 opérations sont montées et n'ont jamais été pilotées par un client. Chacune dit pourquoi aucun client officiel ne l'atteint, à la route et dans [docs/routes.md](docs/routes.md). Elles sont comptées plutôt qu'escamotées, une par une, dans [coverage/evidence.json](coverage/evidence.json).
 >
@@ -579,9 +579,28 @@ curl -s localhost:4599/_feint/faults | jq '.faults[].hits'   # 2
 curl -X DELETE localhost:4599/_feint/faults
 ```
 
+Ou le verbe, qui fait la même chose et relit le reçu :
+
+```bash
+feint fault add instance/v1/API.ListServers --status 503 --nth 3
+scw instance server list zone=fr-par-1     # répond
+scw instance server list zone=fr-par-1     # répond
+scw instance server list zone=fr-par-1     # 503
+feint fault list        # ... call 3 answered 503
+feint fault clear
+```
+
+`--nth` nomme un appel, `--times` les N premiers ; les deux ensemble sont
+refusés, parce qu'ils n'ont pas de lecture unique. Le rang compte les
+**arrivées**, donc il se reproduit sous un client qui ne parallélise pas et
+nulle part ailleurs :
+[docs/limits.md](docs/limits.md#a-fault-schedule-counts-arrivals-and-no-client-sends-an-identity-to-replay-851)
+mesure pourquoi aucun client n'envoie mieux.
+
 Quatre propriétés, et chacune est un refus dans le code plutôt qu'une promesse
-ici. **Éteint par défaut** : un émulateur neuf n'arme rien. **Déterministe** :
-« les N premiers appels de cette opération », jamais une probabilité, parce
+ici. **Éteint par défaut** : un émulateur neuf n'arme rien. **Déterministe sous un
+seul client** : « les N premiers appels de cette opération » ou « le N-ième
+appel » (`--times`, `--nth`), jamais une probabilité, parce
 qu'une faute qui se déclenche au hasard ne peut pas être le sujet d'un test.
 **Par opération**, au nom amont que publie `/_feint/routes`, et une règle qui
 nomme une opération que rien ne sert est refusée à l'écriture plutôt que muette
@@ -693,6 +712,7 @@ n'est une étape dans le travail de qui que ce soit.
 | `feint snapshot` | nomme l'état d'un émulateur qui tourne et y revient : `save`, `load`, `list`, `rm` |
 | `feint checkpoint` | nomme l'état d'un émulateur qui tourne : plan de contrôle, octets, et ce qu'un client peut en observer |
 | `feint reset` | revient à ce point, retire ce qu'il ne contient pas, et dit si le laboratoire a convergé |
+| `feint fault` | `list`, `add`, `clear` — fait répondre une opération nommée comme un cloud un mauvais jour, et dit quel appel a été touché |
 | `feint images` | construit les images de machines, qui portent un démon ssh pour répondre sans dépôt de paquets |
 | `feint clean` | retire les machines, réseaux et jeux de règles que l'émulateur a créés |
 | `feint version` | affiche la version |

@@ -253,11 +253,23 @@ const (
 // where it was going to fail anyway, and --preflight=off is the one-flag way
 // back to the old behaviour.
 //
+// Version 34 adds the verb `fault`, with `fault list`, `fault add` and
+// `fault clear` (#851). The injector itself is older — /_feint/faults has
+// served GET, PUT and DELETE since #26 — and until now the only way to arm a
+// rule was to compose its JSON by hand and send it with curl, which is how a
+// campaign ends up written in a shell script that builds JSON with printf.
+// `add` carries --status, --delay, --nth, --times and --truncate, and every
+// bound on them stays where it was: the emulator refuses a rule when it is
+// written and this verb prints the sentence it refused with, rather than
+// keeping a second copy of the checks that would disagree with the first.
+// One verb added; nothing was removed, no exit code moved, and a pipeline
+// keyed on version 33 keeps working.
+//
 // The surface itself is frozen in testdata/frozen/cli.json, compared by
 // TestTheFrozenSurfacesStillMatchTheirFixture, and a fixture regenerated
 // without bumping this constant fails TestASurfaceChangeDemandsItsVersionBump.
 // The procedure for a deliberate change is in RELEASING.md ("Frozen surfaces").
-const cliSurfaceVersion = 33
+const cliSurfaceVersion = 34
 
 // Run executes one command and returns the process exit code.
 func Run(args []string, stdout, stderr io.Writer) int {
@@ -328,6 +340,8 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		return checkpointCommand(args[2:], stdout, stderr)
 	case "reset":
 		return resetCommand(args[2:], stdout, stderr)
+	case "fault":
+		return faultCommand(args[2:], stdout, stderr)
 	case "version", "--version", "-v":
 		// The flag forms are aliases, not a second way of doing it: a user who
 		// types `feint --version` and gets "unknown command" concludes the
@@ -603,6 +617,23 @@ Usage:
                     reset is not successful because JSON was restored.
                     It recreates nothing: a machine the checkpoint had and the
                     host no longer does needs a boot only its pack can render.
+
+  feint fault      list [--addr 127.0.0.1:4599]
+                   add <operation> [--addr 127.0.0.1:4599] [--status 503]
+                       [--delay 4s] [--nth 3] [--times 2] [--truncate 64]
+                   clear [--addr 127.0.0.1:4599]
+                    Make the emulator answer the way a cloud answers on a bad
+                    day, one named operation at a time. add keeps what is
+                    already armed; list prints the armed rules and the
+                    receipt — which rule answered which call, at what rank,
+                    with what status; clear disarms everything. --nth names
+                    one call and no other, counting from one, and is arrival
+                    order rather than a replay key: under concurrent clients
+                    two calls can swap ranks between runs. --nth and --times
+                    are refused together, because "the third call, twice" has
+                    no single reading. Every rule is checked when it is armed:
+                    an operation nothing serves, or a status the pack renders
+                    in no dialect, is refused with the reason.
 
   feint transcript <recording.jsonl> [--shape OP [--against emu.jsonl]]
                    [--sanitise corpus.jsonl --contract contracts/<provider>.json]

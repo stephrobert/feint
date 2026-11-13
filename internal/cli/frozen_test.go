@@ -453,6 +453,14 @@ func flagsTheBinaryAccepts(t *testing.T) map[string][]string {
 	// under `evidence` would claim all three take all three.
 	drive("evidence", "baseline", "-h")
 	drive("evidence", "verify", "-h")
+	// `fault` dispatches again as well (#851): `fault add` registers the five
+	// knobs of a rule where `fault list` and `fault clear` register only
+	// --addr, and a union under `fault` would claim all three take all five.
+	// `add` reads its operation off the command line ahead of the flags, hence
+	// the placeholder.
+	drive("fault", "list", "-h")
+	drive("fault", "add", "an/operation", "-h")
+	drive("fault", "clear", "-h")
 
 	// Assert the subject rather than skip on its absence. A verb whose set was
 	// never observed would otherwise leave the fixture quietly smaller, and a
