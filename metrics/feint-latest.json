@@ -1,13 +1,13 @@
 {
-  "generated_at": "2026-11-12T04:20:36Z",
+  "generated_at": "2026-11-13T04:20:31Z",
   "project": "feint",
-  "total_binary_downloads": 4680,
-  "latest_release": "v0.15.0",
+  "total_binary_downloads": 4848,
+  "latest_release": "v0.16.0",
   "platforms": {
-    "darwin-amd64": 58,
-    "darwin-arm64": 76,
-    "linux-amd64": 4479,
-    "linux-arm64": 67
+    "darwin-amd64": 59,
+    "darwin-arm64": 77,
+    "linux-amd64": 4644,
+    "linux-arm64": 68
   },
   "versions": {
     "v0.1.0": 16,
@@ -15,9 +15,10 @@
     "v0.11.0": 22,
     "v0.12.0": 435,
     "v0.12.1": 790,
-    "v0.13.0": 2686,
-    "v0.14.0": 27,
-    "v0.15.0": 6,
+    "v0.13.0": 2846,
+    "v0.14.0": 28,
+    "v0.15.0": 9,
+    "v0.16.0": 4,
     "v0.2.0": 14,
     "v0.3.0": 12,
     "v0.3.1": 15,
@@ -35,9 +36,9 @@
     "v0.9.0": 78
   },
   "recent": {
-    "downloads_1d": 104,
-    "downloads_30d": 1704,
-    "downloads_7d": 206
+    "downloads_1d": 168,
+    "downloads_30d": 1840,
+    "downloads_7d": 354
   },
   "adoption": {
     "v0.10.0": {
@@ -63,6 +64,9 @@
     "v0.15.0": {
       "J+1": 6
     },
+    "v0.16.0": {
+      "J+1": 4
+    },
     "v0.7.1": {
       "J+30": 1
     },
@@ -82,12 +86,12 @@
   "active_old_releases": [
     {
       "version": "v0.13.0",
-      "downloads_in_window": 79,
+      "downloads_in_window": 223,
       "window_days": 7
     },
     {
       "version": "v0.14.0",
-      "downloads_in_window": 21,
+      "downloads_in_window": 19,
       "window_days": 7
     },
     {
@@ -97,11 +101,16 @@
     },
     {
       "version": "v0.3.0",
-      "downloads_in_window": 10,
+      "downloads_in_window": 9,
       "window_days": 7
     },
     {
-      "version": "v0.3.2",
+      "version": "v0.15.0",
+      "downloads_in_window": 9,
+      "window_days": 7
+    },
+    {
+      "version": "v0.3.1",
       "downloads_in_window": 5,
       "window_days": 7
     },
@@ -126,12 +135,12 @@
       "window_days": 7
     },
     {
-      "version": "v0.3.1",
+      "version": "v0.1.0",
       "downloads_in_window": 5,
       "window_days": 7
     },
     {
-      "version": "v0.1.0",
+      "version": "v0.3.2",
       "downloads_in_window": 5,
       "window_days": 7
     },
