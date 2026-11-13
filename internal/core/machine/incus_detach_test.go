@@ -230,3 +230,64 @@ func TestEgressRefusesAnInstanceItDoesNotOwn(t *testing.T) {
 		}
 	})
 }
+
+// What the ownership call costs when it fails for a reason that is not absence.
+//
+// #913 added `mustOwnInstance` to the egress paths, which means a round trip to
+// the runtime on a hot path. The leg that would have judged that under a real
+// Incus was not played — the station had the maintainer's labs running — so the
+// risk was taken without being measured. This measures the half that lives in
+// this code: what the driver does when the call answers an error.
+//
+// The answer must be fail-closed and loud, never "carry on anyway": an instance
+// we cannot prove is ours is one we do not touch. But the two paths differ on
+// purpose, and that difference is the subject here.
+func TestEgressWhenTheOwnershipCallFails(t *testing.T) {
+	// Not "instance not found": a runtime that is busy, locked, or answering
+	// badly. `missing` is the absence case, covered below.
+	busy := func() *recorder { return &recorder{label: "", missing: true} }
+
+	t.Run("drop treats absence as nothing to undo", func(t *testing.T) {
+		rec := busy()
+		d := &Incus{runner: rec.run, OVN: true}
+		if err := d.DropEgress(context.Background(), "feint-scw-x"); err != nil {
+			t.Errorf("DropEgress refused an instance that is gone: %v\n"+
+				"a delete path runs twice more often than anyone expects", err)
+		}
+		if rec.carries("ip route del") {
+			t.Errorf("a route was deleted on an instance that is gone: %v", rec.sent)
+		}
+	})
+
+	t.Run("route refuses rather than laying a route it cannot attribute", func(t *testing.T) {
+		rec := busy()
+		d := &Incus{runner: rec.run, OVN: true}
+		if err := d.RouteEgress(context.Background(), "feint-scw-x", "fnt-net"); err == nil {
+			t.Error("RouteEgress laid a route on an instance it could not prove is ours")
+		}
+		if rec.carries("ip route") || rec.carries("config device") {
+			t.Errorf("the driver acted before the ownership answer: %v", rec.sent)
+		}
+	})
+
+	// And the accepting half: an instance carrying our label passes the guard.
+	//
+	// This double cannot answer the network query that follows, so the call
+	// still ends in an error — what is asserted is that the error is not the
+	// refusal, and that the driver went on past it. Measuring the laying of the
+	// route itself needs a runtime, which is the `runtime` leg.
+	t.Run("an instance of ours passes the guard", func(t *testing.T) {
+		rec := &recorder{label: "scaleway", devices: detachTwoNICs}
+		d := &Incus{runner: rec.run, OVN: true}
+		err := d.RouteEgress(context.Background(), "feint-scw-x", "fnt-ours")
+		if err != nil && strings.Contains(err.Error(), "not created by the emulator") {
+			t.Fatalf("an instance the emulator created was refused as foreign: %v", err)
+		}
+		if !rec.carries("config get feint-scw-x user.feint.provider") {
+			t.Errorf("the ownership question was not asked at all: %v", rec.sent)
+		}
+		if len(rec.sent) < 2 {
+			t.Errorf("the driver stopped at the guard instead of going on: %v", rec.sent)
+		}
+	})
+}
