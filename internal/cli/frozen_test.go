@@ -34,6 +34,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -43,6 +44,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stephrobert/feint/internal/core/emulator"
 	"github.com/stephrobert/feint/internal/s3"
@@ -303,9 +305,21 @@ var frozenBody = func() func(t *testing.T, path string) []byte {
 			//
 			// GetServer and ListIPs are driven by none of the three calls
 			// above, so the other surfaces are unaffected.
+			// The third rule is a HANG, and it is held open across the capture
+			// below, for the same reason the second one exists. `in_flight` is
+			// omitempty and is cleared the moment a firing completes, so a
+			// population whose every line is finished never puts the key in
+			// the fixture — and version 4 would be frozen without the only
+			// field that distinguishes it from version 3 (#925).
+			//
+			// A hang is the deterministic way to observe it: the connection is
+			// hijacked and nothing ever answers, so the line stays in flight
+			// for exactly as long as this test keeps the socket. The wait below
+			// is on the receipt saying so, never on a sleep.
 			armed := `{"faults":[` +
 				`{"operation":"instance/v1/API.GetServer","status":503,"times":1},` +
-				`{"operation":"instance/v1/API.ListIPs","transport":"close"}` +
+				`{"operation":"instance/v1/API.ListIPs","transport":"close"},` +
+				`{"operation":"instance/v1/API.ListSecurityGroups","transport":"hang"}` +
 				`]}`
 			req, err := http.NewRequest(http.MethodPut, ts.URL+"/_feint/faults", strings.NewReader(armed))
 			if err != nil {
@@ -336,6 +350,25 @@ var frozenBody = func() func(t *testing.T, path string) []byte {
 			if err := drive("/instance/v1/zones/fr-par-1/ips", false); err == nil {
 				buildErr = fmt.Errorf("the close rule answered without dropping the connection, " +
 					"so the receipt carries no transport line and the frozen surface would not hold it")
+				return
+			}
+
+			// The held connection. It is raw rather than through the client,
+			// because an http.Client call to a hang rule returns only when the
+			// server lets go, which is never.
+			held, err := net.DialTimeout("tcp", ts.Listener.Addr().String(), 5*time.Second)
+			if err != nil {
+				buildErr = err
+				return
+			}
+			defer func() { _ = held.Close() }()
+			if _, err := fmt.Fprintf(held,
+				"GET /instance/v1/zones/fr-par-1/security_groups HTTP/1.1\r\nHost: feint\r\n\r\n"); err != nil {
+				buildErr = err
+				return
+			}
+			if err := waitForAHeldLine(ts); err != nil {
+				buildErr = err
 				return
 			}
 
@@ -609,4 +642,49 @@ func compactJSON(t *testing.T, raw json.RawMessage) string {
 		return string(raw)
 	}
 	return buf.String()
+}
+
+// waitForAHeldLine blocks until the receipt shows the hang rule's firing still
+// in flight, which is the state the frozen fixture must observe.
+//
+// It waits on the payload rather than on a sleep: a sleep that is long enough
+// on one machine is short on another, and this is the fixture every other gate
+// in this file reads. Five seconds is a ceiling for a failure, not a budget —
+// the loop returns on the first poll that shows the line, which is the first
+// one in practice.
+//
+// Falsified by clearing InFlight at reserve instead of at completion: this
+// returns the timeout error and the whole frozen suite fails loudly, rather
+// than freezing a shape with the key missing.
+func waitForAHeldLine(ts *httptest.Server) error {
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		res, err := ts.Client().Get(ts.URL + "/_feint/faults")
+		if err != nil {
+			return err
+		}
+		var payload struct {
+			Fired []struct {
+				Operation string `json:"operation"`
+				Transport string `json:"transport"`
+				InFlight  bool   `json:"in_flight"`
+			} `json:"fired"`
+		}
+		decodeErr := json.NewDecoder(res.Body).Decode(&payload)
+		if err := res.Body.Close(); err != nil {
+			return err
+		}
+		if decodeErr != nil {
+			return decodeErr
+		}
+		for _, line := range payload.Fired {
+			if line.Transport == "hang" && line.InFlight {
+				return nil
+			}
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("no held fault line after 5s: the frozen faults surface would not carry in_flight, %+v", payload.Fired)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
 }

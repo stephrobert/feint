@@ -1,0 +1,34 @@
+{
+ "package": "./internal/core/emulator/",
+ "note": "The subject is the receipt's honesty about a firing that has not finished (#925).\n\nfaultSet.reserve takes the line at arrival, so the rank matches arrival order, and recordFired fills status, abandoned and transport when the handler ends. Between the two the line was published with its zero values and nothing saying so. All but one: markTransport names the transport at the hijack, so a hang says what it is doing while it does it.\n\nWhat that cost, stated precisely, because the first draft of this note overstated it and a contract review measured the overstatement. A line in flight was NOT indistinguishable: the call site in conformance.go hands recordFired `!answered || status == 0` for abandoned, so a finished line is always either `status != 0, abandoned: false` or `status == 0, abandoned: true`, and the pair `status: 0, abandoned: false` belonged to a line in flight alone. The real cost is that this is an undocumented two-field invariant that no consumer was told about, that holds only as long as abandoned keeps that formula, and that feint's own CLI did not apply: `feint fault list` printed `answered 0` for a request nobody had answered. A receipt should say what is, not require a reader to derive it.\n\nAnd it is what makes the other test honest: without a positive marker the only field a reader can wait on is `abandoned`, which is the field under test, and a wait on the assertion is a tautology.\n\nMeasured on main at 51612e6, an hour after the lot merged: the test that reads the receipt right after its client's timeout failed 4 times in 10 runs on a loaded machine, and 3 times out of 3 under -count=8, with the pull request's CI green on the same commit. After the fix, 0 failures in 10.\n\nMutations 3 and 4 were written by a falsifier against the first version of this lot: both compiled, both lied, and the whole package stayed green under each.",
+ "mutations": [
+  {
+   "label": "the line is reserved without saying it is in flight, so a receipt read while a hang holds the connection is byte-identical to one read after it finished",
+   "file": "internal/core/emulator/faults.go",
+   "find": "\tfs.fired = append(fs.fired, FiredFault{Operation: operation, Rank: rank, InFlight: true})",
+   "replace": "\tfs.fired = append(fs.fired, FiredFault{Operation: operation, Rank: rank, InFlight: true && false})",
+   "test": "TestAReceiptLineSaysWhenItIsStillInFlight"
+  },
+  {
+   "label": "the marker is never cleared, so every line stays in flight for ever and a reader waiting for one to settle waits for ever",
+   "file": "internal/core/emulator/faults.go",
+   "find": "\tfs.fired[f.slot].InFlight = false",
+   "replace": "\tfs.fired[f.slot].InFlight = true",
+   "test": "TestADroppedConnectionIsClaimedOnlyWhenItHappened"
+  },
+  {
+   "label": "the marker is cleared by operation name instead of by slot, so one client letting go settles every line that rule holds. Every test driving a single client stays green under this, which is how it was found",
+   "file": "internal/core/emulator/faults.go",
+   "find": "\tfs.fired[f.slot].InFlight = false",
+   "replace": "\tfor i := range fs.fired {\n\t\tif fs.fired[i].Operation == fs.fired[f.slot].Operation {\n\t\t\tfs.fired[i].InFlight = false\n\t\t}\n\t}",
+   "test": "TestSettlingOneFiringLeavesTheOtherInFlight"
+  },
+  {
+   "label": "the marker is cleared before the epoch guard, the way somebody would write it to make sure no line stays stuck in flight, so a firing of the previous campaign settles the slot the new one reserved",
+   "file": "internal/core/emulator/faults.go",
+   "find": "\tif f.epoch != fs.epoch || f.slot >= len(fs.fired) {\n\t\treturn\n\t}\n\tfs.fired[f.slot].Status = status",
+   "replace": "\tif f.slot < len(fs.fired) {\n\t\tfs.fired[f.slot].InFlight = false\n\t}\n\tif f.epoch != fs.epoch || f.slot >= len(fs.fired) {\n\t\treturn\n\t}\n\tfs.fired[f.slot].Status = status",
+   "test": "TestAStaleFiringDoesNotSettleTheNewCampaignsLine"
+  }
+ ]
+}

@@ -2228,8 +2228,10 @@ The path is not stable either: identifiers come from `crypto/rand`, so the
 
 Served: deterministic schedules under a client that does not parallelise, and a
 receipt — which rule fired, against which operation and rank, with what status,
-and which transport failure when the answer never became a response — which
-records what happened rather than promising what will happen again. A campaign
+which transport failure when the answer never became a response, and whether
+the firing is still in flight, since a `hang` holds its line open for as long
+as the client stays — which records what happened rather than promising what
+will happen again. A campaign
 armed from a committed file by `feint run --fault` replays exactly, because the
 file is the document the endpoint takes and nothing is reconstructed from a
 command line. The file is decoded and its rules marshalled again on the way, so

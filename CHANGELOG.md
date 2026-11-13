@@ -17,6 +17,18 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Fixed
 
+- **A fault receipt line still in flight was published as a finished one**
+  (#925). `GET /_feint/faults` reserves a line when a rule fires and fills
+  it when the handler ends; in between it answered `status: 0,
+  abandoned: false`, a state a reader could only name by applying an
+  undocumented invariant between two fields — and `feint fault list`
+  did not apply it, printing `answered 0` for a request nobody had
+  answered. The window is milliseconds for a delay and minutes for a
+  `hang`, which is exactly when a suite polls. The line now carries
+  `in_flight` until it is finished (`FaultsSchemaVersion` 4; the key is
+  omitempty, so a finished line is unchanged for a version 3 reader),
+  the CLI prints it, and a run's receipt on disk carries it
+  (`run_receipt` schema 3).
 - **A crafted snapshot could remove the default route of any instance on
   the host.** The egress path read its machine name from a restored
   `Runtime` map and asked neither whether the name was well formed nor

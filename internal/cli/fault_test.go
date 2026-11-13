@@ -292,7 +292,10 @@ func TestListReadsBackWhichCallWasHit(t *testing.T) {
 	if !strings.Contains(out, "1 hit(s) of 3 call(s)") {
 		t.Errorf("list does not separate what the rule saw from what it answered:\n%s", out)
 	}
-	if !strings.Contains(out, faultOpListServers+" call 3 answered 503") {
+	// The colon arrived with #925, when the three renderings of a receipt line
+	// were merged into describeFiredLine: every line now reads
+	// "<operation> call <n>: <what happened>", whatever happened.
+	if !strings.Contains(out, faultOpListServers+" call 3: answered 503") {
 		t.Errorf("the receipt never names the call that was hit:\n%s", out)
 	}
 }

@@ -8,8 +8,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
-
-	"github.com/stephrobert/feint/internal/core/emulator"
 )
 
 // The campaign half of `feint run` (#851).
@@ -190,19 +188,6 @@ func renderFaultReceipt(w interface{ Write([]byte) (int, error) }, r runReceipt)
 	}
 	fmt.Fprintf(w, "  faults         %d fired%s%s\n", len(r.Faults), whose, dropped)
 	for _, line := range r.Faults {
-		switch line.Transport {
-		case emulator.TransportClose:
-			fmt.Fprintf(w, "    %s call %d: the connection was dropped\n", line.Operation, line.Rank)
-		case emulator.TransportHang:
-			fmt.Fprintf(w, "    %s call %d: the connection was held open, no answer\n",
-				line.Operation, line.Rank)
-		default:
-			if line.Abandoned {
-				fmt.Fprintf(w, "    %s call %d: the client left before the answer\n",
-					line.Operation, line.Rank)
-				continue
-			}
-			fmt.Fprintf(w, "    %s call %d answered %d\n", line.Operation, line.Rank, line.Status)
-		}
+		fmt.Fprintf(w, "    %s call %d: %s\n", line.Operation, line.Rank, describeFiredLine(line))
 	}
 }

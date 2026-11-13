@@ -110,7 +110,11 @@ func TestAHangRuleNamesItselfWhileTheConnectionIsStillHeld(t *testing.T) {
 		if code != 0 {
 			t.Fatalf("list exited %d: %s", code, errOut)
 		}
-		if strings.Contains(out, "the connection was held open") {
+		// Present tense, and that is the point of #925: the connection is
+		// being held right now, and the CLI used to describe it in the past
+		// because it read a receipt line that said nothing about being in
+		// flight. A past-tense sentence here would mean the marker was lost.
+		if strings.Contains(out, "the connection is held open right now") {
 			break
 		}
 		if time.Now().After(deadline) {
