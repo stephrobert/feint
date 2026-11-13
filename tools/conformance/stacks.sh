@@ -163,7 +163,8 @@ run_stack() { # name
   # leg on a change that touched no route (#895), and the version the engine
   # resolved reached no log at all, so no green run could be attributed to
   # one (#899). The wrapper survives the first and prints the second.
-  "$ROOT/tools/ci/tf-retry.sh" "$TF" "$name" init -no-color -upgrade \
+  TF_RETRY="$(cd "$(dirname "${BASH_SOURCE[0]}")/../ci" && pwd)/tf-retry.sh"
+  "$TF_RETRY" "$TF" "$name" init -no-color -upgrade \
     || fail "$name: init failed"
   "$TF" apply -no-color -auto-approve ${VARS[@]+"${VARS[@]}"} >/dev/null \
     || fail "$name: apply failed"

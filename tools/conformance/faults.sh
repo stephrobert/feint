@@ -180,7 +180,8 @@ ok "octl: Code 4120 inside a ResponseContext, which osc.IsAuthError reads"
 
 echo "- terraform apply survives 503, 503, 200 on ReadNets"
 cp "$RULES_DIR"/*.tf "$WORK/"
-(cd "$WORK" && "$SCRIPT_DIR/../ci/tf-retry.sh" "$TF" faults init -no-color -upgrade) \
+   TF_RETRY="$(cd "$(dirname "${BASH_SOURCE[0]}")/../ci" && pwd)/tf-retry.sh"
+(cd "$WORK" && "$TF_RETRY" "$TF" faults init -no-color -upgrade) \
   || fail "terraform init failed"
 arm "$RULES_DIR/transients.json"
 if ! (cd "$WORK" && TF_IN_AUTOMATION=1 TF_INPUT=0 timeout 300 "$TF" apply -no-color -auto-approve \

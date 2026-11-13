@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -191,5 +192,80 @@ exit 1
 	if attempts != 10 {
 		t.Errorf("the engine ran %d time(s) against an outage that never clears, want the budget of 10",
 			attempts)
+	}
+}
+
+// Every caller's path to the wrapper resolves, and is computed from the script
+// itself.
+//
+// THE DEFECT THIS CLOSES, which this change shipped and CI caught within the
+// hour. The wrapper was wired into five scripts by reusing each one's existing
+// directory variable, and in the three provider suites that variable is the
+// STACK, not the script:
+//
+//	DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/terraform" && pwd)"
+//
+// so "$DIR/../../ci" resolved to tools/conformance/ci and the leg died with
+//
+//	tools/conformance/scaleway/terraform.sh: line 74:
+//	.../tools/conformance/scaleway/terraform/../../ci/tf-retry.sh: No such file
+//
+// What made it ship was the check, not the code: the paths were verified by
+// building them in a shell by hand, which tested an assumption about those
+// variables rather than the expression the scripts run. A verification that
+// does not execute its subject measures the person writing it.
+//
+// So this reads the relative path out of each caller's own line and resolves it
+// against that caller's own directory, which is what ${BASH_SOURCE[0]} means by
+// definition — the one assumption that cannot be wrong.
+func TestEveryCallerResolvesTheWrapperFromItself(t *testing.T) {
+	root := filepath.Join("..", "..")
+	conformance := filepath.Join(root, "tools", "conformance")
+
+	var callers []string
+	err := filepath.WalkDir(conformance, func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".sh") {
+			return nil //nolint:nilerr // an unreadable entry is not the subject
+		}
+		body, readErr := os.ReadFile(path) //nolint:gosec // a committed script
+		if readErr != nil {
+			return nil
+		}
+		if strings.Contains(string(body), "TF_RETRY=") {
+			callers = append(callers, path)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk the conformance scripts: %v", err)
+	}
+	if len(callers) < 4 {
+		t.Fatalf("only %d caller(s) define TF_RETRY; the wrapper was adopted by five, so either the "+
+			"scan is broken or a caller went back to its own init", len(callers))
+	}
+
+	// TF_RETRY="$(cd "$(dirname "${BASH_SOURCE[0]}")/<rel>" && pwd)/tf-retry.sh"
+	line := regexp.MustCompile(`TF_RETRY="\$\(cd "\$\(dirname "\$\{BASH_SOURCE\[0\]\}"\)/([^"]+)" && pwd\)/tf-retry\.sh"`)
+
+	for _, caller := range callers {
+		body, err := os.ReadFile(caller) //nolint:gosec // a committed script
+		if err != nil {
+			t.Fatal(err)
+		}
+		m := line.FindStringSubmatch(string(body))
+		if m == nil {
+			t.Errorf("%s computes the wrapper's path from something other than its own file; a borrowed "+
+				"directory variable is exactly what pointed at a stack and not at a script", caller)
+			continue
+		}
+		resolved := filepath.Join(filepath.Dir(caller), m[1], "tf-retry.sh")
+		info, err := os.Stat(resolved)
+		if err != nil {
+			t.Errorf("%s resolves the wrapper to %s, which does not exist", caller, resolved)
+			continue
+		}
+		if info.Mode()&0o111 == 0 {
+			t.Errorf("%s resolves the wrapper to %s, which is not executable", caller, resolved)
+		}
 	}
 }
