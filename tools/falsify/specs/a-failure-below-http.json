@@ -1,6 +1,6 @@
 {
  "package": "./internal/cli/",
- "note": "The subject is #851's second half: the two failures a status injection cannot express, and the refusal that stands where a seeded campaign was asked for.\n\nA status is a response. A client parses it, branches on it, and its retry budget sees a thing that arrived. A dropped connection and a connection that never answers are the absence of a response, and they are what a client's timeout and its reconnect exist for. The package comment of internal/core/emulator/faults.go said for two releases that they would need 'a hook at the net/http server'; the hook is http.Hijacker, which net/http has always offered, so the sentence was a limit nobody had tried rather than a limit that held.\n\nThe seed is the other direction. #851 asked for campaigns that replay from a seed and bound the ask itself: the decision must be a pure function of stable inputs, and if no stable request identity exists the CLI must say so rather than pretend reproducibility. Measured 2026-11-13 over the 1088 exchanges committed under corpus/: the official clients send nine distinct request header names, and not one is minted per call. So the only input left is arrival order, which two concurrent clients reorder between runs. The flag exists in order to refuse with that measurement, because a flag that is simply absent teaches nothing and the next person builds a replay on arrival order believing it holds.",
+ "note": "The subject is #851's second half: the two failures a status injection cannot express, and the refusal that stands where a seeded campaign was asked for.\n\nA status is a response. A client parses it, branches on it, and its retry budget sees a thing that arrived. A dropped connection and a connection that never answers are the absence of a response, and they are what a client's timeout and its reconnect exist for. The package comment of internal/core/emulator/faults.go said for two releases that they would need 'a hook at the net/http server'; the hook is http.Hijacker, which net/http has always offered, so the sentence was a limit nobody had tried rather than a limit that held.\n\nThe seed is the other direction. #851 asked for campaigns that replay from a seed and bound the ask itself: the decision must be a pure function of stable inputs, and if no stable request identity exists the CLI must say so rather than pretend reproducibility. Measured 2026-11-13 over the 1088 exchanges committed under corpus/: the official clients send nine distinct request header names, and not one is minted per call. So the only input left is arrival order, which two concurrent clients reorder between runs. The flag exists in order to refuse with that measurement, because a flag that is simply absent teaches nothing and the next person builds a replay on arrival order believing it holds.\n\nOne mutation was removed rather than retargeted, and the reason belongs here. It emptied the transport name that recordFired writes when the answer ends. That had a subject while the name was written only there; it has none now that markTransport writes it the moment the connection is taken over, because the end-of-answer write then re-states a value already recorded. The property it used to defend is covered by the markTransport mutation below, which is the write that matters: a reader polls while the client is blocked, so the name has to be there before the connection ends.\n\nThat mutation was also, briefly, declared in the wrong spec - the one whose package is ./internal/core/emulator/, while the test it names lives in ./internal/cli/. falsify answered TEST STILL PASSED, because `go test -run <name>` over a package holding no such test runs nothing and exits 0. A verdict over an empty population, in the instrument built to catch exactly that.",
  "mutations": [
   {
    "label": "the transport branch never runs, so a rule armed with --close answers 200 like any other call. The client sees a response where the whole point was that none arrives, and a suite asserting resilience would pass on a connection that was never dropped",
@@ -15,13 +15,6 @@
    "find": "\tif kind == TransportHang {",
    "replace": "\tif kind == TransportHang && false {",
    "test": "TestAHangRuleHoldsTheConnectionAndNeverAnswers"
-  },
-  {
-   "label": "the receipt line is completed with an empty transport, so a reader of `status: 0, abandoned: true` cannot tell a connection this emulator dropped on purpose from a client that walked away during a delay. Two different facts, one line. The name is kept and truncated rather than removed, so every identifier still evaluates. Retargeted when the name moved from reserve to recordFired, which is where the guard lives now that the transport is recorded at injection rather than at arrival",
-   "file": "internal/core/emulator/faults.go",
-   "find": "\tfs.fired[f.slot].Transport = transport",
-   "replace": "\tfs.fired[f.slot].Transport = transport[:0]",
-   "test": "TestACloseRuleDropsTheConnectionWithoutAnAnswer"
   },
   {
    "label": "--seed is accepted silently, so a campaign rests on arrival order and the caller is told nothing. It replays under one sequential client and nowhere else, which is the exact promise #851 forbade making",
@@ -50,6 +43,13 @@
    "find": "\t// lie this emulator exists to avoid.\n\tTransport string `json:\"transport,omitempty\"`",
    "replace": "\t// lie this emulator exists to avoid.\n\tTransport string `json:\"transport_renamed,omitempty\"`",
    "test": "TestTheFrozenSurfacesStillMatchTheirFixture"
+  },
+  {
+   "label": "the failure is no longer named on the receipt when the connection is taken over, only when it ends. For a `hang` that is minutes later, so /_feint/faults says nothing about a connection it is holding right now - which is the state a suite polls in, since the client is still blocked. It passed on the faster CI architecture and failed on the slower one",
+   "file": "internal/core/emulator/faults.go",
+   "find": "\to.faults.markTransport(slot, kind)",
+   "replace": "\to.faults.markTransport(slot, kind[:0])",
+   "test": "TestAHangRuleNamesItselfWhileTheConnectionIsStillHeld"
   }
  ]
 }

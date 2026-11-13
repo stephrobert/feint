@@ -202,7 +202,7 @@ func (o *observer) wrap(provider string, r Route) http.HandlerFunc {
 				defer func() {
 					o.faults.recordFired(slot, status, !answered || status == 0, injectedTransport)
 				}()
-				status, injectedTransport = o.serveFault(w, req, provider, r, f)
+				status, injectedTransport = o.serveFault(w, req, provider, r, f, slot)
 				answered = true
 				// Offered to the open spans, marked injected, so a `negative`
 				// span cannot close on it — and published on the log, because

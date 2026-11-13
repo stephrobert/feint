@@ -364,6 +364,31 @@ func (fs *faultSet) recordFired(f firing, status int, abandoned bool, transport 
 	fs.fired[f.slot].Transport = transport
 }
 
+// markTransport names the failure on a reserved line the moment it begins.
+//
+// Separate from recordFired, which completes the line when the answer ends,
+// because for a `hang` that is minutes later: recording the name only at the
+// end left /_feint/faults saying nothing about a connection it was holding
+// right then. A reader polling mid-hang is the ordinary case, since the client
+// is still blocked, and TestAHangRuleHoldsTheConnectionAndNeverAnswers failed
+// on the slower of two CI architectures for exactly that reason while passing
+// on the faster one.
+//
+// And it is called after the hijack, never before: the first version recorded
+// the rule's transport at arrival, so a `close` behind a `delay` whose client
+// gave up reported a drop that never happened.
+func (fs *faultSet) markTransport(f firing, transport string) {
+	if fs == nil || f.slot < 0 || transport == "" {
+		return
+	}
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+	if f.epoch != fs.epoch || f.slot >= len(fs.fired) {
+		return
+	}
+	fs.fired[f.slot].Transport = transport
+}
+
 // receipt copies what the rules did, in arrival order, and says how many lines
 // the cap refused.
 //
@@ -663,7 +688,7 @@ func statusRenderable(f Faulter, status int) bool {
 // no flight token, no contract check, no unread-field report, no span entry
 // beyond the one marked injected. See bound 4 in the package comment — an
 // answer this produced must not be able to prove anything about the operation.
-func (o *observer) serveFault(w http.ResponseWriter, req *http.Request, provider string, route Route, f Fault) (int, string) {
+func (o *observer) serveFault(w http.ResponseWriter, req *http.Request, provider string, route Route, f Fault, slot firing) (int, string) {
 	operation := route.Operation
 	if f.delay > 0 {
 		// Cancelled with the request. A client that gave up must not leave a
@@ -686,7 +711,7 @@ func (o *observer) serveFault(w http.ResponseWriter, req *http.Request, provider
 	}
 	if f.Transport != "" {
 		// Below HTTP, so before the header: there is no response to mark.
-		return o.serveTransportFault(w, operation, f.Transport)
+		return o.serveTransportFault(w, operation, f.Transport, slot)
 	}
 	w.Header().Set(FaultHeader, operation)
 
@@ -752,7 +777,7 @@ func (o *observer) serveFault(w http.ResponseWriter, req *http.Request, provider
 // injection can least resemble, so it is what "close" means here. A connection
 // that is not TCP, which on this emulator means a test using a pipe, falls back
 // to the clean close rather than refusing.
-func (o *observer) serveTransportFault(w http.ResponseWriter, operation, kind string) (int, string) {
+func (o *observer) serveTransportFault(w http.ResponseWriter, operation, kind string, slot firing) (int, string) {
 	// The bound first, before the connection is taken. A refusal here is not
 	// an injected failure and must not read as one: the client gets an answer
 	// saying so, and the receipt carries no transport name, so nothing claims
@@ -791,6 +816,9 @@ func (o *observer) serveTransportFault(w http.ResponseWriter, operation, kind st
 		})
 		return http.StatusInternalServerError, ""
 	}
+	// The connection is ours now, so the failure has begun and the receipt can
+	// say which one. Before the hijack nothing had happened yet.
+	o.faults.markTransport(slot, kind)
 	if kind == TransportHang {
 		// Hold it open and answer nothing. The read returns when the client
 		// gives up and closes, or when the bound expires.

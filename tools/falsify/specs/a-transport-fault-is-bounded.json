@@ -19,8 +19,8 @@
   {
    "label": "the receipt records the transport the rule ASKED for instead of the one that was injected. A close rule behind a delay whose client gives up then reports a connection this emulator dropped, which it never did",
    "file": "internal/core/emulator/conformance.go",
-   "find": "\t\t\t\tstatus, injectedTransport = o.serveFault(w, req, provider, r, f)",
-   "replace": "\t\t\t\tstatus, _ = o.serveFault(w, req, provider, r, f)\n\t\t\t\tinjectedTransport = f.Transport",
+   "find": "\t\t\t\tstatus, injectedTransport = o.serveFault(w, req, provider, r, f, slot)",
+   "replace": "\t\t\t\tstatus, _ = o.serveFault(w, req, provider, r, f, slot)\n\t\t\t\tinjectedTransport = f.Transport",
    "test": "TestADroppedConnectionIsClaimedOnlyWhenItHappened"
   }
  ]

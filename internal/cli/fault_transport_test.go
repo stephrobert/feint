@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"net"
 	"net/http"
@@ -62,16 +63,76 @@ func TestACloseRuleDropsTheConnectionWithoutAnAnswer(t *testing.T) {
 	}
 }
 
-// TestAHangRuleHoldsTheConnectionAndNeverAnswers holds the second half, and
-// holds that it is distinguishable from the first.
+// TestAHangRuleNamesItselfWhileTheConnectionIsStillHeld is the half a reader
+// polling mid-hang depends on.
 //
-// The client's own deadline is what ends it, which is the point: this is the
-// failure a retry budget and a timeout exist for, and a 503 cannot stand in
-// for it.
+// It is separate from the timeout below because the two assert different
+// moments, and conflating them cost a red CI: the first version read the
+// receipt AFTER the client gave up, so the line was complete by then and the
+// assertion passed for the wrong reason. It passed on x86 and failed on
+// ubuntu-24.04-arm, where the slower machine had not finished closing the
+// connection when the receipt was read. A test whose verdict depends on which
+// of two goroutines wins is not measuring the product.
+//
+// The property that matters: while the emulator is holding a connection, its
+// receipt says so. A suite polls exactly then, because its client is blocked.
+//
+// Falsified by neutralising the markTransport call in serveTransportFault:
+// the name is then written only when the connection ends, and this fails
+// with "the receipt never named the hang while it was being held".
+func TestAHangRuleNamesItselfWhileTheConnectionIsStillHeld(t *testing.T) {
+	addr := faultLab(t)
+
+	if code, _, errOut := faultRun("fault", "add", faultOpListServers, "--addr", addr, "--hang"); code != 0 {
+		t.Fatalf("arming --hang exited %d: %s", code, errOut)
+	}
+
+	// Long enough that the client is still waiting throughout the poll below,
+	// so what is read is a connection being held and not one that has ended.
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+addr+faultServersPath, nil)
+		if err != nil {
+			return
+		}
+		res, err := http.DefaultClient.Do(req)
+		if err == nil {
+			_ = res.Body.Close()
+		}
+	}()
+
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		code, out, errOut := faultRun("fault", "list", "--addr", addr)
+		if code != 0 {
+			t.Fatalf("list exited %d: %s", code, errOut)
+		}
+		if strings.Contains(out, "the connection was held open") {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("the receipt never named the hang while it was being held:\n%s", out)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	cancel()
+	<-done
+}
+
+// TestAHangRuleHoldsTheConnectionAndNeverAnswers is the other half: the client
+// spends its own timeout rather than being answered or reset.
+//
+// That is the failure a retry budget and a timeout exist for, and a 503 cannot
+// stand in for it. This one asserts nothing about the receipt, which is the
+// subject of the test above.
 //
 // Falsified by making serveTransportFault close the connection for "hang" as
-// well: the test then fails with "the client was answered or reset in 0.0s,
-// so nothing hung".
+// well: the client then fails in milliseconds with a reset, and this fails
+// with "which is not its own timeout".
 func TestAHangRuleHoldsTheConnectionAndNeverAnswers(t *testing.T) {
 	addr := faultLab(t)
 
@@ -94,14 +155,6 @@ func TestAHangRuleHoldsTheConnectionAndNeverAnswers(t *testing.T) {
 	}
 	if elapsed < 300*time.Millisecond {
 		t.Fatalf("the client was answered or reset in %.1fs, so nothing hung", elapsed.Seconds())
-	}
-
-	code, out, errOut := faultRun("fault", "list", "--addr", addr)
-	if code != 0 {
-		t.Fatalf("list exited %d: %s", code, errOut)
-	}
-	if !strings.Contains(out, "the connection was held open") {
-		t.Fatalf("the receipt does not say the connection was held open:\n%s", out)
 	}
 }
 
