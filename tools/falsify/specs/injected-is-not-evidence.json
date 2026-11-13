@@ -11,15 +11,15 @@
     {
       "label": "an injected answer falls through to the observed path, so a route only ever refused reads as driven",
       "file": "internal/core/emulator/conformance.go",
-      "find": "\t\t\tif f, claimed := o.faults.fire(r.Operation); claimed {",
-      "replace": "\t\t\tif f, claimed := o.faults.fire(r.Operation); claimed && false {",
+      "find": "\t\t\tif f, rank, claimed := o.faults.fire(r.Operation); claimed {",
+      "replace": "\t\t\tif f, rank, claimed := o.faults.fire(r.Operation); claimed && false {",
       "test": "TestAnInjectedAnswerDoesNotDriveItsOperation"
     },
     {
       "label": "the probe meets the armed fault, so a synthetic verdict reports a defect nobody has",
       "file": "internal/core/emulator/conformance.go",
-      "find": "\t\tif !synthetic {\n\t\t\tif f, claimed := o.faults.fire(r.Operation); claimed {",
-      "replace": "\t\tif !synthetic || synthetic {\n\t\t\tif f, claimed := o.faults.fire(r.Operation); claimed {",
+      "find": "\t\tif !synthetic {\n\t\t\tif f, rank, claimed := o.faults.fire(r.Operation); claimed {",
+      "replace": "\t\tif !synthetic || synthetic {\n\t\t\tif f, rank, claimed := o.faults.fire(r.Operation); claimed {",
       "test": "TestAFaultDoesNotFireOnTheProbe"
     },
     {

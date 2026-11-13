@@ -29,6 +29,16 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Ajouté
 
+- **Une règle de faute peut nommer l'appel auquel elle répond** (#851) :
+  `nth` tire sur le N-ième appel d'une opération et sur aucun autre. Le rang
+  compte tous les appels que la règle a vus, y compris ceux qu'elle décline,
+  ce que le compteur de tirs ne pouvait pas faire. `/_feint/faults` gagne
+  `nth` et `calls` par règle, plus un reçu `fired` qui nomme l'appel touché
+  par chaque tir : version de schéma 2. Le rang est un ordre d'arrivée, pas
+  une clé de rejeu, et la documentation du champ le dit.
+
+### Ajouté
+
 - **Un index de couverture des produits en haut de `docs/limits.md`** (#872).
   `coverage/*.json` gagne un champ additif `unscanned` — les produits que le scan
   a réellement vus déclarés en amont mais que la restriction `--products` a

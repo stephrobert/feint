@@ -26,6 +26,15 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Added
 
+- **A fault rule can name the call it answers** (#851): `nth` fires on the
+  Nth call to an operation and no other. The rank counts every call the
+  rule saw, declined ones included, which the hit count could not.
+  `/_feint/faults` gains `nth` and `calls` per rule and a `fired` receipt
+  naming which call each firing hit — schema version 2. The rank is arrival
+  order, not a replay key, and the field's own documentation says so.
+
+### Added
+
 - **A product coverage index at the top of `docs/limits.md`** (#872).
   `coverage/*.json` gains an additive `unscanned` field — the products the scan
   actually saw upstream declare but the `--products` restriction excluded — so
