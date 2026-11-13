@@ -26,6 +26,14 @@ what this project is judged on: **a response shape a client can observe**, and
   scanned costs: a client calling one of them does not hit the emulator, it
   reaches the real endpoint with whatever credentials the shell holds.
 
+### Changed
+
+- The promise at the top of both READMEs no longer claims that nothing is
+  created anywhere. It says what is true and bounded: the APIs Feint serves
+  answer on your own machine, and what it does not serve a client can still
+  reach. `docs/limits.md` measures four such paths, and `docs/confidence.md`
+  now carries the row that the README's own pointer promised.
+
 ## [0.16.0] - 2026-11-12
 
 ### Added

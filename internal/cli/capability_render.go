@@ -147,7 +147,9 @@ func renderPromise(french bool) (string, error) {
 
 	if french {
 		b.WriteString("**Pointez Terraform et les CLI officielles vers votre propre machine.**\n")
-		b.WriteString("Aucun compte cloud, aucun identifiant de cloud, et rien de créé nulle part.\n\n")
+		b.WriteString("Aucun compte cloud, aucun identifiant de cloud : les API que Feint sert\n")
+		b.WriteString("répondent sur votre machine. Ce qu'il ne sert pas, un client peut encore\n")
+		b.WriteString("l'atteindre, et [docs/limits.md](docs/limits.md) mesure ces chemins.\n\n")
 		b.WriteString(wrapParagraph(fmt.Sprintf(
 			"%s pilotent %s. Chaque pack a en plus son CLI officiel, et chacun d'eux pilote cet "+
 				"émulateur de bout en bout :",
@@ -155,7 +157,9 @@ func renderPromise(french bool) (string, error) {
 		b.WriteString("\n")
 	} else {
 		b.WriteString("**Point Terraform and the official cloud CLIs at your own machine.**\n")
-		b.WriteString("No cloud account, no cloud credentials, and nothing created anywhere.\n\n")
+		b.WriteString("No cloud account and no cloud credentials: the APIs Feint serves answer on\n")
+		b.WriteString("your own machine. What it does not serve, a client can still reach, and\n")
+		b.WriteString("[docs/limits.md](docs/limits.md) measures those paths.\n\n")
 		b.WriteString(wrapParagraph(fmt.Sprintf(
 			"%s drive %s. Each pack also has its own official CLI, and every one of them drives "+
 				"this emulator end to end:",

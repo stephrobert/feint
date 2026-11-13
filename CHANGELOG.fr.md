@@ -29,6 +29,14 @@ change ni l'un ni l'autre a sa place dans `git log`.
   coûte : un client qui appelle l'un d'eux ne touche pas l'émulateur, il atteint
   le vrai endpoint avec les identifiants que le shell détient.
 
+### Modifié
+
+- La promesse en tête des deux README n'affirme plus que rien n'est créé
+  nulle part. Elle dit ce qui est vrai et borné : les API que Feint sert
+  répondent sur votre machine, et ce qu'il ne sert pas, un client peut encore
+  l'atteindre. `docs/limits.md` mesure quatre de ces chemins, et
+  `docs/confidence.md` porte enfin la ligne que le renvoi du README promettait.
+
 ## [0.16.0] - 2026-11-12
 
 ### Ajouté
