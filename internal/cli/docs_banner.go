@@ -104,15 +104,63 @@ func readSafetyFacts(evidencePath, limitsPath string) (safetyFacts, error) {
 	if err != nil {
 		return safetyFacts{}, fmt.Errorf("read the limits page: %w", err)
 	}
-	for _, line := range strings.Split(string(limits), "\n") {
-		if strings.HasPrefix(line, "## ") {
-			facts.Limits++
-		}
-	}
+	facts.Limits = countLimitSections(string(limits))
 	if facts.Mounted == 0 || facts.Limits == 0 {
 		return safetyFacts{}, fmt.Errorf("the artefacts report nothing to describe")
 	}
 	return facts, nil
+}
+
+// countLimitSections counts the sections of the limits page that state a limit,
+// which is not the same as counting its `## ` headings.
+//
+// The banner says "the N sections of docs/limits.md each say what one costs".
+// #872 added a generated product-coverage table under its own heading, so the
+// count went to 63 while one of the 63 was a table, not a cost. The number
+// stayed exact and the sentence stopped being true — in generated prose, which
+// nobody edits.
+//
+// A section is excluded when it holds nothing but a generated block: no heading
+// is named here, so a second generated section drops out on its own. The test
+// that a section merely *containing* a block is excluded would be wrong, and
+// was: `feint start` detaches on Linux, and not on macOS is a measured limit
+// that ends with the generated contracts table, and counting the headings minus
+// every block-bearing section gave 61 where the page states 62.
+//
+// TestTheBannerDoesNotCountAGeneratedSectionAsALimit fails without this.
+func countLimitSections(limits string) int {
+	count := 0
+	inBlock, prose, hadBlock := false, false, false
+	// Excluded only when the section holds a generated block AND nothing else.
+	// Requiring prose instead would drop an empty section, which is not what is
+	// being measured: TestTheBannerCountsComeFromTheArtefacts feeds four bodiless
+	// headings and expects four.
+	closeSection := func() {
+		if count > 0 && hadBlock && !prose {
+			count--
+		}
+	}
+	for _, line := range strings.Split(limits, "\n") {
+		trimmed := strings.TrimSpace(line)
+		switch {
+		case strings.HasPrefix(line, "## "):
+			closeSection()
+			count++
+			prose, inBlock, hadBlock = false, false, false
+			continue
+		case strings.HasPrefix(trimmed, "<!-- ") && strings.HasSuffix(trimmed, ":start -->"):
+			inBlock, hadBlock = true, true
+			continue
+		case strings.HasPrefix(trimmed, "<!-- ") && strings.HasSuffix(trimmed, ":end -->"):
+			inBlock = false
+			continue
+		}
+		if !inBlock && trimmed != "" && !strings.HasPrefix(trimmed, "<!--") {
+			prose = true
+		}
+	}
+	closeSection()
+	return count
 }
 
 // explainedClause says how the undriven operations divide, and says nothing
