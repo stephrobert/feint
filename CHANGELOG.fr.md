@@ -29,6 +29,10 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Ajouté
 
+- Le rang d'une campagne de fautes est un ordre d'arrivée, et `docs/limits.md`
+  le dit : aucun client officiel n'envoie d'identité de requête qui survivrait à
+  un rejeu, mesuré sur les 1088 échanges de `corpus/`. Le mode à graine est
+  refusé plutôt que promis.
 - **Une règle de faute peut nommer l'appel auquel elle répond** (#851) :
   `nth` tire sur le N-ième appel d'une opération et sur aucun autre. Le rang
   compte tous les appels que la règle a vus, y compris ceux qu'elle décline,
@@ -36,6 +40,13 @@ change ni l'un ni l'autre a sa place dans `git log`.
   `nth` et `calls` par règle, plus un reçu `fired` qui nomme l'appel touché
   par chaque tir : version de schéma 2. Le rang est un ordre d'arrivée, pas
   une clé de rejeu, et la documentation du champ le dit.
+- **`feint fault`, le verbe au-dessus de cet injecteur** (#851) : `fault list`
+  affiche ce qui est armé et le reçu, `fault add <opération>` ajoute une règle
+  avec `--status`, `--delay`, `--nth`, `--times` et `--truncate`, et
+  `fault clear` désarme tout. `add` lit le jeu armé et le réécrit avec la
+  nouvelle règle, parce que `PUT /_feint/faults` remplace l'ensemble. Toutes
+  les bornes restent dans l'émulateur, qui refuse une règle au moment où elle
+  est écrite ; le verbe affiche la phrase du refus. Surface CLI version 34.
 
 ### Ajouté
 

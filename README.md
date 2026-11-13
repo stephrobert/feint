@@ -32,7 +32,7 @@
 >
 > **Proven**: 384 of the 409 mounted operations are driven by a real client, on every pull request: each pack's own official CLI, and an infrastructure engine wherever a pack admits one, all of them running against the emulator in CI. And every night, machines really boot: an ssh login on each provider's own default account, a firewall that filters, and subnets isolated under `incus-ovn`, the one mode that declares it. Starting machines needs a runtime the pull-request path does not have. The whole chain is described in [docs/conformance.md](docs/conformance.md).
 >
-> **Not proven**: quotas, prices, real capacity, identifier validation, authentication, eventual consistency. The 62 sections of [docs/limits.md](docs/limits.md) each say what one costs. An emulator with a single implicit account and no price list would have to invent those figures, and somebody would act on them.
+> **Not proven**: quotas, prices, real capacity, identifier validation, authentication, eventual consistency. The 63 sections of [docs/limits.md](docs/limits.md) each say what one costs. An emulator with a single implicit account and no price list would have to invent those figures, and somebody would act on them.
 >
 > **Unknown**: 25 operations are mounted and have never been driven by a client. Every one of them states why no official client reaches it, at the route and in [docs/routes.md](docs/routes.md). They are counted rather than glossed, one by one, in [coverage/evidence.json](coverage/evidence.json).
 >
@@ -1104,6 +1104,7 @@ workflow.
 | `feint snapshot` | `save`, `load`, `list`, `rm` — name a running emulator's state and come back to it |
 | `feint checkpoint` | name the state of a running emulator — control plane, object bytes, and what a client can observe of both |
 | `feint reset` | return to that checkpoint, take down what it does not hold, and say whether the lab converged |
+| `feint fault` | `list`, `add`, `clear` — make one named operation answer the way a cloud answers on a bad day, and read back which call was hit |
 | `feint serve` | serve the three emulated clouds on one port, in the foreground |
 | `feint images` | build the machine images, which carry an ssh daemon so a machine answers without a package repository |
 | `feint clean` | remove every machine, network and rule set the emulator created |

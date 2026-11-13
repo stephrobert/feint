@@ -31,7 +31,7 @@
 >
 > **Prouvé** : 384 des 409 opérations montées sont pilotées par un vrai client, à chaque pull request. `scw`, `octl`, `exo`, Terraform et OpenTofu tournent contre l'émulateur en CI. Et chaque nuit, les machines démarrent réellement : connexion ssh sur le compte par défaut de chaque provider, pare-feu qui filtre, et subnets isolés sous `incus-ovn`, le seul mode qui le déclare. Démarrer des machines demande un runtime que le chemin des pull requests n'a pas. La chaîne complète est décrite dans [docs/conformance.md](docs/conformance.md).
 >
-> **Pas prouvé** : quotas, prix, capacité réelle, validation des identifiants, authentification, cohérence à terme. Les 62 sections de [docs/limits.md](docs/limits.md) disent chacune ce qu'elle coûte. Un émulateur avec un seul compte implicite et aucune grille tarifaire devrait inventer ces chiffres, et quelqu'un agirait dessus.
+> **Pas prouvé** : quotas, prix, capacité réelle, validation des identifiants, authentification, cohérence à terme. Les 63 sections de [docs/limits.md](docs/limits.md) disent chacune ce qu'elle coûte. Un émulateur avec un seul compte implicite et aucune grille tarifaire devrait inventer ces chiffres, et quelqu'un agirait dessus.
 >
 > **Inconnu** : 25 opérations sont montées et n'ont jamais été pilotées par un client. Chacune dit pourquoi aucun client officiel ne l'atteint, à la route et dans [docs/routes.md](docs/routes.md). Elles sont comptées plutôt qu'escamotées, une par une, dans [coverage/evidence.json](coverage/evidence.json).
 >
@@ -693,6 +693,7 @@ n'est une étape dans le travail de qui que ce soit.
 | `feint snapshot` | nomme l'état d'un émulateur qui tourne et y revient : `save`, `load`, `list`, `rm` |
 | `feint checkpoint` | nomme l'état d'un émulateur qui tourne : plan de contrôle, octets, et ce qu'un client peut en observer |
 | `feint reset` | revient à ce point, retire ce qu'il ne contient pas, et dit si le laboratoire a convergé |
+| `feint fault` | `list`, `add`, `clear` — fait répondre une opération nommée comme un cloud un mauvais jour, et dit quel appel a été touché |
 | `feint images` | construit les images de machines, qui portent un démon ssh pour répondre sans dépôt de paquets |
 | `feint clean` | retire les machines, réseaux et jeux de règles que l'émulateur a créés |
 | `feint version` | affiche la version |
