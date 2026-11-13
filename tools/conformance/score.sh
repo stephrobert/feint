@@ -45,6 +45,28 @@ if [ -n "$injected" ]; then
   exit 1
 fi
 
+# The same refusal, for a state nobody's API produced (#193).
+#
+# `feint mutate` changes a stored resource behind the provider's back so a suite
+# can plan against a drift. That is what it is for, and it is also why a run
+# carrying one cannot be scored: the answers the emulator gave after it describe
+# a state an operator wrote, not one a client drove. The emulator publishes the
+# ledger, append-only and surviving any later snapshot load, so this is a
+# property of the run rather than a discipline — the same shape as `injected`
+# above, and the same reason.
+#
+# TestTheScoreRefusesARunCarryingAMutation (tools/conformance) fails without it.
+mutations="$(printf '%s' "$report" | jq -r '
+  .mutations // [] | .[] | "  \(.)"')"
+if [ -n "$mutations" ]; then
+  echo "FAIL: this run held a state changed outside any provider API, so its" >&2
+  echo "      numbers describe a cloud nobody drove:" >&2
+  echo "$mutations" >&2
+  echo "      A mutated emulator is for watching a client react to a drift." >&2
+  echo "      Score a fresh one: the mark is append-only and survives a reload." >&2
+  exit 1
+fi
+
 served="$(printf '%s' "$report" | jq -r '.served')"
 exercised="$(printf '%s' "$report" | jq -r '.exercised')"
 probed="$(printf '%s' "$report" | jq -r '.probed // 0')"

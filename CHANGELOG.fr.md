@@ -42,6 +42,24 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Ajouté
 
+- **`feint mutate`, un changement que le provider n'a pas fait** (#193) :
+  `--set <chemin>=<json>` et `--unset <chemin>` changent une ressource stockée
+  dans le dos du provider, pour que la lecture suivante du client voie une
+  dérive qu'il n'a pas produite ; `--list` imprime ce qui est mutable. C'est un
+  verbe CLI posé sur la porte d'état qui existait déjà, jamais une route d'API :
+  un émulateur qui tourne n'en sert aucune entrée. Le chemin parcourt `Attrs`,
+  où chaque pack range sa propre forme de fil, donc le verbe ne nomme aucun
+  provider. Le résultat est balayé pour les invariants que l'émulateur déclare
+  impossibles — une adresse tenue par deux ressources vivantes, un objet runtime
+  revendiqué deux fois — et une mutation qui en casse un n'écrit rien.
+- **Une exécution mutée le dit, et ça ne se blanchit pas** (#193) : le document
+  d'état porte un registre en ajout seul des mutations qu'il a subies, publié
+  sous `mutations` sur `/_feint/conformance` (schéma version 5) et refusé par
+  `tools/conformance/score.sh` exactement comme une faute injectée. Charger un
+  état propre par-dessus un émulateur muté ne l'efface pas, et un snapshot pris
+  d'un émulateur muté emporte son histoire dans celui qui le charge ensuite.
+  `docs/limits.md` dit ce que la marque ne couvre pas.
+
 - Le rang d'une campagne de fautes est un ordre d'arrivée, et `docs/limits.md`
   le dit : aucun client officiel n'envoie d'identité de requête qui survivrait à
   un rejeu, mesuré sur les 1088 échanges de `corpus/`. Le mode à graine est

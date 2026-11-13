@@ -265,11 +265,19 @@ const (
 // One verb added; nothing was removed, no exit code moved, and a pipeline
 // keyed on version 33 keeps working.
 //
+// Version 35 adds the verb `mutate`, with `--set`, `--unset` and `--list`
+// (#193). It is the first way to change a stored resource outside the API a
+// provider calls, so a suite can finally plan against a drift nobody's client
+// produced. One verb added; nothing was removed, no exit code moved, and a
+// pipeline keyed on version 34 keeps working. What does move for a reader of
+// /_feint/conformance is the new `mutations` key, empty unless somebody used
+// the verb — see ConformanceSchemaVersion.
+//
 // The surface itself is frozen in testdata/frozen/cli.json, compared by
 // TestTheFrozenSurfacesStillMatchTheirFixture, and a fixture regenerated
 // without bumping this constant fails TestASurfaceChangeDemandsItsVersionBump.
 // The procedure for a deliberate change is in RELEASING.md ("Frozen surfaces").
-const cliSurfaceVersion = 34
+const cliSurfaceVersion = 35
 
 // Run executes one command and returns the process exit code.
 func Run(args []string, stdout, stderr io.Writer) int {
@@ -336,6 +344,8 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		return images(args[2:], stdout, stderr)
 	case "snapshot":
 		return snapshot(args[2:], stdout, stderr)
+	case "mutate":
+		return mutateCommand(args[2:], stdout, stderr)
 	case "checkpoint":
 		return checkpointCommand(args[2:], stdout, stderr)
 	case "reset":
@@ -599,6 +609,22 @@ Usage:
                     default: starting containers is a side effect on this
                     station, so it is asked for, and it needs a lab this
                     command owns.
+
+  feint mutate     <kind> <name-or-id> [--addr 127.0.0.1:4599]
+                       --set <path>=<json> | --unset <path>
+                   --list [--addr 127.0.0.1:4599] [--format text|json]
+                    Change a stored resource behind the provider's back, so a
+                    client's next read sees a drift it did not cause (#193).
+                    The path walks Attrs, where each pack keeps its own wire
+                    shape, and the value is JSON: --set tags='["after"]',
+                    --set tags.0='"after"', --unset tags. Both flags repeat.
+                    It is a CLI verb against the state door and never an API
+                    route: a running emulator serves no way in to this.
+                    The result is swept for the invariants the emulator calls
+                    impossible, and a mutation that breaks one writes nothing.
+                    An emulator that has held a mutated state says so on
+                    /_feint/conformance for the rest of its life, and
+                    tools/conformance/score.sh refuses a run carrying one.
 
   feint checkpoint <name> [--addr 127.0.0.1:4599]
                     Name the state of a running emulator: the control plane

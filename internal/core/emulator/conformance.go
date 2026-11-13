@@ -691,6 +691,18 @@ type ConformanceView struct {
 	// side by side and never added into one number, the same doctrine the
 	// page's bar applies to served, exercised and probed.
 	Evidence map[string]Evidence `json:"evidence"`
+	// Mutations is the ledger of changes made outside any provider API: what
+	// `feint mutate` did to this store (#193).
+	//
+	// The same boundary Injected holds, for the same reason. An operation whose
+	// answer describes a state an operator wrote by hand is not a measurement
+	// of what a cloud does, and a score computed over such a run would be
+	// counting fiction. Published here so the refusal can be a property of the
+	// run rather than a discipline: tools/conformance/score.sh fails when this
+	// is not empty, exactly as it does for Injected.
+	//
+	// Empty on every run nobody mutated, which is every run by default.
+	Mutations []string `json:"mutations"`
 }
 
 // Evidence names the independent proofs one operation carries.
@@ -940,5 +952,11 @@ func (s *Server) handleConformance(w http.ResponseWriter, _ *http.Request) {
 		Fields:              gaps,
 		Machines:            machines,
 		Evidence:            evidence,
+		// Read from the store rather than from a flag this server sets: the
+		// store is what receives the state document, so it is what knows. A
+		// server-side flag would have to be set by whoever calls Restore, and
+		// `PUT /_feint/state` is not the only caller — `serve --state` is
+		// another. See internal/core/store/mutation.go.
+		Mutations: s.env.Store.Mutations(),
 	})
 }

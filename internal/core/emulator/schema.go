@@ -115,7 +115,14 @@ const (
 	// it staged. A consumer that reports "exercised" without reading it can be
 	// looking at a run where a route only ever answered a fault somebody armed,
 	// and the version is what lets it notice that the question now exists.
-	ConformanceSchemaVersion = 4
+	// 5 since #193: the payload gained `mutations`, the ledger of changes made
+	// outside any provider API — what `feint mutate` did to this store. It
+	// carries the same meaning-level weight as `injected` and for the same
+	// reason: every other counter here describes what the emulator served in
+	// answer to a client, and a run whose state an operator wrote by hand is
+	// describing a cloud nobody drove. A consumer that reports "exercised"
+	// without reading it can be looking at numbers computed over a fiction.
+	ConformanceSchemaVersion = 5
 	// TraceSchemaVersion is the shape of GET /_feint/trace.
 	TraceSchemaVersion = 1
 	// FaultsSchemaVersion is the shape of GET/PUT/DELETE /_feint/faults.

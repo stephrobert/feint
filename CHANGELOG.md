@@ -39,6 +39,23 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Added
 
+- **`feint mutate`, a change the provider did not make** (#193): `--set
+  <path>=<json>` and `--unset <path>` change a stored resource behind the
+  provider's back, so a client's next read sees a drift it did not cause, and
+  `--list` prints what is mutable. It is a CLI verb against the existing state
+  door and never an API route: a running emulator serves no way in to it. The
+  path walks `Attrs`, where each pack keeps its own wire shape, so the verb
+  names no provider. The result is swept for the invariants the emulator calls
+  impossible — one address on two live resources, one runtime object claimed
+  twice — and a mutation that breaks one writes nothing.
+- **A mutated run says so, and cannot be laundered** (#193): the state document
+  carries an append-only ledger of the mutations made to it, published as
+  `mutations` on `/_feint/conformance` (schema version 5) and refused by
+  `tools/conformance/score.sh` exactly as an injected fault is. Loading a clean
+  snapshot over a mutated emulator does not clear it, and a snapshot taken from
+  one carries its history into whatever loads it next. `docs/limits.md` says
+  what the mark does not cover.
+
 - The fault schedule's rank is arrival order, and `docs/limits.md` says so:
   no official client sends a request identity that would survive a replay,
   measured across the 1088 exchanges in `corpus/`. A seeded mode is refused
