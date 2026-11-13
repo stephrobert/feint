@@ -12,18 +12,20 @@ import (
 // tools/ci/vulncheck-bump.sh moves every Go pin in the repository to one new
 // version, together.
 //
-// It exists because the pin is not one number: it is nineteen, in twelve
-// files, and a nightly pull request that moves eighteen of them is a pull
-// request born red — internal/cli's TestTheGoWorkflowPinsTheVersionMiseDoes
-// fails on any mismatch. The script is the propose job's only write, so a half-moved tree
-// here is a half-moved tree in the pull request. Every branch below is driven
-// on a scratch tree, and the assertion is on the whole tree afterwards: every
-// pin moved, and every line that is not a pin left alone — including the prose
-// that quotes the old version, because the history in go.yml is a record of
-// why the pin moved, not a pin.
+// It exists because the pin is not one number: it is every go-version in
+// the repository, and a nightly pull request that moves all but one of them
+// is a pull request born red — internal/cli's
+// TestTheGoWorkflowPinsTheVersionMiseDoes fails on any mismatch. The script
+// is the propose job's only write, so a half-moved tree here is a half-moved
+// tree in the pull request. Every branch below is driven on a scratch tree,
+// and the assertion is on the whole tree afterwards: every pin moved, and
+// every line that is not a pin left alone — including the prose that quotes
+// the old version, because the history in go.yml is a record of why the pin
+// moved, not a pin.
 func TestVulncheckBump(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
+		pin     string // the pin the scratch tree carries; empty means 1.26.11
 		to      string
 		wantErr bool
 		wantOut string
@@ -34,6 +36,19 @@ func TestVulncheckBump(t *testing.T) {
 			// command, with the count named in the output.
 			name: "moves every pin together", to: "1.26.12",
 			wantOut: "moved 4 pins to 1.26.12",
+		},
+		{
+			// A two-digit minor is newer than a one-digit minor, and the
+			// comparison has to know it numerically: a lexical sort calls
+			// 1.9.0 newer than 1.10.0, which would refuse a real bump.
+			name: "a two-digit minor is newer than a one-digit minor", pin: "1.9.0", to: "1.10.0",
+			wantOut: "moved 4 pins to 1.10.0",
+		},
+		{
+			// A minor bump is a newer version too: the comparison is field
+			// by field, not patch by patch.
+			name: "a minor bump is a newer version", to: "1.27.0",
+			wantOut: "moved 4 pins to 1.27.0",
 		},
 		{
 			// A bump to the version already pinned is a no-op wearing a
@@ -48,13 +63,16 @@ func TestVulncheckBump(t *testing.T) {
 		},
 		{
 			// A version that is not a dotted triple cannot be compared
-			// against the pin, and comparing "1.26" against "1.26.11" with
-			// sort -V would answer something. Refuse it before it moves.
+			// against the pin, so it is refused before it moves anything.
 			name: "refuses a malformed version", to: "1.26", wantErr: true,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			root := bumpTree(t)
+			pin := tc.pin
+			if pin == "" {
+				pin = "1.26.11"
+			}
+			root := bumpTree(t, pin)
 			code, out := runVulncheckBump(t, root, tc.to)
 			if tc.wantErr {
 				if code == 0 {
@@ -77,17 +95,17 @@ func TestVulncheckBump(t *testing.T) {
 				".github/workflows/a.yml",
 				".github/workflows/b.yml",
 			} {
-				pin := "go-version: '1.26.11'"
-				wantPin := "go-version: '1.26.12'"
+				pinLine := "go-version: '" + pin + "'"
+				wantPin := "go-version: '" + tc.to + "'"
 				if path == "mise.toml" {
-					pin = `go = "1.26.11"`
-					wantPin = `go = "1.26.12"`
+					pinLine = `go = "` + pin + `"`
+					wantPin = `go = "` + tc.to + `"`
 				}
 				data, err := os.ReadFile(filepath.Join(root, path))
 				if err != nil {
 					t.Fatal(err)
 				}
-				if strings.Contains(string(data), pin) {
+				if strings.Contains(string(data), pinLine) {
 					t.Errorf("%s still names the old pin\n%s", path, data)
 				}
 				if !strings.Contains(string(data), wantPin) {
@@ -98,7 +116,7 @@ func TestVulncheckBump(t *testing.T) {
 			// old version, and a bump that rewrote it would rewrite the
 			// record of why the pin moved.
 			data, _ := os.ReadFile(filepath.Join(root, ".github/workflows/a.yml"))
-			if !strings.Contains(string(data), "# moved to 1.26.11 on 2026-11-11") {
+			if !strings.Contains(string(data), "# moved to "+pin+" on 2026-11-11") {
 				t.Errorf("a.yml's history prose was rewritten\n%s", data)
 			}
 		})
@@ -130,21 +148,21 @@ func TestVulncheckBumpRefusesATreeWithNoWorkflowPin(t *testing.T) {
 
 // bumpTree is a scratch repository root: mise.toml plus two workflows, one of
 // them carrying a prose history line that quotes the old version.
-func bumpTree(t *testing.T) string {
+func bumpTree(t *testing.T, pin string) string {
 	t.Helper()
 	root := t.TempDir()
-	if err := os.WriteFile(filepath.Join(root, "mise.toml"), []byte("[tools]\ngo = \"1.26.11\"\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "mise.toml"), []byte("[tools]\ngo = \""+pin+"\"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	workflows := filepath.Join(root, ".github", "workflows")
 	if err := os.MkdirAll(workflows, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	a := "name: a\njobs:\n  build:\n    steps:\n      - uses: actions/setup-go@v1\n        with:\n          go-version: '1.26.11'\n          # moved to 1.26.11 on 2026-11-11\n      - uses: actions/setup-go@v1\n        with:\n          go-version: '1.26.11'\n"
+	a := "name: a\njobs:\n  build:\n    steps:\n      - uses: actions/setup-go@v1\n        with:\n          go-version: '" + pin + "'\n          # moved to " + pin + " on 2026-11-11\n      - uses: actions/setup-go@v1\n        with:\n          go-version: '" + pin + "'\n"
 	if err := os.WriteFile(filepath.Join(workflows, "a.yml"), []byte(a), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	b := "name: b\njobs:\n  scan:\n    steps:\n      - uses: actions/setup-go@v1\n        with:\n          go-version: '1.26.11'\n"
+	b := "name: b\njobs:\n  scan:\n    steps:\n      - uses: actions/setup-go@v1\n        with:\n          go-version: '" + pin + "'\n"
 	if err := os.WriteFile(filepath.Join(workflows, "b.yml"), []byte(b), 0o644); err != nil {
 		t.Fatal(err)
 	}

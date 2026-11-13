@@ -77,6 +77,25 @@ func TestVulncheckScan(t *testing.T) {
 			wantStdout: "GO-2026-6809,GO-2026-6859 touches the pinned Go 1.26.9, fixed in 1.26.11",
 		},
 		{
+			// The same two advisories, the newer fix listed first: the
+			// maximum is taken by comparing, not by the order the findings
+			// arrive in, so the verdict is the same either way.
+			name: "two advisories, newer fix listed first", pin: "1.26.9", stub: "two-reversed", wantCode: 2,
+			wantVerd:   "advisory",
+			wantOut:    []string{"verdict=advisory", "advisory=GO-2026-6809,GO-2026-6859", "found=1.26.9", "fixed=1.26.11"},
+			wantStdout: "GO-2026-6809,GO-2026-6859 touches the pinned Go 1.26.9, fixed in 1.26.11",
+		},
+		{
+			// A two-digit minor is newer than a one-digit minor, and the
+			// comparison has to know it numerically: a lexical sort calls
+			// 1.9.0 newer than 1.10.0, which would report this advisory
+			// night clean.
+			name: "a two-digit minor is newer than a one-digit minor", pin: "1.9.0", stub: "minor-ten", wantCode: 2,
+			wantVerd:   "advisory",
+			wantOut:    []string{"verdict=advisory", "advisory=GO-2026-6859", "found=1.9.0", "fixed=1.10.0"},
+			wantStdout: "GO-2026-6859 touches the pinned Go 1.9.0, fixed in 1.10.0",
+		},
+		{
 			// A finding about a module the repository requires is NOT an
 			// advisory touching the pin: it is osv-scanner.yml's weekly watch,
 			// and a pin-bump pull request would not fix it. It is counted in
@@ -242,6 +261,8 @@ case "${GOVULNCHECK_CASE}" in
   clean)   config; sbom ;;
   advisory) config; sbom; finding GO-2026-6859 v1.26.11 1.26.10; finding GO-2026-6859 v1.26.11 1.26.10 ;;
   two)     config; sbom; finding GO-2026-6809 v1.26.10 1.26.9; finding GO-2026-6859 v1.26.11 1.26.9 ;;
+  two-reversed) config; sbom; finding GO-2026-6859 v1.26.11 1.26.9; finding GO-2026-6809 v1.26.10 1.26.9 ;;
+  minor-ten) config; sbom; finding GO-2026-6859 v1.10.0 1.9.0 ;;
   module)  config; sbom; module_finding ;;
   not-newer) config; sbom; finding GO-2026-6859 v1.26.11 1.26.11 ;;
   fails)   echo "network unreachable" >&2; exit 1 ;;

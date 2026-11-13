@@ -13,8 +13,8 @@ name: Nightly govulncheck
 # Four outcomes, kept apart on purpose, because each one is a different job
 # for a human:
 #
-#   - an advisory touches the pinned Go: a pull request moving all nineteen
-#     pins together (mise.toml and every workflow that names a Go version),
+#   - an advisory touches the pinned Go: a pull request moving every Go pin
+#     together (mise.toml and every workflow that names a Go version),
 #     citing the advisory, the version it was found in and the version that
 #     fixes it — and an issue carrying the signal, because this repository
 #     withholds pull-request creation from Actions on purpose, so a pushed
@@ -84,14 +84,21 @@ jobs:
 
       # The conclusion is written to the summary on every night, whatever the
       # verdict: a clean night proves itself by saying so, with the database
-      # timestamp the scan read, rather than by leaving no trace.
+      # timestamp the scan read, rather than by leaving no trace. The heading
+      # names it as the night's conclusion, so whoever opens the run sees at
+      # a glance that the schedule ran and decided — a quiet night is not a
+      # dead one (#705).
       - name: Say whether the night concluded
         env:
           VERDICT: ${{ steps.scan.outputs.verdict }}
           CONCLUSION: ${{ steps.scan.outputs.conclusion }}
         run: |
           set -uo pipefail
-          printf '%s\n' "${CONCLUSION:-the scan wrote no conclusion}" >> "${GITHUB_STEP_SUMMARY}"
+          {
+            echo "## Nightly govulncheck concluded"
+            echo
+            echo "${CONCLUSION:-the scan wrote no conclusion}"
+          } >> "${GITHUB_STEP_SUMMARY}"
           if [ "${VERDICT}" != "clean" ] && [ "${VERDICT}" != "advisory" ]; then
             echo "The scan could not conclude; the night job reports it." >&2
             exit 1
@@ -155,7 +162,7 @@ jobs:
           # hit, which is a cache that costs and returns nothing.
           cache: false
 
-      # The bump moves all nineteen pins together, and the pin test is what
+      # The bump moves every Go pin together, and the pin test is what
       # proves it did: a half-moved tree would fail it, and the pull request
       # would be born red.
       - name: Move every pin to the fixed version
@@ -199,7 +206,7 @@ jobs:
           cat > "$RUNNER_TEMP/body.md" <<BODY
           ${ADVISORY} was found in the pinned Go ${FOUND} and is fixed in ${FIXED}.
 
-          This moves all nineteen pins together — mise.toml and every workflow that
+          This moves every Go pin together — mise.toml and every workflow that
           names a Go version — so the next night scans with the fixed toolchain.
           Its CI must be green: a pin-bump pull request that is born red is a gate
           people stop reading.

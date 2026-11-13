@@ -70,9 +70,20 @@ if [ -z "${pin}" ]; then
   exit 1
 fi
 
-# A version sorts after another when it is newer: sort -V, the last line wins.
-ver_gt() {
-  [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -n 1)" = "$1" ]
+# A version is newer than another when it compares greater, field by field,
+# in pure shell. There is no sort -V here on purpose: BSD sort does not have
+# it, and a lexical sort would call 1.9.0 newer than 1.10.0. A version that is
+# not three numeric fields is not newer than anything, so a malformed
+# fixed_version cannot become the pin's next value.
+newer_than() {
+  [[ "$1" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || return 1
+  [[ "$2" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || return 1
+  local a1 a2 a3 b1 b2 b3
+  IFS=. read -r a1 a2 a3 <<< "$1"
+  IFS=. read -r b1 b2 b3 <<< "$2"
+  [ "${a1}" -ne "${b1}" ] && { [ "${a1}" -gt "${b1}" ]; return; }
+  [ "${a2}" -ne "${b2}" ] && { [ "${a2}" -gt "${b2}" ]; return; }
+  [ "${a3}" -gt "${b3}" ]
 }
 
 out="$(mktemp)"
@@ -124,15 +135,24 @@ fi
 
 # The fixed version is the pin's next value, and it has to be newer than the
 # pin: a finding whose fixed version is the pin or older contradicts the
-# finding itself, and bumping backwards is not a correction.
-mapfile -t fixed_list < <(printf '%s' "${stdlib}" | jq -r '[.[] | .finding.fixed_version] | unique | .[]' | sed 's/^v//')
-for f in "${fixed_list[@]}"; do
-  if ! ver_gt "${f}" "${pin}"; then
+# finding itself, and bumping backwards is not a correction. The maximum is
+# taken by comparing, not by sorting: BSD sort has no -V, and a lexical sort
+# would call 1.9.0 newer than 1.10.0. mapfile is not used for the same reason:
+# it arrived in bash 4, and macOS ships bash 3.2.
+fixed=""
+while IFS= read -r f; do
+  if ! newer_than "${f}" "${pin}"; then
     conclusion inconclusive "" "" "" "could not conclude: a finding is fixed in ${f}, which is not newer than the pinned ${pin}" >&2
     exit 1
   fi
-done
-fixed="$(printf '%s\n' "${fixed_list[@]}" | sort -V | tail -n 1)"
+  if [ -z "${fixed}" ] || newer_than "${f}" "${fixed}"; then
+    fixed="${f}"
+  fi
+done < <(printf '%s' "${stdlib}" | jq -r '[.[] | .finding.fixed_version] | unique | .[]' | sed 's/^v//')
+if [ -z "${fixed}" ]; then
+  conclusion inconclusive "" "" "" "could not conclude: no fixed version arrived for an advisory touching the pin" >&2
+  exit 1
+fi
 advisory="$(printf '%s' "${stdlib}" | jq -r '[.[] | .finding.osv] | unique | sort | join(",")')"
 
 line="advisory ${advisory} touches the pinned Go ${found}, fixed in ${fixed}"

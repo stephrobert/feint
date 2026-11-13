@@ -14,11 +14,8 @@
 # The logic lives here rather than in a run: block, for the reason
 # night-report.sh states — a run: block cannot be executed outside GitHub
 # Actions, and this repository has paid for CI fixes described in comments and
-# never executed. The controls on this file:
-#
-#   - tools/ci/vulncheck_report_test.go drives it with a stubbed `gh`;
-#   - tools/falsify/specs/the-vulncheck-report-says-what-it-found.json replays
-#     those tests with each decision neutralised.
+# never executed. The controls on this file: tools/ci/vulncheck_report_test.go
+# drives it with a stubbed `gh`.
 #
 # Usage: vulncheck-report.sh [--apply] <verdict> <advisory> <found> <fixed> <branch> <pr-url>
 #
@@ -124,7 +121,7 @@ trap 'rm -f "${body_file}"' EXIT
     echo "https://github.com/${repo}/compare/main...${branch}?expand=1"
   fi
   echo
-  echo "Merging it moves all nineteen pins together — mise.toml and every workflow"
+  echo "Merging it moves every Go pin together — mise.toml and every workflow"
   echo "that names a Go version — so the next night scans with the fixed toolchain."
   echo "Its CI must be green: a pin-bump pull request that is born red is a gate"
   echo "people stop reading."

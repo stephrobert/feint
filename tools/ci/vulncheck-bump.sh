@@ -2,10 +2,11 @@
 # Move every Go pin in the repository to a new patch version, together.
 #
 # The pins are the one in mise.toml and every `go-version:` in
-# .github/workflows/*.yml — nineteen pins in twelve files once vulncheck.yml
-# counts itself. They move together or not at all: a workflow left on the old
+# .github/workflows/*.yml. They move together or not at all: a workflow left on the old
 # patch is a toolchain the scan never judged, and internal/cli's
-# TestTheGoWorkflowPinsTheVersionMiseDoes exists to refuse exactly that.
+# TestTheGoWorkflowPinsTheVersionMiseDoes exists to refuse exactly that. The
+# count is counted at runtime, never written down: a number in a comment goes
+# stale the hour a workflow is added.
 #
 # Comment lines are prose, and prose quotes versions: the paragraph in go.yml
 # explaining why the minor pin failed names the versions it warns about. Only
@@ -21,6 +22,36 @@
 # The controls on this file: tools/ci/vulncheck_bump_test.go drives it on a
 # scratch tree.
 set -euo pipefail
+
+# newer_than A B -> true when A is strictly newer than B. Pure shell: BSD
+# sort has no -V, and a lexical sort would call 1.9.0 newer than 1.10.0. A
+# version that is not three numeric fields is not newer than anything.
+newer_than() {
+  [[ "$1" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || return 1
+  [[ "$2" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || return 1
+  local a1 a2 a3 b1 b2 b3
+  IFS=. read -r a1 a2 a3 <<< "$1"
+  IFS=. read -r b1 b2 b3 <<< "$2"
+  [ "${a1}" -ne "${b1}" ] && { [ "${a1}" -gt "${b1}" ]; return; }
+  [ "${a2}" -ne "${b2}" ] && { [ "${a2}" -gt "${b2}" ]; return; }
+  [ "${a3}" -gt "${b3}" ]
+}
+
+# rewrite_in_place <file> <sed-expression...>: sed -i is not portable — BSD
+# sed takes the next argument as the backup suffix, so -E would become a
+# suffix and the expression a filename. The substitution writes to a
+# temporary file and the original is overwritten from it, so the file keeps
+# its permissions and no backup file is left behind; a failing sed aborts
+# before the overwrite, because -e stops the script there.
+rewrite_in_place() {
+  local file="$1"
+  shift
+  local tmp
+  tmp="$(mktemp)"
+  sed -E "$@" "${file}" > "${tmp}"
+  cat "${tmp}" > "${file}"
+  rm -f "${tmp}"
+}
 
 if [ "$#" -ne 1 ]; then
   echo "usage: $0 <new-version>" >&2
@@ -47,7 +78,7 @@ if [ "${new}" = "${pin}" ]; then
   echo "vulncheck-bump: the pin is already ${new}; nothing to move" >&2
   exit 1
 fi
-if [ "$(printf '%s\n%s\n' "${pin}" "${new}" | sort -V | tail -n 1)" != "${new}" ]; then
+if ! newer_than "${new}" "${pin}"; then
   echo "vulncheck-bump: ${new} is not newer than the pinned ${pin}; refusing to bump backwards" >&2
   exit 1
 fi
@@ -64,12 +95,12 @@ if [ "${pins_before}" = 0 ]; then
   exit 1
 fi
 
-sed -i -E "s/^go = \"[^\"]+\"/go = \"${new}\"/" mise.toml
+rewrite_in_place mise.toml "s/^go = \"[^\"]+\"/go = \"${new}\"/"
 
 moved=0
 for file in .github/workflows/*.yml; do
   before="$(grep -v -E '^[[:space:]]*#' "${file}" | grep -c -E "go-version: '${new}'" || true)"
-  sed -i -E "/^[[:space:]]*#/!s/go-version: '[^']+'/go-version: '${new}'/g" "${file}"
+  rewrite_in_place "${file}" "/^[[:space:]]*#/!s/go-version: '[^']+'/go-version: '${new}'/g"
   after="$(grep -v -E '^[[:space:]]*#' "${file}" | grep -c -E "go-version: '${new}'" || true)"
   moved=$((moved + after - before))
 done

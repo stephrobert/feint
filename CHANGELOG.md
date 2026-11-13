@@ -19,8 +19,8 @@ what this project is judged on: **a response shape a client can observe**, and
 
 - **govulncheck moves from the pull-request gate to a nightly schedule** (#865).
   `.github/workflows/vulncheck.yml` scans the pinned Go against `vuln.go.dev`
-  every night: an advisory touching the pin opens a pull request moving all
-  nineteen pins together, a night the scan cannot conclude opens one
+  every night: an advisory touching the pin opens a pull request moving every Go pin
+  together, a night the scan cannot conclude opens one
   `scheduled-red` issue through `night-report.yml`, and a clean night says so
   in its log. `mise run vulncheck` stays the manual way to ask the question.
   The same change fixes it on a clean checkout: mise sets `GOBIN` to its own

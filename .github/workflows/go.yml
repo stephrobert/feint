@@ -81,7 +81,7 @@ jobs:
           # So it was not moved into the hook: a scan whose verdict moves on
           # its own belongs on a SCHEDULE. That schedule is now
           # .github/workflows/vulncheck.yml (#865): every night it scans the
-          # pinned Go, opens a pull request moving all eighteen pins together
+          # pinned Go, opens a pull request moving every Go pin together
           # when an advisory touches the pin, and reports through
           # night-report.yml on a night it could not conclude. The history
           # above stops here because the schedule owns the moves from here on;

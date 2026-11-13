@@ -22,7 +22,7 @@ change ni l'un ni l'autre a sa place dans `git log`.
 - **govulncheck passe de la porte des pull requests à un planning nocturne** (#865).
   `.github/workflows/vulncheck.yml` scanne le Go épinglé contre `vuln.go.dev`
   chaque nuit : un avis qui touche l'épingle ouvre une pull request qui déplace
-  les dix-neuf épingles ensemble, une nuit où le scan ne peut pas conclure ouvre
+  toutes les épingles ensemble, une nuit où le scan ne peut pas conclure ouvre
   une issue `scheduled-red` via `night-report.yml`, et une nuit propre le dit
   dans son journal. `mise run vulncheck` reste la façon de poser la question à
   la main. Le même changement le répare sur une installation propre : mise
