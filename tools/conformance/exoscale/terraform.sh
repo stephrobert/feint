@@ -107,7 +107,7 @@ export TF_VAR_zone="$EXOSCALE_ZONE"
 
 echo "conformance: $TF against $ENDPOINT"
 
-"$TF" init -no-color -upgrade
+"$STACK/../../ci/tf-retry.sh" "$TF" exoscale init -no-color -upgrade
 "$TF" validate -no-color
 
 # The floor, asserted rather than assumed: a run that resolved an older provider

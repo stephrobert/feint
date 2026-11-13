@@ -159,7 +159,12 @@ run_stack() { # name
   export TF_IN_AUTOMATION=1 TF_INPUT=0
 
   echo "- $name: init and apply"
-  "$TF" init -no-color -upgrade >/dev/null || fail "$name: init failed"
+  # Through tools/ci/tf-retry.sh: a transient registry 5xx used to red this
+  # leg on a change that touched no route (#895), and the version the engine
+  # resolved reached no log at all, so no green run could be attributed to
+  # one (#899). The wrapper survives the first and prints the second.
+  "$ROOT/tools/ci/tf-retry.sh" "$TF" "$name" init -no-color -upgrade \
+    || fail "$name: init failed"
   "$TF" apply -no-color -auto-approve ${VARS[@]+"${VARS[@]}"} >/dev/null \
     || fail "$name: apply failed"
   ok "applied"

@@ -121,7 +121,8 @@ while IFS= read -r line; do
 done < <("$FEINT_BIN" env outscale --endpoint "$ENDPOINT" 2>/dev/null)
 [ "${#doorway_env[@]}" -gt 0 ] || fail "feint env outscale printed nothing; an eval of nothing is the accident guard.sh exists for"
 
-(cd "$doorway" && "$TF" init -no-color -upgrade >/dev/null) || fail "doorway init failed"
+(cd "$doorway" && "$DIR/../../ci/tf-retry.sh" "$TF" doorway init -no-color -upgrade) \
+  || fail "doorway init failed"
 # 60 seconds, not six minutes: the failure this step exists to catch used to
 # present as a retry backoff indistinguishable from a dead emulator.
 if ! (cd "$doorway" && timeout 60 env -i HOME="$doorway/home" PATH="$PATH" TF_IN_AUTOMATION=1 TF_INPUT=0 \
@@ -137,7 +138,7 @@ ok "provider $doorway_version planned with nothing but the feint env exports"
 
 cd "$WORK"
 
-"$TF" init -no-color -upgrade >/dev/null
+"$DIR/../../ci/tf-retry.sh" "$TF" outscale init -no-color -upgrade
 "$TF" validate -no-color >/dev/null
 "$TF" plan -no-color -var "endpoint=$ENDPOINT" -out tfplan >/dev/null
 

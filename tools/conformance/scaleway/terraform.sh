@@ -71,7 +71,7 @@ echo "conformance: $TF against $ENDPOINT"
 # not know about would make it plan a change while tearing down.
 export TF_VAR_phase=one
 
-"$TF" init -no-color -upgrade
+"$DIR/../../ci/tf-retry.sh" "$TF" scaleway init -no-color -upgrade
 "$TF" validate -no-color
 "$TF" plan -no-color -var "endpoint=$ENDPOINT" -out tfplan
 
