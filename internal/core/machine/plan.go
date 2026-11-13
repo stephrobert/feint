@@ -374,6 +374,19 @@ func (r Reconciler) ReplayEgress(ctx context.Context, res *resource.Resource) {
 	if name == "" {
 		return
 	}
+	// The second question, in the shared layer, for the three packs at once.
+	//
+	// Runtime is restored verbatim by `PUT /_feint/state` and by
+	// `feint snapshot load`, and the snapshot format is documented as meant to
+	// outlive its instance: this name is untrusted input however internal it
+	// looks. Without this line a crafted snapshot naming `production-database`
+	// reached `incus exec production-database -- ip route del default`, and a
+	// name starting with a dash reached the driver as a flag.
+	//
+	// Stop, Remove and Addresses already ask it here; this path did not, and it
+	// is the one the hot doors walk on every poweron, join and address route.
+	// TestEgressRefusesAMachineTheEmulatorCouldNotHaveCreated fails without it.
+	name = r.binding().ours(res.ID, name)
 	plan, declared := r.plan(res)
 	if !declared {
 		return

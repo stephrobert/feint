@@ -186,3 +186,47 @@ func TestDetachIsQuietWhenThereIsNothingToDetach(t *testing.T) {
 		t.Fatalf("nothing was on that network, so nothing may be removed; commands sent: %v", bare.sent)
 	}
 }
+
+// The egress half of the driver asked neither question, where every other
+// reconfiguring path asks both. A security audit measured it on 2026-11-13:
+// a crafted snapshot naming an instance of the host reached
+// `incus exec production-database -- ip route del default`.
+//
+// The twin of TestDetachRefusesAnInstanceItDoesNotOwn, and for the same reason:
+// the name comes from a stored resource that `PUT /_feint/state` restores
+// verbatim.
+func TestEgressRefusesAnInstanceItDoesNotOwn(t *testing.T) {
+	t.Run("drop", func(t *testing.T) {
+		rec := &recorder{label: ""} // no user.feint.provider on it
+		d := &Incus{runner: rec.run, OVN: true}
+
+		if err := d.DropEgress(context.Background(), "production-database"); err == nil {
+			t.Fatal("DropEgress accepted an instance carrying none of the emulator's labels")
+		}
+		if rec.carries("ip route del") {
+			t.Fatalf("a default route was removed from an instance the emulator does not own; "+
+				"commands sent: %v", rec.sent)
+		}
+	})
+
+	t.Run("route", func(t *testing.T) {
+		rec := &recorder{label: ""}
+		d := &Incus{runner: rec.run, OVN: true}
+
+		if err := d.RouteEgress(context.Background(), "production-database", "fnt-ours"); err == nil {
+			t.Fatal("RouteEgress accepted an instance carrying none of the emulator's labels")
+		}
+	})
+
+	t.Run("a name the driver would read as a flag", func(t *testing.T) {
+		rec := &recorder{label: "scaleway"} // ours, but the name is not a name
+		d := &Incus{runner: rec.run, OVN: true}
+
+		if err := d.DropEgress(context.Background(), "-h"); err == nil {
+			t.Fatal("DropEgress accepted a name starting with a dash")
+		}
+		if len(rec.sent) != 0 {
+			t.Fatalf("a command was sent for a malformed name: %v", rec.sent)
+		}
+	})
+}

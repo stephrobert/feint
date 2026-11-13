@@ -15,6 +15,19 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ## [Unreleased]
 
+### Fixed
+
+- **A crafted snapshot could remove the default route of any instance on
+  the host.** The egress path read its machine name from a restored
+  `Runtime` map and asked neither whether the name was well formed nor
+  whether the emulator created it. It now asks both, in the shared layer
+  and in the driver.
+- **The proxy wrote any non-JSON body to the transcript in the clear**,
+  signatures included. A form-encoded body — the dialect of the
+  AWS-compatible APIs — is now parsed and redacted like any other, and any
+  other text body is dropped with its reason rather than recorded
+  unredacted.
+
 ### Changed
 
 - **`govulncheck` runs on a schedule, not on your pull request** (#865).

@@ -1695,6 +1695,16 @@ func (d *Incus) RouteEgress(ctx context.Context, machine, network string) error 
 	if !d.OVN {
 		return nil
 	}
+	// Both questions, the way every other reconfiguring path in this driver
+	// asks them. This one asked neither: a name from a restored Runtime map
+	// reached `incus exec` directly, and a name starting with a dash reached it
+	// as a flag. TestEgressRefusesAnInstanceItDoesNotOwn fails without this.
+	if !safeName.MatchString(machine) {
+		return fmt.Errorf("invalid machine name %q", machine)
+	}
+	if err := d.mustOwnInstance(ctx, machine); err != nil {
+		return err
+	}
 	device, err := d.deviceOnNetwork(ctx, machine, network)
 	if err != nil || device == "" {
 		return err
@@ -1711,6 +1721,18 @@ func (d *Incus) RouteEgress(ctx context.Context, machine, network string) error 
 func (d *Incus) DropEgress(ctx context.Context, machine string) error {
 	if !d.OVN {
 		return nil
+	}
+	// A destructive path, so it answers ownership before shape — and an absent
+	// instance is "nothing to undo", not a refusal, which is the rule Detach
+	// states for this whole layer.
+	if !safeName.MatchString(machine) {
+		return fmt.Errorf("invalid machine name %q", machine)
+	}
+	if err := d.mustOwnInstance(ctx, machine); err != nil {
+		if isNotFound(err) {
+			return nil
+		}
+		return err
 	}
 	if _, err := d.run(ctx, "exec", machine, "--", "ip", "route", "del", "default"); err != nil {
 		msg := strings.ToLower(err.Error())

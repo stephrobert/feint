@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -226,14 +227,70 @@ func (b *body) decoded(header http.Header) any {
 		return decoded
 	}
 
-	// Not JSON. A string, as trace.Message documents — but only if it is text: a
-	// binary body cast to a string is invalid UTF-8, which encoding/json rewrites
-	// into replacement characters, so the transcript would carry neither the
-	// bytes nor an admission that it lost them.
+	// Not JSON, and this is where a credential used to walk out in the clear.
+	//
+	// redactValue only descends maps and slices; its default returns the value
+	// untouched, so a body returned as a bare string reached the transcript
+	// whole. Measured on 2026-11-13:
+	//
+	//	Action=CreateVms&AWSAccessKeyId=AKIAMARKER&Signature=MARKER-form-signature
+	//
+	// The name was recognised — `Signature` is in the carriers — and the format
+	// of the body put the value out of the rule's reach. That shape is not
+	// exotic here: it is the dialect of the AWS-compatible APIs.
+	//
+	// So a form-encoded body is parsed into the structure redaction already
+	// knows how to walk, which is the preference order this repository states:
+	// a parser first, refusal second, and never a pattern filter over the raw
+	// string. TestAFormEncodedBodyIsRedactedLikeAnyOther fails without it.
+	if form, ok := formEncoded(contentType, data); ok {
+		return form
+	}
+
+	// Any other text body: refused rather than written. A string reaches the
+	// record unredactable, and "it is probably harmless" is the reasoning that
+	// put the signature above on disk. The Omission says what was dropped, which
+	// a reader can tell from an empty body.
 	if utf8.Valid(data) {
-		return string(data)
+		return &Omission{
+			Reason: "body is text but not a structure redaction can walk; dropped rather than recorded unredacted",
+			Bytes:  total,
+			Type:   contentType,
+		}
 	}
 	return &Omission{Reason: "body is neither JSON nor text", Bytes: total, Type: contentType}
+}
+
+// formEncoded turns an application/x-www-form-urlencoded body into the map
+// redaction walks, or says it is not one.
+//
+// A repeated key keeps every value, because dropping one would make the record
+// disagree with the wire — and a signature is sometimes the second value.
+func formEncoded(contentType string, data []byte) (map[string]any, bool) {
+	base, _, _ := strings.Cut(contentType, ";")
+	if !strings.EqualFold(strings.TrimSpace(base), "application/x-www-form-urlencoded") {
+		return nil, false
+	}
+	values, err := url.ParseQuery(string(data))
+	if err != nil {
+		return nil, false
+	}
+	out := make(map[string]any, len(values))
+	for k, v := range values {
+		switch len(v) {
+		case 0:
+			out[k] = ""
+		case 1:
+			out[k] = v[0]
+		default:
+			parts := make([]any, 0, len(v))
+			for _, one := range v {
+				parts = append(parts, one)
+			}
+			out[k] = parts
+		}
+	}
+	return out, true
 }
 
 // Omission stands where a body is not, and says why.
