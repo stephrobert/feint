@@ -87,6 +87,7 @@ func runCommand(args []string, stdout io.Writer, stderr io.Writer) int {
 	unsafe := fs.Bool("unsafe-real-credentials", false, "allow the child to carry credentials that are not known fakes. The emulator never checks a signature, so this buys nothing and risks sending real keys to a third party")
 	preflightMode := fs.String("preflight", "auto", "read the Terraform stack the child would read, before anything starts: auto refuses a type this emulator declines, strict also refuses an unmeasured one, off skips the reading")
 	preflightJSON := fs.String("preflight-json", "", "write the preflight report as JSON to this path; `-` means stdout")
+	faultPath := fs.String("fault", "", "arm the fault campaign in this JSON file before the child starts, and report what fired. The file is the document PUT /_feint/faults takes")
 	if err := fs.Parse(args); err != nil {
 		return exitError
 	}
@@ -113,6 +114,16 @@ func runCommand(args []string, stdout io.Writer, stderr io.Writer) int {
 	// failed. TestARunRefusesADeclinedStackBeforeStartingAnything holds it.
 	if runStackPreflight(command, preflightPolicy(*preflightMode), *preflightJSON, stdout, stderr) {
 		return exitError
+	}
+
+	campaign := []faultRule(nil)
+	if *faultPath != "" {
+		loaded, err := loadFaultCampaign(*faultPath)
+		if err != nil {
+			fmt.Fprintf(stderr, "feint run: %v\n", err)
+			return exitError
+		}
+		campaign = loaded
 	}
 
 	// Two flags that mean opposite things about a failed run: one erases the
@@ -219,11 +230,29 @@ func runCommand(args []string, stdout io.Writer, stderr io.Writer) int {
 	// Counted before and after, so an ATTACHED lab's earlier traffic is not
 	// reported as this run's. The owned case starts at zero and the delta is
 	// the same number; the attached case is where a total would lie.
+	if len(campaign) != 0 {
+		if err := armFaultCampaign(target, campaign); err != nil {
+			return fail(err)
+		}
+	}
+
 	before, _ := callsSoFar(target)
 
 	code, runErr := runChild(target, *addr, profiles, command, *unsafe, childEnv, stdout, stderr)
 
 	// Read before the teardown, or there is nothing left to read.
+	// Read on every run, not only on one that armed a campaign: an attached
+	// lab can carry rules this run never asked for, and a receipt reporting
+	// what this invocation asked for would deny the injected answers its own
+	// child met.
+	faultsArmed, fired, firedDropped, firedRead := readFaultState(target)
+	if len(campaign) != 0 {
+		// Cleared after the state is read, and only what this run armed. An
+		// attached lab outlives the run, so a campaign left behind becomes the
+		// next run's silent surprise.
+		disarmFaultCampaign(target, stderr)
+	}
+
 	after, truncated := callsSoFar(target)
 	calls := after - before
 	if calls < 0 || truncated {
@@ -275,7 +304,10 @@ func runCommand(args []string, stdout io.Writer, stderr io.Writer) int {
 		Calls: calls, CallsTruncated: truncated, Stripped: stripped,
 		Exit: code, Cleanup: cleanup,
 		Reset: resetVerdict, Unreconciled: unreconciled,
-		RealCloud: "no known escape observed",
+		RealCloud:   "no known escape observed",
+		FaultsArmed: faultsArmed != 0 || len(fired) != 0, FaultsCampaign: len(campaign) != 0,
+		FaultsRead: firedRead,
+		Faults:     fired, FaultsDropped: firedDropped,
 	}
 	// stdout belongs to the CHILD, and to nothing else. Measured rather than
 	// reasoned: the first version wrote the JSON receipt there, and replaying

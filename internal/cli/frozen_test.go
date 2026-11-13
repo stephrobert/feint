@@ -189,7 +189,15 @@ func observedSurfaces(t *testing.T) []frozenSurface {
 			// keys are collapsed so that mounting one more route — never a
 			// break, serving more of a provider's API is the point — cannot
 			// move the fixture.
-			[]string{"calls", "probes", "violations", "unread_request_fields", "evidence"})},
+			// `injected` belongs to the same family and was missing from this
+			// list, which only showed when a second operation started carrying an
+			// injected answer: the fixture grew `injected.instance/v1/API.ListIPs`
+			// as if a published shape had moved. An operation name is data, so a
+			// population that injects one more must not read as a surface change.
+			// The v5 entry is corrected in place rather than superseded, because
+			// it recorded a data key as a schema path and was wrong when written;
+			// what /_feint/conformance answers has not changed.
+			[]string{"calls", "probes", "violations", "unread_request_fields", "evidence", "injected"})},
 		{name: "trace", version: emulator.TraceSchemaVersion, content: observeShape(t, "/_feint/trace", nil)},
 		// Frozen from its first version, like the four above: a suite that arms
 		// a fault from a committed file is a consumer on day one, and the rules
@@ -275,14 +283,30 @@ var frozenBody = func() func(t *testing.T, path string) []byte {
 				return
 			}
 
-			// One armed rule, and one call that fires it. Both halves are
-			// needed: without the rule the faults payload freezes an empty
+			// Two armed rules, and one call each that fires them. Every half
+			// is needed: without a rule the faults payload freezes an empty
 			// array and nothing of the entry's shape, and without the call
 			// /_feint/conformance freezes an `injected` object with no entry —
-			// so the two keys this change adds would be frozen as names with
-			// no contents. The target is GetServer, which none of the three
-			// calls above drives, so the other surfaces are unaffected.
-			armed := `{"faults":[{"operation":"instance/v1/API.GetServer","status":503,"times":1}]}`
+			// so the keys a change adds would be frozen as names with no
+			// contents.
+			//
+			// The second rule is a TRANSPORT rule, and it is here because the
+			// first version of this lot froze only `faults[].transport` and
+			// not `fired[].transport`: the receipt line carries omitempty, so
+			// a population that fires no transport rule never puts the key in
+			// the fixture. Measured by renaming the tag to `transport_renamed`
+			// with only the status rule armed — TestTheFrozenSurfacesStillMatchTheirFixture
+			// and TestASurfaceChangeDemandsItsVersionBump both stayed green,
+			// which is the exact class frozen_test.go exists to catch. A gate
+			// whose population cannot contain the thing it judges is not a
+			// gate.
+			//
+			// GetServer and ListIPs are driven by none of the three calls
+			// above, so the other surfaces are unaffected.
+			armed := `{"faults":[` +
+				`{"operation":"instance/v1/API.GetServer","status":503,"times":1},` +
+				`{"operation":"instance/v1/API.ListIPs","transport":"close"}` +
+				`]}`
 			req, err := http.NewRequest(http.MethodPut, ts.URL+"/_feint/faults", strings.NewReader(armed))
 			if err != nil {
 				buildErr = err
@@ -303,6 +327,15 @@ var frozenBody = func() func(t *testing.T, path string) []byte {
 			}
 			if err := drive("/instance/v1/zones/fr-par-1/servers/11111111-1111-1111-1111-111111111111", false); err != nil {
 				buildErr = err
+				return
+			}
+			// The transport rule's call, whose error IS the rule firing: the
+			// connection is dropped before any status line, so a client that
+			// did not fail here would mean the rule did not fire. An error is
+			// therefore required rather than tolerated.
+			if err := drive("/instance/v1/zones/fr-par-1/ips", false); err == nil {
+				buildErr = fmt.Errorf("the close rule answered without dropping the connection, " +
+					"so the receipt carries no transport line and the frozen surface would not hold it")
 				return
 			}
 

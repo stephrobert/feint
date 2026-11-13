@@ -39,6 +39,11 @@ import (
 // observer records what a run did, and checks it while it happens.
 type observer struct {
 	mu sync.Mutex
+	// heldConnections counts the connections a transport fault has hijacked and
+	// not yet released. Atomic rather than under mu: it is taken on the request
+	// path, before anything else, and a `hang` holds it for minutes, which is
+	// the one thing that must never be done while holding this mutex.
+	heldConnections atomic.Int64
 	// calls counts requests a real client made, per route operation. This is the
 	// only counter the backlog is computed from.
 	calls map[string]int
@@ -188,9 +193,16 @@ func (o *observer) wrap(provider string, r Route) http.HandlerFunc {
 				// serveFault runs the pack's own handler on the truncate path,
 				// and a panic there would otherwise skip the completion.
 				status := 0
+				injectedTransport := ""
 				answered := false
-				defer func() { o.faults.recordFired(slot, status, !answered || status == 0) }()
-				status = o.serveFault(w, req, provider, r, f)
+				// injectedTransport is what serveFault actually did, not what the
+				// rule asked for. A `close` rule behind a `delay` whose client gives
+				// up never reaches the hijack, and a receipt naming a drop there
+				// would claim an effect nobody produced.
+				defer func() {
+					o.faults.recordFired(slot, status, !answered || status == 0, injectedTransport)
+				}()
+				status, injectedTransport = o.serveFault(w, req, provider, r, f, slot)
 				answered = true
 				// Offered to the open spans, marked injected, so a `negative`
 				// span cannot close on it — and published on the log, because

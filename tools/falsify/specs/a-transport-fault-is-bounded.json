@@ -1,0 +1,27 @@
+{
+ "package": "./internal/core/emulator/",
+ "note": "The subject is what a transport fault costs the process that serves it, and the three bounds a security review of #851 measured the absence of.\n\nA status injection answers and lets go. A `hang` rule turns one client request into a resource this process holds, and the CLIENT decides how many and for how long. Measured before the bounds existed:\n\n1. One rule and 61 connections against a server started with `ulimit -n 64` consumed every descriptor. `GET /_feint/health` and `DELETE /_feint/faults` both hung and the log repeated `accept4: too many open files` once a second. The hijacked connections and the only door that could disarm the rule share one listener, so a client could lock the operator out of their own emulator.\n\n2. The read loop ran one byte at a time. A peer sending 64 KiB chunks for 300 seconds cost 302 CPU-seconds, one core pinned by one connection, through 707 million read syscalls against 10 800 writes on the peer's side. maxFaultHang guarantees the burn cannot be ended early, because the peer feeding it is the one that would have to leave.\n\n3. maxFaultHang itself was a five-minute constant with one use and no test, whose comment named the leak it prevents. A bound no suite can reach is a comment.\n\nAnd one honesty bound beside them: the transport name was recorded when the receipt line was reserved, at arrival. A `close` rule behind a `delay` whose client gives up never reaches the hijack, and the receipt still said the connection was dropped.",
+ "mutations": [
+  {
+   "label": "the bound on connections held at once never fires, so one client with one hang rule can take every descriptor this process has, and the /_feint door that would disarm the rule goes with them",
+   "file": "internal/core/emulator/faults.go",
+   "find": "\tif held := o.heldConnections.Add(1); held > maxHeldConnections {",
+   "replace": "\tif held := o.heldConnections.Add(1); held > maxHeldConnections && false {",
+   "test": "TestAHangRuleStopsTakingConnectionsBeforeItLocksTheOperatorOut"
+  },
+  {
+   "label": "the read deadline is pushed a thousand times further out, which is what having no bound looks like from the inside: a peer that goes away without closing leaves a goroutine and a descriptor held for the life of the process",
+   "file": "internal/core/emulator/faults.go",
+   "find": "\t\tif err := conn.SetReadDeadline(time.Now().Add(time.Duration(faultHangLimit.Load()))); err != nil {",
+   "replace": "\t\tif err := conn.SetReadDeadline(time.Now().Add(time.Duration(faultHangLimit.Load()) * 1000)); err != nil {",
+   "test": "TestAHeldConnectionIsReleasedWhenTheBoundExpires"
+  },
+  {
+   "label": "the receipt records the transport the rule ASKED for instead of the one that was injected. A close rule behind a delay whose client gives up then reports a connection this emulator dropped, which it never did",
+   "file": "internal/core/emulator/conformance.go",
+   "find": "\t\t\t\tstatus, injectedTransport = o.serveFault(w, req, provider, r, f, slot)",
+   "replace": "\t\t\t\tstatus, _ = o.serveFault(w, req, provider, r, f, slot)\n\t\t\t\tinjectedTransport = f.Transport",
+   "test": "TestADroppedConnectionIsClaimedOnlyWhenItHappened"
+  }
+ ]
+}

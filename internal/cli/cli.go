@@ -273,11 +273,22 @@ const (
 // /_feint/conformance is the new `mutations` key, empty unless somebody used
 // the verb — see ConformanceSchemaVersion.
 //
+// Version 36 finishes the fault campaign (#851): `fault add` gains --close and
+// --hang, the two failures below HTTP that a status cannot express, and --seed,
+// which exists in order to refuse with its measurement rather than leave the
+// next person to build a replay on arrival order. `run` gains --fault, which
+// arms a committed campaign for the child and reports what fired in the run
+// receipt. Nothing was removed and no exit code moved; a pipeline keyed on
+// version 35 keeps working. What moves for a reader of /_feint/faults is the
+// new `transport` key on a rule and on a receipt line (FaultsSchemaVersion 3),
+// and for a reader of the run receipt the four `faults_*` keys
+// (runReceiptSchemaVersion 2).
+//
 // The surface itself is frozen in testdata/frozen/cli.json, compared by
 // TestTheFrozenSurfacesStillMatchTheirFixture, and a fixture regenerated
 // without bumping this constant fails TestASurfaceChangeDemandsItsVersionBump.
 // The procedure for a deliberate change is in RELEASING.md ("Frozen surfaces").
-const cliSurfaceVersion = 35
+const cliSurfaceVersion = 36
 
 // Run executes one command and returns the process exit code.
 func Run(args []string, stdout, stderr io.Writer) int {
@@ -570,7 +581,7 @@ Usage:
   feint run        [--provider scaleway] [--endpoint http://127.0.0.1:4599]
                     [--addr 127.0.0.1:0] [--keep-on-failure] [--reset-after]
                     [--json <path>] [--preflight auto|strict|off]
-                    [--preflight-json <path>]
+                    [--preflight-json <path>] [--fault <campaign.json>]
                     [--unsafe-real-credentials] -- <command> [args...]
                     Run one command against a local cloud this command owns.
                     With no --endpoint it starts an emulator, waits for it,
@@ -647,6 +658,7 @@ Usage:
   feint fault      list [--addr 127.0.0.1:4599]
                    add <operation> [--addr 127.0.0.1:4599] [--status 503]
                        [--delay 4s] [--nth 3] [--times 2] [--truncate 64]
+                       [--close] [--hang] [--seed N]
                    clear [--addr 127.0.0.1:4599]
                     Make the emulator answer the way a cloud answers on a bad
                     day, one named operation at a time. add keeps what is
@@ -657,7 +669,15 @@ Usage:
                     order rather than a replay key: under concurrent clients
                     two calls can swap ranks between runs. --nth and --times
                     are refused together, because "the third call, twice" has
-                    no single reading. Every rule is checked when it is armed:
+                    no single reading. --close drops the connection and --hang
+                    holds it open and never answers: both are failures a
+                    status cannot express, because there is no response to
+                    parse at all. --seed is refused, and says what was
+                    measured: across the 1088 exchanges recorded under
+                    corpus/, the official clients send nine request header
+                    names and none is minted per call, so a seeded decision
+                    could only rest on arrival order, which concurrent clients
+                    reorder. Every rule is checked when it is armed:
                     an operation nothing serves, or a status the pack renders
                     in no dialect, is refused with the reason.
 

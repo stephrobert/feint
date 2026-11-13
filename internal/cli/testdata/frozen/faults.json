@@ -1,134 +1,225 @@
 {
-  "history": [
-    {
-      "schema_version": 1,
-      "content": {
-        "fields": [
-          {
-            "path": "faults",
-            "type": "array"
-          },
-          {
-            "path": "faults[]",
-            "type": "object"
-          },
-          {
-            "path": "faults[].delay",
-            "type": "string"
-          },
-          {
-            "path": "faults[].hits",
-            "type": "number"
-          },
-          {
-            "path": "faults[].operation",
-            "type": "string"
-          },
-          {
-            "path": "faults[].spent",
-            "type": "bool"
-          },
-          {
-            "path": "faults[].status",
-            "type": "number"
-          },
-          {
-            "path": "faults[].times",
-            "type": "number"
-          },
-          {
-            "path": "faults[].truncate_bytes",
-            "type": "null"
-          },
-          {
-            "path": "schema_version",
-            "type": "number"
-          }
-        ]
-      }
-    },
-    {
-      "schema_version": 2,
-      "content": {
-        "fields": [
-          {
-            "path": "faults",
-            "type": "array"
-          },
-          {
-            "path": "faults[]",
-            "type": "object"
-          },
-          {
-            "path": "faults[].calls",
-            "type": "number"
-          },
-          {
-            "path": "faults[].delay",
-            "type": "string"
-          },
-          {
-            "path": "faults[].hits",
-            "type": "number"
-          },
-          {
-            "path": "faults[].nth",
-            "type": "number"
-          },
-          {
-            "path": "faults[].operation",
-            "type": "string"
-          },
-          {
-            "path": "faults[].spent",
-            "type": "bool"
-          },
-          {
-            "path": "faults[].status",
-            "type": "number"
-          },
-          {
-            "path": "faults[].times",
-            "type": "number"
-          },
-          {
-            "path": "faults[].truncate_bytes",
-            "type": "null"
-          },
-          {
-            "path": "fired",
-            "type": "array"
-          },
-          {
-            "path": "fired[]",
-            "type": "object"
-          },
-          {
-            "path": "fired[].abandoned",
-            "type": "bool"
-          },
-          {
-            "path": "fired[].operation",
-            "type": "string"
-          },
-          {
-            "path": "fired[].rank",
-            "type": "number"
-          },
-          {
-            "path": "fired[].status",
-            "type": "number"
-          },
-          {
-            "path": "fired_dropped",
-            "type": "number"
-          },
-          {
-            "path": "schema_version",
-            "type": "number"
-          }
-        ]
-      }
-    }
-  ]
+ "history": [
+  {
+   "schema_version": 1,
+   "content": {
+    "fields": [
+     {
+      "path": "faults",
+      "type": "array"
+     },
+     {
+      "path": "faults[]",
+      "type": "object"
+     },
+     {
+      "path": "faults[].delay",
+      "type": "string"
+     },
+     {
+      "path": "faults[].hits",
+      "type": "number"
+     },
+     {
+      "path": "faults[].operation",
+      "type": "string"
+     },
+     {
+      "path": "faults[].spent",
+      "type": "bool"
+     },
+     {
+      "path": "faults[].status",
+      "type": "number"
+     },
+     {
+      "path": "faults[].times",
+      "type": "number"
+     },
+     {
+      "path": "faults[].truncate_bytes",
+      "type": "null"
+     },
+     {
+      "path": "schema_version",
+      "type": "number"
+     }
+    ]
+   }
+  },
+  {
+   "schema_version": 2,
+   "content": {
+    "fields": [
+     {
+      "path": "faults",
+      "type": "array"
+     },
+     {
+      "path": "faults[]",
+      "type": "object"
+     },
+     {
+      "path": "faults[].calls",
+      "type": "number"
+     },
+     {
+      "path": "faults[].delay",
+      "type": "string"
+     },
+     {
+      "path": "faults[].hits",
+      "type": "number"
+     },
+     {
+      "path": "faults[].nth",
+      "type": "number"
+     },
+     {
+      "path": "faults[].operation",
+      "type": "string"
+     },
+     {
+      "path": "faults[].spent",
+      "type": "bool"
+     },
+     {
+      "path": "faults[].status",
+      "type": "number"
+     },
+     {
+      "path": "faults[].times",
+      "type": "number"
+     },
+     {
+      "path": "faults[].truncate_bytes",
+      "type": "null"
+     },
+     {
+      "path": "fired",
+      "type": "array"
+     },
+     {
+      "path": "fired[]",
+      "type": "object"
+     },
+     {
+      "path": "fired[].abandoned",
+      "type": "bool"
+     },
+     {
+      "path": "fired[].operation",
+      "type": "string"
+     },
+     {
+      "path": "fired[].rank",
+      "type": "number"
+     },
+     {
+      "path": "fired[].status",
+      "type": "number"
+     },
+     {
+      "path": "fired_dropped",
+      "type": "number"
+     },
+     {
+      "path": "schema_version",
+      "type": "number"
+     }
+    ]
+   }
+  },
+  {
+   "schema_version": 3,
+   "content": {
+    "fields": [
+     {
+      "path": "faults",
+      "type": "array"
+     },
+     {
+      "path": "faults[]",
+      "type": "object"
+     },
+     {
+      "path": "faults[].calls",
+      "type": "number"
+     },
+     {
+      "path": "faults[].delay",
+      "type": "string"
+     },
+     {
+      "path": "faults[].hits",
+      "type": "number"
+     },
+     {
+      "path": "faults[].nth",
+      "type": "number"
+     },
+     {
+      "path": "faults[].operation",
+      "type": "string"
+     },
+     {
+      "path": "faults[].spent",
+      "type": "bool"
+     },
+     {
+      "path": "faults[].status",
+      "type": "number"
+     },
+     {
+      "path": "faults[].times",
+      "type": "number"
+     },
+     {
+      "path": "faults[].transport",
+      "type": "string"
+     },
+     {
+      "path": "faults[].truncate_bytes",
+      "type": "null"
+     },
+     {
+      "path": "fired",
+      "type": "array"
+     },
+     {
+      "path": "fired[]",
+      "type": "object"
+     },
+     {
+      "path": "fired[].abandoned",
+      "type": "bool"
+     },
+     {
+      "path": "fired[].operation",
+      "type": "string"
+     },
+     {
+      "path": "fired[].rank",
+      "type": "number"
+     },
+     {
+      "path": "fired[].status",
+      "type": "number"
+     },
+     {
+      "path": "fired[].transport",
+      "type": "string"
+     },
+     {
+      "path": "fired_dropped",
+      "type": "number"
+     },
+     {
+      "path": "schema_version",
+      "type": "number"
+     }
+    ]
+   }
+  }
+ ]
 }

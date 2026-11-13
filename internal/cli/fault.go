@@ -10,6 +10,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/stephrobert/feint/internal/core/emulator"
 )
 
 // `feint fault`: the verb over the fault injector the emulator already serves
@@ -72,6 +74,7 @@ type faultRule struct {
 	Times     int    `json:"times,omitempty"`
 	Nth       int    `json:"nth,omitempty"`
 	Truncate  *int   `json:"truncate_bytes,omitempty"`
+	Transport string `json:"transport,omitempty"`
 
 	// Read back from the emulator, never meant by a caller. Hits is what the
 	// rule answered, Calls every call it saw; under --nth the two differ by
@@ -91,6 +94,11 @@ type firedFault struct {
 	// delayed rule makes ordinary. Printed as words, because `answered 0` is
 	// not a status anybody can read.
 	Abandoned bool `json:"abandoned"`
+	// Transport is "close" or "hang" when the failure happened below HTTP,
+	// and empty otherwise. It is what tells `status 0, abandoned` caused by a
+	// dropped connection from the same line caused by a client that gave up
+	// during a delay.
+	Transport string `json:"transport,omitempty"`
 }
 
 // faultsDocument is what /_feint/faults answers to all three methods.
@@ -164,6 +172,9 @@ func faultAdd(args []string, stdout, stderr io.Writer) int {
 	nth := fs.Int("nth", 0, "answer the Nth call to this operation and no other, counting from one")
 	times := fs.Int("times", 0, "answer this many calls, then stop firing; 0 is every call")
 	truncate := fs.Int("truncate", 0, "cut the handler's own answer to this many bytes")
+	dropConn := fs.Bool("close", false, "drop the connection instead of answering, with a reset")
+	hangConn := fs.Bool("hang", false, "hold the connection open and never answer")
+	seed := fs.Int("seed", 0, "refused: see the message it prints, and use --nth instead")
 	if len(args) != 0 && strings.HasPrefix(args[0], "-") {
 		// -h, --help, or a mistyped flag: the flag set is the only thing that
 		// can print the usage, so let it answer.
@@ -185,7 +196,23 @@ func faultAdd(args []string, stdout, stderr io.Writer) int {
 		return exitError
 	}
 
+	if wasSet(fs, "seed") {
+		reportNoSeed(stderr, *seed)
+		return exitError
+	}
+	if *dropConn && *hangConn {
+		fmt.Fprintln(stderr, "feint fault add: --close and --hang are two different failures: one drops the")
+		fmt.Fprintln(stderr, "  connection, the other holds it open and never answers. Arm one.")
+		return exitError
+	}
+
 	rule := faultRule{Operation: operation, Status: *status, Times: *times, Nth: *nth}
+	switch {
+	case *dropConn:
+		rule.Transport = emulator.TransportClose
+	case *hangConn:
+		rule.Transport = emulator.TransportHang
+	}
 	if *delay != 0 {
 		rule.Delay = delay.String()
 	}
@@ -257,6 +284,16 @@ func reportFaults(stdout io.Writer, document faultsDocument) {
 		fmt.Fprintf(stdout, "fired (%d):\n", len(document.Fired))
 	}
 	for _, line := range document.Fired {
+		switch line.Transport {
+		case emulator.TransportClose:
+			fmt.Fprintf(stdout, "  %s call %d: the connection was dropped, no answer sent\n",
+				line.Operation, line.Rank)
+			continue
+		case emulator.TransportHang:
+			fmt.Fprintf(stdout, "  %s call %d: the connection was held open, no answer sent\n",
+				line.Operation, line.Rank)
+			continue
+		}
 		if line.Abandoned {
 			fmt.Fprintf(stdout, "  %s call %d: the client left before the answer\n",
 				line.Operation, line.Rank)
@@ -267,6 +304,43 @@ func reportFaults(stdout io.Writer, document faultsDocument) {
 }
 
 // describeFault says what one rule does and what it has done, in one line.
+// reportNoSeed refuses a seeded campaign, and says what was measured rather
+// than that it is unsupported.
+//
+// #851 asked for campaigns whose decisions replay from a seed, and bound the
+// ask itself: the outcome must be a pure function of stable inputs, and "if no
+// stable request identity exists, the CLI must say so rather than pretend
+// reproducibility". None exists here, and that is a measurement, not an
+// opinion: across the 1088 exchanges committed under corpus/, the complete set
+// of request header names the official clients send is nine — accept,
+// accept-encoding, authorization, connection, content-length, content-type,
+// user-agent, x-amz-date, x-auth-token — and not one of them is minted by the
+// client per call. The measurement is not a note: it is recomputed over the
+// committed recordings by TestTheCorpusCarriesNoClientMintedRequestIdentity,
+// which fails the day a recording carries a tenth name, so this refusal
+// cannot outlive its own premise.
+//
+// The only input left is arrival order, which is exactly what the issue
+// forbids a seed from resting on: two concurrent clients reorder it between
+// runs, and a seed that replays only under one sequential client is a seed
+// that lies about what it guarantees.
+//
+// So the flag exists and refuses. A flag that is simply absent teaches nothing
+// — the next person writes a shell loop around arrival order and believes it
+// replays — and a sentence in a source comment is not something a caller ever
+// reads. TestSeedIsRefusedWithItsMeasurement fails if this becomes silent.
+func reportNoSeed(stderr io.Writer, seed int) {
+	fmt.Fprintf(stderr, "feint fault add: --seed %d is refused, and this is measured rather than "+
+		"unimplemented.\n", seed)
+	fmt.Fprintln(stderr, "  A seeded campaign must decide from something stable about the request. Across the")
+	fmt.Fprintln(stderr, "  1088 exchanges recorded under corpus/, the official clients send nine distinct")
+	fmt.Fprintln(stderr, "  request header names, and none is minted per call: there is no request identity")
+	fmt.Fprintln(stderr, "  to seed from.")
+	fmt.Fprintln(stderr, "  What is left is arrival order, which two concurrent clients reorder between runs.")
+	fmt.Fprintln(stderr, "  A seed resting on it would replay under one sequential client and nowhere else.")
+	fmt.Fprintln(stderr, "  Use --nth to name a call by its rank, and read the receipt for what actually fired.")
+}
+
 func describeFault(rule faultRule) string {
 	var parts []string
 	if rule.Status != 0 {
@@ -277,6 +351,12 @@ func describeFault(rule faultRule) string {
 	}
 	if rule.Delay != "" {
 		parts = append(parts, "delay "+rule.Delay)
+	}
+	switch rule.Transport {
+	case emulator.TransportClose:
+		parts = append(parts, "connection dropped")
+	case emulator.TransportHang:
+		parts = append(parts, "never answers")
 	}
 	switch {
 	case rule.Nth > 0:

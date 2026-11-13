@@ -141,7 +141,20 @@ const (
 	// A consumer reading version 1 sees how often a rule fired; it cannot see
 	// *which* call was hit, and "hits: 2" is true of a rule that answered calls
 	// 1 and 2 and of one that answered calls 3 and 7.
-	FaultsSchemaVersion = 2
+	//
+	// 3 adds the failures below HTTP (#851): `transport` on a rule, "close" or
+	// "hang", and the same name on the receipt line.
+	//
+	// What a version 2 consumer sees depends on WHEN it reads, and the first
+	// draft of this note got it wrong by quoting only the end state. The line is
+	// reserved at arrival with `abandoned: false` and completed when the answer
+	// ends, so during a hang — which is exactly when a suite polls, since the
+	// client is still blocked — a version 2 reader sees `status: 0, abandoned:
+	// false` and reads it as "fired, answer pending". Only once the peer gives
+	// up does it become `status: 0, abandoned: true`, which is true and still
+	// indistinguishable from a client that walked away during a delay. `transport`
+	// is what tells the three apart, and nothing in version 2 can.
+	FaultsSchemaVersion = 3
 	// CheckpointSchemaVersion is the shape of POST /_feint/checkpoint/{name},
 	// DELETE /_feint/checkpoint/{name} and POST /_feint/reset/{name}.
 	//

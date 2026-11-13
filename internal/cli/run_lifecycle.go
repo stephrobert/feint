@@ -318,12 +318,38 @@ type runReceipt struct {
 	// prose and the JSON must not be able to disagree about the one claim a
 	// reader of this receipt cares about most.
 	RealCloud string `json:"real_cloud"`
+	// The campaign half of #851, and three fields rather than one because a
+	// review reproduced what happens when they are merged.
+	//
+	// FaultsArmed is what the LAB had armed during this run, read from it,
+	// whoever armed it. FaultsCampaign is whether THIS run armed one with
+	// --fault. The first version published only the second under the first's
+	// name, so a second run against a shared lab met the first run's injected
+	// 503 and published `faults_armed: false`.
+	//
+	// FaultsRead says the state came back at all, because an unread state and
+	// an empty one are different facts and only one of them means "no fault
+	// was armed".
+	FaultsArmed    bool         `json:"faults_armed"`
+	FaultsCampaign bool         `json:"faults_campaign"`
+	FaultsRead     bool         `json:"faults_read"`
+	Faults         []firedFault `json:"faults,omitempty"`
+	FaultsDropped  int          `json:"faults_dropped,omitempty"`
 }
 
-// runReceiptSchemaVersion is frozen from the first release, like the
-// emulator's own introspection schemas: a suite reading this in CI is a
-// consumer on day one.
-const runReceiptSchemaVersion = 1
+// runReceiptSchemaVersion is versioned from the first release, because a suite
+// reading this in CI is a consumer on day one.
+//
+// It is NOT frozen, and this note used to say it was. There is no fixture for
+// the run receipt in testdata/frozen/, so TestASurfaceChangeDemandsItsVersionBump
+// never judges it and the only tests that touch this constant compare it with
+// itself. The bump below is therefore voluntary, and the mechanism that makes
+// the other schema versions unable to lie does not cover this one. #918 carries
+// the fixture that would.
+// 2 adds the fault campaign (#851): faults_armed, faults_read, faults and
+// faults_dropped. A version 1 consumer reads a run that injected failures as
+// one that simply failed.
+const runReceiptSchemaVersion = 2
 
 // callsSoFar reads the emulator's own trace counter.
 //
@@ -393,6 +419,7 @@ func (r runReceipt) render(w io.Writer) {
 			fmt.Fprintf(w, "    %s\n", difference)
 		}
 	}
+	renderFaultReceipt(w, r)
 	row("cleanup", r.Cleanup)
 	// Deliberately narrow wording, and a field rather than a literal here:
 	// "no known escape observed" is what #848's own example prints and what

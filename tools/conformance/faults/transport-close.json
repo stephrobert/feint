@@ -1,0 +1,5 @@
+{
+  "faults": [
+    {"operation": "instance/v1/API.ListServers", "transport": "close"}
+  ]
+}
