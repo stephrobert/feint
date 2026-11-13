@@ -811,7 +811,7 @@ func renderCoverage(reports []drift.CoverageFile, routes map[string]map[string]i
 
 	for _, rep := range reports {
 		byProduct := routes[rep.Provider]
-		fmt.Fprintf(&b, "#### %s\n\n", strings.ToUpper(rep.Provider[:1])+rep.Provider[1:])
+		fmt.Fprintf(&b, "#### %s\n\n", capitalise(rep.Provider))
 		// Three shares, not one: "12% served" alone reads as 88% missing, when
 		// most of the gap is operations somebody decided to refuse. The
 		// distinction between a refusal and an absence is the one these tables
@@ -1010,133 +1010,21 @@ type contractFile struct {
 // plural picks the singular or plural form for a generated count. A table
 // that says "all 1 products" is a table a reader stops trusting on the first
 // line, and the cost of the helper is one line.
+// capitalise upper-cases the first letter, and answers "" for "" rather than
+// panicking. LoadCoverage refuses an empty provider, so `feint docs` never gets
+// here with one; the tests build CoverageFile values by hand and can.
+func capitalise(s string) string {
+	if s == "" {
+		return ""
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
+}
+
 func plural(n int, singular, plural string) string {
 	if n == 1 {
 		return singular
 	}
 	return plural
-}
-
-// renderLimitsIndex builds the product coverage table for the top of
-// docs/limits.md (#872).
-//
-// A reader, not a measurement: every row comes from the committed artefacts
-// in coverage/, so when the scan changes the table changes with it. The
-// statuses are the counts' own verdicts — served when every operation the scan
-// found is mounted, declined when the pack refused them all, partially served
-// in between — and "not scanned" is the row a product the scan never looked
-// at earns. Declined carries no product-level reason because there is none to
-// carry: the reason lives per operation, in the pack's Declined() and in the
-// artefact's entries, and inventing a product-level one would be exactly the
-// format this repository refuses to invent.
-//
-// The rows are alphabetical within a provider, scanned rows first and
-// not-scanned rows after them: a reader finds their product by name, and the
-// loud remainder sits where it cannot be mistaken for coverage. Providers are
-// alphabetical, which is the only order a reader can predict without knowing
-// how many routes each one mounts.
-func renderLimitsIndex(reports []drift.CoverageFile) string {
-	ordered := append([]drift.CoverageFile(nil), reports...)
-	sort.Slice(ordered, func(i, j int) bool { return ordered[i].Provider < ordered[j].Provider })
-
-	var b strings.Builder
-	b.WriteString(docsGenerated)
-	for i, rep := range ordered {
-		if i == 0 {
-			b.WriteString("\n\n")
-		} else {
-			// One blank line between providers: the previous section already
-			// ends on a newline, so a second one here would double it.
-			b.WriteString("\n")
-		}
-		fmt.Fprintf(&b, "### %s\n\n", strings.ToUpper(rep.Provider[:1])+rep.Provider[1:])
-		scanned := len(rep.Products)
-		if len(rep.Unscanned) > 0 {
-			fmt.Fprintf(&b, "The scan covers %d of the %d %s upstream declares. ", scanned, scanned+len(rep.Unscanned), plural(scanned+len(rep.Unscanned), "product", "products"))
-			if len(rep.Unscanned) == 1 {
-				b.WriteString("The other 1 is not scanned at all.\n\n")
-			} else {
-				fmt.Fprintf(&b, "The other %d are not scanned at all.\n\n", len(rep.Unscanned))
-			}
-		} else {
-			fmt.Fprintf(&b, "The scan covers all %d %s upstream declares.\n\n", scanned, plural(scanned, "product", "products"))
-		}
-		b.WriteString("| Product | Status | Served | Declined | Untriaged | Upstream |\n")
-		b.WriteString("|---|---|---:|---:|---:|---:|\n")
-
-		products := append([]drift.ProductView(nil), rep.Products...)
-		sort.Slice(products, func(i, j int) bool { return products[i].Product < products[j].Product })
-		for _, p := range products {
-			status := "partially served"
-			switch {
-			case p.Total > 0 && p.Implemented == p.Total:
-				status = "served"
-			case p.Total > 0 && p.Implemented == 0 && p.Declined == p.Total:
-				status = "declined"
-			}
-			fmt.Fprintf(&b, "| `%s` | %s | %d | %d | %d | %d |\n",
-				p.Product, status, p.Implemented, p.Declined, p.Unknown, p.Total)
-		}
-
-		unscanned := append([]string(nil), rep.Unscanned...)
-		sort.Strings(unscanned)
-		for _, name := range unscanned {
-			fmt.Fprintf(&b, "| `%s` | **not scanned** | — | — | — | — |\n", name)
-		}
-		if len(unscanned) > 0 {
-			// Loud on purpose, and the consequence stated where the row is:
-			// a stack on an unscanned product does not hit the emulator, so a
-			// reader who misses this row acts on a machine that is not there.
-			b.WriteString("\n**Not scanned is the row that costs a reader their stack.** A client " +
-				"that calls one of these products does not hit the emulator at all: it reaches " +
-				"the real endpoint with whatever credentials the shell holds. The scan covers " +
-				"only the products the emulator has started; a product enters this table the " +
-				"day it enters the scan.\n")
-		}
-	}
-	b.WriteString("\nStatuses: **served** means every operation the scan found is mounted; " +
-		"**partially served** means some are; **declined** means the pack decided not to serve " +
-		"the product, and the reason for each operation is in the pack's `Declined()`; " +
-		"**not scanned** means the scan never looked — the client leaves the machine.\n")
-	return b.String()
-}
-
-// spliceLimitsIndex renders the product coverage index and reports whether
-// the file would change. It returns false with no error when the file does
-// not exist, or when it never claimed to carry this table — same terms as
-// every other generated section in this file.
-func spliceLimitsIndex(path string, reports []drift.CoverageFile) (bool, error) {
-	if path == "" {
-		return false, nil
-	}
-	current, err := os.ReadFile(path) //nolint:gosec // an operator-supplied path, read only
-	if errors.Is(err, os.ErrNotExist) {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
-	if !strings.Contains(string(current), limitsIndexStartMarker) {
-		// A Markdown file that never claimed to carry this table.
-		return false, nil
-	}
-	updated, err := spliceSection(string(current), limitsIndexStartMarker, limitsIndexEndMarker, renderLimitsIndex(reports))
-	if err != nil {
-		return false, err
-	}
-	return updated != string(current), nil
-}
-
-func writeSplicedLimitsIndex(path string, reports []drift.CoverageFile) error {
-	current, err := os.ReadFile(path) //nolint:gosec // same path as above
-	if err != nil {
-		return err
-	}
-	updated, err := spliceSection(string(current), limitsIndexStartMarker, limitsIndexEndMarker, renderLimitsIndex(reports))
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(path, []byte(updated), 0o644) //nolint:gosec // documentation is world-readable by design
 }
 
 // spliceContracts renders the contract policy table and reports whether the file
@@ -1225,7 +1113,7 @@ func renderContracts(dir string) (string, error) {
 			policy = "not recorded"
 		}
 		fmt.Fprintf(&b, "| %s | `%s` | %d | %s |\n",
-			strings.ToUpper(doc.Provider[:1])+doc.Provider[1:], doc.APIVersion, len(doc.Schemas), policy)
+			capitalise(doc.Provider), doc.APIVersion, len(doc.Schemas), policy)
 	}
 	return b.String(), nil
 }

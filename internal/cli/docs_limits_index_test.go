@@ -107,6 +107,10 @@ func TestRenderLimitsIndexNamesEveryProductAndItsStatus(t *testing.T) {
 // The README links the index, and the link resolves (#872: "linked from the
 // README"). A link that stopped resolving reads exactly like one that never
 // did, which is why the docs index test holds its own links to the same rule.
+//
+// README.md only, deliberately: README.fr.md is the shorter page and carries no
+// Coverage section, so there is no French link to check. The day one is added
+// it belongs here too, or it is a link nobody tests.
 func TestTheReadmeLinksTheLimitsIndex(t *testing.T) {
 	root := repoRoot(t)
 	readme, err := os.ReadFile(filepath.Join(root, "README.md"))
@@ -142,7 +146,13 @@ func TestTheReadmeLinksTheLimitsIndex(t *testing.T) {
 func TestTheLimitsIndexCoversEveryProductTheGateScans(t *testing.T) {
 	root := repoRoot(t)
 
-	out, err := exec.Command(filepath.Join(root, "tools", "drift", "gate.sh"), "products").Output()
+	cmd := exec.Command(filepath.Join(root, "tools", "drift", "gate.sh"), "products")
+	// gate.sh reads SCALEWAY_PRODUCTS="${FEINT_PRODUCTS:-<default>}". An
+	// exported FEINT_PRODUCTS would make this a test of whoever runs it, and a
+	// harness that measures its own environment is the failure this repository
+	// keeps paying for. Empty falls through to the default because of `:-`.
+	cmd.Env = append(os.Environ(), "FEINT_PRODUCTS=")
+	out, err := cmd.Output()
 	if err != nil {
 		t.Fatalf("tools/drift/gate.sh products: %v (the page cannot name the products without it)", err)
 	}

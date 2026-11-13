@@ -29,6 +29,26 @@ change ni l'un ni l'autre a sa place dans `git log`.
   coûte : un client qui appelle l'un d'eux ne touche pas l'émulateur, il atteint
   le vrai endpoint avec les identifiants que le shell détient.
 
+### Modifié
+
+- L'index de couverture par produit dit ce que son tableau ne peut pas dire.
+  Un provider dont le SDK expose moins de produits qu'upstream n'a de
+  groupes, Exoscale avec un et Outscale avec deux, l'écrit désormais au
+  lieu de se lire comme une réponse complète, et la première colonne est
+  nommée pour ce qu'elle est : des noms de paquets du SDK, pas ceux du
+  portail.
+- L'encadré de sécurité disait que les machines démarrent réellement « à
+  chaque pull request ». Seul `runtime-proof.yml` les démarre, et il se
+  déclenche sur `schedule` et `workflow_dispatch` ; le chemin des pull
+  requests tourne en `--vm off`. La cadence est maintenant lue dans le bloc
+  `on:` de ce workflow, et la phrase nomme `incus-ovn` pour l'isolation au
+  lieu de la revendiquer pour tous les modes.
+- La promesse en tête des deux README n'affirme plus que rien n'est créé
+  nulle part. Elle dit ce qui est vrai et borné : les API que Feint sert
+  répondent sur votre machine, et ce qu'il ne sert pas, un client peut encore
+  l'atteindre. `docs/limits.md` mesure quatre de ces chemins, et
+  `docs/confidence.md` porte enfin la ligne que le renvoi du README promettait.
+
 ## [0.16.0] - 2026-11-12
 
 ### Ajouté

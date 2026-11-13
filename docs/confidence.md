@@ -49,6 +49,7 @@ prints the reason under the pack that owns it.
 | A Terraform run against Exoscale | **yes**, from provider v0.71.0 | the published provider drives this pack since #644; an older one, which splits between this emulator and a paying account, is refused by user agent naming the floor — [limits.md](limits.md#what-replaced-the-refusal-a-floor) |
 | Control-plane multi-zone or multi-region behaviour on Exoscale | **no** | one zone per process, selectable with `FEINT_EXOSCALE_ZONE`, and the reason is the client — [limits.md](limits.md#exoscale-has-one-zone-per-process-and-the-reason-is-the-client) |
 | Traffic actually flowing through a gateway or a NAT | **no** | records move, packets do not — [limits.md](limits.md#outscales-gateways-and-nat-move-records-not-packets) |
+| That a run stays on your machine | **yes**, for what Feint serves | the APIs it serves answer locally; a client that composes its own endpoint for a product outside that scope leaves, and the four measured paths are in [limits.md](limits.md#a-run-presented-as-local-can-still-reach-the-real-cloud-280) — `feint run` closes the first of them since 0.15.0 |
 
 ## How to read a verdict
 

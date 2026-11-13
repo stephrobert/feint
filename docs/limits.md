@@ -11,7 +11,7 @@ than one that is small.
 
 ### Exoscale
 
-The scan covers all 1 product upstream declares.
+This SDK exposes 1 product to the scan, and upstream files its operations under 14 named groups instead. The row below is the whole surface, not a per-product answer: for that, read the group breakdown in `coverage/exoscale-coverage.json`.
 
 | Product | Status | Served | Declined | Untriaged | Upstream |
 |---|---|---:|---:|---:|---:|
@@ -19,7 +19,7 @@ The scan covers all 1 product upstream declares.
 
 ### Outscale
 
-The scan covers all 2 products upstream declares.
+This SDK exposes 2 products to the scan, and upstream files its operations under 51 named groups instead. The rows below are the whole surface, not a per-product answer: for that, read the group breakdown in `coverage/outscale-coverage.json`.
 
 | Product | Status | Served | Declined | Untriaged | Upstream |
 |---|---|---:|---:|---:|---:|
@@ -90,6 +90,8 @@ The scan covers 11 of the 56 products upstream declares. The other 45 are not sc
 | `webhosting` | **not scanned** | — | — | — | — |
 
 **Not scanned is the row that costs a reader their stack.** A client that calls one of these products does not hit the emulator at all: it reaches the real endpoint with whatever credentials the shell holds. The scan covers only the products the emulator has started; a product enters this table the day it enters the scan.
+
+Names in the first column are the SDK's package names, not the portal's product names: `k8s` is Kapsule, `tem` Transactional Email, `s2s_vpn` Site-to-Site VPN. `test` is the SDK's own fixture package, counted because it is measured rather than filtered by hand.
 
 Statuses: **served** means every operation the scan found is mounted; **partially served** means some are; **declined** means the pack decided not to serve the product, and the reason for each operation is in the pack's `Declined()`; **not scanned** means the scan never looked — the client leaves the machine.
 <!-- limits-index:end -->
@@ -660,9 +662,11 @@ on 2026-11-12:
   that provider version. It says nothing about every attribute or nested block
   of the type, and nothing about behaviour past the control plane — a mounted
   route is a protocol promise, not a behavioural one.
-- **a type whose product is outside the drift scan.** The Scaleway scan covers
-  11 of the 56 products in that SDK, so RDB, Registry, Kapsule and Domain among
-  others have no operation this emulator serves or declines. A stack using them
+- **a type whose product is outside the drift scan.** RDB, Registry, Kapsule
+  and Domain among others have no operation this emulator serves or declines;
+  [Product coverage at a glance](#product-coverage-at-a-glance) at the top of
+  this page counts them, and is generated from the scan rather than restated
+  here. A stack using them
   will fail, and the preflight still answers `unknown` rather than
   `incompatible`: reporting them refused would mean naming a decision nobody
   took. Treat `unknown` as "nothing here has measured this", never as "this

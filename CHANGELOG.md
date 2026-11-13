@@ -26,6 +26,25 @@ what this project is judged on: **a response shape a client can observe**, and
   scanned costs: a client calling one of them does not hit the emulator, it
   reaches the real endpoint with whatever credentials the shell holds.
 
+### Changed
+
+- The product coverage index says what its table cannot. A provider whose
+  SDK exposes fewer products than upstream has groups — Exoscale with one,
+  Outscale with two — now says so instead of reading as a complete answer,
+  and the first column is named for what it is: SDK package names, not the
+  portal's.
+- The safety banner said that machines really boot "on every pull
+  request". Only `runtime-proof.yml` boots them, and it triggers on
+  `schedule` and `workflow_dispatch`; the pull-request path runs `--vm off`.
+  The cadence is now read off that workflow's own `on:` block, and the
+  sentence names `incus-ovn` for isolation instead of claiming it for every
+  mode.
+- The promise at the top of both READMEs no longer claims that nothing is
+  created anywhere. It says what is true and bounded: the APIs Feint serves
+  answer on your own machine, and what it does not serve a client can still
+  reach. `docs/limits.md` measures four such paths, and `docs/confidence.md`
+  now carries the row that the README's own pointer promised.
+
 ## [0.16.0] - 2026-11-12
 
 ### Added

@@ -1500,9 +1500,15 @@ func coverage(args []string, stdout, stderr io.Writer) int {
 	productList := splitProducts(*products)
 	// The full surface, kept before the restriction drops it: the products it
 	// drops are the ones the scan proved exist but does not measure (#872), and
-	// the report is where they are recorded. A restriction that named a
-	// product the scan never saw is already refused above, so what is left
-	// here is unscanned, not a typo.
+	// the report is where they are recorded.
+	//
+	// A typo in --products is NOT refused here, and an earlier version of this
+	// comment said it was. OnlyProducts drops an unknown name silently, and the
+	// refusal below fires only when the restriction empties the whole surface,
+	// so `--products instance,typo` passes. What actually joins the gate's
+	// product list to the page is
+	// TestTheLimitsIndexCoversEveryProductTheGateScans, which reads
+	// `tools/drift/gate.sh products` rather than a list written here.
 	var fullUpstream []drift.Operation
 	if len(productList) > 0 {
 		fullUpstream = upstream

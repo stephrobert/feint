@@ -75,9 +75,17 @@ type Report struct {
 	// file lists the rest — tools/contract/scaleway-products.txt is the
 	// portal-download index, restricted by design to the products the
 	// emulator has actually started. A product the scan never saw is not
-	// unscanned, it is a mistake in the restriction, and OnlyProducts guards
-	// that side; this list holds only products the scan proved exist.
-	Unscanned []string `json:"unscanned,omitempty"`
+	// unscanned, it is a mistake in the restriction. Nothing guards that side:
+	// OnlyProducts drops an unknown name silently, and the caller refuses only
+	// when the restriction empties the whole surface. What joins the gate's
+	// list to the page is TestTheLimitsIndexCoversEveryProductTheGateScans, in
+	// package internal/cli.
+	//
+	// `json:"-"` rather than a name: Report is never serialised — WriteJSON
+	// encodes File() — so a tag here would advertise a field the wire never
+	// carries, which is what the comment on Unexplained above calls the same
+	// lie one layer down. CoverageFile.Unscanned is the field that travels.
+	Unscanned []string `json:"-"`
 	Unknown   int      `json:"unknown"`
 	Entries   []Entry  `json:"entries"`
 	// Orphans are routes whose Operation matches nothing upstream: either a
