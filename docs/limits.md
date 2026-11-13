@@ -660,9 +660,11 @@ on 2026-11-12:
   that provider version. It says nothing about every attribute or nested block
   of the type, and nothing about behaviour past the control plane — a mounted
   route is a protocol promise, not a behavioural one.
-- **a type whose product is outside the drift scan.** The Scaleway scan covers
-  11 of the 56 products in that SDK, so RDB, Registry, Kapsule and Domain among
-  others have no operation this emulator serves or declines. A stack using them
+- **a type whose product is outside the drift scan.** RDB, Registry, Kapsule
+  and Domain among others have no operation this emulator serves or declines;
+  [Product coverage at a glance](#product-coverage-at-a-glance) at the top of
+  this page counts them, and is generated from the scan rather than restated
+  here. A stack using them
   will fail, and the preflight still answers `unknown` rather than
   `incompatible`: reporting them refused would mean naming a decision nobody
   took. Treat `unknown` as "nothing here has measured this", never as "this
