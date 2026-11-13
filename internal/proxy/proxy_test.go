@@ -666,3 +666,58 @@ func TestTheTranscriptIsOnDiskBeforeTheRunEnds(t *testing.T) {
 		time.Sleep(5 * time.Millisecond)
 	}
 }
+
+// The credential that walked out in the clear, and the shape that let it.
+//
+// TestATranscriptCarriesNoCredential sends JSON both ways, so it never met the
+// path where a body is returned as a bare string: redactValue descends maps and
+// slices, and its default hands anything else back untouched. A form-encoded
+// body therefore reached the transcript whole, signature included. Measured on
+// 2026-11-13:
+//
+//	Action=CreateVms&AWSAccessKeyId=AKIAMARKER&Signature=MARKER-form-signature
+//
+// The name was recognised; the format of the body put the value out of reach.
+// That dialect is not exotic here — it is what the AWS-compatible APIs speak.
+func TestAFormEncodedBodyIsRedactedLikeAnyOther(t *testing.T) {
+	const (
+		signatureMarker = "MARKER-form-signature"
+		keyMarker       = "MARKER-form-access-key"
+		harmless        = "CreateVms"
+	)
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.ReadAll(r.Body)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"ok":true}`)
+	}))
+	defer upstream.Close()
+
+	front, finish := transcript(t, upstream.URL, nil)
+
+	body := "Action=" + harmless + "&AWSAccessKeyId=" + keyMarker + "&Signature=" + signatureMarker
+	req, err := http.NewRequest(http.MethodPost, front+"/api/v1/CreateVms", strings.NewReader(body))
+	if err != nil {
+		t.Fatalf("build the request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("drive the proxy: %v", err)
+	}
+	_ = res.Body.Close()
+
+	recorded := string(finish())
+	for _, marker := range []string{signatureMarker, keyMarker} {
+		if strings.Contains(recorded, marker) {
+			t.Errorf("the transcript carries %s in the clear: a form-encoded body walked past "+
+				"redaction, and this is the dialect the AWS-compatible APIs speak", marker)
+		}
+	}
+	// The accepting half: what is not a credential still reaches the record, or
+	// the transcript stops being usable for a replay.
+	if !strings.Contains(recorded, harmless) {
+		t.Errorf("the transcript lost the harmless half of the body too; a redaction that drops "+
+			"everything is not a redaction:\n%s", recorded)
+	}
+}

@@ -17,6 +17,19 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ## [Unreleased]
 
+### Corrigé
+
+- **Un instantané forgé pouvait supprimer la route par défaut de n'importe
+  quelle instance de l'hôte.** Le chemin de sortie lisait son nom de machine
+  dans un `Runtime` restauré sans demander ni si le nom était bien formé, ni
+  si l'émulateur l'avait créé. Les deux questions sont désormais posées,
+  dans la couche partagée et dans le pilote.
+- **Le proxy écrivait en clair tout corps non-JSON** dans la transcription,
+  signatures comprises. Un corps form-encoded, le dialecte des API
+  compatibles AWS, est maintenant analysé et rédigé comme les autres, et
+  tout autre corps texte est écarté avec sa raison plutôt qu'enregistré
+  sans rédaction.
+
 ### Modifié
 
 - **`govulncheck` tourne sur une planification, plus sur votre pull
