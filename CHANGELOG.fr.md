@@ -37,8 +37,9 @@ change ni l'un ni l'autre a sa place dans `git log`.
   `nth` tire sur le N-ième appel d'une opération et sur aucun autre. Le rang
   compte tous les appels que la règle a vus, y compris ceux qu'elle décline,
   ce que le compteur de tirs ne pouvait pas faire. `/_feint/faults` gagne
-  `nth` et `calls` par règle, plus un reçu `fired` qui nomme l'appel touché
-  par chaque tir : version de schéma 2. Le rang est un ordre d'arrivée, pas
+  `nth` et `calls` par règle, plus un reçu `fired` en ordre d'arrivée, qui nomme l'appel touché par chaque
+  tir, dit si le client est resté pour la réponse, et combien de tirs le
+  plafond a refusés : version de schéma 2. Le rang est un ordre d'arrivée, pas
   une clé de rejeu, et la documentation du champ le dit.
 - **`feint fault`, le verbe au-dessus de cet injecteur** (#851) : `fault list`
   affiche ce qui est armé et le reçu, `fault add <opération>` ajoute une règle
@@ -47,9 +48,6 @@ change ni l'un ni l'autre a sa place dans `git log`.
   nouvelle règle, parce que `PUT /_feint/faults` remplace l'ensemble. Toutes
   les bornes restent dans l'émulateur, qui refuse une règle au moment où elle
   est écrite ; le verbe affiche la phrase du refus. Surface CLI version 34.
-
-### Ajouté
-
 - **Un index de couverture des produits en haut de `docs/limits.md`** (#872).
   `coverage/*.json` gagne un champ additif `unscanned` — les produits que le scan
   a réellement vus déclarés en amont mais que la restriction `--products` a

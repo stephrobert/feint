@@ -173,7 +173,7 @@ func (o *observer) wrap(provider string, r Route) http.HandlerFunc {
 		// that is not one. It also keeps `feint probe` usable while rules are
 		// armed. TestAFaultDoesNotFireOnTheProbe fails without it.
 		if !synthetic {
-			if f, rank, claimed := o.faults.fire(r.Operation); claimed {
+			if f, _, slot, claimed := o.faults.fire(r.Operation); claimed {
 				started := time.Now()
 				status := o.serveFault(w, req, provider, r, f)
 				o.recordInjected(r.Operation)
@@ -181,7 +181,10 @@ func (o *observer) wrap(provider string, r Route) http.HandlerFunc {
 				// span cannot close on it — and published on the log, because
 				// the operator watching the emulator must see the refusal.
 				o.spanExchangeInjected(r.Operation, status)
-				o.faults.recordFired(r.Operation, rank, status)
+				// status 0 means the delay was cancelled with the request: the client
+				// left before the answer reached it, and the receipt says so
+				// rather than printing a status nobody received.
+				o.faults.recordFired(slot, status, status == 0)
 				o.stream.publishExchange(trace.Exchange{
 					Method:    req.Method,
 					Path:      req.URL.Path,

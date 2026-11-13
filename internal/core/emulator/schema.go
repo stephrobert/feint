@@ -127,7 +127,10 @@ const (
 	// day one — the same reasoning that put the other four here.
 	//
 	// 2 adds the call rank (#851): `nth` on a rule, `calls` beside `hits` in
-	// the view, and `fired` — the receipt naming which call each firing hit.
+	// the view, and the receipt — `fired`, in arrival order, naming which call
+	// each firing hit, whether the client stayed for the answer (`abandoned`),
+	// and how many firings the cap refused (`fired_dropped`).
+	//
 	// A consumer reading version 1 sees how often a rule fired; it cannot see
 	// *which* call was hit, and "hits: 2" is true of a rule that answered calls
 	// 1 and 2 and of one that answered calls 3 and 7.

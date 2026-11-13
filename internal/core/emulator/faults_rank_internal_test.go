@@ -20,7 +20,7 @@ func TestTheRankCountsCallsTheRuleDeclines(t *testing.T) {
 	var ranks []int
 	var firedOn []int
 	for range 5 {
-		_, rank, claimed := fs.fire("a/API.One")
+		_, rank, _, claimed := fs.fire("a/API.One")
 		ranks = append(ranks, rank)
 		if claimed {
 			firedOn = append(firedOn, rank)
@@ -45,7 +45,7 @@ func TestTheRankCountsCallsTheRuleDeclines(t *testing.T) {
 func TestARuleWithoutARankStillAnswersEveryCall(t *testing.T) {
 	fs := &faultSet{rules: []*Fault{{Operation: "a/API.One", Status: 503}}}
 	for i := range 4 {
-		if _, _, claimed := fs.fire("a/API.One"); !claimed {
+		if _, _, _, claimed := fs.fire("a/API.One"); !claimed {
 			t.Fatalf("call %d was not claimed; a rule with no nth and no times answers every call", i+1)
 		}
 	}
@@ -53,7 +53,7 @@ func TestARuleWithoutARankStillAnswersEveryCall(t *testing.T) {
 	bounded := &faultSet{rules: []*Fault{{Operation: "a/API.Two", Status: 503, Times: 2}}}
 	var claims int
 	for range 4 {
-		if _, _, claimed := bounded.fire("a/API.Two"); claimed {
+		if _, _, _, claimed := bounded.fire("a/API.Two"); claimed {
 			claims++
 		}
 	}
@@ -67,7 +67,7 @@ func TestARuleWithoutARankStillAnswersEveryCall(t *testing.T) {
 // "nothing is armed here" from "this is the first call".
 func TestAnUnarmedOperationHasNoRank(t *testing.T) {
 	fs := &faultSet{rules: []*Fault{{Operation: "a/API.One", Status: 503}}}
-	if _, rank, claimed := fs.fire("a/API.Other"); claimed || rank != 0 {
+	if _, rank, _, claimed := fs.fire("a/API.Other"); claimed || rank != 0 {
 		t.Errorf("an unarmed operation reported rank %d claimed=%v, want 0 and false", rank, claimed)
 	}
 }
@@ -80,12 +80,12 @@ func TestAnUnarmedOperationHasNoRank(t *testing.T) {
 func TestTheReceiptNamesTheCallThatWasHit(t *testing.T) {
 	fs := &faultSet{rules: []*Fault{{Operation: "a/API.One", Status: 503, Nth: 3}}}
 	for range 4 {
-		if _, rank, claimed := fs.fire("a/API.One"); claimed {
-			fs.recordFired("a/API.One", rank, 503)
+		if _, _, slot, claimed := fs.fire("a/API.One"); claimed {
+			fs.recordFired(slot, 503, false)
 		}
 	}
 
-	got := fs.receipt()
+	got, _ := fs.receipt()
 	if len(got) != 1 {
 		t.Fatalf("the receipt holds %d line(s), want 1: %+v", len(got), got)
 	}
@@ -99,14 +99,14 @@ func TestTheReceiptNamesTheCallThatWasHit(t *testing.T) {
 // repository keeps paying for.
 func TestArmingANewSetClearsTheReceipt(t *testing.T) {
 	fs := &faultSet{rules: []*Fault{{Operation: "a/API.One", Status: 503}}}
-	_, rank, _ := fs.fire("a/API.One")
-	fs.recordFired("a/API.One", rank, 503)
-	if len(fs.receipt()) != 1 {
+	_, _, slot, _ := fs.fire("a/API.One")
+	fs.recordFired(slot, 503, false)
+	if lines, _ := fs.receipt(); len(lines) != 1 {
 		t.Fatal("nothing was recorded, so the rest of this test would prove nothing")
 	}
 
 	fs.replace([]*Fault{{Operation: "a/API.Two", Status: 429}})
-	if got := fs.receipt(); len(got) != 0 {
+	if got, _ := fs.receipt(); len(got) != 0 {
 		t.Errorf("the receipt survived a new campaign with %d line(s): %+v", len(got), got)
 	}
 }
@@ -115,10 +115,17 @@ func TestArmingANewSetClearsTheReceipt(t *testing.T) {
 // believe it complete.
 func TestTheReceiptStopsGrowing(t *testing.T) {
 	fs := &faultSet{}
+	fs.rules = []*Fault{{Operation: "a/API.One", Status: 503}}
 	for i := 0; i < maxFiredReceipt+10; i++ {
-		fs.recordFired("a/API.One", i+1, 503)
+		_, _, slot, _ := fs.fire("a/API.One")
+		fs.recordFired(slot, 503, false)
 	}
-	if got := len(fs.receipt()); got != maxFiredReceipt {
+	lines, dropped := fs.receipt()
+	if dropped != 10 {
+		t.Errorf("the receipt dropped %d firing(s), want 10: a reader cannot tell a full receipt "+
+			"from a truncated one without it", dropped)
+	}
+	if got := len(lines); got != maxFiredReceipt {
 		t.Errorf("the receipt holds %d lines, want it capped at %d", got, maxFiredReceipt)
 	}
 }

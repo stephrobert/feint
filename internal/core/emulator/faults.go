@@ -174,6 +174,29 @@ type faultSet struct {
 	// stopped being a campaign, and the receipt says so rather than growing
 	// until the process dies.
 	fired []FiredFault
+	// dropped counts the firings the cap refused. Published, because a reader
+	// of 256 lines must be able to tell a complete receipt from a truncated
+	// one. The comment that claimed "the count keeps rising so a reader can
+	// see that the receipt is partial" named no counter, and none existed.
+	dropped int
+	// epoch names the campaign. replace bumps it, and a line reserved under a
+	// previous epoch is dropped rather than written into the set that replaced
+	// it: a `delay` rule's answer can still be in flight when somebody arms a
+	// new campaign, and that line would read as if a rule nobody armed had
+	// fired during this one.
+	epoch int
+}
+
+// firing is what fire hands back so the answer can be completed later: the
+// campaign it belongs to, and the line reserved for it.
+//
+// The line is reserved **under the lock, at arrival**, which is what makes the
+// receipt arrival-ordered. Appending it when the answer finishes ordered it by
+// completion instead, so two calls on one rule could land 2 then 1 — and a
+// `delay` rule is exactly the shape that makes them cross.
+type firing struct {
+	epoch int
+	slot  int
 }
 
 // FiredFault is one line of the receipt.
@@ -185,6 +208,11 @@ type FiredFault struct {
 	Operation string `json:"operation"`
 	Rank      int    `json:"rank"`
 	Status    int    `json:"status"`
+	// Abandoned says the client left before the answer reached it, which a
+	// delayed rule makes ordinary. Without it the line reads `status: 0`, and
+	// 0 is not an HTTP status: a reader has to guess. The rule published the
+	// state the effect produced, so the receipt does too.
+	Abandoned bool `json:"abandoned"`
 }
 
 // maxFiredReceipt bounds the receipt.
@@ -193,27 +221,48 @@ const maxFiredReceipt = 256
 // recordFired appends one line to the receipt, and stops appending rather than
 // growing without bound. The count keeps rising so a reader can see that the
 // receipt is partial instead of believing it complete.
-func (fs *faultSet) recordFired(operation string, rank, status int) {
-	if fs == nil {
-		return
-	}
-	fs.mu.Lock()
-	defer fs.mu.Unlock()
+func (fs *faultSet) reserve(operation string, rank int) firing {
 	if len(fs.fired) >= maxFiredReceipt {
-		return
+		fs.dropped++
+		return firing{epoch: fs.epoch, slot: -1}
 	}
-	fs.fired = append(fs.fired, FiredFault{Operation: operation, Rank: rank, Status: status})
+	fs.fired = append(fs.fired, FiredFault{Operation: operation, Rank: rank})
+	return firing{epoch: fs.epoch, slot: len(fs.fired) - 1}
 }
 
-// receipt copies what the rules did, oldest first.
-func (fs *faultSet) receipt() []FiredFault {
-	out := make([]FiredFault, 0)
-	if fs == nil {
-		return out
+// recordFired completes the line reserved at arrival.
+//
+// A line whose campaign is gone is dropped: replace has bumped the epoch, and
+// writing into the new set would attribute this firing to rules nobody armed.
+// TestAFiringInFlightDoesNotLandInTheNextCampaign fails without that check.
+func (fs *faultSet) recordFired(f firing, status int, abandoned bool) {
+	if fs == nil || f.slot < 0 {
+		return
 	}
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
-	return append(out, fs.fired...)
+	if f.epoch != fs.epoch || f.slot >= len(fs.fired) {
+		return
+	}
+	fs.fired[f.slot].Status = status
+	fs.fired[f.slot].Abandoned = abandoned
+}
+
+// receipt copies what the rules did, in arrival order, and says how many lines
+// the cap refused.
+//
+// Arrival order rather than completion order, because the line is reserved
+// under the lock that produced the rank. The previous version appended when the
+// answer finished, so a receipt documented "oldest first" could start at rank 2
+// — and a delayed rule is the shape that makes two answers cross.
+func (fs *faultSet) receipt() ([]FiredFault, int) {
+	out := make([]FiredFault, 0)
+	if fs == nil {
+		return out, 0
+	}
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+	return append(out, fs.fired...), fs.dropped
 }
 
 // fire reports the rule that answers this call, the rank of the call among
@@ -229,9 +278,9 @@ func (fs *faultSet) receipt() []FiredFault {
 //
 // The rank is zero when no rule targets the operation, which is how a caller
 // tells "no rule here" from "the first call".
-func (fs *faultSet) fire(operation string) (Fault, int, bool) {
+func (fs *faultSet) fire(operation string) (Fault, int, firing, bool) {
 	if fs == nil {
-		return Fault{}, 0, false
+		return Fault{}, 0, firing{slot: -1}, false
 	}
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
@@ -241,15 +290,15 @@ func (fs *faultSet) fire(operation string) (Fault, int, bool) {
 		}
 		r.calls++
 		if r.Nth > 0 && r.calls != r.Nth {
-			return Fault{}, r.calls, false
+			return Fault{}, r.calls, firing{slot: -1}, false
 		}
 		if r.Times > 0 && r.hits >= r.Times {
-			return Fault{}, r.calls, false
+			return Fault{}, r.calls, firing{slot: -1}, false
 		}
 		r.hits++
-		return *r, r.calls, true
+		return *r, r.calls, fs.reserve(operation, r.calls), true
 	}
-	return Fault{}, 0, false
+	return Fault{}, 0, firing{slot: -1}, false
 }
 
 // armed reports whether any rule is set. It is what a suite asks before
@@ -297,6 +346,8 @@ func (fs *faultSet) replace(rules []*Fault) {
 	defer fs.mu.Unlock()
 	fs.rules = rules
 	fs.fired = nil
+	fs.dropped = 0
+	fs.epoch++
 }
 
 // faultView is one rule as the admin plane publishes it: every field present,
@@ -348,6 +399,9 @@ type faultsResponse struct {
 	// fired, never absent: a consumer must be able to tell "nothing fired" from
 	// "this emulator does not report firings".
 	Fired []FiredFault `json:"fired"`
+	// FiredDropped is how many firings the cap refused. Zero on an ordinary
+	// run; non-zero says `fired` is the first maxFiredReceipt of a longer list.
+	FiredDropped int `json:"fired_dropped"`
 }
 
 // validateFaults turns a request into the armed set, or refuses it.
@@ -556,10 +610,12 @@ func (b *bufferedResponse) Write(p []byte) (int, error) {
 // assert "the fault fired twice", and an operator meeting a 500 can ask whether
 // anything was armed at all.
 func (s *Server) handleFaultsRead(w http.ResponseWriter, _ *http.Request) {
+	fired, dropped := s.faults.receipt()
 	writeJSON(w, http.StatusOK, faultsResponse{
 		SchemaVersion: FaultsSchemaVersion,
 		Faults:        s.faults.snapshot(),
-		Fired:         s.faults.receipt(),
+		Fired:         fired,
+		FiredDropped:  dropped,
 	})
 }
 
@@ -580,10 +636,12 @@ func (s *Server) handleFaultsWrite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.faults.replace(rules)
+	fired, dropped := s.faults.receipt()
 	writeJSON(w, http.StatusOK, faultsResponse{
 		SchemaVersion: FaultsSchemaVersion,
 		Faults:        s.faults.snapshot(),
-		Fired:         s.faults.receipt(),
+		Fired:         fired,
+		FiredDropped:  dropped,
 	})
 }
 
@@ -591,10 +649,12 @@ func (s *Server) handleFaultsWrite(w http.ResponseWriter, r *http.Request) {
 // server starts in.
 func (s *Server) handleFaultsClear(w http.ResponseWriter, _ *http.Request) {
 	s.faults.replace(nil)
+	fired, dropped := s.faults.receipt()
 	writeJSON(w, http.StatusOK, faultsResponse{
 		SchemaVersion: FaultsSchemaVersion,
 		Faults:        s.faults.snapshot(),
-		Fired:         s.faults.receipt(),
+		Fired:         fired,
+		FiredDropped:  dropped,
 	})
 }
 

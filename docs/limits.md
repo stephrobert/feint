@@ -2218,6 +2218,19 @@ code comment, because a limit in a comment is not a limit anybody finds.
 A campaign armed from a committed file is the shape that avoids it entirely: one
 `PUT`, one set, whatever ran before.
 
+### Arming again restarts every campaign
+
+`PUT` rebuilds the rules, so the call counters go back to zero — including those
+of rules the new set keeps unchanged. Arming a second rule in the middle of a
+`--nth 3` campaign therefore makes that rule wait for three *more* calls, and
+the call that would have been the third answers normally.
+
+The receipt is cleared with them, for the reason above: a line from a campaign
+that is gone would read as part of this one.
+
+So a campaign is armed once, from one document. `feint fault add` is for
+building that document before the run, not for changing it during one.
+
 
 ## Docker was removed: it cannot back an emulated network
 

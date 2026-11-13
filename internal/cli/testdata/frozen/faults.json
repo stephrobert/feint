@@ -104,6 +104,10 @@
             "type": "object"
           },
           {
+            "path": "fired[].abandoned",
+            "type": "bool"
+          },
+          {
             "path": "fired[].operation",
             "type": "string"
           },
@@ -113,6 +117,10 @@
           },
           {
             "path": "fired[].status",
+            "type": "number"
+          },
+          {
+            "path": "fired_dropped",
             "type": "number"
           },
           {

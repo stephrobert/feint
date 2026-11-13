@@ -87,6 +87,10 @@ type firedFault struct {
 	Operation string `json:"operation"`
 	Rank      int    `json:"rank"`
 	Status    int    `json:"status"`
+	// Abandoned says the client left before the answer reached it, which a
+	// delayed rule makes ordinary. Printed as words, because `answered 0` is
+	// not a status anybody can read.
+	Abandoned bool `json:"abandoned"`
 }
 
 // faultsDocument is what /_feint/faults answers to all three methods.
@@ -94,6 +98,10 @@ type faultsDocument struct {
 	SchemaVersion int          `json:"schema_version"`
 	Faults        []faultRule  `json:"faults"`
 	Fired         []firedFault `json:"fired"`
+	// FiredDropped is how many firings the emulator's cap refused. Printed
+	// when it is not zero, so a reader of 256 lines is not left believing the
+	// receipt is the whole story.
+	FiredDropped int `json:"fired_dropped"`
 }
 
 func faultCommand(args []string, stdout, stderr io.Writer) int {
@@ -134,6 +142,11 @@ func faultList(args []string, stdout, stderr io.Writer) int {
 	return exitOK
 }
 
+// Three consequences a caller must know, and the limits page states them:
+// the receipt is cleared, two `add` at once can lose a rule, and **every
+// armed rule's call counter goes back to zero**, so a `--nth` campaign in
+// flight restarts. TestArmingAgainRestartsEveryCampaign, in
+// package internal/core/emulator, holds the third.
 // faultAdd arms one more rule, keeping what is already armed.
 func faultAdd(args []string, stdout, stderr io.Writer) int {
 	// The operation comes first and the flags behind it, the way `feint
@@ -237,8 +250,18 @@ func reportFaults(stdout io.Writer, document faultsDocument) {
 	if len(document.Fired) == 0 {
 		return
 	}
-	fmt.Fprintf(stdout, "fired (%d):\n", len(document.Fired))
+	if document.FiredDropped > 0 {
+		fmt.Fprintf(stdout, "fired (%d shown, %d more the receipt could not hold):\n",
+			len(document.Fired), document.FiredDropped)
+	} else {
+		fmt.Fprintf(stdout, "fired (%d):\n", len(document.Fired))
+	}
 	for _, line := range document.Fired {
+		if line.Abandoned {
+			fmt.Fprintf(stdout, "  %s call %d: the client left before the answer\n",
+				line.Operation, line.Rank)
+			continue
+		}
 		fmt.Fprintf(stdout, "  %s call %d answered %d\n", line.Operation, line.Rank, line.Status)
 	}
 }
