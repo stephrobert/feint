@@ -192,6 +192,19 @@ func (f *fakeStartd) run(_ context.Context, args ...string) ([]byte, error) {
 		// The permissive sweep of a detach: no NICs of ours to touch.
 		return []byte("[]"), nil
 
+	case key == "config get "+racedStartMachine+" user."+LabelKey:
+		// The ownership probe Attach asks before it touches an instance (#909).
+		// The machine this fake stands for was created by the emulator, and the
+		// fixture should not have to restate it; once it is gone the probe
+		// answers as a runtime would.
+		f.mu.Lock()
+		exists := f.exists
+		f.mu.Unlock()
+		if !exists {
+			return nil, errors.New("Error: Instance not found")
+		}
+		return []byte("outscale\n"), nil
+
 	case strings.HasPrefix(key, "query /1.0/networks/"):
 		name := strings.TrimPrefix(key, "query /1.0/networks/")
 		return []byte(`{"type":"ovn","config":{"ipv4.address":"10.0.9.1/24","user.` +

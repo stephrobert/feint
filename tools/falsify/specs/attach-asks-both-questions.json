@@ -1,0 +1,48 @@
+{
+ "package": "./internal/core/machine/",
+ "mutations": [
+  {
+   "label": "Attach stops asking whether the instance is ours, so a crafted snapshot adds a NIC to an instance of the host",
+   "file": "internal/core/machine/incus.go",
+   "find": "\tif err := d.mustOwnInstance(ctx, name); err != nil {\n\t\treturn fmt.Errorf(\"attach %s to network %s: %w\", name, att.Network, err)",
+   "replace": "\tif err := d.mustOwnInstance(ctx, name); err != nil && len(name) < 0 {\n\t\treturn fmt.Errorf(\"attach %s to network %s: %w\", name, att.Network, err)",
+   "test": "TestAttachRefusesAnInstanceItDoesNotOwn"
+  },
+  {
+   "label": "Attach stops asking whether the network is ours, so a NIC is plugged into the host's own bridge",
+   "file": "internal/core/machine/incus.go",
+   "find": "\tif !safeName.MatchString(att.Network) || !ownedNetwork(att.Network) {\n\t\treturn fmt.Errorf(\"refusing to attach to network",
+   "replace": "\tif !safeName.MatchString(att.Network) || (!ownedNetwork(att.Network) && len(name) < 0) {\n\t\treturn fmt.Errorf(\"refusing to attach to network",
+   "test": "TestAttachRefusesANetworkOutsideThePrefix"
+  },
+  {
+   "label": "the ownership guard refuses every instance, which passes every attack test and breaks the product",
+   "file": "internal/core/machine/incus.go",
+   "find": "\tif err := d.mustOwnInstance(ctx, name); err != nil {\n\t\treturn fmt.Errorf(\"attach %s to network %s: %w\", name, att.Network, err)",
+   "replace": "\tif err := d.mustOwnInstance(ctx, name); err != nil || len(name) > 0 {\n\t\treturn fmt.Errorf(\"attach %s to network %s: %w\", name, att.Network, err)",
+   "test": "TestAttachStillReachesAnInstanceTheEmulatorCreated"
+  },
+  {
+   "label": "the network guard refuses every network, the same failure on the other name",
+   "file": "internal/core/machine/incus.go",
+   "find": "\tif !safeName.MatchString(att.Network) || !ownedNetwork(att.Network) {\n\t\treturn fmt.Errorf(\"refusing to attach to network",
+   "replace": "\tif !safeName.MatchString(att.Network) || !ownedNetwork(att.Network) || len(name) > 0 {\n\t\treturn fmt.Errorf(\"refusing to attach to network",
+   "test": "TestAttachStillReachesAnInstanceTheEmulatorCreated"
+  },
+  {
+   "label": "a machine that is gone is reported as attached, so the caller publishes an address for nothing",
+   "file": "internal/core/machine/incus.go",
+   "find": "\tif err := d.mustOwnInstance(ctx, name); err != nil {\n\t\treturn fmt.Errorf(\"attach %s to network %s: %w\", name, att.Network, err)",
+   "replace": "\tif err := d.mustOwnInstance(ctx, name); err != nil {\n\t\tif isNotFound(err) {\n\t\t\treturn nil\n\t\t}\n\t\treturn fmt.Errorf(\"attach %s to network %s: %w\", name, att.Network, err)",
+   "test": "TestAttachToAnInstanceThatIsGoneIsReported"
+  },
+  {
+   "label": "the network question is asked of the machine name instead of the network, which is the copy-paste a reviewer would not see: the shape check still reads att.Network, so the line still looks like a guard, and every refusal still happens as long as no machine name is itself a valid network name",
+   "file": "internal/core/machine/incus.go",
+   "find": "\tif !safeName.MatchString(att.Network) || !ownedNetwork(att.Network) {",
+   "replace": "\tif !safeName.MatchString(att.Network) || !ownedNetwork(name) {",
+   "test": "TestAttachRefusesANetworkOutsideThePrefix"
+  }
+ ],
+ "note": "#909. Attach validated the shape of its two names and asked ownership of neither, where Detach asks both. The guard sits in Attach itself, ahead of the agent probe, so it covers every pack at once. Proven through the injectable runner, not against a running Incus."
+}
