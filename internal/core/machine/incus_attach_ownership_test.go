@@ -92,17 +92,33 @@ func TestAttachRefusesAnInstanceItDoesNotOwn(t *testing.T) {
 // TestAttachRefusesANetworkOutsideThePrefix is the same question on the other
 // name. A snapshot can name the host's own bridge here, and the NIC would be
 // plugged into it. The witness is that no command names the bridge at all.
+//
+// The machine name is a parameter, and the last row is the reason. With every
+// row sharing one machine name that ownedNetwork also refuses, the plausible
+// copy-paste `ownedNetwork(name)` in place of `ownedNetwork(att.Network)` still
+// refuses every row, for the wrong reason, and this test stays green: a
+// falsifier pass measured exactly that. The last row gives the machine a name
+// ownedNetwork accepts, so the guard has to be reading the network to refuse.
 func TestAttachRefusesANetworkOutsideThePrefix(t *testing.T) {
-	for _, network := range []string{"incusbr0", "hp-test-net", "docker0", "fnt"} {
-		f := attachRuntime("feint-scw-mine")
+	for _, c := range []struct{ machine, network string }{
+		{"feint-scw-mine", "incusbr0"},
+		{"feint-scw-mine", "hp-test-net"},
+		{"feint-scw-mine", "docker0"},
+		{"feint-scw-mine", "fnt"},
+		// The machine name is itself a well-formed owned network name, so a
+		// guard reading the machine where it should read the network accepts
+		// this row and the attach goes through.
+		{"fnt-mine", "incusbr0"},
+	} {
+		f := attachRuntime(c.machine)
 		d := newFakeDriver(f)
 
-		err := d.Attach(context.Background(), "feint-scw-mine", Attachment{Network: network})
+		err := d.Attach(context.Background(), c.machine, Attachment{Network: c.network})
 		if err == nil {
-			t.Fatalf("Attach accepted %q, which the emulator never created", network)
+			t.Fatalf("Attach of %q accepted network %q, which the emulator never created", c.machine, c.network)
 		}
-		if anyCommandNames(f, "network="+network) || anyCommandNames(f, network) {
-			t.Fatalf("a command named %q despite the refusal; commands sent: %v", network, f.commands())
+		if anyCommandNames(f, "network="+c.network) || anyCommandNames(f, c.network) {
+			t.Fatalf("a command named %q despite the refusal; commands sent: %v", c.network, f.commands())
 		}
 		if len(f.calls) != 0 {
 			t.Fatalf("the network was refused, so nothing should have been sent; commands sent: %v", f.commands())
