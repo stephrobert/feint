@@ -39,10 +39,10 @@
   {
    "label": "the network question is asked of the machine name instead of the network, which is the copy-paste a reviewer would not see: the shape check still reads att.Network, so the line still looks like a guard, and every refusal still happens as long as no machine name is itself a valid network name",
    "file": "internal/core/machine/incus.go",
-   "find": "\tif !safeName.MatchString(att.Network) || !ownedNetwork(att.Network) {",
-   "replace": "\tif !safeName.MatchString(att.Network) || !ownedNetwork(name) {",
+   "find": "\tif !safeName.MatchString(name) {\n\t\treturn fmt.Errorf(\"invalid machine name %q\", name)\n\t}\n\tif !safeName.MatchString(att.Network) || !ownedNetwork(att.Network) {",
+   "replace": "\tif !safeName.MatchString(name) {\n\t\treturn fmt.Errorf(\"invalid machine name %q\", name)\n\t}\n\tif !safeName.MatchString(att.Network) || !ownedNetwork(name) {",
    "test": "TestAttachRefusesANetworkOutsideThePrefix"
   }
  ],
- "note": "#909. Attach validated the shape of its two names and asked ownership of neither, where Detach asks both. The guard sits in Attach itself, ahead of the agent probe, so it covers every pack at once. Proven through the injectable runner, not against a running Incus."
+ "note": "#909. Attach validated the shape of its two names and asked ownership of neither, where Detach asks both. The guard sits in Attach itself, ahead of the agent probe, so it covers every pack at once. Proven through the injectable runner, not against a running Incus. The last mutation's fragment carries Attach's machine-name check as context since #932: the bare condition now matches Start's entry guard too, and falsify:lint refuses a fragment that leaves one of its matches standing."
 }

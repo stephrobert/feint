@@ -427,9 +427,41 @@ func (d *Incus) publicRouteKey() string {
 // before the first boot. Editing a route key on a live OVN NIC re-plugs the
 // device and the guest loses its DHCP lease with nothing left to renew it; a
 // cold `config device set` costs nothing on either NIC kind.
+//
+// The cold twin of Attach's two questions (#932). Every network name a boot
+// carries comes from a stored resource that PUT /_feint/state and
+// `feint snapshot load` restore verbatim, and every pack reads it straight off
+// into Spec.Attachments. `incusbr0` is well formed, so safeName alone let a
+// crafted snapshot produce `init … --network incusbr0` and
+// `config device add … nic network=incusbr0`: a machine the emulator started on
+// the operator's own bridge, taking an address from their DHCP, and unremovable
+// afterwards because Detach refuses a network outside the prefix.
+//
+// The question is one named predicate, ownedAttachments, asked here over the
+// whole of Spec.Attachments before anything is sent to the runtime. One
+// predicate rather than a condition written at each attachment site: what
+// drifted before was the *rule*, not the call — the two per-site checks asked
+// safeName and neither asked ownership — and a predicate called twice has no
+// second copy to drift. It covers the primary interface and the extra NICs
+// attachExtra adds, which asks it again at its own entry.
+// TestStartRefusesANetworkOutsideThePrefix and
+// TestStartRefusesAForeignNetworkOnAnExtraNIC fail without the call made here,
+// and TestStartStillBootsOnTheNetworksTheEmulatorCreated fails if it refuses
+// what it should accept.
+//
+// A restart is refused too, and that is deliberate rather than incidental: a
+// poweron of a machine the runtime is already running, whose stored plan names
+// a network outside the prefix, answers an error here, and Binding.PowerOn then
+// publishes FailedState for a machine that is running. A plan this driver
+// cannot trust is a plan it does not execute, and the honest state for it is
+// the failure. TestARestartIsRefusedWhenThePlanNamesAForeignNetwork holds that
+// outcome, so nobody has to guess whether it was intended.
 func (d *Incus) Start(ctx context.Context, spec Spec) (Machine, error) {
 	if !safeName.MatchString(spec.Name) {
 		return Machine{}, fmt.Errorf("invalid machine name %q", spec.Name)
+	}
+	if err := ownedAttachments(spec.Name, spec.Attachments); err != nil {
+		return Machine{}, err
 	}
 
 	if _, ok, err := d.Inspect(ctx, spec.Name); err != nil {
@@ -504,10 +536,10 @@ func (d *Incus) Start(ctx context.Context, spec Spec) (Machine, error) {
 
 	var primary Attachment
 	if len(attachments) > 0 {
+		// Shape and ownership were both asked of this name at the entry of
+		// Start, over the whole of Attachments (#932). Nothing is restated
+		// here: a second copy is what lets the two copies drift apart.
 		primary = attachments[0]
-		if !safeName.MatchString(primary.Network) {
-			return Machine{}, fmt.Errorf("invalid network name %q", primary.Network)
-		}
 		// A pack may ask for the emulator's own network by name — Outscale does,
 		// for a Vm in the public Cloud, where the address it receives is
 		// published as PrivateIp. Nothing creates it implicitly any more, so the
@@ -693,17 +725,54 @@ func (d *Incus) abandonStart(ctx context.Context, name string, cause error) erro
 	return cause
 }
 
+// ownedAttachments asks both questions of every network a boot names (#932).
+//
+//   - well formed: safeName, which rules out a leading `-` that incus would
+//     read as a flag, and anything carrying a path separator;
+//   - ours: ownedNetwork, against the prefix this package derives.
+//
+// One predicate, called by Start at its entry and by attachExtra at its own,
+// because the names come from a stored resource that PUT /_feint/state and
+// `feint snapshot load` restore verbatim: `incusbr0` is well formed, and
+// before this the boot path asked nothing else.
+//
+// Both halves are measured, and separately: neutralising safeName while
+// keeping ownedNetwork reddens TestStartRefusesANetworkOutsideThePrefix on its
+// `fnt-a/b` and `fnt-a b` rows, and narrowing ownedNetwork to the derived shape
+// reddens the `fnt-default` subtest of
+// TestStartStillBootsOnTheNetworksTheEmulatorCreated. Before those two rows
+// existed the first of those mutations left every test in this package green,
+// which is what a falsifier pass measured.
+func ownedAttachments(name string, atts []Attachment) error {
+	for _, att := range atts {
+		if !safeName.MatchString(att.Network) || !ownedNetwork(att.Network) {
+			return fmt.Errorf("refusing to boot %s on network %q: not one the emulator created", name, att.Network)
+		}
+	}
+	return nil
+}
+
 // attachExtra adds the interfaces beyond the first, which launch cannot carry:
 // it takes one --network. A server with two private NICs is ordinary on
 // Scaleway, so this is not an edge case.
+//
+// It asks ownedAttachments again, of the slice it is about to turn into argv.
+// Start, its only caller today, already asked it of the whole of
+// Spec.Attachments, and that call is the one the tests measure: it is what
+// makes a refused boot send nothing at all. This call cannot be measured the
+// same way — no mutation can add a second caller — and deleting it leaves
+// TestStartRefusesAForeignNetworkOnAnExtraNIC green, which was measured rather
+// than assumed. So it is defence in depth, not the guard: it is here so that a
+// caller added later is safe by construction instead of inheriting an
+// obligation written in a comment.
 func (d *Incus) attachExtra(ctx context.Context, spec Spec) error {
 	if len(spec.Attachments) < 2 {
 		return nil
 	}
+	if err := ownedAttachments(spec.Name, spec.Attachments[1:]); err != nil {
+		return err
+	}
 	for i, att := range spec.Attachments[1:] {
-		if !safeName.MatchString(att.Network) {
-			return fmt.Errorf("invalid network name %q", att.Network)
-		}
 		device := fmt.Sprintf("eth%d", i+1)
 		args := []string{"config", "device", "add", spec.Name, device, "nic", "network=" + att.Network}
 		if att.Address != "" {
