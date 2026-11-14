@@ -1,0 +1,62 @@
+{
+  "package": "./internal/core/machine/",
+  "mutations": [
+    {
+      "label": "RouteAddress stops asking whose instance it is, and the managed branch writes to it anyway: `config device set <foreign instance> eth1 ipv4.routes=203.0.113.9/32` and the `ip address add` behind it, which is #933 as it was measured through the runner. Judged in bridge mode here and in OVN mode by the next mutation: one call, two mode branches, two witnesses",
+      "file": "internal/core/machine/incus_address.go",
+      "find": "\tif err := d.mustOwnInstance(ctx, spec.Machine); err != nil {\n\t\treturn err\n\t}\n\tnetwork, device, err := d.interfaceFor(ctx, spec.Machine, spec.Network)",
+      "replace": "\tif err := d.mustOwnInstance(ctx, spec.Machine); err != nil && false {\n\t\treturn err\n\t}\n\tnetwork, device, err := d.interfaceFor(ctx, spec.Machine, spec.Network)",
+      "test": "TestRouteAddressRefusesAManagedNICOnAnInstanceTheEmulatorDidNotCreate/bridge_mode"
+    },
+    {
+      "label": "the same removal, byte-identical, judged by the OVN mode branch instead. It is worth its own witness because the OVN half writes more: the uplink route, the NIC's external route, and then the guest's own address, resolver and routes through `exec`, all on an instance carrying none of the emulator's labels",
+      "file": "internal/core/machine/incus_address.go",
+      "find": "\tif err := d.mustOwnInstance(ctx, spec.Machine); err != nil {\n\t\treturn err\n\t}\n\tnetwork, device, err := d.interfaceFor(ctx, spec.Machine, spec.Network)",
+      "replace": "\tif err := d.mustOwnInstance(ctx, spec.Machine); err != nil && false {\n\t\treturn err\n\t}\n\tnetwork, device, err := d.interfaceFor(ctx, spec.Machine, spec.Network)",
+      "test": "TestRouteAddressRefusesAManagedNICOnAnInstanceTheEmulatorDidNotCreate/ovn_mode"
+    },
+    {
+      "label": "the shape half is neutralised and the ownership half kept, so a stored machine name carrying a path separator becomes an argument of `query`, `config device set` and `exec`. It needs its own mutation and its own row because the two ownership questions accept that name: the instance it names is labelled as ours and so is its network",
+      "file": "internal/core/machine/incus_address.go",
+      "find": "\tif !safeName.MatchString(spec.Machine) {\n\t\treturn fmt.Errorf(\"invalid machine name %q\", spec.Machine)",
+      "replace": "\tif !safeName.MatchString(spec.Machine) && false {\n\t\treturn fmt.Errorf(\"invalid machine name %q\", spec.Machine)",
+      "test": "TestRouteAddressRefusesAMachineNameThatIsNotACommandArgument"
+    },
+    {
+      "label": "the managed branch stops asking whose network it is, so an address is routed through the operator's own bridge and the route left on it survives every sweep",
+      "file": "internal/core/machine/incus_address.go",
+      "find": "\tif err := d.mustOwn(ctx, network); err != nil {\n\t\treturn err\n\t}\n\n\tif err := d.setDeviceRoutes(ctx, spec.Machine, device, spec.Address, true); err != nil {",
+      "replace": "\tif err := d.mustOwn(ctx, network); err != nil && false {\n\t\treturn err\n\t}\n\n\tif err := d.setDeviceRoutes(ctx, spec.Machine, device, spec.Address, true); err != nil {",
+      "test": "TestRouteAddressRefusesAManagedNICOnANetworkTheEmulatorDoesNotOwn/bridge_mode"
+    },
+    {
+      "label": "the same question in the OVN mode branch, which has its own call and therefore its own mutation: without it the uplink carries a /32 towards a network the emulator never created",
+      "file": "internal/core/machine/incus_ovn.go",
+      "find": "\tif err := d.mustOwn(ctx, network); err != nil {\n\t\treturn err\n\t}\n\t// Exclusive on the NIC's network for the whole edit.",
+      "replace": "\tif err := d.mustOwn(ctx, network); err != nil && false {\n\t\treturn err\n\t}\n\t// Exclusive on the NIC's network for the whole edit.",
+      "test": "TestRouteAddressRefusesAManagedNICOnANetworkTheEmulatorDoesNotOwn/ovn_mode"
+    },
+    {
+      "label": "the ownership question refuses every instance, which passes all four attack tests above and breaks the product: no pack can publish an address any more, and the refusal returns a nil error so the caller is not even told",
+      "file": "internal/core/machine/incus_address.go",
+      "find": "\tif err := d.mustOwnInstance(ctx, spec.Machine); err != nil {\n\t\treturn err\n\t}\n\tnetwork, device, err := d.interfaceFor(ctx, spec.Machine, spec.Network)",
+      "replace": "\tif err := d.mustOwnInstance(ctx, spec.Machine); err != nil || len(spec.Machine) > 0 {\n\t\treturn err\n\t}\n\tnetwork, device, err := d.interfaceFor(ctx, spec.Machine, spec.Network)",
+      "test": "TestRouteAddressStillRoutesOnAnOwnedInstanceAndNetwork"
+    },
+    {
+      "label": "the network question is narrowed to refuse fnt-default, the realistic future defect: every NetworkName-derived network keeps working and Outscale's public-cloud Vm path, which boots on DefaultMachineNetwork, stops getting its address",
+      "file": "internal/core/machine/incus_address.go",
+      "find": "\tif err := d.mustOwn(ctx, network); err != nil {\n\t\treturn err\n\t}\n\n\tif err := d.setDeviceRoutes(ctx, spec.Machine, device, spec.Address, true); err != nil {",
+      "replace": "\tif err := d.mustOwn(ctx, network); err != nil || network == DefaultMachineNetwork {\n\t\treturn err\n\t}\n\n\tif err := d.setDeviceRoutes(ctx, spec.Machine, device, spec.Address, true); err != nil {",
+      "test": "TestRouteAddressStillRoutesOnAnOwnedInstanceAndNetwork/fnt-default_in_bridge_mode"
+    },
+    {
+      "label": "an instance that is gone is read as nothing to do, so RouteAddress answers success for a machine that will never carry the address its pack is about to publish",
+      "file": "internal/core/machine/incus_address.go",
+      "find": "\tif err := d.mustOwnInstance(ctx, spec.Machine); err != nil {\n\t\treturn err\n\t}\n\tnetwork, device, err := d.interfaceFor(ctx, spec.Machine, spec.Network)",
+      "replace": "\tif err := d.mustOwnInstance(ctx, spec.Machine); err != nil {\n\t\tif isNotFound(err) {\n\t\t\treturn nil\n\t\t}\n\t\treturn err\n\t}\n\tnetwork, device, err := d.interfaceFor(ctx, spec.Machine, spec.Network)",
+      "test": "TestRouteAddressOnAnInstanceThatIsGoneIsReported"
+    }
+  ],
+  "note": "#933. RouteAddress had three branches and asked whose instance it is in two of them; the managed branch asked mustOwn of the network only and then set a route key on the instance's device and `exec`ed into its guest. The question is asked once now, at the entry of RouteAddress, ahead of every branch and of every command: one named predicate, one call site, no second copy to drift, which is what the asymmetry of #932 cost. Two consequences this spec carries and a reader should not have to infer. The move displaced two mutations that used to name the per-branch calls, in routed-nic.json and public-address-migration.json; both are retargeted at the entry call and judged by their own branch's test, so the routed branch and the migration are still measured, each by the test that names it. And releaseFromRoutedNIC no longer asks the question itself: with the entry call in place a second check on the same path could never fail, so no mutation could measure it. Being unmeasurable is not on its own the reason, and the narrower rule is written where the code is: this driver does keep re-checks no mutation can redden when they are pure local predicates, routeAddressOVN re-asking safeName and attachExtra re-asking ownedAttachments both being that, and both saying in place that they are defence in depth rather than the guard. mustOwnInstance is an `incus config get` on the host, so what #933 took out is a duplicated runtime probe, not redundancy as such. What this spec does NOT hold is the position of the entry call, and what it does instead is refuse rather than judge. Four of these eight mutations anchor their fragment on the entry call followed by the interfaceFor line, so moving the call below interfaceFor does not pass quietly: the fragment stops matching, `mise run prepush` turns red on falsify:lint in about 2.5 s with 'fragment not found', and a replay of this spec prints DID NOT APPLY and exits 1. That is the harness catching a spec which describes code that is no longer what it thinks, which is the one failure it must never have silently, and it is a refusal, not a measurement of the move. What the move would actually cost, 'nothing is sent before the question', is held by the tests instead, which require that the only command naming a refused instance is the label probe itself, and that an ill-formed name reaches no command at all."
+}
