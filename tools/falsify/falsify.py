@@ -372,7 +372,14 @@ ACCEPTED = [
 
 
 def selftest():
-    """Prove the rule on the three mistakes it was written for."""
+    """Prove the rule on the four mistakes of 2026-08-15 it was written for.
+
+    Four, not three: the three unrelated issues of that day plus the one found
+    the same day by running the harness end to end (#187). Both counts printed
+    below come from len(HISTORY) and len(ACCEPTED), so this docstring is the only
+    place the number could go stale, and CONTRIBUTING.md said three while this
+    printed four for long enough to be found by an audit (#937).
+    """
     failures = 0
     for find, replace, why in ACCEPTED:
         lost = dropped_identifiers(find, replace)
@@ -1150,10 +1157,11 @@ def listed_tests(packages, root, env=()):
     defect this whole function exists to close (#923). The listing is.
 
     Answers are kept for the life of the process, on the same argument as
-    BASELINES: `--all` asks this once per spec, 251 of them for some fifteen
-    distinct package patterns, against a tree that does not change while the
-    replay runs. The night was already cancelled at its 210-minute ceiling once
-    (#890), and a check that closes a hole must not reopen that one.
+    BASELINES: `--all` asks this once per spec (251 of them on 2026-11-14,
+    dated rather than recounted: #937) for some fifteen distinct package
+    patterns, against a tree that does not change while the replay runs. The
+    night was already cancelled at its 210-minute ceiling once (#890), and a
+    check that closes a hole must not reopen that one.
     """
     key = ("list", tuple(packages), os.path.abspath(root), tuple(env))
     if key in LISTINGS:

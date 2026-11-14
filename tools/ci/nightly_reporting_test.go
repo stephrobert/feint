@@ -325,9 +325,12 @@ func TestWaitedJobsCoversEveryNeedsSpelling(t *testing.T) {
 
 // TestTheFalsifySuiteIsGivenTimeToFinish holds the other half of #737.
 //
-// The budget is not a preference: 1271 mutations, each a tree copy plus a build
-// plus one test run, clocked locally at 29 seconds per spec on a warm cache,
-// which projects to about 97 minutes. Thirty minutes could not finish it, and a
+// The budget is not a preference: on 2026-09-14 (#764) the suite held 1271
+// mutations across 199 specs, each a tree copy plus a build plus one test run,
+// clocked locally at 29 seconds per spec on a warm cache, which projected to
+// about 97 minutes. Those counts are the population of that clock and stay
+// dated with it; the suite has grown since, which only widens the gap the
+// floor below protects (#937). Thirty minutes could not finish it, and a
 // job killed mid-replay reports `cancelled`, which reads as nobody's fault.
 func TestTheFalsifySuiteIsGivenTimeToFinish(t *testing.T) {
 	body, err := os.ReadFile(filepath.Join("..", "..", ".github", "workflows", "falsify.yml"))
@@ -340,7 +343,7 @@ func TestTheFalsifySuiteIsGivenTimeToFinish(t *testing.T) {
 	}
 	got := m[1]
 	if len(got) < 3 || got < "100" {
-		t.Errorf("falsify.yml allows %s minutes for 199 specs clocked at ~29s each. "+
-			"Thirty minutes is what cancelled it for twenty-four nights (#737)", got)
+		t.Errorf("falsify.yml allows %s minutes; the 199 specs counted on 2026-09-14 were clocked at ~29s each, "+
+			"and the suite has grown since. Thirty minutes is what cancelled it for twenty-four nights (#737)", got)
 	}
 }
