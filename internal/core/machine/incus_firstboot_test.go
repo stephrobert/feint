@@ -250,13 +250,25 @@ func TestALeaseThatNeverLandsDoesNotCostTheOtherInterfacesTheirs(t *testing.T) {
 // path precisely so this cannot be true of one door and false of the other: a
 // NIC an operator added by hand to one of our machines is theirs, and no
 // command this path emits may name it.
+//
+// Two checks sit on this path since #944 and they do not ask the same thing.
+// ownedManagedNICs skips a NIC that is not ours and carries on with the
+// others; the read-back check in restorePinnedAddress refuses a value it
+// cannot trust, and refusing ends the loop. Without the skip, the foreign NIC
+// would still reach no command — the read-back check stops it first — but
+// every NIC of ours sorted after it would go unrestored. So the fixture puts a
+// foreign NIC *before* one of ours, and the test requires ours restored: that
+// is what only the skip provides, and what a falsifier pass found unmeasured
+// once the read-back check existed.
 func TestAFirstBootLeavesAForeignNICAlone(t *testing.T) {
 	const foreign = `{
 	  "devices": {
+	    "data0": {"type": "nic", "network": "incusbr0", "ipv4.address": "10.76.154.8"},
 	    "eth0": {"type": "nic", "network": "fnt-368798629f8", "ipv4.address": "10.181.0.2"},
 	    "eth9": {"type": "nic", "network": "incusbr0", "ipv4.address": "10.76.154.9"}
 	  },
 	  "expanded_devices": {
+	    "data0": {"type": "nic", "network": "incusbr0", "ipv4.address": "10.76.154.8"},
 	    "eth0": {"type": "nic", "network": "fnt-368798629f8", "ipv4.address": "10.181.0.2"},
 	    "eth9": {"type": "nic", "network": "incusbr0", "ipv4.address": "10.76.154.9"}
 	  }
@@ -276,13 +288,16 @@ func TestAFirstBootLeavesAForeignNICAlone(t *testing.T) {
 		t.Errorf("the first boot configured a NIC on a network the emulator did not create:\n%s",
 			strings.Join(got, "\n"))
 	}
-	if got := f.matching("10.76.154.9"); len(got) != 0 {
-		t.Errorf("the first boot named an address of somebody else's network:\n%s",
-			strings.Join(got, "\n"))
+	for _, theirs := range []string{"data0", "10.76.154.8", "10.76.154.9"} {
+		if got := f.matching(theirs); len(got) != 0 {
+			t.Errorf("the first boot named %q, which belongs to somebody else's network:\n%s",
+				theirs, strings.Join(got, "\n"))
+		}
 	}
-	// The accepting half in the same fixture: ours is still configured. A guard
-	// that refused everything would pass the two assertions above and break the
-	// product.
+	// The accepting half in the same fixture: ours is still configured, though
+	// a foreign NIC (data0) sorts before it. A guard that refused everything
+	// would pass the assertions above and break the product, and so would a
+	// path that stopped at the first foreign NIC instead of skipping it.
 	if len(f.matching("exec srv -- ip address add 10.181.0.2/24 dev eth0")) == 0 {
 		t.Errorf("the ownership check swallowed the emulator's own NIC:\n%s",
 			strings.Join(f.commands(), "\n"))

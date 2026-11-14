@@ -116,11 +116,7 @@ func (p *Pack) routeLinkedIP(ctx context.Context, address string, vm *resource.R
 // driver treats that as nothing left to undo, and on OVN it still withdraws
 // the uplink route, which outlives the machine.
 func (p *Pack) unrouteLinkedIP(ctx context.Context, address string, vm *resource.Resource) {
-	machineName := ""
-	if vm != nil {
-		machineName = vm.Runtime[p.binding().RuntimeKey]
-	}
-	p.reconciler().Unroute(ctx, machineName, address)
+	p.reconciler().Unroute(ctx, vm, address)
 }
 
 // publicBootAddresses is what a Vm's machine must answer on from its first

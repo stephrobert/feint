@@ -112,7 +112,7 @@ func TestAPoisonedStoredAddressIsNeverRoutedByTheLayer(t *testing.T) {
 	r := reconcilerBench(b, Plan{})
 
 	r.Route(context.Background(), vm, "192.168.1.10") // the operator's LAN
-	r.Unroute(context.Background(), "feint-bench-m", "192.168.1.10")
+	r.Unroute(context.Background(), vm, "192.168.1.10")
 	for _, e := range b.rec.Events() {
 		if e.Kind == "RouteAddress" || e.Kind == "UnrouteAddress" {
 			t.Fatalf("an address outside the emulated block reached the driver: %v", e)

@@ -500,12 +500,14 @@ func (p *Pack) detachAddress(ctx context.Context, ip *resource.Resource) {
 	if address == "" {
 		return
 	}
-	// The machine that held it, when the record still names one.
-	holder := ""
+	// The server that held it, when the record still names one. The layer
+	// reads its machine name and asks whether the emulator could have
+	// written it, the same question the route asked (#947).
+	var holder *resource.Resource
 	if summary, _ := ip.Attrs["server"].(map[string]any); summary != nil {
 		if id, _ := summary["id"].(string); id != "" {
 			if server, found := p.env.Store.Get(Name, kindServer, id); found {
-				holder = server.Runtime[runtimeMachineKey]
+				holder = server
 			}
 		}
 	}
@@ -636,5 +638,5 @@ func (p *Pack) releaseDynamicAddress(ctx context.Context, res *resource.Resource
 	}
 	delete(res.Runtime, runtimeDynamicIPKey)
 	delete(res.Runtime, runtimeDynamicIPIDKey)
-	p.reconciler().Unroute(ctx, res.Runtime[runtimeMachineKey], address)
+	p.reconciler().Unroute(ctx, res, address)
 }

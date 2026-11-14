@@ -9,10 +9,10 @@
    "test": "TestAttachRefusesAnInstanceItDoesNotOwn"
   },
   {
-   "label": "Attach stops asking whether the network is ours, so a NIC is plugged into the host's own bridge",
+   "label": "Attach stops asking ownedAttachments, so a NIC is plugged into the host's own bridge: the predicate is shared with Start since #944, so the hot door's own call is what this removes",
    "file": "internal/core/machine/incus.go",
-   "find": "\tif !safeName.MatchString(att.Network) || !ownedNetwork(att.Network) {\n\t\treturn fmt.Errorf(\"refusing to attach to network",
-   "replace": "\tif !safeName.MatchString(att.Network) || (!ownedNetwork(att.Network) && len(name) < 0) {\n\t\treturn fmt.Errorf(\"refusing to attach to network",
+   "find": "\tif err := ownedAttachments(name, []Attachment{att}); err != nil {\n\t\treturn err\n\t}\n\n\trelease := serialise.Lock(\"incus.attach.\" + name)",
+   "replace": "\tif err := ownedAttachments(name, []Attachment{att}); err != nil && len(name) < 0 {\n\t\treturn err\n\t}\n\n\trelease := serialise.Lock(\"incus.attach.\" + name)",
    "test": "TestAttachRefusesANetworkOutsideThePrefix"
   },
   {
@@ -25,8 +25,8 @@
   {
    "label": "the network guard refuses every network, the same failure on the other name",
    "file": "internal/core/machine/incus.go",
-   "find": "\tif !safeName.MatchString(att.Network) || !ownedNetwork(att.Network) {\n\t\treturn fmt.Errorf(\"refusing to attach to network",
-   "replace": "\tif !safeName.MatchString(att.Network) || !ownedNetwork(att.Network) || len(name) > 0 {\n\t\treturn fmt.Errorf(\"refusing to attach to network",
+   "find": "\tif err := ownedAttachments(name, []Attachment{att}); err != nil {\n\t\treturn err\n\t}\n\n\trelease := serialise.Lock(\"incus.attach.\" + name)",
+   "replace": "\tif err := ownedAttachments(name, []Attachment{att}); err != nil || len(name) > 0 {\n\t\treturn fmt.Errorf(\"refusing %s: %v\", name, err)\n\t}\n\n\trelease := serialise.Lock(\"incus.attach.\" + name)",
    "test": "TestAttachStillReachesAnInstanceTheEmulatorCreated"
   },
   {
@@ -37,12 +37,33 @@
    "test": "TestAttachToAnInstanceThatIsGoneIsReported"
   },
   {
-   "label": "the network question is asked of the machine name instead of the network, which is the copy-paste a reviewer would not see: the shape check still reads att.Network, so the line still looks like a guard, and every refusal still happens as long as no machine name is itself a valid network name",
+   "label": "the network question is asked of the machine name instead of the network, which is the copy-paste a reviewer would not see: the shape check still reads att.Network, so the line still looks like a guard, and every refusal still happens as long as no machine name is itself a valid network name. Since #944 the condition lives in ownedAttachments, shared with Start, and this mutation is judged by Attach's own table, whose `fnt-mine` row is the one a guard reading the machine accepts",
    "file": "internal/core/machine/incus.go",
-   "find": "\tif !safeName.MatchString(name) {\n\t\treturn fmt.Errorf(\"invalid machine name %q\", name)\n\t}\n\tif !safeName.MatchString(att.Network) || !ownedNetwork(att.Network) {",
-   "replace": "\tif !safeName.MatchString(name) {\n\t\treturn fmt.Errorf(\"invalid machine name %q\", name)\n\t}\n\tif !safeName.MatchString(att.Network) || !ownedNetwork(name) {",
+   "find": "\t\tif !safeName.MatchString(att.Network) || !ownedNetwork(att.Network) {\n\t\t\treturn fmt.Errorf(\"refusing to plug",
+   "replace": "\t\tif !safeName.MatchString(att.Network) || !ownedNetwork(name) {\n\t\t\treturn fmt.Errorf(\"refusing to plug",
    "test": "TestAttachRefusesANetworkOutsideThePrefix"
+  },
+  {
+   "label": "the shape half of the shared predicate is neutralised and the ownership half kept, judged on the hot door: a stored network name with a slash or a space reaches `config device add … network=`. Attach's table had no row isolating this half until #944, when its condition became the shared one",
+   "file": "internal/core/machine/incus.go",
+   "find": "\t\tif !safeName.MatchString(att.Network) || !ownedNetwork(att.Network) {\n\t\t\treturn fmt.Errorf(\"refusing to plug",
+   "replace": "\t\tif (!safeName.MatchString(att.Network) && len(name) < 0) || !ownedNetwork(att.Network) {\n\t\t\treturn fmt.Errorf(\"refusing to plug",
+   "test": "TestAttachRefusesANetworkOutsideThePrefix"
+  },
+  {
+   "label": "the instance question moves above the per-machine lock, so the answer Attach acts on was taken while another action on the same machine still held it (#934). Same commands, same order: argv cannot see this, only ordering against the lock can",
+   "file": "internal/core/machine/incus.go",
+   "find": "\trelease := serialise.Lock(\"incus.attach.\" + name)\n\tdefer release()\n\n\tif err := d.mustOwnInstance(ctx, name); err != nil {\n\t\treturn fmt.Errorf(\"attach %s to network %s: %w\", name, att.Network, err)\n\t}\n",
+   "replace": "\tif err := d.mustOwnInstance(ctx, name); err != nil {\n\t\treturn fmt.Errorf(\"attach %s to network %s: %w\", name, att.Network, err)\n\t}\n\trelease := serialise.Lock(\"incus.attach.\" + name)\n\tdefer release()\n\n",
+   "test": "TestAttachAsksWhoseInstanceItIsUnderTheLockItActsUnder"
+  },
+  {
+   "label": "Detach's instance question moves above the per-machine lock it shares with Attach, so the device removal acts on an answer taken while another action on the same machine held the lock (#934's property, on the other door)",
+   "file": "internal/core/machine/incus.go",
+   "find": "\trelease := serialise.Lock(\"incus.attach.\" + name)\n\tdefer release()\n\n\tif err := d.mustOwnInstance(ctx, name); err != nil {\n\t\tif isNotFound(err) {\n\t\t\treturn nil\n\t\t}\n\t\treturn err\n\t}\n",
+   "replace": "\tif err := d.mustOwnInstance(ctx, name); err != nil {\n\t\tif isNotFound(err) {\n\t\t\treturn nil\n\t\t}\n\t\treturn err\n\t}\n\trelease := serialise.Lock(\"incus.attach.\" + name)\n\tdefer release()\n\n",
+   "test": "TestDetachAsksWhoseInstanceItIsUnderTheLockItActsUnder"
   }
  ],
- "note": "#909. Attach validated the shape of its two names and asked ownership of neither, where Detach asks both. The guard sits in Attach itself, ahead of the agent probe, so it covers every pack at once. Proven through the injectable runner, not against a running Incus. The last mutation's fragment carries Attach's machine-name check as context since #932: the bare condition now matches Start's entry guard too, and falsify:lint refuses a fragment that leaves one of its matches standing."
+ "note": "#909. Attach validated the shape of its two names and asked ownership of neither, where Detach asks both. The guard sits in Attach itself, ahead of the agent probe, so it covers every pack at once. Proven through the injectable runner, not against a running Incus. The last mutation's fragment carries Attach's machine-name check as context since #932: the bare condition now matches Start's entry guard too, and falsify:lint refuses a fragment that leaves one of its matches standing. Since #944 Attach asks the network and the pinned address through ownedAttachments, the predicate Start asks, instead of its own copy of the network condition; the mutations that named that copy now name either Attach's call of the predicate (the whole question removed, or refusing everything) or the predicate itself judged by Attach's tests (the machine-name copy-paste, and the shape half, which had no row here before). The last mutation is #934: the instance question asked under the lock it acts under, held by a test that takes the lock itself and watches for the ownership probe. The mutation after it is the same property on Detach, which takes the same lock and removes a device on the strength of the same answer."
 }
