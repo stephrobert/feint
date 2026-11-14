@@ -19,10 +19,18 @@ import (
 // applies textually and that the test each mutation names exists in the package
 // it declares (#923); replaying the mutation is what proves the test bites.
 //
-// 251 specs name 295 distinct files today, in 1665 mutations, so the mapping is
+// 255 specs name 296 distinct files today, in 1709 mutations, so the mapping is
 // far past the size anybody holds in their head, and it is exact: a spec says
 // which file it mutates. Nothing here is a judgement — the specs are the source, and a spec
 // that stops naming a file stops earning its replay on the same commit.
+//
+// That sentence is recounted, not remembered, and it is the one place where
+// remembering it was embarrassing: the figure is the argument for generating
+// the mapping. It read "128 specs name 186 distinct files" for long enough to be
+// wrong by half, was corrected by hand to 251 and 1665 on 2026-11-14, and was
+// wrong again one merge later. figures.go now recounts it against the specs, and
+// TestEveryPublishedSpecFigureMatchesTheLiveCount fails on the three numbers in
+// the line above (#937).
 //
 // `falsify:all` is the whole set and belongs to the night. What this prints is
 // the subset the diff can possibly have broken.

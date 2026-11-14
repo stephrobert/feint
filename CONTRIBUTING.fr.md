@@ -59,12 +59,21 @@ poussée dit quoi jouer ensuite et refuse un chemin qu'aucune règle ne trie —
 un chemin non trié est une absence, pas une décision (#564).
 
 Il imprime aussi **les falsifications que le diff a méritées**, lues dans
-`tools/falsify/specs/` plutôt que retenues : 128 specs nomment 186 fichiers
-distincts, et une spec qui mute un fichier que vous avez touché est le
-sous-ensemble de `falsify:all` que votre changement peut avoir empêché de mordre.
-Chaque lot d'ici a suivi cette discipline à la main et l'a écrit dans sa pull
-request, ce qui veut dire qu'il l'a aussi oubliée à la main — `mise run check`
-ne voit pas une garde dont le test passe encore, au-dessus de rien.
+`tools/falsify/specs/` plutôt que retenues : 255 specs nomment 296 fichiers
+distincts en 1709 mutations, et une spec qui mute un fichier que vous avez
+touché est le sous-ensemble de `falsify:all` que votre changement peut avoir
+empêché de mordre. Chaque lot d'ici a suivi cette discipline à la main et l'a
+écrit dans sa pull request, ce qui veut dire qu'il l'a aussi oubliée à la main :
+`mise run check` ne voit pas une garde dont le test passe encore, au-dessus de
+rien.
+
+Ces trois chiffres ne sont pas retenus non plus. `mise run check` les recompte
+sur les specs et refuse cette phrase dès que l'un d'eux a dérivé
+(`tools/testplan/figures.go`, #937). La phrase disait *128 specs nomment 186
+fichiers distincts* jusque-là, et les deux chiffres restent côte à côte parce
+que l'écart est le sujet : les specs avaient doublé pendant que la phrase ne
+bougeait pas, et un chiffre écrit à la main sur une population qui grossit a la
+durée de vie de la fusion suivante.
 
 Un fichier `_test.go` ou un répertoire `testdata/` ne mérite aucune jambe de
 conformance, pour la raison qui vaut pour la prose : rien de compilé dans les
@@ -166,13 +175,24 @@ qui était déjà vrai. `mise run falsify -- tools/falsify/specs/<nom>.json` ret
 la garde dans une copie **hors** du dépôt et exige que le test nommé rougisse.
 
 Il refuse une forme de mutation d'emblée, avant toute copie, et la raison est
-mesurée plutôt que théorique. En une seule journée d'août 2026, la même erreur a
-annulé un verdict trois fois, dans trois issues sans rapport :
+mesurée plutôt que théorique. Le 2026-08-15, la même erreur a annulé un verdict
+**quatre** fois : trois dans trois issues sans rapport, et une quatrième trouvée
+le même jour en faisant tourner le harnais de bout en bout, plutôt qu'en
+raisonnant dessus (#187, commit `b39e4af`).
 
 ```go
 if ok && fe.EnforcesFirewall() {   ->  if ok {        // fe devient inutilisée
 if strings.TrimSpace(s) == "" {    ->  if false {     // s  devient inutilisée
 if err != nil || n == 0 {          ->  if n == 0 {    // err devient inutilisée
+```
+
+La quatrième est la même erreur, cachée de la règle qui attrape les trois
+premières : quand le fragment porte aussi la déclaration, le nom apparaît des
+deux côtés et une différence d'ensembles ne voit rien disparaître.
+
+```go
+fe, ok := p.(FirewallEnforcer)     ->  fe, ok := p.(FirewallEnforcer)
+if ok && fe.EnforcesFirewall() {       if ok {        // fe reste inutilisée
 ```
 
 Go refuse de compiler une variable inutilisée, donc chaque mutation cassait la
@@ -191,6 +211,13 @@ if (err != nil && false) || n == 0 {
 contre leurs corrections, et `mise run prepush` le lance. Les deux moitiés
 comptent : une règle qui refuserait toute mutation passerait la première et
 rendrait l'outil inutile.
+
+Le « quatre » de cette section est le chiffre que la tâche imprime elle-même,
+*the rule refuses all 4 historical mistakes, accepts all 4 fixes*, compté sur la
+liste qui les porte, et non un chiffre que cette page retient. Elle écrivait
+« trois », ici et dans `mise.toml`, pendant que la tâche imprimait quatre
+(#937) : c'est le même défaut qu'un compte périmé, en habit différent. Un chiffre
+écrit une fois, cité pour tenir un argument, et recalculé par rien.
 
 **Déclarer la mutation, pas seulement la lancer.** Une falsification prouve qu'un
 test mord *le jour où on la lance*, et une exécution unique dans une branche qui

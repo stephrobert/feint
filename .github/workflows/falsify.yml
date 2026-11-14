@@ -16,9 +16,15 @@
 # release server, no network weather. Its verdict is a property of the tree, and
 # the same input gives the same answer every night.
 #
-# Why it is still not on pull_request: it copies the tree and runs `go test` once
-# per mutation, twenty-three times as of this commit, and that cost grows with
-# every guard the project adds — which is the direction we want it to grow in.
+# Why it is still not on pull_request: it copies the tree once per spec (255
+# copies) and runs `go test` once per mutation, 1709 times, and that cost grows
+# with every guard the project adds — which is the direction we want it to grow in.
+#
+# Both figures are recounted against tools/falsify/specs by
+# TestEveryPublishedSpecFigureMatchesTheLiveCount, which refuses this comment
+# once either has drifted (tools/testplan/figures.go, #937). It said "once per
+# mutation, twenty-three times as of this commit" until then: wrong by a factor
+# of seventy-three, which is the size of the argument this comment is making.
 # Nightly plus dispatch keeps the incentive pointing the right way: declaring one
 # more mutation must never be the thing that makes pull requests slower.
 name: Falsify
@@ -47,8 +53,11 @@ jobs:
     # budget that tight turns the next dozen specs into a cancelled night, which
     # is the failure this line already caused once. The suite was
     # killed by this very line for twenty-four consecutive nights (#737): 30
-    # minutes was set when the suite was smaller, and it now carries 1271
-    # mutations across 199 specs. A local replay on a warm cache was clocked at
+    # minutes was set when the suite was smaller, and on 2026-09-14 (#764) it
+    # carried 1271 mutations across 199 specs. That figure is dated on purpose:
+    # it is the population the 29-second clock and the 97-minute projection
+    # below were drawn from, and recounting it alone would pair today's count
+    # with that day's timing (#937). A local replay on a warm cache was clocked at
     # 29 seconds per spec over its first 15, which projects to about 97 minutes;
     # a runner starts cold, so this leaves room and still bounds a runaway.
     #

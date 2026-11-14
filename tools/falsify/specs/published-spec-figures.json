@@ -1,0 +1,131 @@
+{
+  "package": "./tools/testplan/",
+  "mutations": [
+    {
+      "label": "a published figure that drifted from the live count is accepted again, which is the defect #937 is about: four places argued from counts nothing recounted",
+      "file": "tools/testplan/figures.go",
+      "find": "\t\tif got != want {",
+      "replace": "\t\tif got != want && false {",
+      "test": "TestAPublishedSpecCountThatDriftedIsRefused"
+    },
+    {
+      "label": "a sentence that matches nothing is skipped instead of refused, so a reworded paragraph silently takes its figure out of the gate",
+      "file": "tools/testplan/figures.go",
+      "find": "\tfound := s.pattern.FindAllStringSubmatch(flatten(string(body)), -1)\n\tif len(found) != 1 {",
+      "replace": "\tfound := s.pattern.FindAllStringSubmatch(flatten(string(body)), -1)\n\tif len(found) == 0 {\n\t\treturn nil\n\t}\n\tif len(found) != 1 {",
+      "test": "TestARewordedSentenceIsRefusedRatherThanUnjudged"
+    },
+    {
+      "label": "a census over an empty specs directory answers zero instead of refusing, so a published zero agrees with an absence",
+      "file": "tools/testplan/figures.go",
+      "find": "\tif c.specs == 0 {",
+      "replace": "\tif c.specs == 0 && false {",
+      "test": "TestACensusOverNoSpecIsRefusedEvenWhenTheFigureAgrees"
+    },
+    {
+      "label": "an unrecognised quantity name is answered with the spec count instead of refusing, the default branch that accepts every spelling it does not know",
+      "file": "tools/testplan/figures.go",
+      "find": "\tdefault:\n\t\treturn 0, false",
+      "replace": "\tdefault:\n\t\treturn c.specs, true",
+      "test": "TestAnUnrecognisedQuantityIsRefused"
+    },
+    {
+      "label": "a spec that does not parse is left out of the count instead of named, so the figure is short by one spec and reads as right",
+      "file": "tools/testplan/figures.go",
+      "find": "\t\tif err := json.Unmarshal(body, &spec); err != nil {",
+      "replace": "\t\tif err := json.Unmarshal(body, &spec); err != nil && false {",
+      "test": "TestASpecThatDoesNotParseIsNamedRatherThanLeftOut"
+    },
+    {
+      "label": "a spec declaring no mutation is counted as a spec, so a figure arguing the specs are large counts one that falsifies nothing",
+      "file": "tools/testplan/figures.go",
+      "find": "\t\tif len(spec.Mutations) == 0 {",
+      "replace": "\t\tif len(spec.Mutations) == 0 && false {",
+      "test": "TestASpecDeclaringNoMutationIsNamed"
+    },
+    {
+      "label": "a mutation naming no file is counted, and the empty string becomes a distinct file",
+      "file": "tools/testplan/figures.go",
+      "find": "\t\t\tif strings.TrimSpace(m.File) == \"\" {",
+      "replace": "\t\t\tif strings.TrimSpace(m.File) == \"\\x00never\" {",
+      "test": "TestAMutationNamingNoFileIsNamed"
+    },
+    {
+      "label": "a document that cannot be read is judged as a document with no sentence in it, so a renamed file reads as a rewording rather than as a missing file",
+      "file": "tools/testplan/figures.go",
+      "find": "\tbody, err := os.ReadFile(filepath.Join(root, s.file))\n\tif err != nil {",
+      "replace": "\tbody, err := os.ReadFile(filepath.Join(root, s.file))\n\tif err != nil && false {",
+      "test": "TestAMissingDocumentIsRefusedRatherThanSkipped"
+    },
+    {
+      "label": "a run over no declared site passes, which is a verdict over an empty population",
+      "file": "tools/testplan/figures.go",
+      "find": "\tif len(sites) == 0 {",
+      "replace": "\tif len(sites) == 0 && false {",
+      "test": "TestARunOverNoSiteIsNotAPass"
+    },
+    {
+      "label": "a declaration whose capture groups do not match its quantities is judged anyway, so the figure read is not the figure declared",
+      "file": "tools/testplan/figures.go",
+      "find": "\tif got := s.pattern.NumSubexp(); got != len(s.quantities) {",
+      "replace": "\tif got := s.pattern.NumSubexp(); got != len(s.quantities) && false {",
+      "test": "TestADeclarationWhoseGroupsDoNotMatchItsQuantitiesIsRefused"
+    },
+    {
+      "label": "a captured figure that is not a number is read as zero instead of refused",
+      "file": "tools/testplan/figures.go",
+      "find": "\t\tif convErr != nil {",
+      "replace": "\t\tif convErr != nil && false {",
+      "test": "TestACapturedFigureThatIsNotANumberIsRefused"
+    },
+    {
+      "label": "a wrapped sentence stops being read as one sentence, which is how three of the four real sites reported that they judged nothing while their figures were right",
+      "file": "tools/testplan/figures.go",
+      "find": "\treturn strings.Join(strings.Fields(strings.Join(lines, \" \")), \" \")",
+      "replace": "\treturn strings.Join(lines, \"\\n\")",
+      "test": "TestAWrappedSentenceIsRead"
+    },
+    {
+      "label": "the comment marker a wrapped comment carries stops being stripped, so a figure wrapped inside a Go or YAML comment cannot be judged",
+      "file": "tools/testplan/figures.go",
+      "find": "\t\t\tif strings.HasPrefix(trimmed, marker) {",
+      "replace": "\t\t\tif strings.HasPrefix(trimmed, marker) && false {",
+      "test": "TestAWrappedCommentIsRead"
+    },
+    {
+      "label": "a sentence found twice is judged on its first copy instead of refused, so a verdict about half the file reads as a verdict about all of it (the other half of the matches-exactly-once guard)",
+      "file": "tools/testplan/figures.go",
+      "find": "\tif len(found) != 1 {",
+      "replace": "\tif len(found) == 0 {",
+      "test": "TestADuplicatedSentenceIsRefused"
+    },
+    {
+      "label": "the distinct-file count is the mutation count, which is what a census that forgot to deduplicate publishes",
+      "file": "tools/testplan/figures.go",
+      "find": "\tc.files = len(files)\n",
+      "replace": "\tc.files = len(files) - len(files) + c.mutations\n",
+      "test": "TestAPublishedFileCountThatCountsAFileTwiceIsRefused"
+    },
+    {
+      "label": "the name \"mutations\" answers the distinct-file count, so a declaration reads one quantity and judges another",
+      "file": "tools/testplan/figures.go",
+      "find": "\tcase \"mutations\":\n\t\treturn c.mutations, true",
+      "replace": "\tcase \"mutations\":\n\t\treturn c.mutations - c.mutations + c.files, true",
+      "test": "TestAPublishedMutationCountThatDriftedIsRefused"
+    },
+    {
+      "label": "a specs directory that cannot be read is counted as an empty one, so the refusal names an absence of specs instead of the read that failed",
+      "file": "tools/testplan/figures.go",
+      "find": "\tentries, err := os.ReadDir(dir)\n\tif err != nil {",
+      "replace": "\tentries, err := os.ReadDir(dir)\n\tif err != nil && false {",
+      "test": "TestAnUnreadableSpecsDirectoryIsRefused"
+    },
+    {
+      "label": "every file in the specs directory is read as a spec, so a README beside them stops the count of a right sentence",
+      "file": "tools/testplan/figures.go",
+      "find": "!strings.HasSuffix(entry.Name(), \".json\")",
+      "replace": "!strings.HasSuffix(entry.Name(), \"\")",
+      "test": "TestAFileThatIsNotASpecIsLeftOutOfTheCount"
+    }
+  ]
+}

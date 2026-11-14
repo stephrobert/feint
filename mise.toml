@@ -883,9 +883,14 @@ description = "Every declared mutation still finds the code AND the test it name
 #   - one `go test -list` for every package pattern the specs name, at once,
 #     grouped rather than one call per mutation (3.1 s against 12.6 s);
 #   - one `go test -run <parent> -v <pkg>` per distinct (package, parent) pair
-#     for the 13 mutations that name a SUBTEST, because `-list` prints top-level
+#     for the mutations that name a SUBTEST, because `-list` prints top-level
 #     tests only and `-run TestX/no-such-sub` runs TestX, matches no subtest,
-#     passes and exits 0. Three pairs today, 0.9 s.
+#     passes and exits 0. At ef7e03b (#942, 2026-11-14) that was 13 mutations
+#     in three pairs, 0.9 s; at 4a9c1b3, one merge later, 14 mutations in four
+#     pairs, the 0.9 s not re-measured. Dated rather than recounted by
+#     tools/testplan/figures.go (#937): the count is the population of that
+#     timing, and recounting one without re-timing the other would pair a
+#     live count with a stale cost.
 #
 # Measured on 2026-11-14 on Stéphane's station, warm cache, 251 specs and 1665
 # mutations: 2.5 s to 2.6 s through `mise run falsify:lint`, 2.8 s to 2.9 s
@@ -895,8 +900,9 @@ run = "python3 tools/falsify/falsify.py --lint tools/falsify/specs"
 [tasks."falsify:selftest"]
 description = "Prove the falsification harness refuses the four mutations that voided a verdict"
 # Cheap and offline: it holds the rule against the four mutations that voided a
-# verdict — the three real mistakes of 2026-08-15 and the fourth an end-to-end
-# run of the harness found afterwards — and against their four fixes. Both
+# verdict — the three real mistakes of 2026-08-15 and the fourth that an
+# end-to-end run of the harness found the same day, all four in b39e4af (#187) —
+# and against their four fixes. Both
 # halves, because a rule that refused every mutation would pass the first half
 # and make the tool useless. The task prints the two counts it checked.
 #

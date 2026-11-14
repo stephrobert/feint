@@ -55,11 +55,20 @@ run nothing" is the cheap default, and an un-triaged path is an absence, not a
 decision (#564).
 
 It also prints **the falsifications the diff has earned**, read off
-`tools/falsify/specs/` rather than remembered: 128 specs name 186 distinct files,
-and a spec that mutates a file you touched is the subset of `falsify:all` your
-change can have stopped biting. Every batch here has followed that discipline by
-hand and said so in its pull request, which means it has also been forgotten by
-hand — `mise run check` cannot see a guard whose test still passes over nothing.
+`tools/falsify/specs/` rather than remembered: 255 specs name 296 distinct files
+in 1709 mutations, and a spec that mutates a file you touched is the subset of
+`falsify:all` your change can have stopped biting. Every batch here has followed
+that discipline by hand and said so in its pull request, which means it has also
+been forgotten by hand — `mise run check` cannot see a guard whose test still
+passes over nothing.
+
+Those three figures are not remembered either. `mise run check` recounts them
+against the specs and refuses this sentence when any of them has drifted
+(`tools/testplan/figures.go`, #937). The sentence said *128 specs name 186
+distinct files* until then, and the two numbers are kept side by side because
+the gap is the point: the specs had doubled while the sentence stood still, and
+a hand-written figure about a growing population has the lifetime of the next
+merge.
 
 A `_test.go` file or a `testdata/` tree earns no conformance leg at all, for the
 same reason prose does not: nothing compiled into tests alone reaches a client.
@@ -157,13 +166,24 @@ the guard in a copy **outside** the repository and requires the named test to go
 red.
 
 It refuses one mutation shape outright, before copying anything, and the reason
-is measured rather than theoretical. On one day in August 2026 the same mistake
-voided a verdict three times, in three unrelated issues:
+is measured rather than theoretical. On 2026-08-15 the same mistake voided a
+verdict **four** times: three in three unrelated issues, and a fourth found the
+same day by running the harness end to end rather than by reasoning about it
+(#187, commit `b39e4af`).
 
 ```go
 if ok && fe.EnforcesFirewall() {   ->  if ok {        // fe is now unused
 if strings.TrimSpace(s) == "" {    ->  if false {     // s  is now unused
 if err != nil || n == 0 {          ->  if n == 0 {    // err is now unused
+```
+
+The fourth is that mistake hiding from the rule that catches the first three:
+when the fragment carries the declaration as well, the name appears on both
+sides and a set difference sees nothing dropped.
+
+```go
+fe, ok := p.(FirewallEnforcer)     ->  fe, ok := p.(FirewallEnforcer)
+if ok && fe.EnforcesFirewall() {       if ok {        // fe is unused all the same
 ```
 
 Go refuses to compile an unused variable, so each mutation broke the build — and
@@ -180,6 +200,13 @@ if (err != nil && false) || n == 0 {
 `mise run falsify -- --selftest` holds that rule against those four real cases
 and against their fixes, and `mise run prepush` runs it. Both halves matter: a
 rule that refused every mutation would pass the first and make the tool useless.
+
+The four of this section is the number the task prints — *the rule refuses all 4
+historical mistakes, accepts all 4 fixes* — counted off the list it holds them
+in, not a number this page remembers. It said *three* here and in `mise.toml`
+while the task printed four (#937), which is the same defect as a stale count
+wearing different clothes: a figure written once, cited to make an argument, and
+recomputed by nothing.
 
 **Declare the mutation, do not just run it.** A falsification proves a test bites
 *on the day it is run*, and one run in a branch that later disappears leaves a
