@@ -412,6 +412,299 @@ def selftest():
     return 0
 
 
+def _selftest_module(tmp, second_package=False, gated=False, panicking=False):
+    """A Go module for the lint to be pointed at, returning its two subject
+    files. With `second_package`, it holds a q/ whose test is NOT in p/, which
+    is what _cross_package_case() needs and what one package cannot show.
+
+    It is a real module, with real tests in it, because since #923 the lint asks
+    `go test` whether a declared name selects anything — a question no fake tree
+    can answer. Compiling it, and running the parents the subtest cases name, is
+    the whole of what the selftest now costs. Measured on 2026-11-14 on
+    Stéphane's station, and the invocation is part of the number rather than a
+    detail: 1.37 s to 1.44 s through `mise run falsify:selftest`, 2.92 s to
+    3.04 s through a bare `python3`, the same 32 assertions printed either way.
+    The gap is two interpreter installs on that station — mise runs the pinned
+    3.12.11, a bare `python3` resolves 3.12.13 — not the work this does. Either
+    way it is against 0.03 s for the build-free version.
+
+    The module name is a constant, and it makes no difference either way: the
+    same measurement under a module name the build cache had never seen cost
+    0.54 s, because the cache keys on the bytes compiled and not on the path
+    they sat at. An earlier note here claimed the opposite, and it was a
+    mechanism this function does not have.
+    """
+    os.mkdir(os.path.join(tmp, "p"))
+    with open(os.path.join(tmp, "go.mod"), "w", encoding="utf-8") as fh:
+        fh.write("module falsifyselftest\n\ngo 1.26\n")
+
+    subject = os.path.join(tmp, "p", "subject.go")
+    with open(subject, "w", encoding="utf-8") as fh:
+        fh.write("package p\n\nfunc guard() bool { return true }\n")
+
+    # A second subject carrying the same fragment twice, which is what a spec
+    # meets when its subject is duplicated after the spec was written. The
+    # witness for the ambiguity rule: without a file that really holds two
+    # matches, the case would pass by finding nothing.
+    twice = os.path.join(tmp, "p", "twice.go")
+    with open(twice, "w", encoding="utf-8") as fh:
+        fh.write("package p\n\nfunc a() bool { return true }\n\nfunc b() bool { return true }\n")
+
+    with open(os.path.join(tmp, "p", "guard_test.go"), "w", encoding="utf-8") as fh:
+        fh.write(
+            'package p\n\nimport "testing"\n\n'
+            "func TestTheGuardHolds(t *testing.T) {\n"
+            '\tt.Run("named-sub", func(t *testing.T) {\n'
+            '\t\tif !guard() || !a() || !b() {\n\t\t\tt.Fatal("the guard does not hold")\n\t\t}\n'
+            "\t})\n}\n"
+        )
+
+    if gated:
+        # A parent that skips unless the spec's own `env` reaches the
+        # measurement, with its subtest behind the gate: what the committed
+        # specs declaring `env` would look like the day one of them names a
+        # subtest. _parent_cannot_answer_case()'s neighbour.
+        with open(os.path.join(tmp, "p", "gated_test.go"), "w", encoding="utf-8") as fh:
+            fh.write(
+                'package p\n\nimport (\n\t"os"\n\t"testing"\n)\n\n'
+                "func TestGatedByEnv(t *testing.T) {\n"
+                '\tif os.Getenv("FEINT_SELFTEST_ARMED") == "" {\n'
+                '\t\tt.Skip("not armed")\n\t}\n'
+                '\tt.Run("armed-sub", func(t *testing.T) {\n'
+                '\t\tif !guard() {\n\t\t\tt.Fatal("the guard does not hold")\n\t\t}\n'
+                "\t})\n}\n"
+            )
+
+    if panicking:
+        # A parent that dies before reaching its t.Run: the run exits non-zero
+        # having entered no subtest, which is a tree that could not answer and
+        # not a stale name.
+        with open(os.path.join(tmp, "p", "panicking_test.go"), "w", encoding="utf-8") as fh:
+            fh.write(
+                'package p\n\nimport "testing"\n\n'
+                "func TestThePanickingParent(t *testing.T) {\n"
+                '\tpanic("before any t.Run")\n}\n'
+            )
+
+    if second_package:
+        os.mkdir(os.path.join(tmp, "q"))
+        with open(os.path.join(tmp, "q", "elsewhere.go"), "w", encoding="utf-8") as fh:
+            fh.write("package q\n\nfunc elsewhere() bool { return true }\n")
+        with open(os.path.join(tmp, "q", "elsewhere_test.go"), "w", encoding="utf-8") as fh:
+            fh.write(
+                'package q\n\nimport "testing"\n\n'
+                "func TestTheGuardLivesInQ(t *testing.T) {\n"
+                '\tif !elsewhere() {\n\t\tt.Fatal("not here either")\n\t}\n}\n'
+            )
+    return subject, twice
+
+
+def _one_spec(directory, name, *, package, file, find, test, replace=None, env=None):
+    """Write one spec holding one mutation, and return nothing but the file."""
+    spec = {
+        "package": package,
+        **({"env": env} if env else {}),
+        "mutations": [
+            {
+                "label": f"selftest {name}",
+                "file": file,
+                "find": find,
+                "replace": replace or find.replace("true", "true && false"),
+                "test": test,
+            }
+        ],
+    }
+    path = os.path.join(directory, name)
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(spec, fh)
+    return path
+
+
+def _report(got, want, why):
+    if got != want:
+        print(f"!! the lint answers {got} on {why}, want {want}")
+        return 1
+    print(f"ok  the lint answers {got} on {why}")
+    return 0
+
+
+def _cross_package_case():
+    """The package filter is load-bearing, and only two packages can prove it.
+
+    This is #923 verbatim: a-transport-fault-is-bounded.json declared
+    ./internal/core/emulator/ while the test it named lived in internal/cli, and
+    the harness reported TEST STILL PASSED. So the question the check has to
+    answer is not "does this name exist somewhere" but "does it exist in THIS
+    package", and a module of one package cannot tell the two apart — the union
+    over the packages a spec declares and the union over the whole listing are
+    then the same set.
+
+    Hence two packages AND two specs: the lint lists both in one call, exactly
+    as the committed run lists 36 patterns in one call. Replace the body of
+    covered_paths() with `return set(known)` and this case answers 0.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        _selftest_module(tmp, second_package=True)
+        directory = os.path.join(tmp, "two")
+        os.mkdir(directory)
+        # The name lives in q. One spec declares p, which is the mistake; the
+        # other declares q, which is correct and is what makes the lint list
+        # both packages in the same call.
+        _one_spec(
+            directory,
+            "names-p.json",
+            package="./p/",
+            file=os.path.join(tmp, "p", "subject.go"),
+            find="func guard() bool { return true }",
+            test="TestTheGuardLivesInQ",
+        )
+        _one_spec(
+            directory,
+            "names-q.json",
+            package="./q/",
+            file=os.path.join(tmp, "q", "elsewhere.go"),
+            find="func elsewhere() bool { return true }",
+            test="TestTheGuardLivesInQ",
+        )
+        got = lint(directory, tmp)
+    return _report(got, 2, "a name that exists in another package than the one declared")
+
+
+def _unbuildable_case():
+    """A listing that could not be taken is not a listing that found everything.
+
+    The check reads `go test -list`, and a tree that does not build gives it a
+    non-zero exit and a partial listing. Reporting the declared name as missing
+    would blame the spec for the compiler, and reporting nothing would be the
+    empty population again — the exact shape of the defect this check closes.
+
+    The first version of this case could not see that branch: it put the broken
+    file in the package that held the test, so the name was missing anyway and
+    the ordinary path answered 2. The branch is reachable in the shape that
+    matters — `go test -list .* ./...` with one package broken prints the other
+    packages' names, exits non-zero, and every declared name reads as found over
+    a listing nobody can trust. So: the name really exists in p, bad/ does not
+    compile, and the spec declares ./... . Delete the `if err and not missing:`
+    block, or stop capturing the exit code, and this case answers 0.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        _selftest_module(tmp)
+        os.mkdir(os.path.join(tmp, "bad"))
+        with open(os.path.join(tmp, "bad", "broken.go"), "w", encoding="utf-8") as fh:
+            fh.write("package bad\n\nfunc oops( {\n")
+
+        directory = os.path.join(tmp, "unbuildable")
+        os.mkdir(directory)
+        _one_spec(
+            directory,
+            "unbuildable.json",
+            package="./...",
+            file=os.path.join(tmp, "p", "subject.go"),
+            find="func guard() bool { return true }",
+            test="TestTheGuardHolds",
+        )
+        got = lint(directory, tmp)
+    return _report(
+        got, 2, "a name that exists, over a listing one broken package made untrustworthy"
+    )
+
+
+def _single_spec_case():
+    """The wiring in main(), not the function it calls.
+
+    The lint and the single-spec run are two entry points, and only one of them
+    was measured. With `unknown = []` in main(), a `mise run falsify -- <spec>`
+    naming a dead test copies the tree, runs nothing, reads the 0, and prints
+    TEST STILL PASSED — #923 restored verbatim while every lint case stays
+    green. Measured end to end on 2026-11-14.
+
+    main() resolves its packages against the working directory, so this drives
+    it from inside the temporary module. The pristine path returns before a
+    single file is copied, which is why this case costs milliseconds.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        _selftest_module(tmp)
+        spec = _one_spec(
+            tmp,
+            "single.json",
+            package="./p/",
+            file="p/subject.go",
+            find="func guard() bool { return true }",
+            test="TestTheGuardHoldsUnderANameNobodyDeclared",
+        )
+        here = os.getcwd()
+        try:
+            os.chdir(tmp)
+            got = main([argv0, spec])
+        finally:
+            os.chdir(here)
+    why = "a single-spec run whose declared test does not exist (main(), not lint())"
+    if got != 2:
+        print(f"!! the single-spec run answers {got} on {why}, want 2")
+        return 1
+    print(f"ok  the single-spec run answers {got} on {why}")
+    return 0
+
+
+def _parent_cannot_answer_case():
+    """A parent that could not answer is not a subtest that does not exist.
+
+    The exit code of the subtest run is not the measurement, and it still has to
+    be read: a parent that panics before reaching its `t.Run` enters no subtest
+    and exits non-zero, so "no subtest of it matches" would blame the spec for a
+    tree that could not answer. It is the line listed_tests() and
+    _unbuildable_case() already draw one level up, drawn one level down.
+
+    This case asserts the REASON and not only the exit code, because 2 is the
+    answer for several different reasons and the distinction is the whole
+    subject here. Stop reading `res.returncode` in ran_under() and the reported
+    reason becomes "no subtest of it matches", which this requires it not to be.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        _selftest_module(tmp, panicking=True)
+        found = tests_that_do_not_exist(
+            [("panicking.json", "selftest", "TestThePanickingParent/unreachable-sub", "./p/", ())],
+            tmp,
+        )
+    why = "a parent that panics before its t.Run, which confirms nothing either way"
+    if len(found) != 1 or "no subtest was really confirmed" not in found[0][4]:
+        print(f"!! the check reports {found!r} on {why}")
+        print("   want one finding whose reason says no subtest was really confirmed")
+        return 1
+    print(f"ok  the check names the doubt rather than the spec on {why}")
+    return 0
+
+
+def _env_armed_case():
+    """The spec's own `env` has to reach the subtest measurement.
+
+    A spec declares `env` for a subject whose tests skip without it, and the
+    replay already hands it to run(). A parent that skips enters no subtest, so
+    a check that measured under the ambient environment would REFUSE a valid
+    spec — the family where one check stops every falsification at once, and the
+    reason this harness has an ACCEPTED list at all.
+
+    Latent in the committed specs today, because the one spec declaring `env`
+    names no subtest; the first spec combining the two would have been refused.
+    Drop the env from the ran_under() call and this case answers 2.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        _selftest_module(tmp, gated=True)
+        directory = os.path.join(tmp, "gated")
+        os.mkdir(directory)
+        _one_spec(
+            directory,
+            "env-armed.json",
+            package="./p/",
+            file=os.path.join(tmp, "p", "subject.go"),
+            find="func guard() bool { return true }",
+            test="TestGatedByEnv/armed-sub",
+            env={"FEINT_SELFTEST_ARMED": "1"},
+        )
+        got = lint(directory, tmp)
+    return _report(got, 0, "a subtest that exists only when the spec's own env arms its parent")
+
+
 def lint_selftest():
     """The lint answers 2 on a dead fragment and 0 on a live one.
 
@@ -427,25 +720,14 @@ def lint_selftest():
     """
     failures = 0
     with tempfile.TemporaryDirectory() as tmp:
-        subject = os.path.join(tmp, "subject.go")
-        with open(subject, "w", encoding="utf-8") as fh:
-            fh.write("package p\n\nfunc guard() bool { return true }\n")
-
-        # A second subject carrying the same fragment twice, which is what a
-        # spec meets when its subject is duplicated after the spec was written.
-        # The witness for the ambiguity rule: without a file that really holds
-        # two matches, the case would pass by finding nothing.
-        twice = os.path.join(tmp, "twice.go")
-        with open(twice, "w", encoding="utf-8") as fh:
-            fh.write(
-                "package p\n\nfunc a() bool { return true }\n\nfunc b() bool { return true }\n"
-            )
+        subject, twice = _selftest_module(tmp)
 
         cases = [
             (
                 subject,
                 "live.json",
                 "func guard() bool { return true }",
+                "TestTheGuardHolds",
                 0,
                 "a fragment that is in the file",
             ),
@@ -453,6 +735,7 @@ def lint_selftest():
                 subject,
                 "dead.json",
                 "func guard() bool { return gone }",
+                "TestTheGuardHolds",
                 2,
                 "a fragment that is not",
             ),
@@ -460,11 +743,62 @@ def lint_selftest():
                 twice,
                 "ambiguous.json",
                 "bool { return true }",
+                "TestTheGuardHolds",
                 2,
                 "a fragment that matches two places, where only the first is rewritten",
             ),
+            # #923. The fragment is alive and the package is right; only the
+            # name is stale, which is what a renamed test leaves behind. Without
+            # tests_that_do_not_exist() the lint answers 0 here, the replay runs
+            # `go test -run TestTheGuardHoldsRenamed` over a package holding no
+            # such test, `go test` exits 0, and the harness prints
+            # TEST STILL PASSED about a guard it never measured.
+            (
+                subject,
+                "renamed.json",
+                "func guard() bool { return true }",
+                "TestTheGuardHoldsRenamed",
+                2,
+                "a live fragment whose test has been renamed out from under it",
+            ),
+            # And the accepting half, on the same module: a name that is really
+            # there must stay green, or the check would redden every spec and
+            # teach people to skip it.
+            (
+                subject,
+                "subtest.json",
+                "func guard() bool { return true }",
+                "TestTheGuardHolds/named-sub",
+                0,
+                "a subtest of a test that exists, which `-list` never prints on its own",
+            ),
+            # #923 one level down, and it was live in the first version of this
+            # check: `go test -run TestX/no-such-sub` runs TestX, no subtest
+            # matches, the parent passes, the run exits 0, and the replay prints
+            # TEST STILL PASSED. Measured against this harness on 2026-11-14:
+            # named-sub gave "the test bit", no-such-sub gave TEST STILL PASSED.
+            (
+                subject,
+                "no-such-sub.json",
+                "func guard() bool { return true }",
+                "TestTheGuardHolds/no-such-sub",
+                2,
+                "a subtest name no subtest of that parent carries",
+            ),
+            # A `test` field that is not a usable pattern. Not a void verdict but
+            # a FALSE one: `go test -run 'TestX('` rejects the pattern and exits
+            # non-zero, the replay reads non-zero as "the test bit", and the
+            # harness prints `ok` for a mutation it never ran.
+            (
+                subject,
+                "unparsable.json",
+                "func guard() bool { return true }",
+                "TestTheGuardHolds(",
+                2,
+                "a test field that is not a usable pattern, which would read as a proof",
+            ),
         ]
-        for target, name, find, want, why in cases:
+        for target, name, find, test, want, why in cases:
             spec = {
                 "package": "./p/",
                 "mutations": [
@@ -473,7 +807,7 @@ def lint_selftest():
                         "file": target,
                         "find": find,
                         "replace": find.replace("true", "false"),
-                        "test": "TestNothing",
+                        "test": test,
                     }
                 ],
             }
@@ -482,13 +816,18 @@ def lint_selftest():
             with open(os.path.join(directory, name), "w", encoding="utf-8") as fh:
                 json.dump(spec, fh)
 
-            got = lint(directory)
+            got = lint(directory, tmp)
             if got != want:
                 print(f"!! the lint answers {got} on {why}, want {want}")
                 failures += 1
             else:
                 print(f"ok  the lint answers {got} on {why}")
 
+    failures += _cross_package_case()
+    failures += _parent_cannot_answer_case()
+    failures += _env_armed_case()
+    failures += _unbuildable_case()
+    failures += _single_spec_case()
     print()
     failures += _replay_reporting_cases()
     print()
@@ -677,8 +1016,362 @@ def fragment_problem(target, find):
     return None
 
 
-def lint(directory):
-    """Every declared fragment still exists in the file it names.
+# What `go test -list` answered for a set of package patterns, for the life of
+# this process. See listed_tests().
+LISTINGS = {}
+
+
+# A `-run` pattern is split on `/` into one element per test level, and only the
+# first names a top-level test — which is the only level `go test -list` prints.
+# Go's own splitRegexp keeps a `/` inside brackets or parentheses, so this does
+# too: `TestA/[a/b]` is one element, `TestA/sub` is two.
+def run_elements(pattern):
+    out, depth, start = [], 0, 0
+    for i, ch in enumerate(pattern):
+        if ch in "[(":
+            depth += 1
+        elif ch in "])":
+            depth = max(0, depth - 1)
+        elif ch == "/" and depth == 0:
+            out.append(pattern[start:i])
+            start = i + 1
+    out.append(pattern[start:])
+    return out
+
+
+def top_level_pattern(pattern):
+    return run_elements(pattern)[0]
+
+
+def names_a_subtest(pattern):
+    return len(run_elements(pattern)) > 1
+
+
+# The `-v` lines that say a test really ran, at whatever depth: `    --- PASS:
+# TestA/sub (0.00s)`. SKIP counts as ran: a subtest that skips exists, and the
+# question here is existence, not outcome.
+RAN = re.compile(r"^\s*--- (?:PASS|FAIL|SKIP): (\S+)")
+
+
+def ran_under(parent, pkg, root, env=()):
+    """The full names `go test -run <parent> -v <pkg>` entered, and why it could
+    not be trusted to say, or "".
+
+    `go test -list` prints top-level tests ONLY, so it cannot answer anything
+    about a subtest. This is the measurement that can, and it is the same shape
+    of question as the listing: run the parent once, verbosely, and read which
+    names were entered.
+
+    Measured on 2026-11-14 on Stéphane's station, the three distinct (package,
+    parent) pairs the committed specs name: 0.28 s, 0.38 s and 0.28 s, so 0.9 s
+    for the whole subtest half of the lint. That is why it is here and not only
+    in the replay.
+
+    The exit code is read here although it is not the measurement, and that is
+    the same line listed_tests() draws: a parent that panics before reaching its
+    `t.Run` enters no subtest and exits non-zero, so "no subtest matches" would
+    blame the spec for a tree that could not answer. A parent whose subtests
+    merely FAIL also exits non-zero, and its `--- FAIL:` lines name them, so the
+    exit code is reported as a doubt and never as an absence.
+    _parent_cannot_answer_case() fails without it.
+
+    `env` arms a parent that otherwise skips, and a skipped parent enters no
+    subtest: the spec's own `env` has to reach this measurement exactly as it
+    reaches run() in the replay, or a valid spec combining `env` and a subtest
+    is refused. lint_selftest()'s "env-armed.json" case fails without it.
+    """
+    key = ("subtests", parent, pkg, os.path.abspath(root), tuple(env))
+    if key in LISTINGS:
+        return LISTINGS[key]
+    res = subprocess.run(
+        ["go", "test", "-count=1", "-run", parent, "-v", pkg],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        env={**os.environ, **dict(env)},
+    )
+    names = {m.group(1) for m in (RAN.match(line) for line in res.stdout.splitlines()) if m}
+    doubt = ""
+    if res.returncode != 0:
+        tail = (res.stdout + res.stderr).strip().splitlines()
+        doubt = f"`go test -run {parent} -v {pkg}` exited non-zero" + (
+            f": {tail[-1].strip()}" if tail else ""
+        )
+    LISTINGS[key] = (names, doubt)
+    return LISTINGS[key]
+
+
+def selects(pattern, full):
+    """Would `-run pattern` select the test whose full name is `full`?
+
+    Two readings, and both are accepted because `go test` accepts both. Go
+    matches element i of the pattern against level i of the name, which is what
+    `^TestX$/foreign-name$` means. But a pattern carrying an alternation across
+    levels — `TestX/a|TestX/b`, which eight committed mutations do — splits into
+    three elements that match nothing element-wise, and still runs, because the
+    second element `a|TestX` matches `a`. Reading the whole name as one regex
+    covers that one, so a valid declaration is not refused.
+    """
+    elems = run_elements(pattern)
+    levels = full.split("/")
+    try:
+        if len(levels) >= len(elems) and all(
+            re.search(e, lv) for e, lv in zip(elems, levels, strict=False)
+        ):
+            return True
+        return bool(re.search(pattern, full))
+    except re.error:
+        return False
+
+
+def module_path(root):
+    """The module path of the tree, read off go.mod rather than guessed."""
+    with open(os.path.join(root, "go.mod"), encoding="utf-8") as fh:
+        for line in fh:
+            if line.startswith("module "):
+                return line.split()[1]
+    return ""
+
+
+def listed_tests(packages, root, env=()):
+    """{import path: {top-level test names}} for these package patterns.
+
+    ONE `go test -list` for every pattern a run names, not one per mutation.
+    Measured on 2026-11-14, warm build cache, on the 1665 mutations committed
+    here: 36 distinct patterns cost 3.1 s grouped (3.9 s for the whole lint)
+    against 12.6 s at one call per pattern, and a call per mutation would be a
+    different order of magnitude entirely. Cold, the
+    cost is whatever compiling those test binaries costs, which `check` has
+    already paid in prepush.
+
+    `-list` compiles the test binary but runs nothing, so no mutation is applied
+    and no subject is touched. The exit code is NOT the measurement: `go test
+    -run NoSuchTest` exits 0 over a package holding no such test, which is the
+    defect this whole function exists to close (#923). The listing is.
+
+    Answers are kept for the life of the process, on the same argument as
+    BASELINES: `--all` asks this once per spec, 251 of them for some fifteen
+    distinct package patterns, against a tree that does not change while the
+    replay runs. The night was already cancelled at its 210-minute ceiling once
+    (#890), and a check that closes a hole must not reopen that one.
+    """
+    key = ("list", tuple(packages), os.path.abspath(root), tuple(env))
+    if key in LISTINGS:
+        return LISTINGS[key]
+    res = subprocess.run(
+        ["go", "test", "-list", ".*", *packages],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        env={**os.environ, **dict(env)},
+    )
+    by_path, pending = {}, []
+    for line in res.stdout.splitlines():
+        head = line.split("\t")
+        # `ok \t<path>\t0.001s`, `? \t<path>\t[no test files]`, `FAIL\t<path>…`:
+        # the names of a package are printed before the line that closes it.
+        if head[0].rstrip() in {"ok", "?", "FAIL"} and len(head) > 1:
+            by_path.setdefault(head[1].strip(), set()).update(pending)
+            pending = []
+        elif line.strip():
+            pending.append(line.strip())
+    LISTINGS[key] = (by_path, res.stderr.strip() if res.returncode != 0 else "")
+    return LISTINGS[key]
+
+
+def covered_paths(pattern, module, known):
+    """The import paths a spec's package pattern covers, among those listed.
+
+    This is the load-bearing half of the check, and the reason is #923 itself:
+    a-transport-fault-is-bounded.json declared ./internal/core/emulator/ while
+    the test it named lived in internal/cli. "Does this name exist anywhere in
+    the listing" would have accepted it. The question is whether it exists in
+    THIS package.
+
+    _cross_package_case() fails without this filter: replace the body with
+    `return set(known)` and it answers 0 instead of 2.
+    """
+    p = pattern.strip().removeprefix("./").rstrip("/")
+    if p.endswith("..."):
+        base = (module + "/" + p[: -len("...")]).rstrip("/")
+        return {k for k in known if k == base or k.startswith(base + "/")}
+    full = module if p in ("", ".") else module + "/" + p
+    return {k for k in known if k == full}
+
+
+def tests_that_do_not_exist(entries, root="."):
+    """The declared tests `go test` would run nothing for (#923).
+
+    `go test -run <name> <pkg>` over a package holding no such test runs nothing
+    and exits 0, and the harness read that zero as "the guard is not held": it
+    printed TEST STILL PASSED, a verdict over an empty population, in the
+    instrument this repository built to catch exactly that. Measured on
+    2026-11-13 on a-transport-fault-is-bounded.json, whose declared package was
+    ./internal/core/emulator/ while the test it named lived in internal/cli: run
+    by hand against the package that holds it, the same mutation failed in
+    5.02 s. The guard was held all along.
+
+    The silent half is the one this closes for good: a mutation whose test was
+    RENAMED keeps the old name, matches nothing, and reports TEST STILL PASSED
+    forever — until somebody "fixes" it by deleting the mutation, and the guard
+    is left with no falsification and nothing saying so.
+
+    `entries` are (origin, label, test, package, env), where env is the spec's
+    own `env` as a tuple of sorted pairs. The answer is a list of
+    (origin, label, test, package, why), empty when every name is found.
+
+    The env is part of the question and not a detail, for the reason
+    baseline_key() already states: it arms tests that otherwise skip, so two
+    specs over one package under two environments are two questions. Entries are
+    therefore grouped by env, and each group is measured on its own.
+
+    lint_selftest()'s "renamed.json" case fails without this function: it
+    points the lint at a live fragment whose test has been renamed, and requires
+    2 rather than 0.
+    """
+    if not entries:
+        return []
+    groups = {}
+    for entry in entries:
+        groups.setdefault(entry[4], []).append(entry)
+    out = []
+    for env, group in groups.items():
+        out += _checked_under(group, env, root)
+    return out
+
+
+def _checked_under(entries, env, root):
+    """tests_that_do_not_exist() for the entries sharing one environment."""
+    packages = sorted({pkg for _, _, _, pkg, _ in entries})
+    by_path, err = listed_tests(packages, root, env)
+    module = module_path(root)
+    missing = []
+    for origin, label, test, pkg, _ in entries:
+        names = set()
+        for path in covered_paths(pkg, module, by_path):
+            names |= by_path[path]
+        head = top_level_pattern(test)
+        try:
+            rx = re.compile(head)
+        except re.error as exc:
+            # Not a void verdict but a FALSE one, which is worse: `go test -run
+            # 'TestX('` rejects the pattern and exits non-zero, the replay reads
+            # non-zero as "the test bit", and the harness prints `ok` for a
+            # mutation it never ran. lint_selftest()'s "unparsable.json" case
+            # fails without this branch.
+            missing.append((origin, label, test, pkg, f"{test!r} is not a usable pattern: {exc}"))
+            continue
+        if not any(rx.search(name) for name in names):
+            missing.append(
+                (
+                    origin,
+                    label,
+                    test,
+                    pkg,
+                    f"{pkg} holds no test matching {test!r}, so `go test -run` there runs "
+                    f"nothing and exits 0"
+                    + (
+                        "\n      (and the listing is INCOMPLETE: `go test -list` exited "
+                        "non-zero, so this may be the tree failing to build rather than the "
+                        f"name being stale: {err.splitlines()[0] if err else ''})"
+                        if err
+                        else ""
+                    ),
+                )
+            )
+    # And the same question one level down, for the names that passed the
+    # listing. `go test -run TestX/no-such-sub` runs TestX, no subtest matches,
+    # the parent passes, and the run exits 0 — so the replay prints
+    # TEST STILL PASSED for a mutation that measured nothing, which is #923
+    # exactly, one level down. Measured on 2026-11-14 against this harness:
+    # TestTheGuardHolds/named-sub gave "the test bit",
+    # TestTheGuardHolds/no-such-sub gave TEST STILL PASSED.
+    #
+    # Counted on 2026-11-14: 13 committed mutations name a subtest, across three
+    # (package, parent) pairs. Eight of the 13 are rows of one table in
+    # s3-bucket-configuration.json and name nine of its rows between them, one
+    # mutation covering two by alternation — so renaming one row of that table
+    # is the single gesture that would silence a mutation with nothing to say
+    # so.
+    #
+    # lint_selftest()'s "no-such-sub" case fails without this block.
+    already = {(m[1], m[2], m[3]) for m in missing}
+    for origin, label, test, pkg, _ in [] if err else entries:
+        if not names_a_subtest(test) or (label, test, pkg) in already:
+            continue  # no subtest named, or its top level is already named above
+        parent = top_level_pattern(test)
+        entered, doubt = ran_under(parent, pkg, root, env)
+        if any(selects(test, full) for full in entered):
+            continue
+        missing.append(
+            (
+                origin,
+                label,
+                test,
+                pkg,
+                (
+                    f"{pkg} runs {parent!r}, but no subtest of it matches {test!r}: the "
+                    f"parent then passes and `go test` exits 0, having measured nothing"
+                )
+                if not doubt
+                else (
+                    f"{pkg} entered no subtest matching {test!r}, and no subtest was really "
+                    f"confirmed either way:\n      {doubt}"
+                ),
+            )
+        )
+
+    # A listing that could not be taken answers nothing, and "nothing" must not
+    # read as "every name was found". Saying it here keeps the two apart: a tree
+    # that does not build is the harness's problem, not the spec's.
+    #
+    # _unbuildable_case() fails without this block: one broken package among
+    # several, `go test -list` exits non-zero, the other packages' names are
+    # printed, and every declared name reads as found over a listing nobody can
+    # trust.
+    if err and not missing:
+        origin, label, test, pkg, _ = entries[0]
+        missing.append(
+            (
+                origin,
+                label,
+                test,
+                pkg,
+                "`go test -list` exited non-zero for "
+                + " ".join(packages)
+                + ", so no name was really confirmed:\n      "
+                + (err.splitlines()[0] if err.splitlines() else err),
+            )
+        )
+    return missing
+
+
+def entries_of(spec, origin):
+    """(origin, label, test, package, env) for every mutation of one spec.
+
+    The env travels with the entry because the measurement needs it: a spec
+    declares `env` for a subject whose tests skip without it, the replay already
+    hands it to run(), and a check that did not would refuse a valid spec whose
+    subtest only exists when the parent is armed.
+    """
+    default = spec.get("package", "./...")
+    env = tuple(sorted((spec.get("env") or {}).items()))
+    return [
+        (
+            origin,
+            m.get("label", "?"),
+            m.get("test") or "",
+            m.get("package", default),
+            env,
+        )
+        for m in spec.get("mutations") or []
+        if m.get("test")
+    ]
+
+
+def lint(directory, root="."):
+    """Every declared fragment still exists in the file it names, and every
+    declared test still exists in the package its mutation names.
 
     The cheap half of `--all`, and the half that catches the failure `--all`
     catches twelve hours late. Replaying a spec copies the tree and runs `go
@@ -700,16 +1393,36 @@ def lint(directory):
     one: `falsify:all` prints DID NOT APPLY, the count of proven guards silently
     drops, and the specs directory keeps reading like a register of proofs.
 
-    So this runs in prepush, where it costs nothing.
+    So this runs in prepush, where it costs seconds.
+
+    Since #923 it asks a second question of the same family, at two depths, and
+    the reason both belong here is the same: a name that selects no test is
+    answered in seconds rather than in eight minutes, and the lint is where a
+    stale name is cheapest to catch — `--all` would otherwise print
+    TEST STILL PASSED for it, twelve hours later, and blame the guard.
+
+      - a top-level name, from one `go test -list` over every package pattern
+        the specs name;
+      - a subtest name, from one `go test -run <parent> -v <pkg>` per distinct
+        (package, parent) pair, because `-list` never prints a subtest.
+
+    Measured on 2026-11-14 on Stéphane's station, 251 specs and 1665 mutations,
+    13 of them naming a subtest: 2.5 s to 2.6 s through `mise run falsify:lint`,
+    2.8 s to 2.9 s through a bare `python3`, of which the three parent runs are
+    0.9 s.
+
+    `root` is the tree the packages are resolved in; the selftest points it at a
+    module of its own so this function is driven rather than imitated.
     """
     specs = every_spec(directory)
     if not specs:
         return refuse(f"{directory} holds no spec, so this checked nothing")
 
-    stale = []
+    stale, entries = [], []
     for path in specs:
         with open(path, encoding="utf-8") as fh:
             spec = json.load(fh)
+        entries += entries_of(spec, path)
         for m in spec.get("mutations") or []:
             why = fragment_problem(m.get("file"), m.get("find"))
             if why:
@@ -730,11 +1443,40 @@ def lint(directory):
         )
         return 2
 
+    # The fourth state, and it is neither of the three the replay already draws.
+    # A copy red before any mutation measured no guard; a refused spec measured
+    # no guard either; a mutation that applied and left its test green is a
+    # verdict. This one is none of them: the mutation was never applied and the
+    # test was never run, because the name belongs to no test in that package.
+    missing = tests_that_do_not_exist(entries, root)
+    if missing:
+        print(
+            f"falsify: {len(missing)} declared mutation(s) NAME A TEST THAT DOES NOT EXIST in "
+            "the package they declare. Nothing would be run for them, and `go test` exits 0 "
+            "over an empty set of tests, so the replay would call each of these guards "
+            "unguarded without ever measuring one:",
+            file=sys.stderr,
+        )
+        for origin, label, _test, _pkg, why in missing:
+            print(f"  {os.path.basename(origin)}: {why}\n      {label}", file=sys.stderr)
+        print(
+            "\nName the package that holds the test, or the test the guard has been renamed "
+            "to. Deleting the mutation leaves the guard with no falsification, which is the "
+            "state this check exists to make visible.",
+            file=sys.stderr,
+        )
+        return 2
+
     count = 0
     for path in specs:
         with open(path, encoding="utf-8") as fh:
             count += len(json.load(fh).get("mutations") or [])
     print(f"every declared fragment still applies: {count} mutation(s) across {len(specs)} spec(s)")
+    subs = sum(1 for _, _, test, _, _ in entries if names_a_subtest(test))
+    print(
+        f"every declared test exists in the package its mutation names: {len(entries)} name(s), "
+        f"{subs} of them a subtest really entered under its parent"
+    )
     return 0
 
 
@@ -848,6 +1590,29 @@ def main(argv):
                 f"(`… && false`, `(… || true)`). The mutation then changes a truth "
                 f"value and nothing else."
             )
+
+    # And the test it names has to exist where it says it does (#923). Asked
+    # here, before the copy, because a run whose verdict is going to be void
+    # should cost nothing and say why — and because the alternative is `go test
+    # -run` exiting 0 over no tests at all, which this harness read as
+    # TEST STILL PASSED.
+    #
+    # _single_spec_case() fails without THIS wiring, and not merely without the
+    # function it calls: with `unknown = []`, that case's run copies the tree,
+    # runs the mutation, and prints `compiled=yes  TEST STILL PASSED` for a name
+    # nobody declared — measured on 2026-11-14 — while every lint case stays
+    # green.
+    unknown = tests_that_do_not_exist(entries_of(spec, spec_path), os.getcwd())
+    if unknown:
+        _, label, test, _, why = unknown[0]
+        return refuse(
+            f"{label!r} names a test that does not exist: {why}.\n"
+            f"        Nothing would be run for this mutation, and an empty run exits 0, "
+            f"which this harness used to print as TEST STILL PASSED. That is a verdict "
+            f"over an empty population and it is not one.\n"
+            f"        Name the package that holds {test!r}, or the name the test carries "
+            f"today."
+        )
 
     src = os.getcwd()
     # mkdtemp rather than a name built from the spec: a predictable path under
