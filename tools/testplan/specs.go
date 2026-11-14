@@ -15,12 +15,13 @@ import (
 // stated in its own pull request — *"the 31 specs naming a touched file replayed
 // in full"* — which means it has also been forgotten by hand. A guard whose test
 // stopped biting is invisible to `mise run check`: the test still passes, and it
-// passes over nothing. `falsify:lint` checks only that each declared fragment
-// still applies textually; replaying the mutation is what proves the test bites.
+// passes over nothing. `falsify:lint` checks that each declared fragment still
+// applies textually and that the test each mutation names exists in the package
+// it declares (#923); replaying the mutation is what proves the test bites.
 //
-// 128 specs name 186 distinct files today, so the mapping is far past the size
-// anybody holds in their head, and it is exact: a spec says which file it
-// mutates. Nothing here is a judgement — the specs are the source, and a spec
+// 251 specs name 295 distinct files today, in 1665 mutations, so the mapping is
+// far past the size anybody holds in their head, and it is exact: a spec says
+// which file it mutates. Nothing here is a judgement — the specs are the source, and a spec
 // that stops naming a file stops earning its replay on the same commit.
 //
 // `falsify:all` is the whole set and belongs to the night. What this prints is

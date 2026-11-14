@@ -337,7 +337,7 @@ mise run falsify:selftest      # the harness against its own history
 ```
 
 Each mutation is applied in a copy outside the working tree, one at a time, and
-three verdicts are distinguished rather than merged:
+five outcomes are distinguished rather than merged:
 
 | verdict | what it means |
 |---|---|
@@ -345,8 +345,9 @@ three verdicts are distinguished rather than merged:
 | **test still passed** | the guard is not measured, and the test is what to fix |
 | **did not compile** | void, not favourable: every test fails, which reads like success |
 | **did not apply** | the code moved out from under the declaration |
+| **names a test that does not exist** | refused before the copy: `go test -run` would select nothing there and exit 0 — a top-level name the package does not hold, or a subtest the parent does not carry (#923) |
 
-The last two are the ones that make this worth running. Warning about them was
+The last three are the ones that make this worth running. Warning about them was
 not enough — the compile mistake voided three verdicts in one day, in three
 unrelated issues — so the harness refuses a mutation that drops a name the
 original expression used, and demands the neutralising form (`… && false`,

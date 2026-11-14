@@ -864,22 +864,52 @@ description = "Weaken a test so it cannot fail, and require the replay to name i
 run = "python3 tools/falsify/proof.py"
 
 [tasks."falsify:lint"]
-description = "Every declared mutation still finds the code it names — the cheap half of falsify:all"
-# String searches, no copy and no `go test`, so this belongs in prepush where
-# the replay itself cannot: `falsify:all` runs a build per mutation and lives on
-# a nightly cron, which means a spec killed by a refactor stays undetected for
-# up to twelve hours while the tree looks green to everyone working in it.
+description = "Every declared mutation still finds the code AND the test it names — the cheap half of falsify:all"
+# No copy and no mutation applied, so this belongs in prepush where the replay
+# itself cannot: `falsify:all` runs a build per mutation and lives on a nightly
+# cron, which means a spec killed by a refactor stays undetected for up to
+# twelve hours while the tree looks green to everyone working in it.
 #
 # It happened twice on 2026-08-17 — #211 had killed transition.json, #257 killed
 # serialise-then-commit.json the same afternoon — and this check names all five
 # dead mutations in a millisecond. Exit 2, like every other drift verdict here.
+#
+# Since #923 it also asks whether the test each mutation names selects anything
+# in the package that mutation declares, because `go test -run NoSuchTest` exits
+# 0 over a package holding no such test and the replay read that zero as "the
+# guard is not held". That half is NOT a string search, and it runs Go twice
+# over:
+#
+#   - one `go test -list` for every package pattern the specs name, at once,
+#     grouped rather than one call per mutation (3.1 s against 12.6 s);
+#   - one `go test -run <parent> -v <pkg>` per distinct (package, parent) pair
+#     for the 13 mutations that name a SUBTEST, because `-list` prints top-level
+#     tests only and `-run TestX/no-such-sub` runs TestX, matches no subtest,
+#     passes and exits 0. Three pairs today, 0.9 s.
+#
+# Measured on 2026-11-14 on Stéphane's station, warm cache, 251 specs and 1665
+# mutations: 2.5 s to 2.6 s through `mise run falsify:lint`, 2.8 s to 2.9 s
+# through a bare `python3` (two interpreter installs, see falsify.py).
 run = "python3 tools/falsify/falsify.py --lint tools/falsify/specs"
 
 [tasks."falsify:selftest"]
-description = "Prove the falsification harness refuses the three mutations that voided a verdict"
-# Cheap, offline, no Go build: it holds the rule against the three real mistakes
-# of 2026-08-15 and against the three fixes. Both halves, because a rule that
-# refused every mutation would pass the first half and make the tool useless.
+description = "Prove the falsification harness refuses the four mutations that voided a verdict"
+# Cheap and offline: it holds the rule against the four mutations that voided a
+# verdict — the three real mistakes of 2026-08-15 and the fourth an end-to-end
+# run of the harness found afterwards — and against their four fixes. Both
+# halves, because a rule that refused every mutation would pass the first half
+# and make the tool useless. The task prints the two counts it checked.
+#
+# It builds one trivial Go package since #923, and that is deliberate: the lint
+# now asks `go test -list` whether a declared test exists, a question no fake
+# tree can answer, so the selftest drives the real lookup against a module of
+# its own rather than imitating it. Compiling that module, and running the
+# parents its subtest cases name, is the whole added cost, and the invocation is
+# part of the figure: measured on 2026-11-14 on Stéphane's station, 1.37 s to
+# 1.44 s through `mise run falsify:selftest` and 2.92 s to 3.04 s through a bare
+# `python3`, the same 32 assertions either way. The gap is two interpreter
+# installs there (mise runs the pinned 3.12.11, a bare `python3` resolves
+# 3.12.13), not the work. Against 0.03 s before.
 run = "python3 tools/falsify/falsify.py --selftest"
 
 [tasks."testplan:check"]

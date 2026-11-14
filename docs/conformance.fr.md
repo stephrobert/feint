@@ -305,7 +305,7 @@ mise run falsify:selftest      # le harnais contre sa propre histoire
 ```
 
 Chaque mutation s'applique dans une copie hors de l'arbre de travail, une à la
-fois, et quatre verdicts sont distingués plutôt que confondus :
+fois, et cinq issues sont distinguées plutôt que confondues :
 
 | verdict | ce que cela veut dire |
 |---|---|
@@ -313,8 +313,9 @@ fois, et quatre verdicts sont distingués plutôt que confondus :
 | **le test est resté vert** | la garde n'est pas mesurée, et c'est le test qu'il faut corriger |
 | **n'a pas compilé** | verdict nul, pas favorable : tous les tests échouent, ce qui se lit comme un succès |
 | **ne s'applique pas** | le code a bougé sous la déclaration |
+| **nomme un test qui n'existe pas** | refusé avant la copie : `go test -run` n'y sélectionnerait rien et sortirait en 0, qu'il s'agisse d'un nom de test que le paquet ne porte pas ou d'un sous-test que le parent ne porte pas (#923) |
 
-Ce sont les deux derniers qui justifient de lancer tout cela. Avertir n'a pas
+Ce sont les trois derniers qui justifient de lancer tout cela. Avertir n'a pas
 suffi (l'erreur de compilation a annulé trois verdicts en une journée, dans trois
 issues sans rapport), donc le harnais refuse une mutation qui perd un nom que
 l'expression d'origine utilisait, et exige la forme neutralisante (`… && false`,
