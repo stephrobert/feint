@@ -40,6 +40,11 @@ func tracked(t *testing.T) []string {
 	t.Helper()
 	cmd := exec.Command("git", "ls-files")
 	cmd.Dir = root(t)
+	// Without this, a git hook's GIT_DIR and GIT_INDEX_FILE decide which
+	// repository is listed, not cmd.Dir: pointed at another repository, every
+	// guard below judged that repository's file list (measured 2026-11-15).
+	// TestTrackedIgnoresTheGitDirAHookExports fails without it.
+	cmd.Env = withoutInheritedGit(os.Environ())
 	if out, err := cmd.Output(); err == nil {
 		return lines(t, string(out))
 	}
@@ -56,6 +61,23 @@ func tracked(t *testing.T) []string {
 	// So the fallback walks the tree and honours .gitignore's simple patterns,
 	// which is all this repository's has: 272 lines, no negation, no `**`.
 	return walked(t)
+}
+
+// withoutInheritedGit drops every GIT_* variable from env, so that git finds
+// its repository from its working directory and from nothing a caller (a
+// hook, a falsify replay) happened to export. tools/ci keeps its own copy for
+// the repositories it writes (newThrowawayRepo): a _test.go helper cannot be
+// imported across packages. TestNoToolTestWritesThroughARawGitCommand accepts
+// a git read only when its command's Env is assigned from a call to this name.
+func withoutInheritedGit(env []string) []string {
+	out := make([]string, 0, len(env))
+	for _, kv := range env {
+		if strings.HasPrefix(kv, "GIT_") {
+			continue
+		}
+		out = append(out, kv)
+	}
+	return out
 }
 
 func lines(t *testing.T, out string) []string {
@@ -490,7 +512,7 @@ func TestTheRealSpecsAreReadAndOnlyTheMatchingOnesAreEarned(t *testing.T) {
 	dir := root(t)
 	got := falsifications(dir, []string{"internal/core/machine/incus_ovn.go"})
 	if len(got) == 0 {
-		t.Fatal("no spec earned for a file 20 mutations name; the specs are not being read")
+		t.Fatal("no spec earned for internal/core/machine/incus_ovn.go, which committed mutations name; the specs are not being read")
 	}
 	for _, cmd := range got {
 		if !strings.HasPrefix(cmd, "mise run falsify -- tools/falsify/specs/") {

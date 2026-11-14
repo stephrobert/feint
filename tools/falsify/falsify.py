@@ -44,7 +44,9 @@ The spec is JSON:
 Per-mutation `package` is optional and falls back to the top-level one.
 """
 
+import contextlib
 import inspect
+import io
 import json
 import os
 import re
@@ -306,9 +308,12 @@ def unrestored(dst, pristine):
     return sorted(out)
 
 
-def refuse(message):
+def refuse(message, code=2):
+    """Print why, and hand back 2 by default: what the lint refuses is a spec
+    that drifted from the code. A usage error passes code=1 (rule 9: 0 ok, 1
+    error, 2 drift); it used to be 2, which a caller reads as drift."""
     print(f"falsify: {message}", file=sys.stderr)
-    return 2
+    return code
 
 
 # The mutations that voided a verdict on 2026-08-15, and the safe form
@@ -412,9 +417,8 @@ def selftest():
         print(f"{failures} failure(s): the rule does not hold its own history")
         return 1
     print(
-        f"the rule refuses all {len(HISTORY)} historical mistakes, accepts all "
-        f"{len(HISTORY)} fixes, and accepts {len(ACCEPTED)} valid mutations it "
-        f"has refused at some point"
+        HISTORY_SENTENCE.format(n=len(HISTORY))
+        + f", and accepts {len(ACCEPTED)} valid mutations it has refused at some point"
     )
     return 0
 
@@ -434,6 +438,10 @@ def _selftest_module(tmp, second_package=False, gated=False, panicking=False):
     The gap is two interpreter installs on that station — mise runs the pinned
     3.12.11, a bare `python3` resolves 3.12.13 — not the work this does. Either
     way it is against 0.03 s for the build-free version.
+
+    Beside it rather than over it, the same day after #938, #949 and #950 added
+    their cases: 1.43 s to 1.51 s over three runs through `mise run
+    falsify:selftest` with GOMAXPROCS=4 GOFLAGS=-p=2, 49 `ok` lines.
 
     The module name is a constant, and it makes no difference either way: the
     same measurement under a module name the build cache had never seen cost
@@ -527,12 +535,78 @@ def _one_spec(directory, name, *, package, file, find, test, replace=None, env=N
     return path
 
 
-def _report(got, want, why):
+def _linted(directory, root):
+    """lint() with what it printed on stderr, so a case can hold the reason too."""
+    said = io.StringIO()
+    with contextlib.redirect_stderr(said), contextlib.redirect_stdout(io.StringIO()):
+        got = lint(directory, root)
+    return got, said.getvalue()
+
+
+def _report(got, want, why, said="", reason=None):
+    """One lint case: the exit code AND the reason (#938).
+
+    The lint answers 2 for eight different reasons — a missing file, a path
+    spelled two ways, a dead fragment, an ambiguous one, a name the package does
+    not hold, a pattern Go would refuse, a subtest the parent does not carry, a
+    listing a broken package made untrustworthy — so a case that compared the
+    code alone could pass through a branch its author never meant. That happened
+    twice while #923 was written: two cases named their subject relatively,
+    fragment_problem() read it against another tree, and both answered 2
+    through "no such file", green under the very mutants they existed to catch.
+
+    So a refusing case declares the words its branch prints, and a case that
+    declares none is itself refused: an unrecognised shape must refuse, not
+    pass. An accepting case must print no refusal at all.
+    """
+    head = said.strip().splitlines()
+    if want != 0 and not reason:
+        print(
+            f"!! the case {why!r} expects a refusal and names no reason: it cannot tell them apart"
+        )
+        return 1
     if got != want:
         print(f"!! the lint answers {got} on {why}, want {want}")
+        for line in head[:4]:
+            print(f"   it said: {line}")
         return 1
-    print(f"ok  the lint answers {got} on {why}")
+    if reason and reason not in said:
+        print(f"!! the lint answers {got} on {why}, but not because {reason!r}. It said:")
+        for line in head[:6]:
+            print(f"   {line}")
+        return 1
+    if want == 0 and head:
+        print(f"!! the lint answers 0 on {why}, and still printed: {head[0]}")
+        return 1
+    print(f"ok  the lint answers {got} on {why}" + (f": {reason}" if reason else ""))
     return 0
+
+
+def _usage_case():
+    """`--help` prints the usage and exits 0; it used to open a file named --help.
+
+    And a usage error exits 1, never 2: 2 is drift (rule 9), and an unknown
+    option or a missing argument is not a spec that drifted.
+    """
+    failures = 0
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+        got = main([argv0, "--help"])
+    if got != 0 or not out.getvalue().startswith("usage: "):
+        print(f"!! falsify.py --help answers {got}, want 0 and the usage")
+        failures += 1
+    else:
+        print("ok  falsify.py --help answers 0 with the usage")
+    for args, why in (([argv0, "--bogus"], "an unknown option"), ([argv0], "no argument")):
+        err = io.StringIO()
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
+            got = main(args)
+        if got != 1 or "usage: " not in err.getvalue():
+            print(f"!! falsify.py answers {got} on {why}, want 1 and the usage (2 is drift)")
+            failures += 1
+        else:
+            print(f"ok  falsify.py answers 1 on {why}, with the usage")
+    return failures
 
 
 def _cross_package_case():
@@ -547,11 +621,56 @@ def _cross_package_case():
     then the same set.
 
     Hence two packages AND two specs: the lint lists both in one call, exactly
-    as the committed run lists 36 patterns in one call. Replace the body of
+    as the committed run lists every pattern in one call. Replace the body of
     covered_paths() with `return set(known)` and this case answers 0.
+
+    Two accepting runs come first in the same module, and their order is the
+    point (#938, two of the four behaviours no case held):
+
+      - a spec on p alone, which leaves a listing of p in LISTINGS;
+      - a spec whose default package is p and whose one mutation overrides it
+        with q. Drop the per-mutation `package` in entries_of() and the name is
+        looked for in p and refused. Drop `packages` from listed_tests()'s
+        memoisation key and the listing of p is handed back for q, and the
+        name is refused just the same.
     """
+    failures = 0
     with tempfile.TemporaryDirectory() as tmp:
         _selftest_module(tmp, second_package=True)
+
+        only_p = os.path.join(tmp, "only-p")
+        os.mkdir(only_p)
+        _one_spec(
+            only_p,
+            "only-p.json",
+            package="./p/",
+            file="p/subject.go",
+            find="func guard() bool { return true }",
+            test="TestTheGuardHolds",
+        )
+        got, said = _linted(only_p, tmp)
+        failures += _report(got, 0, "a spec on one package of two", said)
+
+        override = os.path.join(tmp, "override")
+        os.mkdir(override)
+        path = _one_spec(
+            override,
+            "override.json",
+            package="./p/",
+            file="q/elsewhere.go",
+            find="func elsewhere() bool { return true }",
+            test="TestTheGuardLivesInQ",
+        )
+        with open(path, encoding="utf-8") as fh:
+            spec = json.load(fh)
+        spec["mutations"][0]["package"] = "./q/"
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(spec, fh)
+        got, said = _linted(override, tmp)
+        failures += _report(
+            got, 0, "a mutation whose own package overrides the spec's, listed after another", said
+        )
+
         directory = os.path.join(tmp, "two")
         os.mkdir(directory)
         # The name lives in q. One spec declares p, which is the mistake; the
@@ -561,7 +680,7 @@ def _cross_package_case():
             directory,
             "names-p.json",
             package="./p/",
-            file=os.path.join(tmp, "p", "subject.go"),
+            file="p/subject.go",
             find="func guard() bool { return true }",
             test="TestTheGuardLivesInQ",
         )
@@ -569,12 +688,19 @@ def _cross_package_case():
             directory,
             "names-q.json",
             package="./q/",
-            file=os.path.join(tmp, "q", "elsewhere.go"),
+            file="q/elsewhere.go",
             find="func elsewhere() bool { return true }",
             test="TestTheGuardLivesInQ",
         )
-        got = lint(directory, tmp)
-    return _report(got, 2, "a name that exists in another package than the one declared")
+        got, said = _linted(directory, tmp)
+    failures += _report(
+        got,
+        2,
+        "a name that exists in another package than the one declared",
+        said,
+        "./p/ holds no test matching 'TestTheGuardLivesInQ'",
+    )
+    return failures
 
 
 def _unbuildable_case():
@@ -593,6 +719,11 @@ def _unbuildable_case():
     a listing nobody can trust. So: the name really exists in p, bad/ does not
     compile, and the spec declares ./... . Delete the `if err and not missing:`
     block, or stop capturing the exit code, and this case answers 0.
+
+    The reason is held, not only the 2 (#938), and that is what holds the `...`
+    branch of covered_paths(): without it, ./... covers no listed package, the
+    name reads as missing, and the lint still answers 2 — through "holds no test
+    matching", which is not this case's reason.
     """
     with tempfile.TemporaryDirectory() as tmp:
         _selftest_module(tmp)
@@ -606,13 +737,17 @@ def _unbuildable_case():
             directory,
             "unbuildable.json",
             package="./...",
-            file=os.path.join(tmp, "p", "subject.go"),
+            file="p/subject.go",
             find="func guard() bool { return true }",
             test="TestTheGuardHolds",
         )
-        got = lint(directory, tmp)
+        got, said = _linted(directory, tmp)
     return _report(
-        got, 2, "a name that exists, over a listing one broken package made untrustworthy"
+        got,
+        2,
+        "a name that exists, over a listing one broken package made untrustworthy",
+        said,
+        "so no name was really confirmed",
     )
 
 
@@ -650,7 +785,66 @@ def _single_spec_case():
         print(f"!! the single-spec run answers {got} on {why}, want 2")
         return 1
     print(f"ok  the single-spec run answers {got} on {why}")
-    return 0
+
+    # And main() refuses a path spelled two ways before copying anything
+    # (#950): the fragment is alive and the test exists, so without
+    # path_problem() in main() this run copies the module, sees the test bite,
+    # and answers 0.
+    with tempfile.TemporaryDirectory() as tmp:
+        _selftest_module(tmp)
+        spec = _one_spec(
+            tmp,
+            "dotted-single.json",
+            package="./p/",
+            file="./p/subject.go",
+            find="func guard() bool { return true }",
+            test="TestTheGuardHolds",
+        )
+        here, said = os.getcwd(), io.StringIO()
+        try:
+            os.chdir(tmp)
+            with contextlib.redirect_stderr(said), contextlib.redirect_stdout(io.StringIO()):
+                got = main([argv0, spec])
+        finally:
+            os.chdir(here)
+    why = "a single-spec run whose file is spelled ./p/subject.go"
+    if got != 2 or "is not written in its normal form" not in said.getvalue():
+        print(f"!! the single-spec run answers {got} on {why}, want 2 naming the spelling")
+        return 1
+    print(f"ok  the single-spec run answers {got} on {why}, naming the spelling")
+
+    # A directory, in main() and not only in lint(): `p` reached the open()
+    # and died on IsADirectoryError, and `.` was refused as a symbolic link.
+    failures = 0
+    for target in ("p", "."):
+        with tempfile.TemporaryDirectory() as tmp:
+            _selftest_module(tmp)
+            spec = _one_spec(
+                tmp,
+                "directory-single.json",
+                package="./p/",
+                file=target,
+                find="func guard() bool { return true }",
+                test="TestTheGuardHolds",
+            )
+            here, said = os.getcwd(), io.StringIO()
+            try:
+                os.chdir(tmp)
+                with contextlib.redirect_stderr(said), contextlib.redirect_stdout(io.StringIO()):
+                    got = main([argv0, spec])
+                    spec_dir = main([argv0, tmp])
+            finally:
+                os.chdir(here)
+        why = f"a single-spec run whose file is the directory {target!r}"
+        if got != 2 or f"{target}: is not a regular file" not in said.getvalue():
+            print(f"!! the single-spec run answers {got} on {why}, want 2 and the reason")
+            failures += 1
+        else:
+            print(f"ok  the single-spec run answers {got} on {why}, saying it is no regular file")
+        if spec_dir != 1:
+            print(f"!! a spec argument that is a directory answers {spec_dir}, want 1")
+            failures += 1
+    return failures
 
 
 def _parent_cannot_answer_case():
@@ -703,22 +897,31 @@ def _env_armed_case():
             directory,
             "env-armed.json",
             package="./p/",
-            file=os.path.join(tmp, "p", "subject.go"),
+            file="p/subject.go",
             find="func guard() bool { return true }",
             test="TestGatedByEnv/armed-sub",
             env={"FEINT_SELFTEST_ARMED": "1"},
         )
-        got = lint(directory, tmp)
-    return _report(got, 0, "a subtest that exists only when the spec's own env arms its parent")
+        got, said = _linted(directory, tmp)
+    return _report(
+        got, 0, "a subtest that exists only when the spec's own env arms its parent", said
+    )
 
 
 def lint_selftest():
-    """The lint answers 2 on a dead fragment and 0 on a live one.
+    """The lint refuses each stale shape for its own reason, and accepts a live spec.
 
     A control that never fires reads exactly like a control that passes, which
     is the failure this whole program exists to name. So the lint is pointed at
-    two specs built here: one naming a fragment that is in the file, one naming
-    a fragment that is not.
+    specs built here, each one wrong in exactly ONE way: a live fragment, a test
+    that exists, a file named plainly — except for the one thing the case is
+    about. A case wrong in several ways at once cannot tell which question
+    refused it, and neutralising any one of them changes no verdict (#938).
+
+    Every `file` is relative, the way a committed spec names it. The selftest
+    used to name its subjects absolutely to get around fragment_problem()
+    reading them against another tree than the Go half, which removed the
+    symptom and kept the cause; #938 put both halves on `root` instead.
 
     Written against a temporary directory rather than the repository's own
     specs, because those are supposed to be green — a selftest that depended on
@@ -727,16 +930,35 @@ def lint_selftest():
     """
     failures = 0
     with tempfile.TemporaryDirectory() as tmp:
-        subject, twice = _selftest_module(tmp)
+        _selftest_module(tmp)
+        live = "func guard() bool { return true }"
+        subject = "p/subject.go"
+        # An absolute link, the shape copy_tree() carries out of the copy.
+        os.symlink(os.path.join(tmp, "p"), os.path.join(tmp, "via"))
 
+        # (file, spec name, fragment, test, want, why, the words its branch prints)
         cases = [
+            (subject, "live.json", live, "TestTheGuardHolds", 0, "a live spec", None),
+            # Regex, not literal: twelve committed specs anchor their name as
+            # `^Test…$`, and a lint comparing names literally would refuse all
+            # twelve. #938 measured that no case noticed.
             (
                 subject,
-                "live.json",
-                "func guard() bool { return true }",
-                "TestTheGuardHolds",
+                "anchored.json",
+                live,
+                "^TestTheGuardHolds$",
                 0,
-                "a fragment that is in the file",
+                "a name anchored as a regular expression, the way `-run` reads it",
+                None,
+            ),
+            (
+                "p/gone.go",
+                "gone.json",
+                live,
+                "TestTheGuardHolds",
+                2,
+                "a file that does not exist",
+                "p/gone.go: no such file",
             ),
             (
                 subject,
@@ -744,15 +966,89 @@ def lint_selftest():
                 "func guard() bool { return gone }",
                 "TestTheGuardHolds",
                 2,
-                "a fragment that is not",
+                "a fragment that is not in the file",
+                "p/subject.go: fragment not found",
             ),
             (
-                twice,
+                "p/twice.go",
                 "ambiguous.json",
                 "bool { return true }",
                 "TestTheGuardHolds",
                 2,
                 "a fragment that matches two places, where only the first is rewritten",
+                "fragment matches 2 places",
+            ),
+            # #950. The three spellings below name the subject the compiler
+            # reads, with a live fragment and a test that exists, so nothing
+            # but path_problem() can refuse them: `mise run testplan` compares
+            # the path with a diff as written and would never claim the spec.
+            (
+                "./p/subject.go",
+                "dotted.json",
+                live,
+                "TestTheGuardHolds",
+                2,
+                "a file spelled with a leading ./",
+                "./p/subject.go: is not written in its normal form 'p/subject.go'",
+            ),
+            (
+                "q/../p/subject.go",
+                "climbing.json",
+                live,
+                "TestTheGuardHolds",
+                2,
+                "a file spelled through a ..",
+                "is not written in its normal form 'p/subject.go'",
+            ),
+            (
+                os.path.join(os.pardir, os.path.basename(tmp), "p", "subject.go"),
+                "outside.json",
+                live,
+                "TestTheGuardHolds",
+                2,
+                "a file reached by climbing out of the tree and back, normal as written",
+                "leaves the repository",
+            ),
+            (
+                os.path.join(tmp, "p", "subject.go"),
+                "absolute.json",
+                live,
+                "TestTheGuardHolds",
+                2,
+                "an absolute file, which a single-spec run would rewrite in place",
+                "is absolute",
+            ),
+            # #950, the fourth spelling. Relative and normal as written, a
+            # live fragment, a test that exists: only the link is wrong, and
+            # a replay would write the mutation into the working p/subject.go.
+            (
+                "via/subject.go",
+                "symlinked.json",
+                live,
+                "TestTheGuardHolds",
+                2,
+                "a file reached through a symbolic link that leaves the copy",
+                "via/subject.go: goes through a symbolic link",
+            ),
+            # A directory is a path that exists and holds no fragment: it used
+            # to raise IsADirectoryError without naming the spec.
+            (
+                "p",
+                "directory.json",
+                live,
+                "TestTheGuardHolds",
+                2,
+                "a file that is a directory",
+                "p: is not a regular file",
+            ),
+            (
+                ".",
+                "root.json",
+                live,
+                "TestTheGuardHolds",
+                2,
+                "a file that is the root itself, which is no link",
+                ".: is not a regular file",
             ),
             # #923. The fragment is alive and the package is right; only the
             # name is stale, which is what a renamed test leaves behind. Without
@@ -763,10 +1059,11 @@ def lint_selftest():
             (
                 subject,
                 "renamed.json",
-                "func guard() bool { return true }",
+                live,
                 "TestTheGuardHoldsRenamed",
                 2,
                 "a live fragment whose test has been renamed out from under it",
+                "./p/ holds no test matching 'TestTheGuardHoldsRenamed'",
             ),
             # And the accepting half, on the same module: a name that is really
             # there must stay green, or the check would redden every spec and
@@ -774,10 +1071,11 @@ def lint_selftest():
             (
                 subject,
                 "subtest.json",
-                "func guard() bool { return true }",
+                live,
                 "TestTheGuardHolds/named-sub",
                 0,
                 "a subtest of a test that exists, which `-list` never prints on its own",
+                None,
             ),
             # #923 one level down, and it was live in the first version of this
             # check: `go test -run TestX/no-such-sub` runs TestX, no subtest
@@ -787,10 +1085,11 @@ def lint_selftest():
             (
                 subject,
                 "no-such-sub.json",
-                "func guard() bool { return true }",
+                live,
                 "TestTheGuardHolds/no-such-sub",
                 2,
                 "a subtest name no subtest of that parent carries",
+                "but no subtest of it matches 'TestTheGuardHolds/no-such-sub'",
             ),
             # A `test` field that is not a usable pattern. Not a void verdict but
             # a FALSE one: `go test -run 'TestX('` rejects the pattern and exits
@@ -799,47 +1098,175 @@ def lint_selftest():
             (
                 subject,
                 "unparsable.json",
-                "func guard() bool { return true }",
+                live,
                 "TestTheGuardHolds(",
                 2,
                 "a test field that is not a usable pattern, which would read as a proof",
+                "'TestTheGuardHolds(' is not a usable pattern",
             ),
         ]
-        for target, name, find, test, want, why in cases:
-            spec = {
-                "package": "./p/",
-                "mutations": [
-                    {
-                        "label": "selftest",
-                        "file": target,
-                        "find": find,
-                        "replace": find.replace("true", "false"),
-                        "test": test,
-                    }
-                ],
-            }
+        for target, name, find, test, want, why, reason in cases:
             directory = os.path.join(tmp, name.removesuffix(".json"))
             os.mkdir(directory)
-            with open(os.path.join(directory, name), "w", encoding="utf-8") as fh:
-                json.dump(spec, fh)
+            _one_spec(
+                directory,
+                name,
+                package="./p/",
+                file=target,
+                find=find,
+                test=test,
+                replace=find.replace("true", "false"),
+            )
+            got, said = _linted(directory, tmp)
+            failures += _report(got, want, why, said, reason)
 
-            got = lint(directory, tmp)
-            if got != want:
-                print(f"!! the lint answers {got} on {why}, want {want}")
-                failures += 1
-            else:
-                print(f"ok  the lint answers {got} on {why}")
-
+    failures += _usage_case()
     failures += _cross_package_case()
     failures += _parent_cannot_answer_case()
     failures += _env_armed_case()
     failures += _unbuildable_case()
     failures += _single_spec_case()
     print()
+    failures += _published_history_cases()
+    print()
     failures += _replay_reporting_cases()
     print()
     failures += _budget_cases()
     return failures
+
+
+# The sentence selftest() prints, built in one place so the pages can quote it.
+HISTORY_SENTENCE = "the rule refuses all {n} historical mistakes, accepts all {n} fixes"
+
+NUMBER_WORDS = {
+    "en": ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"],
+    "fr": ["zéro", "un", "deux", "trois", "quatre", "cinq", "six", "sept", "huit", "neuf"],
+}
+
+# Every place that publishes len(HISTORY), and the sentences it carries it in
+# (#949). Each must be found exactly once in its page, with the live number.
+HISTORY_SITES = [
+    ("CONTRIBUTING.md", "en", "*" + HISTORY_SENTENCE + "*"),
+    ("CONTRIBUTING.md", "en", "The {word} of this section is the number the task prints"),
+    ("CONTRIBUTING.fr.md", "fr", "*" + HISTORY_SENTENCE + "*"),
+    ("CONTRIBUTING.fr.md", "fr", "Le « {word} » de cette section est le chiffre que la tâche"),
+]
+
+# What HISTORY_SITES must hold, written a second time on purpose: the same
+# guard as TestTheFigureCheckNamesEveryPlaceThatPublishesASpecCount for the Go
+# list of #937. A site dropped from HISTORY_SITES stops being judged and nothing
+# else would say so; _published_history_cases() refuses the difference.
+EXPECTED_HISTORY_PAGES = (
+    ("CONTRIBUTING.md", "en"),
+    ("CONTRIBUTING.md", "en"),
+    ("CONTRIBUTING.fr.md", "fr"),
+    ("CONTRIBUTING.fr.md", "fr"),
+)
+
+REPOSITORY = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
+def published_history_problems(pages, n, sites=None):
+    """Every site that does not publish `n` as the number of historical mistakes (#949).
+
+    Both CONTRIBUTING pages say how many mistakes the selftest holds, and the
+    number comes from len(HISTORY). It was hand-written, and it was wrong once:
+    the pages said three while the task printed four, long enough for an audit
+    to find it (#937). Recounting it from Go would mean reading a Python list
+    from Go, which is one more instrument that can lie; so the owner of the
+    list checks the pages instead, from the same constant it prints.
+
+    `pages` maps a page name to its text, or to None when it could not be read.
+    Three outcomes, never two: a site found once with the live number passes; a
+    page that could not be read, a number with no word to spell it, and a
+    sentence found zero or several times are each a problem, never a pass. The
+    empty list therefore means every declared sentence was read.
+    """
+    sites = HISTORY_SITES if sites is None else sites
+    if not sites:
+        return ["no site declared: a check over no sentence is not a verdict"]
+    problems = []
+    for page, lang, template in sites:
+        text = pages.get(page)
+        if text is None:
+            problems.append(f"{page}: cannot be read, so its count of {n} was not judged")
+            continue
+        words = NUMBER_WORDS.get(lang)
+        if words is None or not 0 <= n < len(words):
+            problems.append(f"{page}: no {lang!r} word for {n}, so the sentence was not judged")
+            continue
+        want = template.format(n=n, word=words[n])
+        found = " ".join(text.split()).count(want)
+        if found != 1:
+            problems.append(
+                f"{page}: carries {want!r} {found} time(s), want exactly 1 — HISTORY holds {n} "
+                "mistakes and the page must say so, in this exact sentence"
+            )
+    return problems
+
+
+def _published_history_cases():
+    """The pages say how many mistakes HISTORY holds, and say it right (#949).
+
+    One planted case per question the check asks, each wrong in that one way
+    only, then the accepting half, then the real pages.
+    """
+    failures = 0
+    en = "*" + HISTORY_SENTENCE.format(n=4) + "*. The four of this section is the number"
+    en += " the task prints."
+    sites = [
+        ("A.md", "en", "*" + HISTORY_SENTENCE + "*"),
+        ("A.md", "en", "The {word} of this section is the number the task prints"),
+    ]
+    for pages, n, want, why in (
+        ({"A.md": en}, 4, None, "a page carrying the live number in digits and in words"),
+        ({"A.md": en.replace("all 4", "all 3")}, 4, "carries", "a stale digit"),
+        ({"A.md": en.replace("The four", "The three")}, 4, "carries", "a stale word"),
+        ({"A.md": en + " " + en}, 4, "2 time(s)", "a sentence published twice"),
+        ({"A.md": None}, 4, "cannot be read", "a page that could not be read"),
+        ({"A.md": en}, 12, "no 'en' word", "a number the page has no word for"),
+    ):
+        got = published_history_problems(pages, n, sites)
+        if want is None and got:
+            print(f"!! the published count is refused on {why}: {got}")
+            failures += 1
+        elif want is not None and not any(want in g for g in got):
+            print(f"!! the published count reads {got} on {why}, want a problem saying {want!r}")
+            failures += 1
+        else:
+            verdict = "is accepted" if want is None else "is refused"
+            print(f"ok  the published count {verdict} on {why}")
+    if published_history_problems({}, 4, []) == []:
+        print("!! a check over no declared site answers nothing, which reads as a pass")
+        failures += 1
+    else:
+        print("ok  a check over no declared site is refused")
+
+    declared = tuple((page, lang) for page, lang, _ in HISTORY_SITES)
+    if declared != EXPECTED_HISTORY_PAGES:
+        print(
+            f"!! HISTORY_SITES declares {declared}, want {EXPECTED_HISTORY_PAGES}: "
+            "a site removed from the list is a sentence nobody judges any more"
+        )
+        failures += 1
+    else:
+        print(f"ok  HISTORY_SITES still declares the {len(EXPECTED_HISTORY_PAGES)} expected sites")
+
+    pages = {}
+    for page in sorted({site[0] for site in HISTORY_SITES}):
+        try:
+            with open(os.path.join(REPOSITORY, page), encoding="utf-8") as fh:
+                pages[page] = fh.read()
+        except OSError:
+            pages[page] = None
+    real = published_history_problems(pages, len(HISTORY))
+    for problem in real:
+        print(f"!! {problem}")
+    if not real:
+        print(
+            f"ok  both CONTRIBUTING pages publish the {len(HISTORY)} of HISTORY, digits and words"
+        )
+    return failures + len(real)
 
 
 def _replay_reporting_cases():
@@ -986,7 +1413,69 @@ def every_spec(directory):
     )
 
 
-def fragment_problem(target, find):
+def path_problem(target, root="."):
+    """Why a mutation's `file` is not written the one way every reader compares it, or None (#950).
+
+    Three consumers read `file` as a plain string and none of them normalises
+    it: `tools/testplan/specs.go` claims a spec for a diff by `changed[m.File]`,
+    the figure check of #937 counts distinct files by `files[m.File]`, and the
+    replay joins it under its copy. So `./x.go`, `a/../x.go` and `x.go` are one
+    file to the compiler and three to the repository: a spec spelled `./x.go`
+    is NEVER claimed by `mise run testplan` for a diff that touches `x.go`, and
+    the deserved replay drops out of the plan without a word. Measured on
+    2026-11-14 on a copy of the 254 specs: one spec naming
+    `./tools/testplan/figures.go`, then one naming
+    `tools/falsify/../testplan/figures.go`, moved the distinct-file count from
+    296 to 297 to 298 for one file.
+
+    An absolute path is worse than unclaimed: `os.path.join(dst, "/abs")` is
+    `/abs`, so a single-spec run would rewrite the file in the working
+    repository rather than in its copy.
+
+    One check here, at intake, rather than one per consumer. lint_selftest()'s
+    "dotted", "climbing" and "absolute" cases fail without it, each with a
+    fragment that is alive and a test that exists, so nothing else refuses them.
+
+    A path through a symbolic link is refused for a fourth reason: copy_tree()
+    keeps links as links (`symlinks=True`), so a link to an absolute directory
+    points out of the copy, and the mutation is written into the WORKING file.
+    The replay then measures the unmutated copy and prints TEST STILL PASSED
+    about a guard it never removed, and the working tree keeps the mutation.
+    So the path must resolve to itself under `root`; lint_selftest()'s
+    "symlinked" case fails without this check.
+    """
+    if not target or not isinstance(target, str):
+        return None  # no file at all: fragment_problem() and main() say so
+    if os.path.isabs(target):
+        return (
+            f"{target}: is absolute; write it relative to the repository root, which is the "
+            "spelling `mise run testplan` compares with a diff"
+        )
+    normal = os.path.normpath(target)
+    if normal == os.pardir or normal.startswith(os.pardir + os.sep):
+        return f"{target}: leaves the repository, so no diff of this tree can ever touch it"
+    if normal != target:
+        return (
+            f"{target}: is not written in its normal form {normal!r}; `mise run testplan` "
+            "compares the path with a diff as written, so this spec would never be claimed "
+            "for a change to that file"
+        )
+    # Before the link question: `.` resolves to the root without its `/.`,
+    # and was refused as "goes through a symbolic link", which it does not.
+    here = os.path.join(root, target)
+    if os.path.exists(here) and not os.path.isfile(here):
+        return f"{target}: is not a regular file, so there is no fragment to rewrite"
+    joined = os.path.join(os.path.realpath(root), target)
+    real = os.path.realpath(joined)
+    if real != joined:
+        return (
+            f"{target}: goes through a symbolic link to {real}; the copy keeps the link, "
+            "so the mutation would be written outside the copy"
+        )
+    return None
+
+
+def fragment_problem(target, find, root="."):
     """Why this fragment cannot be rewritten, or None.
 
     Two answers, and the second is the one that cost #399. The harness rewrites
@@ -1008,10 +1497,23 @@ def fragment_problem(target, find):
     So the fragment must match exactly once. It is the same class as the dead
     fragment above — a spec describing code that is no longer what it thinks —
     and it is checked in the same millisecond.
+
+    `target` is read under `root`, the same tree the Go half of the lint lists
+    its packages in (#938). It used to be opened against the process's working
+    directory while `go test -list` ran under `root`: one argument, two trees.
+    A selftest case naming its subject relatively then answered 2 through "no
+    such file" and never reached the check it was written for, and was green
+    under the very mutant it existed to catch — twice, while #923 was written.
+    lint_selftest() names every subject relatively since, so reading `target`
+    against the working directory again turns its accepting cases red and its
+    refusing cases into the wrong reason.
     """
-    if not target or not os.path.exists(target):
+    if not target:
         return f"{target}: no such file"
-    with open(target, encoding="utf-8") as fh:
+    path = os.path.join(root, target)
+    if not os.path.exists(path):
+        return f"{target}: no such file"
+    with open(path, encoding="utf-8") as fh:
         found = fh.read().count(find)
     if found == 0:
         return f"{target}: fragment not found"
@@ -1157,9 +1659,12 @@ def listed_tests(packages, root, env=()):
     defect this whole function exists to close (#923). The listing is.
 
     Answers are kept for the life of the process, on the same argument as
-    BASELINES: `--all` asks this once per spec (251 of them on 2026-11-14,
-    dated rather than recounted: #937) for some fifteen distinct package
-    patterns, against a tree that does not change while the replay runs. The
+    BASELINES: `--all` asks this once per spec, against a tree that does not
+    change while the replay runs. Counted on 2026-11-14 at 703915c (#951): the
+    36 patterns above are what the lint lists in its one call, and `--all`
+    meets 70 distinct (package set, env) pairs, one listing each. This
+    docstring said "some fifteen" there, a figure carried over from the
+    baselines of #890 and contradicted by its own first paragraph. The
     night was already cancelled at its 210-minute ceiling once (#890), and a
     check that closes a hole must not reopen that one.
     """
@@ -1417,7 +1922,10 @@ def lint(directory, root="."):
     Measured on 2026-11-14 on Stéphane's station, 251 specs and 1665 mutations,
     13 of them naming a subtest: 2.5 s to 2.6 s through `mise run falsify:lint`,
     2.8 s to 2.9 s through a bare `python3`, of which the three parent runs are
-    0.9 s.
+    0.9 s. Beside it, after #950 the same day, one run through
+    `mise run falsify:lint` with GOMAXPROCS=4 GOFLAGS=-p=2 and 19 subtest
+    names: 4.6 s. The two are not the same condition, and the gap is not
+    explained.
 
     `root` is the tree the packages are resolved in; the selftest points it at a
     module of its own so this function is driven rather than imitated.
@@ -1432,7 +1940,9 @@ def lint(directory, root="."):
             spec = json.load(fh)
         entries += entries_of(spec, path)
         for m in spec.get("mutations") or []:
-            why = fragment_problem(m.get("file"), m.get("find"))
+            why = path_problem(m.get("file"), root) or fragment_problem(
+                m.get("file"), m.get("find"), root
+            )
             if why:
                 stale.append((path, m.get("label", "?"), why))
 
@@ -1554,16 +2064,24 @@ def replay_all(directory):
 argv0 = "falsify.py"
 
 
+USAGE = "usage: falsify.py <spec.json> | --all <dir> | --lint <dir> | --selftest"
+
+
 def main(argv):
+    if argv[1:] in (["--help"], ["-h"]):
+        print(USAGE)
+        return 0
     if len(argv) == 2 and argv[1] == "--selftest":
         return selftest()
     if len(argv) == 3 and argv[1] == "--all":
         return replay_all(argv[2])
     if len(argv) == 3 and argv[1] == "--lint":
         return lint(argv[2])
-    if len(argv) != 2:
-        return refuse("usage: falsify.py <spec.json> | --all <dir> | --lint <dir> | --selftest")
+    if len(argv) != 2 or argv[1].startswith("-"):
+        return refuse(USAGE, code=1)
     spec_path = argv[1]
+    if not os.path.isfile(spec_path):
+        return refuse(f"{spec_path}: is not a regular file, so there is no spec to read", code=1)
     with open(spec_path, encoding="utf-8") as fh:
         spec = json.load(fh)
 
@@ -1579,9 +2097,11 @@ def main(argv):
                 return refuse(f"a mutation is missing {key!r}: {m.get('label', m)}")
         if m["find"] == m["replace"]:
             return refuse(f"{m['label']!r} replaces a fragment with itself")
+        # A path spelled two ways, and an absolute one that would be rewritten in
+        # the working repository rather than in the copy: see path_problem.
         # Ambiguity is refused before anything is copied, on the same terms as a
         # dead fragment: see fragment_problem.
-        ambiguous = fragment_problem(m["file"], m["find"])
+        ambiguous = path_problem(m["file"]) or fragment_problem(m["file"], m["find"])
         if ambiguous:
             return refuse(f"{m['label']!r}: {ambiguous}")
         lost = dropped_identifiers(m["find"], m["replace"])

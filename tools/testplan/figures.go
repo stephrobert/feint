@@ -218,12 +218,13 @@ type figureSite struct {
 // thing they say. The rule that separates the two is tense: a sentence in the
 // present belongs here, a sentence with a date belongs to the record.
 //
-// What this does NOT cover, said rather than implied: a present-tense figure
-// written after that search is judged by nothing. The list is held by hand,
-// and TestTheFigureCheckNamesEveryPlaceThatPublishesASpecCount only holds it
-// against a second hand-written list, so it catches a site dropped from here,
-// never a site that was never added. Re-run the search above when a sentence
-// about the specs' size is written.
+// A site that was never added is no longer judged by nothing (#951): the
+// search above runs as TestEverySpecFigureIsRecountedOrDated
+// (figure_search_test.go), and a match that is neither inside a sentence of
+// this list nor a line declared dated there fails with its file and line. The
+// tense is judged by whoever writes the line, not inferred, and the test says
+// why. TestTheFigureCheckNamesEveryPlaceThatPublishesASpecCount still holds
+// this list against a second one, which catches a site dropped from here.
 var publishedSpecFigures = []figureSite{
 	{
 		file: "CONTRIBUTING.md",

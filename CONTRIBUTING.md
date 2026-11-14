@@ -35,10 +35,17 @@ It installs three hook types, and the last two are easy to miss: `pre-commit`,
 ### Before you push
 
 The `pre-push` hook runs `mise run prepush`: `check`, `docs:check`,
-`drift:check`, `shapes:check`, `corpus:check`, `falsify:selftest` and
-`falsify:lint`.
+`drift:check`, `shapes:check`, `corpus:check`, `falsify:selftest`,
+`falsify:lint`, `release:surface` and `testplan:check`.
 Deterministic, offline, seconds. It is what a pull request will refuse without
-ever depending on a runner's weather.
+ever depending on a runner's weather. A hook is not a gate: a fresh clone has
+none, and `--no-verify` skips it, so each of the nine is also a step of a
+workflow triggered by every `pull_request`, in a job and a step that carry
+no `if:` and no `continue-on-error`. One exception, read in one spelling:
+`drift:check` runs in a `continue-on-error` step, and the step after it
+fails the pull request when it reads that the first one failed.
+`TestEveryPrepushTaskRunsOnAPullRequest` (`tools/ci/falsify_harness_test.go`,
+#936) fails when a task is added to `prepush` and no pull request runs it.
 
 **It is not enough**, and what it misses depends on what you changed. You do not
 have to remember which — ask:
@@ -55,8 +62,8 @@ run nothing" is the cheap default, and an un-triaged path is an absence, not a
 decision (#564).
 
 It also prints **the falsifications the diff has earned**, read off
-`tools/falsify/specs/` rather than remembered: 255 specs name 296 distinct files
-in 1709 mutations, and a spec that mutates a file you touched is the subset of
+`tools/falsify/specs/` rather than remembered: 256 specs name 303 distinct files
+in 1757 mutations, and a spec that mutates a file you touched is the subset of
 `falsify:all` your change can have stopped biting. Every batch here has followed
 that discipline by hand and said so in its pull request, which means it has also
 been forgotten by hand — `mise run check` cannot see a guard whose test still

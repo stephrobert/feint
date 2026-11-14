@@ -810,7 +810,7 @@ description = "Run a falsification spec, or prove the harness on its own history
 # term mentioning a variable leaves it unused, Go refuses to compile, and every
 # test fails — which looks exactly like the guard being proven. Warning about it
 # was not enough, so the harness refuses it. tools/falsify/falsify.py carries the
-# rule and the three cases it was written for.
+# rule and the cases it was written for, in HISTORY.
 run = "python3 tools/falsify/falsify.py"
 
 [tasks.prepush]
@@ -929,7 +929,7 @@ description = "Refuse a diff whose paths no rule triages, and print what this on
 # The second half is why it is here rather than in a workflow: every `git push`
 # now prints which runs this change has earned, at the moment somebody can still
 # act on it.
-run = "go run ./tools/testplan --check"
+run = "bash --noprofile --norc tools/testplan/check.sh"
 
 [tasks.testplan]
 description = "Which conformance runs this diff has earned — and which it has not (#564)"
