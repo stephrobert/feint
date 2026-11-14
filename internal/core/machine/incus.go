@@ -737,16 +737,37 @@ func (d *Incus) attachExtra(ctx context.Context, spec Spec) error {
 // network is this attachment, and matching "already exists" instead would also
 // swallow the case where a concurrent Attach stole the device name, leaving the
 // machine off a network the control plane says it is on.
+//
+// Both questions, the way Detach asks them, because both names come from a
+// stored resource that PUT /_feint/state and `feint snapshot load` restore
+// verbatim (#909): a crafted snapshot naming an instance of the host reached
+// `incus config device add <that instance> ethN nic network=...`.
+//
+//   - well formed: safeName on the machine and on the network;
+//   - ours: ownedNetwork on the network, mustOwnInstance on the machine, and the
+//     latter is asked before anything is sent to the instance, the agent probe
+//     included. TestAttachRefusesAnInstanceItDoesNotOwn and
+//     TestAttachRefusesANetworkOutsideThePrefix fail without them, and
+//     TestAttachStillReachesAnInstanceTheEmulatorCreated fails if the guard
+//     refuses what it should accept.
+//
+// Not found is an error here, unlike in Detach: a detach of a machine that is
+// gone has nothing left to undo, but an attach that answered nil would let the
+// caller publish an address on a machine that does not exist.
 func (d *Incus) Attach(ctx context.Context, name string, att Attachment) error {
 	if !safeName.MatchString(name) {
 		return fmt.Errorf("invalid machine name %q", name)
 	}
-	if !safeName.MatchString(att.Network) {
-		return fmt.Errorf("invalid network name %q", att.Network)
+	if !safeName.MatchString(att.Network) || !ownedNetwork(att.Network) {
+		return fmt.Errorf("refusing to attach to network %q: not one the emulator created", att.Network)
 	}
 
 	release := serialise.Lock("incus.attach." + name)
 	defer release()
+
+	if err := d.mustOwnInstance(ctx, name); err != nil {
+		return fmt.Errorf("attach %s to network %s: %w", name, att.Network, err)
+	}
 
 	// A virtual machine is ready for a device once its agent answers, and not
 	// when `incus start` returns. Adding one while the firmware is still
