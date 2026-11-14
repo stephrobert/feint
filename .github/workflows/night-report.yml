@@ -38,6 +38,26 @@ on:
         type: string
         required: false
         default: ''
+      judged-jobs:
+        description: >-
+          Job display names whose conclusion is the verdict, one per line, as
+          the jobs API reports them. A caller whose reporting job waits for
+          every other job of its workflow leaves this empty and the verdict
+          reads every completed job; a caller with a job running beside the
+          report names the jobs that measure here (#830).
+        type: string
+        required: false
+        default: ''
+      ignored-jobs:
+        description: >-
+          Job display names the verdict never judges, one per line, as the
+          jobs API reports them. Required when judged-jobs is set: the jobs
+          running beside the report, and the report job itself. A job of the
+          run that is neither judged nor ignored refuses the night, so a new
+          job or a new matrix leg forces a decision instead of vanishing.
+        type: string
+        required: false
+        default: ''
 
 permissions: {}
 
@@ -70,10 +90,15 @@ jobs:
 
       # The script inspects the very run it is part of: the measuring jobs are
       # completed (the caller gates on needs:), its own job is in_progress and
-      # therefore outside its own verdict.
+      # therefore outside its own verdict. A caller that cannot gate on every
+      # job passes judged-jobs instead (#830) — and ignored-jobs with it, the
+      # jobs beside the report plus this job itself, so the script can refuse
+      # a night whose population it cannot account for.
       - name: Open, update or close the issue for this night
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RUN_ID: ${{ github.run_id }}
           NIGHT_STREAK_TARGET: ${{ inputs.streak-target }}
+          NIGHT_JUDGED_JOBS: ${{ inputs.judged-jobs }}
+          NIGHT_IGNORED_JOBS: ${{ inputs.ignored-jobs }}
         run: tools/ci/night-report.sh --apply "${RUN_ID}"

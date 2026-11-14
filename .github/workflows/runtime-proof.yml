@@ -1159,3 +1159,26 @@ jobs:
       # The promotion criterion of #125, the number the `streak` job above
       # publishes; the issue carries it so nobody has to open a summary.
       streak-target: '14'
+      # The two jobs that measure, by the display names the jobs API reports
+      # (#830): runtime is a matrix over incus/incus-ovn, stacks over its
+      # control leg. The control leg carries continue-on-error, so its
+      # conclusion is success by construction: it stays in the list as a
+      # rename alarm, not as a verdict input. streak and verdict run beside
+      # this job and must not enter the verdict whatever their status, and
+      # neither may this job itself — the three are the ignore list below, by
+      # the same display names. This job's own entry is its name as the jobs
+      # API reports it, "<this job's name> / <the called job's name>", so it
+      # changes if this job is renamed. Update either list when a measured
+      # job is renamed or its matrix gains a leg, or the script refuses the
+      # night rather than judging a narrowed population.
+      judged-jobs: |
+        incus
+        incus-ovn
+        stacks (incus-ovn)
+        stacks (incus-ovn, last release)
+      # Jobs the verdict never judges: the two auxiliary jobs beside this
+      # one, and this job itself, in_progress while the script runs.
+      ignored-jobs: |
+        Consecutive green scheduled runs
+        Us, or the world?
+        A red night opens the issue, a green one closes it / Open, update or close the red-night issue

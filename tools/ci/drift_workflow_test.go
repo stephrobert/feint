@@ -546,14 +546,18 @@ func stepSection(workflow, name string) string {
 }
 
 // jobSection is the text of one job of a workflow, from its key to the next
-// job's key or the end of the file.
+// job's key or the end of the file. The terminator's charset is the same as
+// the job-key pattern the night-report guard enumerates with
+// ([A-Za-z0-9_-]+): the two must agree, or a job id with a digit or an
+// underscore would not close the previous section, and a neighbour's
+// judged-jobs: could satisfy the check for the reporting job.
 func jobSection(workflow, job string) string {
 	start := strings.Index(workflow, "\n  "+job+":\n")
 	if start < 0 {
 		return ""
 	}
 	rest := workflow[start+1:]
-	next := regexp.MustCompile(`(?m)^  [a-z][a-z-]*:\n`).FindStringIndex(rest[len(job)+4:])
+	next := regexp.MustCompile(`(?m)^  [A-Za-z0-9_-]+:\n`).FindStringIndex(rest[len(job)+4:])
 	if next == nil {
 		return rest
 	}

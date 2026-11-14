@@ -17,7 +17,9 @@
 #   - tools/ci/night_report_test.go drives it with a stubbed `gh` over
 #     field-trimmed payloads of real runs of runtime-proof.yml — a red night
 #     (32924409224), a green one (32441329459) and a cancellation with no
-#     failing step (31716251612);
+#     failing step (31716251612), plus a night where an auxiliary job is red
+#     beside the report (43353368876, three times: the streak job completed
+#     and still running, and the verdict job red — #830);
 #   - tools/falsify/specs/a-red-night-opens-an-issue.json replays those tests
 #     with each decision neutralised, so a mutation that silences the report
 #     makes a named test fail.
@@ -30,7 +32,12 @@
 # --apply; a human proving the script points it at any past run and reads.
 #
 # Environment: GITHUB_REPOSITORY (owner/repo, required), GH_TOKEN (for gh),
-# NIGHT_STREAK_TARGET (optional; empty hides the target sentence).
+# NIGHT_STREAK_TARGET (optional; empty hides the target sentence),
+# NIGHT_JUDGED_JOBS (optional; one job display name per line — empty judges
+# every completed job, as before), NIGHT_IGNORED_JOBS (required when a judged
+# list is set; one job display name per line — the jobs the verdict never
+# judges: the auxiliary jobs running beside the report, and the report job
+# itself, which is in_progress while this runs).
 set -euo pipefail
 
 usage() {
@@ -61,8 +68,66 @@ run_date="${run_created%%T*}"
 # The run's jobs, completed ones only: when this runs inside the run it judges
 # (needs: on the measuring jobs), its own job is still in_progress and must not
 # sit in its own verdict.
+#
+# NIGHT_JUDGED_JOBS names the jobs whose conclusion is the verdict, one display
+# name per line, as the jobs API reports them. A caller that waits for every
+# other job of its workflow leaves it empty and the verdict reads every
+# completed job, as before. A caller with a job running beside the report —
+# runtime-proof.yml's streak and verdict — sets it, and every other job is
+# ignored whatever its status (#830): a verdict that depends on whether an
+# auxiliary job happened to finish before this call is a verdict by lot.
+#
+# With a judged list, four checks, in this order — a control written in a
+# comment and not made true by the code is how #830 was missed the first time:
+#   1. every judged name is a job of this run: a rename narrows nothing;
+#   2. every job of the run is either judged or declared ignored, in
+#      NIGHT_IGNORED_JOBS: a new job, or a new matrix leg, must force a
+#      decision instead of vanishing;
+#   3. every judged job has finished: a measured job still running is the
+#      same race with timing in place of renaming, and it is an error on the
+#      same footing as a missing one;
+#   4. only then the completed filter below, which is a no-op for judged jobs.
+# A name is trimmed, so a trailing space or a CRLF cannot make a job
+# unfindable next to one that looks identical, and names are printed
+# @json-quoted, so a comma inside one cannot be read as a separator. A value
+# that names no job at all — blank lines only — is an error, not an empty
+# list: it is a mistake wearing the shape of "judge everything".
 jobs_json="$(gh api --paginate "repos/${repo}/actions/runs/${run_id}/jobs?per_page=100" \
-  | jq -s '[.[].jobs[] | select(.status == "completed")]')"
+  | jq -s '[.[].jobs[]]')"
+if [ -n "${NIGHT_JUDGED_JOBS:-}" ]; then
+  lists="$(jq -n --arg judged "${NIGHT_JUDGED_JOBS}" --arg ignored "${NIGHT_IGNORED_JOBS:-}" '
+    def names: split("\n") | map(sub("^\\s+"; "") | sub("\\s+$"; "")) | map(select(length > 0));
+    {judged: ($judged | names), ignored: ($ignored | names)}')"
+  if [ "$(jq -r '.judged | length' <<<"${lists}")" -eq 0 ]; then
+    echo "FAIL: NIGHT_JUDGED_JOBS names no job; the judged list is blank lines only." >&2
+    exit 1
+  fi
+  if [ "$(jq -r '.ignored | length' <<<"${lists}")" -eq 0 ]; then
+    echo "FAIL: NIGHT_IGNORED_JOBS names no job; a judged list needs the jobs it never judges declared, or the closure check cannot tell them from a new job." >&2
+    exit 1
+  fi
+  missing="$(jq -r --argjson lists "${lists}" '
+    ($lists.judged - [.[].name]) | map(@json) | join("; ")' <<<"${jobs_json}")"
+  if [ -n "${missing}" ]; then
+    echo "FAIL: judged job(s) not found in run ${run_id}: ${missing}; the judged list no longer matches this workflow." >&2
+    exit 1
+  fi
+  extra="$(jq -r --argjson lists "${lists}" '
+    (map(.name) - $lists.judged - $lists.ignored) | map(@json) | join("; ")' <<<"${jobs_json}")"
+  if [ -n "${extra}" ]; then
+    echo "FAIL: job(s) in run ${run_id} are neither judged nor ignored: ${extra}; add them to the judged list or the ignore list — a new job must force a decision instead of vanishing." >&2
+    exit 1
+  fi
+  jobs_json="$(jq --argjson lists "${lists}" '
+    map(select(.name as $n | $lists.judged | index($n) != null))' <<<"${jobs_json}")"
+  incomplete="$(jq -r '
+    map(select(.status != "completed") | .name) | map(@json) | join("; ")' <<<"${jobs_json}")"
+  if [ -n "${incomplete}" ]; then
+    echo "FAIL: judged job(s) not completed in run ${run_id}: ${incomplete}; the report cannot judge a run whose measured jobs have not finished." >&2
+    exit 1
+  fi
+fi
+jobs_json="$(jq '[.[] | select(.status == "completed")]' <<<"${jobs_json}")"
 
 # Three outcomes, never two (measurement-integrity): a run with no completed
 # job is not green and not red — it is a run this script cannot judge, and

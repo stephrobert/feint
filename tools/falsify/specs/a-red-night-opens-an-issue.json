@@ -28,6 +28,27 @@
       "find": "   | if .conclusion == \"failure\" and (failed_steps | length) > 0",
       "replace": "   | if (.conclusion == \"failure\" or true) and (failed_steps | length) > 0",
       "test": "TestARedWithNoFailingStepBlamesTheRunNotASuite"
+    },
+    {
+      "label": "the judged list is never applied, so an auxiliary job red beside the report decides the verdict again — the race of #830, back",
+      "file": "tools/ci/night-report.sh",
+      "find": "if [ -n \"${NIGHT_JUDGED_JOBS:-}\" ]; then",
+      "replace": "if [ -n \"${NIGHT_JUDGED_JOBS:-}\" ] && false; then",
+      "test": "TestARedAuxiliaryJobBesideTheReportDoesNotDecideTheVerdict"
+    },
+    {
+      "label": "the closure check never fires, so a new job — or a new matrix leg — vanishes from the verdict instead of forcing a decision; the night reads green and the job's red is never reported",
+      "file": "tools/ci/night-report.sh",
+      "find": "if [ -n \"${extra}\" ]; then",
+      "replace": "if [ -n \"${extra}\" ] && false; then",
+      "test": "TestAJobNeitherJudgedNorIgnoredIsAnErrorNotAGreenNight"
+    },
+    {
+      "label": "a judged job still running is dropped in silence, so the verdict is taken on the jobs that happened to finish — #830 with timing in place of renaming",
+      "file": "tools/ci/night-report.sh",
+      "find": "if [ -n \"${incomplete}\" ]; then",
+      "replace": "if [ -n \"${incomplete}\" ] && false; then",
+      "test": "TestAJudgedJobStillRunningIsAnErrorNotAGreenNight"
     }
   ],
   "note": "The subject is #502. runtime-proof.yml was red ten scheduled nights out of twelve (#501) and the only trace was a job log plus a streak counter written to a job summary — the two places nobody opens without already knowing there is a problem. The mechanism repeats drift.yml's report job (one issue, updated, never one per night) but its decisions live in tools/ci/night-report.sh rather than in a run: block, precisely so these mutations have something to bite: a run: block cannot be executed outside GitHub Actions, and this repository has three audited cases of CI fixes that existed only as comments. The tests drive the script over field-trimmed payloads of real runs, including the cancellation 31716251612 whose only step with conclusion 'failure' is 'Report what was exercised' — an if: always() collateral that mutation 4 makes the script accuse."
