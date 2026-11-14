@@ -28,6 +28,35 @@ func (d *Incus) RouteAddress(ctx context.Context, spec AddressSpec) error {
 	if !safeName.MatchString(spec.Machine) {
 		return fmt.Errorf("invalid machine name %q", spec.Machine)
 	}
+	// Is this instance ours — asked once, here, for every branch below (#933).
+	//
+	// Each branch reconfigures the instance: the routed one edits its NIC's
+	// ipv4.routes, the migration releases the address from it, and the two
+	// mode branches set a route key on a device and `exec` into the guest.
+	// safeName above has said the name could be a command argument, never
+	// that the instance is ours, and the name arrives from Resource.Runtime,
+	// which PUT /_feint/state and `feint snapshot load` restore verbatim into
+	// a format documented as meant to outlive its instance.
+	//
+	// At the entry rather than in each branch, because per-branch is exactly
+	// what failed: the routed branch asked this, the managed branch asked
+	// mustOwn of the *network* instead — which says nothing about the
+	// instance whose device it edits — and a foreign instance holding one NIC
+	// on an emulated network took `config device set <it> eth1
+	// ipv4.routes=203.0.113.9/32` and the `ip address add` behind it,
+	// measured through the runner — and in OVN mode the same gap wrote the
+	// uplink route, then the guest's own private address, resolver and
+	// routes, through `exec` into somebody else's container.
+	//
+	// One call before anything is sent has no second copy to drift, and it is
+	// the one call the three tests below measure, one per branch:
+	// TestRouteAddressRefusesAManagedNICOnAnInstanceTheEmulatorDidNotCreate,
+	// TestRouteAddressRefusesARoutedMachineTheEmulatorDidNotCreate and
+	// TestMigrationRefusesAnInstanceTheEmulatorDidNotCreate all fail without
+	// it.
+	if err := d.mustOwnInstance(ctx, spec.Machine); err != nil {
+		return err
+	}
 	network, device, err := d.interfaceFor(ctx, spec.Machine, spec.Network)
 	if err != nil {
 		return err
@@ -35,15 +64,11 @@ func (d *Incus) RouteAddress(ctx context.Context, spec AddressSpec) error {
 	if network == "" {
 		// A routed NIC (#202): the interface of a machine that joins no
 		// emulated network. There is no network whose ownership could vouch for
-		// this call, so the question moves to the object actually reconfigured
-		// — the instance — and its label answers it. The mechanism is the NIC's
-		// own in both driver modes: a routed NIC has no OVN port, so the OVN
-		// forward machinery below has nothing to say about it.
-		// TestRouteAddressRefusesARoutedMachineTheEmulatorDidNotCreate fails
-		// without the ownership half.
-		if err := d.mustOwnInstance(ctx, spec.Machine); err != nil {
-			return err
-		}
+		// this call, which is why the question above is asked of the object
+		// actually reconfigured — the instance — and answered by the label the
+		// emulator itself wrote. The mechanism is the NIC's own in both driver
+		// modes: a routed NIC has no OVN port, so the OVN forward machinery
+		// below has nothing to say about it.
 		return d.routeOntoRoutedNIC(ctx, spec.Machine, device, spec.Address)
 	}
 	// The machine answers on this address through a routed NIC, and the pack
@@ -88,7 +113,9 @@ func (d *Incus) RouteAddress(ctx context.Context, spec AddressSpec) error {
 		// create — would leave the machine having lost the address it
 		// answered on, for a route it never got. A network name reaching here
 		// comes from the pack's Plan.RouteVia, which is built from stored
-		// values a restored snapshot controls.
+		// values a restored snapshot controls. The other half of the
+		// question, whether the instance being reconfigured is ours, is
+		// answered at the entry of this function.
 		// TestAMigrationIsNotStartedForANetworkTheEmulatorDoesNotOwn fails
 		// without this.
 		if err := d.mustOwn(ctx, network); err != nil {
@@ -105,7 +132,10 @@ func (d *Incus) RouteAddress(ctx context.Context, spec AddressSpec) error {
 	}
 	// Never route through a network the emulator did not create: an operator's
 	// own bridge is not ours to reconfigure, and a route left on it would
-	// survive every sweep.
+	// survive every sweep. Whose instance the device below belongs to is the
+	// other question, answered at the entry.
+	// TestRouteAddressRefusesAManagedNICOnANetworkTheEmulatorDoesNotOwn fails
+	// without this.
 	if err := d.mustOwn(ctx, network); err != nil {
 		return err
 	}
@@ -210,17 +240,28 @@ func (d *Incus) routedNICCarrying(ctx context.Context, machine, address string) 
 // TestAHotMigrationTellsNetworkdToLetGoBeforeTheRePlug and
 // TestAColdMigrationDoesNotWaitForTheGuest fail without the two halves.
 //
-// Ownership before shape, and this call is why: safeName has said the name
-// could be a command argument, never that the instance is ours, and this
-// reconfigures an instance's devices from a name a restored snapshot controls.
-// RouteAddress's routed branch asks the same question for the same reason; the
-// managed branch below asks it of the network instead, which says nothing
-// about the instance whose device this edits.
-// TestMigrationRefusesAnInstanceTheEmulatorDidNotCreate fails without it.
+// Whether the instance is ours is not asked again here, and that is
+// deliberate (#933). RouteAddress is this function's only caller and asks it at
+// its entry, ahead of every branch; a second call on the same path could never
+// fail, so no mutation could measure it.
+//
+// Being unmeasurable is not on its own what decided it, and the narrower rule
+// is worth stating because this driver does keep checks of that kind:
+// routeAddressOVN re-asks safeName of a name RouteAddress has already checked,
+// and attachExtra re-asks ownedAttachments of a slice Start has already
+// checked. Both are pure local predicates — free, and unable to answer
+// differently the second time — and both say in place that they are defence in
+// depth rather than the guard. mustOwnInstance is not one of those: it is an
+// `incus config get` on the host, so a duplicate is a second command and a
+// second reading of a label, and on this single path it can answer nothing the
+// reading at the entry has not already answered. So what #933 removed is a
+// duplicated runtime probe, not redundancy as such.
+//
+// A caller added later answers the question itself, as RouteAddress does,
+// before reconfiguring anybody's device.
+// TestMigrationRefusesAnInstanceTheEmulatorDidNotCreate holds the refusal, and
+// it fails when the entry call is neutralised.
 func (d *Incus) releaseFromRoutedNIC(ctx context.Context, machine, device, address string) error {
-	if err := d.mustOwnInstance(ctx, machine); err != nil {
-		return err
-	}
 	devices, err := d.instanceDevices(ctx, machine)
 	if err != nil {
 		return fmt.Errorf("inspect %s: %w", machine, err)

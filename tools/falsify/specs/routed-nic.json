@@ -9,10 +9,10 @@
       "test": "TestRouteAddressReachesARoutedNIC"
     },
     {
-      "label": "the ownership question is no longer asked before routing into a routed machine",
+      "label": "the ownership question is no longer asked before routing into a routed machine. Since #933 the question lives at the entry of RouteAddress, where one call covers the three branches, so this is that call neutralised and judged by the routed branch's own test",
       "file": "internal/core/machine/incus_address.go",
-      "find": "\t\tif err := d.mustOwnInstance(ctx, spec.Machine); err != nil {\n\t\t\treturn err\n\t\t}\n\t\treturn d.routeOntoRoutedNIC(ctx, spec.Machine, device, spec.Address)",
-      "replace": "\t\tif err := d.mustOwnInstance(ctx, spec.Machine); err != nil && false {\n\t\t\treturn err\n\t\t}\n\t\treturn d.routeOntoRoutedNIC(ctx, spec.Machine, device, spec.Address)",
+      "find": "\tif err := d.mustOwnInstance(ctx, spec.Machine); err != nil {\n\t\treturn err\n\t}\n\tnetwork, device, err := d.interfaceFor(ctx, spec.Machine, spec.Network)",
+      "replace": "\tif err := d.mustOwnInstance(ctx, spec.Machine); err != nil && false {\n\t\treturn err\n\t}\n\tnetwork, device, err := d.interfaceFor(ctx, spec.Machine, spec.Network)",
       "test": "TestRouteAddressRefusesARoutedMachineTheEmulatorDidNotCreate"
     },
     {

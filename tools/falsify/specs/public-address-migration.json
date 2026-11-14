@@ -59,10 +59,10 @@
       "test": "TestAGuestWithoutNetworkdIsLeftAloneByTheMigration"
     },
     {
-      "label": "the migration reconfigures an instance without asking whether the emulator created it",
+      "label": "the migration reconfigures an instance without asking whether the emulator created it. The question moved to the entry of RouteAddress with #933 \u2014 releaseFromRoutedNIC's only caller \u2014 so this is that call neutralised, judged by the migration's own test",
       "file": "internal/core/machine/incus_address.go",
-      "find": "func (d *Incus) releaseFromRoutedNIC(ctx context.Context, machine, device, address string) error {\n\tif err := d.mustOwnInstance(ctx, machine); err != nil {\n\t\treturn err\n\t}",
-      "replace": "func (d *Incus) releaseFromRoutedNIC(ctx context.Context, machine, device, address string) error {\n\tif err := d.mustOwnInstance(ctx, machine); err != nil && false {\n\t\treturn err\n\t}",
+      "find": "\tif err := d.mustOwnInstance(ctx, spec.Machine); err != nil {\n\t\treturn err\n\t}\n\tnetwork, device, err := d.interfaceFor(ctx, spec.Machine, spec.Network)",
+      "replace": "\tif err := d.mustOwnInstance(ctx, spec.Machine); err != nil && false {\n\t\treturn err\n\t}\n\tnetwork, device, err := d.interfaceFor(ctx, spec.Machine, spec.Network)",
       "test": "TestMigrationRefusesAnInstanceTheEmulatorDidNotCreate"
     },
     {

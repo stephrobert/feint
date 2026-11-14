@@ -805,6 +805,27 @@ func (d *Incus) networkPeers(ctx context.Context, network string) ([]peerRow, er
 // puts them back; the observable effect is a brief interface bounce at attach
 // time, which real clouds also produce when reshaping a live NIC.
 func (d *Incus) routeAddressOVN(ctx context.Context, spec AddressSpec) error {
+	// Defence in depth, not the guard, and which of the two it is was measured
+	// rather than assumed (#933). RouteAddress is this function's only caller
+	// and asks safeName at its entry, so no mutation can redden this call:
+	// deleting it leaves every test in this package green, run on 2026-11-14.
+	// The refusal itself is held there, by
+	// TestRouteAddressRefusesAMachineNameThatIsNotACommandArgument, which
+	// requires that an ill-formed name reach no command at all.
+	//
+	// It stays for the reason attachExtra re-asks ownedAttachments of a slice
+	// Start has already checked: a caller added later is safe by construction
+	// instead of inheriting an obligation written in a comment, and the
+	// predicate is pure and local, so the second call costs nothing and cannot
+	// answer differently than the first.
+	//
+	// That purity is the line, and it is why the ownership probe #933 took out
+	// of releaseFromRoutedNIC was not kept on these same terms: mustOwnInstance
+	// is an `incus config get` on the host, so a duplicate is a second command
+	// and a second reading of a label, which buys nothing the reading at the
+	// entry has not already given on this one path. Every call site of
+	// mustOwnInstance in this driver is a public entry point of it, asked once,
+	// before anything is sent.
 	if !safeName.MatchString(spec.Machine) {
 		return fmt.Errorf("invalid machine name %q", spec.Machine)
 	}
