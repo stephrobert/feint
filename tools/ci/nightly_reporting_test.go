@@ -236,6 +236,15 @@ func unquote(s string) string {
 // back with a green check: the guard must require a non-empty block, not the
 // key. Both spellings count: a literal block with a non-blank entry, or a
 // non-empty single-line scalar.
+//
+// A value is one of two things, and nothing else: a block scalar — literal
+// (`|`, `|-`, `|+`) or folded (`>`, `>-`, `>+`) — whose indented body holds
+// a non-comment item, or a non-empty scalar on the same line. Anything the
+// switch does not recognise is refused, not accepted: a block indicator the
+// guard cannot parse (`| # comment`, `>- # comment`, an indent indicator)
+// is not a value it can vouch for (#939), and neither is a comment-only
+// rest. Refusing is the safe direction — a refused night is visible, while
+// an empty list passed as non-empty restores the #830 race with green gates.
 func nonEmptyList(section, key string) bool {
 	lines := strings.Split(section, "\n")
 	for i, line := range lines {
@@ -246,7 +255,7 @@ func nonEmptyList(section, key string) bool {
 		indent := len(line) - len(strings.TrimLeft(line, " "))
 		rest := strings.TrimSpace(strings.TrimPrefix(trimmed, key+":"))
 		switch rest {
-		case "|", "|-", "|+":
+		case "|", "|-", "|+", ">", ">-", ">+":
 			for _, next := range lines[i+1:] {
 				if strings.TrimSpace(next) == "" {
 					continue
@@ -263,6 +272,9 @@ func nonEmptyList(section, key string) bool {
 		case "", "''", `""`:
 			return false
 		default:
+			if strings.HasPrefix(rest, "|") || strings.HasPrefix(rest, ">") || strings.HasPrefix(rest, "#") {
+				return false
+			}
 			return true
 		}
 	}
@@ -281,6 +293,14 @@ func TestNonEmptyListRequiresAValue(t *testing.T) {
 		{"null, no value", "      judged-jobs:\n", false},
 		{"block with blanks only", "      judged-jobs: |\n\n\n", false},
 		{"block with a comment only", "      judged-jobs: |\n        # nothing here\n", false},
+		{"folded block, no value", "      judged-jobs: >-\n", false},
+		{"folded block indicator", "      judged-jobs: >\n", false},
+		{"folded block, keep indicator", "      judged-jobs: >+\n", false},
+		{"block header with comment only", "      judged-jobs: | # nothing here\n", false},
+		{"folded header with comment only", "      judged-jobs: > # nothing here\n", false},
+		{"comment only, no value", "      judged-jobs: # nothing here\n", false},
+		{"folded block with a value", "      judged-jobs: >-\n        incus\n", true},
+		{"folded block, comment only", "      judged-jobs: >-\n        # nothing here\n", false},
 		{"single inline name", "      judged-jobs: incus\n", true},
 		{"quoted inline name", "      judged-jobs: 'incus'\n", true},
 		{"key absent", "      uses: ./.github/workflows/night-report.yml\n", false},
