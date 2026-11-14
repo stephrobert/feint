@@ -154,7 +154,31 @@ const (
 	// up does it become `status: 0, abandoned: true`, which is true and still
 	// indistinguishable from a client that walked away during a delay. `transport`
 	// is what tells the three apart, and nothing in version 2 can.
-	FaultsSchemaVersion = 3
+	//
+	// 4 adds `in_flight` on the receipt line (#925): the line is reserved at
+	// arrival and completed when the handler ends, and in between it held its
+	// zero values with nothing saying so. All but one: markTransport names the
+	// transport at the hijack, so a hang says what it is doing while it does
+	// it.
+	//
+	// A version 3 reader was not blind to it, and saying otherwise would be
+	// the overstatement a contract review caught in the first draft of this
+	// note. `abandoned` is `!answered || status == 0` at the call site in
+	// conformance.go, so a finished line is
+	// always `status != 0, abandoned: false` or `status == 0, abandoned:
+	// true`, and the pair `status: 0, abandoned: false` belonged to a line in
+	// flight alone. What version 3 lacked was a way to say it: an invariant
+	// across two fields that no consumer was told about, that holds only as
+	// long as `abandoned` keeps that formula, and that feint's own
+	// `fault list` did not apply.
+	//
+	// It was measured rather than reasoned: the test that reads the receipt
+	// right after the client's timeout failed 4 times in 10 on main, with the
+	// pull request's CI green on the same commit.
+	//
+	// A version 3 consumer is unaffected: the key is omitempty, so a finished
+	// line is byte-identical and only a line in flight carries it.
+	FaultsSchemaVersion = 4
 	// CheckpointSchemaVersion is the shape of POST /_feint/checkpoint/{name},
 	// DELETE /_feint/checkpoint/{name} and POST /_feint/reset/{name}.
 	//

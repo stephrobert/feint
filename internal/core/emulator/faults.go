@@ -320,6 +320,42 @@ type FiredFault struct {
 	// dropped". A receipt that claims an effect nobody produced is the exact
 	// lie this emulator exists to avoid.
 	Transport string `json:"transport,omitempty"`
+	// InFlight says the line is reserved and not yet completed: the rule has
+	// fired and the handler has not finished. Status and Abandoned still hold
+	// their zero values; Transport does NOT, because markTransport names it at
+	// the hijack, so a hang carries its transport for as long as the
+	// connection is held. That is the whole reason markTransport exists, and
+	// describeFiredLine in internal/cli depends on it.
+	//
+	// What it costs to go without it, stated exactly, because the first draft
+	// of this comment overstated it and a contract review measured the
+	// overstatement. A line in flight was not unreadable: the call site in
+	// conformance.go hands recordFired `!answered || status == 0` for
+	// Abandoned, so a finished line is always
+	// either `status != 0, abandoned: false` or `status == 0, abandoned:
+	// true`, and the pair `status: 0, abandoned: false` belonged to a line in
+	// flight alone.
+	//
+	// It is an undocumented two-field invariant all the same: no consumer was
+	// told about it, it holds only as long as Abandoned keeps that formula,
+	// and feint's own reader did not apply it — `feint fault list` printed
+	// `answered 0` for a request nobody had answered. A receipt says what is;
+	// it does not ask a reader to derive it.
+	//
+	// And it is what makes the other test honest. Without a positive marker
+	// the only field a reader can wait on is `abandoned`, which is the field
+	// under test, and a wait on the assertion proves nothing.
+	//
+	// The window is milliseconds for a delay and MINUTES for a hang, which is
+	// exactly when a suite polls, since the client is still blocked.
+	//
+	// Measured (#925): TestADroppedConnectionIsClaimedOnlyWhenItHappened read
+	// the receipt while the handler was still parked in its delay select and
+	// failed 4 times in 10 on a loaded machine, on main, with CI green.
+	//
+	// It is omitempty, so a finished line is byte-identical to version 3 and
+	// only a line in flight carries the key.
+	InFlight bool `json:"in_flight,omitempty"`
 }
 
 // maxFiredReceipt bounds the receipt.
@@ -336,7 +372,7 @@ func (fs *faultSet) reserve(operation string, rank int) firing {
 		fs.dropped++
 		return firing{epoch: fs.epoch, slot: -1}
 	}
-	fs.fired = append(fs.fired, FiredFault{Operation: operation, Rank: rank})
+	fs.fired = append(fs.fired, FiredFault{Operation: operation, Rank: rank, InFlight: true})
 	return firing{epoch: fs.epoch, slot: len(fs.fired) - 1}
 }
 
@@ -362,6 +398,10 @@ func (fs *faultSet) recordFired(f firing, status int, abandoned bool, transport 
 	fs.fired[f.slot].Status = status
 	fs.fired[f.slot].Abandoned = abandoned
 	fs.fired[f.slot].Transport = transport
+	// Last, and the only place it is cleared: the line is finished exactly when
+	// the three values above are the ones the effect produced.
+	// TestAReceiptLineSaysWhenItIsStillInFlight fails without this line.
+	fs.fired[f.slot].InFlight = false
 }
 
 // markTransport names the failure on a reserved line the moment it begins.

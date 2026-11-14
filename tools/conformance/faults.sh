@@ -376,7 +376,11 @@ arm "$RULES_DIR/refusals.json"
 code="$(curl -s -o /dev/null -w '%{http_code}' "$ENDPOINT/instance/v1/zones/fr-par-1/servers")"
 [ "$code" = "403" ] || fail "the non-retrying client got $code, not the injected 403"
 line="$("$FEINT_BIN" fault list --addr "$ADDR")"
-printf '%s' "$line" | grep -q "instance/v1/API.ListServers call 1 answered 403" \
+# The colon arrived with #925: the three renderings of a receipt line were
+# merged into describeFiredLine, so every line reads
+# "<operation> call <n>: <what happened>". This grep is the only place a
+# REAL client checks that sentence, and it is why the change was caught.
+printf '%s' "$line" | grep -q "instance/v1/API.ListServers call 1: answered 403" \
   || fail "the receipt does not say which call was answered with what: $line"
 disarm
 ok "the receipt names the operation, the rank and the status"

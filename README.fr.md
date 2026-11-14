@@ -586,7 +586,7 @@ feint fault add instance/v1/API.ListServers --status 503 --nth 3
 scw instance server list zone=fr-par-1     # répond
 scw instance server list zone=fr-par-1     # répond
 scw instance server list zone=fr-par-1     # 503
-feint fault list        # ... call 3 answered 503
+feint fault list        # ... call 3: answered 503
 feint fault clear
 ```
 
