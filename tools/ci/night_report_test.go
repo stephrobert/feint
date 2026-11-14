@@ -35,7 +35,9 @@ import (
 //	                  while the script runs
 //	testdata/race-night-running
 //	                  the same night, the same flip, except the streak job
-//	                  is still in_progress — the only field that differs
+//	                  is still in_progress — the streak job's status and
+//	                  conclusion, and those of its steps, are the only
+//	                  difference from race-night-completed
 //	testdata/race-night-red
 //	                  the same night, the streak job flipped as above and
 //	                  the incus job failing on "Scaleway ssh suite": the
@@ -44,6 +46,14 @@ import (
 //	                  the same night, the verdict job ("Us, or the world?")
 //	                  flipped to failure instead: it sits in the same race
 //	                  as streak, and its red must be ignored the same way
+//	testdata/race-night-unaccounted
+//	                  the same night, the streak job renamed to "Nightly
+//	                  housekeeping": a job of the run that is neither
+//	                  judged nor ignored, so the night must be refused
+//	testdata/race-night-judged-running
+//	                  the same night, the incus job still in_progress: a
+//	                  judged job that has not finished, so the night must
+//	                  be refused rather than read green
 //	testdata/history.json     every completed scheduled run of the workflow
 //
 // The writes land in a log instead of on GitHub, so the create/update/close
@@ -97,13 +107,13 @@ esac
 // returns its exit code, its stdout+stderr, and the log of every gh write the
 // stub received. openIssues is a JSON array in `gh issue list --json
 // number,title` shape: what the repository's open scheduled-red issues look
-// like at that moment. judged is the NIGHT_JUDGED_JOBS value: empty judges
-// every completed job, as before.
+// like at that moment. judged is the NIGHT_JUDGED_JOBS value and ignored the
+// NIGHT_IGNORED_JOBS value: empty judges every completed job, as before.
 func runReport(t *testing.T, night, runID, openIssues string, apply bool) (int, string, string) {
-	return runReportJudged(t, night, runID, openIssues, apply, "")
+	return runReportJudged(t, night, runID, openIssues, apply, "", "")
 }
 
-func runReportJudged(t *testing.T, night, runID, openIssues string, apply bool, judged string) (int, string, string) {
+func runReportJudged(t *testing.T, night, runID, openIssues string, apply bool, judged, ignored string) (int, string, string) {
 	t.Helper()
 
 	stubDir := t.TempDir()
@@ -142,6 +152,7 @@ func runReportJudged(t *testing.T, night, runID, openIssues string, apply bool, 
 		"GITHUB_REPOSITORY=stephrobert/feint",
 		"NIGHT_STREAK_TARGET=14",
 		"NIGHT_JUDGED_JOBS="+judged,
+		"NIGHT_IGNORED_JOBS="+ignored,
 		// The script reads the budget a workflow declares for itself, and these
 		// tests run from the package directory rather than the repository root.
 		// A seam, like the injectable runner of the Incus driver: on a runner
@@ -409,25 +420,105 @@ func TestADriftNightThatCouldNotConcludeOpensTheIssue(t *testing.T) {
 	}
 }
 
-// judgedRuntimeProof is the list runtime-proof.yml passes (#830): the display
-// names of the two jobs that measure, as the jobs API reports them — runtime
-// is a matrix over incus/incus-ovn, stacks over its control leg. Measured on
-// run 43353368876 (2026-11-13), the run the race-night fixtures are built
-// from.
-const judgedRuntimeProof = "incus\nincus-ovn\nstacks (incus-ovn)\nstacks (incus-ovn, last release)"
+// runtimeProofLists reads the judged and ignored lists the report job of
+// runtime-proof.yml actually passes, and checks the env wiring of
+// night-report.yml that carries them to the script — so these tests run on
+// the caller's real lists, not on a re-declaration of them in this file. A
+// list narrowed in the workflow, or an env line commented out of the reusable
+// workflow, used to leave every test green; it now fails here.
+func runtimeProofLists(t *testing.T) (judged, ignored string) {
+	t.Helper()
+	proof, err := os.ReadFile(filepath.Join("..", "..", ".github", "workflows", "runtime-proof.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	report := jobSection(string(proof), "report")
+	if report == "" {
+		t.Fatal("runtime-proof.yml has no report job: the lists below have nowhere to come from")
+	}
+	judged = blockList(t, report, "judged-jobs")
+	ignored = blockList(t, report, "ignored-jobs")
+	if ignored == "" {
+		t.Fatal("runtime-proof.yml's report job passes no ignored-jobs list: the closure check cannot tell the auxiliary jobs from a new one")
+	}
+	// The report job is in_progress while the script runs, so the closure
+	// check only passes if the caller ignores its own display name — as the
+	// jobs API reports it, "<job name> / <step name>".
+	if !strings.Contains(ignored, "A red night opens the issue, a green one closes it") {
+		t.Fatalf("runtime-proof.yml's ignored list does not name the report job itself:\n%s", ignored)
+	}
+	night, err := os.ReadFile(filepath.Join("..", "..", ".github", "workflows", "night-report.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, wire := range [][2]string{
+		{"NIGHT_JUDGED_JOBS", "${{ inputs.judged-jobs }}"},
+		{"NIGHT_IGNORED_JOBS", "${{ inputs.ignored-jobs }}"},
+	} {
+		if !wiredEnv(string(night), wire[0], wire[1]) {
+			t.Fatalf("night-report.yml does not wire %s to %s: the list the caller passes never reaches the script", wire[0], wire[1])
+		}
+	}
+	return judged, ignored
+}
+
+// wiredEnv reports whether a workflow wires an env var to an input — the
+// line itself, not a comment mentioning it. A `# NIGHT_JUDGED_JOBS: ...`
+// line still contains the string, so a Contains check would bless a wiring
+// that is commented out; this reads lines, and skips comments.
+func wiredEnv(body, key, value string) bool {
+	for _, line := range strings.Split(body, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		if strings.HasPrefix(trimmed, key+":") && strings.Contains(trimmed, value) {
+			return true
+		}
+	}
+	return false
+}
+
+// blockList is the value of a `key: |` block inside a job section, one entry
+// per line, in the order the workflow declares them.
+func blockList(t *testing.T, section, key string) string {
+	t.Helper()
+	lines := strings.Split(section, "\n")
+	for i, line := range lines {
+		if strings.TrimSpace(line) != key+": |" {
+			continue
+		}
+		indent := len(line) - len(strings.TrimLeft(line, " "))
+		var entries []string
+		for _, next := range lines[i+1:] {
+			if strings.TrimSpace(next) == "" {
+				continue
+			}
+			nextIndent := len(next) - len(strings.TrimLeft(next, " "))
+			if nextIndent <= indent {
+				break
+			}
+			entries = append(entries, strings.TrimSpace(next))
+		}
+		return strings.Join(entries, "\n")
+	}
+	t.Fatalf("no %s: | block in the section:\n%s", key, section)
+	return ""
+}
 
 // A red auxiliary job running beside the report must not decide the verdict
-// (#830). The payloads are the same night — run 43353368876, every proof
-// job green — with one auxiliary job flipped to failure and no failing step.
-// race-night-completed and race-night-running differ in exactly one field,
-// the streak job's status; race-night-verdict-red flips the other auxiliary
-// job instead, since verdict sits in the same race. Without the judged list
-// the first two produced opposite verdicts, red when completed and green
-// while still running, which is the race the issue measures over fourteen
-// nights; with it, all three must agree, and agree green.
+// (#830). The payloads are the same night — run 43353368876, every proof job
+// green — with one auxiliary job flipped to failure and no failing step.
+// race-night-running is the witness of the race, not a control on the fix:
+// without the judged list it read green while race-night-completed read red,
+// and with the fix it stays green either way, because the completed filter
+// already dropped the streak job. The controls are race-night-completed — a
+// red auxiliary, completed, must not decide — and race-night-red below, where
+// a measured red must still be reported.
 func TestARedAuxiliaryJobBesideTheReportDoesNotDecideTheVerdict(t *testing.T) {
+	judged, ignored := runtimeProofLists(t)
 	for _, night := range []string{"race-night-completed", "race-night-running", "race-night-verdict-red"} {
-		code, out, calls := runReportJudged(t, night, "43353368876", noOpenIssue, true, judgedRuntimeProof)
+		code, out, calls := runReportJudged(t, night, "43353368876", noOpenIssue, true, judged, ignored)
 		if code != 0 {
 			t.Fatalf("%s: exit %d:\n%s", night, code, out)
 		}
@@ -446,7 +537,8 @@ func TestARedAuxiliaryJobBesideTheReportDoesNotDecideTheVerdict(t *testing.T) {
 // red, it must name the step, and it must not name the streak job at all —
 // the auxiliary red is ignored, the measured red is reported.
 func TestAJudgedListStillMeasuresTheJobsItNames(t *testing.T) {
-	code, out, calls := runReportJudged(t, "race-night-red", "43353368876", noOpenIssue, true, judgedRuntimeProof)
+	judged, ignored := runtimeProofLists(t)
+	code, out, calls := runReportJudged(t, "race-night-red", "43353368876", noOpenIssue, true, judged, ignored)
 	if code != 0 {
 		t.Fatalf("exit %d:\n%s", code, out)
 	}
@@ -466,13 +558,75 @@ func TestAJudgedListStillMeasuresTheJobsItNames(t *testing.T) {
 
 // A judged name that matches no job of the run is an error, not a green
 // night: a renamed job would otherwise narrow the verdict silently, and the
-// silence would read exactly like a green night.
+// silence would read exactly like a green night. The missing name is printed
+// quoted, so a trailing space cannot make it look like a job that is there.
 func TestAJudgedJobThatNeverRanIsAnErrorNotAGreenNight(t *testing.T) {
-	code, out, _ := runReportJudged(t, "race-night-completed", "43353368876", noOpenIssue, false, "incus\nno-such-job")
+	_, ignored := runtimeProofLists(t)
+	code, out, _ := runReportJudged(t, "race-night-completed", "43353368876", noOpenIssue, false, "incus\nno-such-job", ignored)
 	if code == 0 {
 		t.Fatalf("a judged list naming a job that never ran was accepted:\n%s", out)
 	}
-	if !strings.Contains(out, "no-such-job") {
-		t.Errorf("the failure does not name the missing job:\n%s", out)
+	if !strings.Contains(out, `"no-such-job"`) {
+		t.Errorf("the failure does not name the missing job, quoted:\n%s", out)
+	}
+}
+
+// A job of the run that is neither judged nor ignored is an error on the same
+// footing: a new job, or a new matrix leg, must force a decision instead of
+// vanishing from the verdict. race-night-unaccounted renames the streak job
+// to a name on neither list; the script must refuse the night and name it,
+// quoted, rather than read the remaining jobs green.
+func TestAJobNeitherJudgedNorIgnoredIsAnErrorNotAGreenNight(t *testing.T) {
+	judged, ignored := runtimeProofLists(t)
+	code, out, _ := runReportJudged(t, "race-night-unaccounted", "43353368876", noOpenIssue, false, judged, ignored)
+	if code == 0 {
+		t.Fatalf("a run with an unaccounted job was accepted:\n%s", out)
+	}
+	if !strings.Contains(out, `"Nightly housekeeping"`) {
+		t.Errorf("the failure does not name the unaccounted job, quoted:\n%s", out)
+	}
+}
+
+// A judged job that has not finished is an error on the same footing as a
+// missing one: narrowing first and filtering completed afterwards used to drop
+// it in silence and read the night green, which is #830 with timing in place
+// of renaming. race-night-judged-running leaves incus in_progress.
+func TestAJudgedJobStillRunningIsAnErrorNotAGreenNight(t *testing.T) {
+	judged, ignored := runtimeProofLists(t)
+	code, out, _ := runReportJudged(t, "race-night-judged-running", "43353368876", noOpenIssue, false, judged, ignored)
+	if code == 0 {
+		t.Fatalf("a run whose judged job had not finished was accepted:\n%s", out)
+	}
+	if !strings.Contains(out, `"incus"`) {
+		t.Errorf("the failure does not name the unfinished judged job, quoted:\n%s", out)
+	}
+}
+
+// A judged list without the ignore list is an error, not a night judged
+// against an empty ignore list: the closure check cannot tell the auxiliary
+// jobs from a new one, and a caller that forgot the second list must hear
+// about it before the night it misjudges.
+func TestAJudgedListWithoutAnIgnoreListIsAnError(t *testing.T) {
+	judged, _ := runtimeProofLists(t)
+	code, out, _ := runReportJudged(t, "race-night-completed", "43353368876", noOpenIssue, false, judged, "")
+	if code == 0 {
+		t.Fatalf("a judged list with no ignore list was accepted:\n%s", out)
+	}
+	if !strings.Contains(out, "NIGHT_IGNORED_JOBS names no job") {
+		t.Errorf("the failure does not say the ignore list is missing:\n%s", out)
+	}
+}
+
+// A judged value of blank lines only is an error, not an empty list: it is a
+// mistake wearing the shape of "judge everything", and must not fall back to
+// judging every completed job with a green check.
+func TestAWhitespaceOnlyJudgedListIsAnError(t *testing.T) {
+	_, ignored := runtimeProofLists(t)
+	code, out, _ := runReportJudged(t, "race-night-completed", "43353368876", noOpenIssue, false, "   \n\t\n", ignored)
+	if code == 0 {
+		t.Fatalf("a blank-lines-only judged list was accepted:\n%s", out)
+	}
+	if !strings.Contains(out, "NIGHT_JUDGED_JOBS names no job") {
+		t.Errorf("the failure does not say the judged list names no job:\n%s", out)
 	}
 }

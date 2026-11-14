@@ -117,11 +117,14 @@ func TestEveryScheduledWorkflowReportsOrSaysWhyNot(t *testing.T) {
 
 // TestANightReportCallerWaitsForEveryJobOrNamesTheOnesItJudges is the static
 // half of #830: a job that calls night-report.yml either waits for every other
-// job of its workflow, or the script is told which jobs to judge. The verdict
-// reads the run it is part of, and a job running beside the report enters the
-// verdict or not depending on a few seconds — the race the issue measures over
-// fourteen nights. Five of the six callers satisfy the first half today; the
-// sixth, runtime-proof.yml, passes judged-jobs.
+// job of its workflow, or the script is told which jobs to judge — and which
+// it never judges. The verdict reads the run it is part of, and a job running
+// beside the report enters the verdict or not depending on a few seconds —
+// the race the issue measures over fourteen nights. Five of the six callers
+// satisfy the first half today; the sixth, runtime-proof.yml, passes
+// judged-jobs and ignored-jobs. A judged list that is only a key —
+// `judged-jobs: ”` — is not a list: the script reads it as "judge
+// everything", so the guard requires a non-empty block, not the key.
 func TestANightReportCallerWaitsForEveryJobOrNamesTheOnesItJudges(t *testing.T) {
 	dir := filepath.Join("..", "..", ".github", "workflows")
 	entries, err := os.ReadDir(dir)
@@ -130,7 +133,8 @@ func TestANightReportCallerWaitsForEveryJobOrNamesTheOnesItJudges(t *testing.T) 
 	}
 
 	needsList := regexp.MustCompile(`(?m)^\s+needs:\s*\[([^\]]+)\]`)
-	needsOne := regexp.MustCompile(`(?m)^\s+needs:\s*([A-Za-z0-9_-]+)\s*$`)
+	needsOne := regexp.MustCompile(`(?m)^\s+needs:\s*['"]?([A-Za-z0-9_-]+)['"]?\s*$`)
+	needsBlock := regexp.MustCompile(`(?m)^[ \t]*needs:[ \t]*$\n((?:^[ \t]*-[ \t].*$\n?)+)`)
 	jobKey := regexp.MustCompile(`(?m)^  ([A-Za-z0-9_-]+):$`)
 
 	callers := 0
@@ -159,25 +163,25 @@ func TestANightReportCallerWaitsForEveryJobOrNamesTheOnesItJudges(t *testing.T) 
 				continue
 			}
 			callers++
-			// The jobs this reporter waits for, in either spelling of needs:.
-			waited := map[string]bool{}
-			if m := needsList.FindStringSubmatch(section); m != nil {
-				for _, job := range strings.Split(m[1], ",") {
-					waited[strings.TrimSpace(job)] = true
-				}
-			} else if m := needsOne.FindStringSubmatch(section); m != nil {
-				waited[m[1]] = true
-			}
+			// The jobs this reporter waits for, in every spelling of needs:.
+			waited := waitedJobs(section, needsList, needsOne, needsBlock)
 			var beside []string
 			for _, other := range ids {
 				if other != id && !waited[other] {
 					beside = append(beside, other)
 				}
 			}
-			if len(beside) > 0 && !strings.Contains(section, "judged-jobs:") {
-				t.Errorf("%s: the %s job runs beside %s without waiting for them and passes no judged-jobs list: "+
+			judged := nonEmptyList(section, "judged-jobs")
+			ignored := nonEmptyList(section, "ignored-jobs")
+			switch {
+			case len(beside) > 0 && !judged:
+				t.Errorf("%s: the %s job runs beside %s without waiting for them and passes no non-empty judged-jobs list: "+
 					"a job finishing beside the report enters the verdict or not depending on a few seconds (#830)",
 					name, id, strings.Join(beside, ", "))
+			case judged && !ignored:
+				t.Errorf("%s: the %s job passes a judged list but no non-empty ignored-jobs list: "+
+					"the script refuses a night whose jobs are neither judged nor ignored, so the missing list is a refused night waiting for the next schedule (#830)",
+					name, id)
 			}
 		}
 	}
@@ -187,6 +191,135 @@ func TestANightReportCallerWaitsForEveryJobOrNamesTheOnesItJudges(t *testing.T) 
 	if callers < 6 {
 		t.Fatalf("only %d night-report caller(s) found, want at least 6: the caller pattern has "+
 			"stopped matching and this test is measuring an empty set", callers)
+	}
+}
+
+// waitedJobs is the set of job ids a reporting job waits for, in every
+// spelling of needs: the flow list, the single name, and the block sequence,
+// each with or without quotes. A spelling the parser misses reads as "beside"
+// and fails conservatively, which is safe but surprising — hence the spellings
+// are held here, with a test, rather than in the guard test's head.
+func waitedJobs(section string, needsList, needsOne, needsBlock *regexp.Regexp) map[string]bool {
+	waited := map[string]bool{}
+	if m := needsList.FindStringSubmatch(section); m != nil {
+		for _, job := range strings.Split(m[1], ",") {
+			waited[unquote(strings.TrimSpace(job))] = true
+		}
+		return waited
+	}
+	if m := needsBlock.FindStringSubmatch(section); m != nil {
+		for _, line := range strings.Split(strings.TrimRight(m[1], "\n"), "\n") {
+			item := strings.TrimSpace(line)
+			item = strings.TrimSpace(strings.TrimPrefix(item, "-"))
+			waited[unquote(item)] = true
+		}
+		return waited
+	}
+	if m := needsOne.FindStringSubmatch(section); m != nil {
+		waited[unquote(m[1])] = true
+	}
+	return waited
+}
+
+func unquote(s string) string {
+	if len(s) >= 2 {
+		if (s[0] == '\'' && s[len(s)-1] == '\'') || (s[0] == '"' && s[len(s)-1] == '"') {
+			return s[1 : len(s)-1]
+		}
+	}
+	return s
+}
+
+// nonEmptyList reports whether a `key:` entry in a job section carries at
+// least one value. A bare key — `judged-jobs: ”` — passes a Contains check
+// while the script reads it as "judge everything", which is the race of #830
+// back with a green check: the guard must require a non-empty block, not the
+// key. Both spellings count: a literal block with a non-blank entry, or a
+// non-empty single-line scalar.
+func nonEmptyList(section, key string) bool {
+	lines := strings.Split(section, "\n")
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if !strings.HasPrefix(trimmed, key+":") {
+			continue
+		}
+		indent := len(line) - len(strings.TrimLeft(line, " "))
+		rest := strings.TrimSpace(strings.TrimPrefix(trimmed, key+":"))
+		switch rest {
+		case "|", "|-", "|+":
+			for _, next := range lines[i+1:] {
+				if strings.TrimSpace(next) == "" {
+					continue
+				}
+				nextIndent := len(next) - len(strings.TrimLeft(next, " "))
+				if nextIndent <= indent {
+					break
+				}
+				if t := strings.TrimSpace(next); t != "" && !strings.HasPrefix(t, "#") {
+					return true
+				}
+			}
+			return false
+		case "", "''", `""`:
+			return false
+		default:
+			return true
+		}
+	}
+	return false
+}
+
+func TestNonEmptyListRequiresAValue(t *testing.T) {
+	cases := []struct {
+		name, section string
+		want          bool
+	}{
+		{"block with names", "      judged-jobs: |\n        incus\n        incus-ovn\n", true},
+		{"block with a trailing blank", "      judged-jobs: |\n        incus\n\n", true},
+		{"empty quoted scalar", "      judged-jobs: ''\n", false},
+		{"empty double-quoted scalar", "      judged-jobs: \"\"\n", false},
+		{"null, no value", "      judged-jobs:\n", false},
+		{"block with blanks only", "      judged-jobs: |\n\n\n", false},
+		{"block with a comment only", "      judged-jobs: |\n        # nothing here\n", false},
+		{"single inline name", "      judged-jobs: incus\n", true},
+		{"quoted inline name", "      judged-jobs: 'incus'\n", true},
+		{"key absent", "      uses: ./.github/workflows/night-report.yml\n", false},
+		{"comment mentioning the key", "      # judged-jobs: incus\n", false},
+	}
+	for _, tc := range cases {
+		if got := nonEmptyList(tc.section, "judged-jobs"); got != tc.want {
+			t.Errorf("%s: nonEmptyList = %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}
+
+func TestWaitedJobsCoversEveryNeedsSpelling(t *testing.T) {
+	needsList := regexp.MustCompile(`(?m)^\s+needs:\s*\[([^\]]+)\]`)
+	needsOne := regexp.MustCompile(`(?m)^\s+needs:\s*['"]?([A-Za-z0-9_-]+)['"]?\s*$`)
+	needsBlock := regexp.MustCompile(`(?m)^[ \t]*needs:[ \t]*$\n((?:^[ \t]*-[ \t].*$\n?)+)`)
+	cases := []struct {
+		name, section string
+		want          []string
+	}{
+		{"flow list", "    needs: [runtime, stacks]\n", []string{"runtime", "stacks"}},
+		{"flow list quoted", "    needs: [\"runtime\", 'stacks']\n", []string{"runtime", "stacks"}},
+		{"single name", "    needs: replay\n", []string{"replay"}},
+		{"single name quoted", "    needs: 'replay'\n", []string{"replay"}},
+		{"block sequence", "    needs:\n      - runtime\n      - stacks\n", []string{"runtime", "stacks"}},
+		{"block sequence quoted", "    needs:\n      - 'runtime'\n      - \"stacks\"\n", []string{"runtime", "stacks"}},
+		{"no needs", "    runs-on: ubuntu-24.04\n", nil},
+	}
+	for _, tc := range cases {
+		got := waitedJobs(tc.section, needsList, needsOne, needsBlock)
+		if len(got) != len(tc.want) {
+			t.Errorf("%s: waited %v, want %v", tc.name, got, tc.want)
+			continue
+		}
+		for _, w := range tc.want {
+			if !got[w] {
+				t.Errorf("%s: waited %v, want %v", tc.name, got, tc.want)
+			}
+		}
 	}
 }
 
