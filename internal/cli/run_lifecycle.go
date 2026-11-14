@@ -349,7 +349,14 @@ type runReceipt struct {
 // 2 adds the fault campaign (#851): faults_armed, faults_read, faults and
 // faults_dropped. A version 1 consumer reads a run that injected failures as
 // one that simply failed.
-const runReceiptSchemaVersion = 2
+//
+// 3 carries `in_flight` on each line of `faults` (#925), because this receipt
+// is WRITTEN TO DISK and cannot be re-polled. readFaultState runs once the
+// child has exited, and a firing that has not finished by then — a `hang` the
+// emulator is still holding, or a run against a shared lab through --endpoint
+// — was persisted as `status: 0, abandoned: false`, the one pair that belongs
+// to no finished line. Unlike the HTTP surface, nobody can go back and look.
+const runReceiptSchemaVersion = 3
 
 // callsSoFar reads the emulator's own trace counter.
 //

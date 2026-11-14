@@ -19,6 +19,18 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Corrigé
 
+- **Une ligne de reçu de panne encore en vol était publiée comme une ligne
+  terminée** (#925). `GET /_feint/faults` réserve une ligne quand une règle
+  se déclenche et la remplit quand le traitement finit ; entre les deux, elle
+  répondait `status: 0, abandoned: false`, un état qu'un lecteur ne pouvait
+  nommer qu'en appliquant un invariant non documenté entre deux champs, et que
+  `feint fault list` n'appliquait pas : il imprimait `answered 0` pour une
+  requête que personne n'avait traitée. La fenêtre dure des millisecondes pour
+  un délai et des minutes pour un `hang`, c'est-à-dire précisément le moment où
+  une suite interroge. La ligne porte désormais `in_flight` jusqu'à sa fin
+  (`FaultsSchemaVersion` 4 ; la clé est omitempty, donc une ligne terminée ne
+  change pas pour un lecteur de la version 3), le CLI l'affiche, et le reçu
+  d'un run sur disque le porte (`run_receipt` schéma 3).
 - **Un instantané forgé pouvait supprimer la route par défaut de n'importe
   quelle instance de l'hôte.** Le chemin de sortie lisait son nom de machine
   dans un `Runtime` restauré sans demander ni si le nom était bien formé, ni

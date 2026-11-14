@@ -99,6 +99,43 @@ type firedFault struct {
 	// dropped connection from the same line caused by a client that gave up
 	// during a delay.
 	Transport string `json:"transport,omitempty"`
+	// InFlight says the firing has not finished, so Status and Abandoned still
+	// hold their zero values (FaultsSchemaVersion 4, #925). Transport does
+	// not: it is named at the hijack, which is what the hang branch of
+	// describeFiredLine below relies on.
+	//
+	// It is read here and not only on the wire because this CLI is the
+	// receipt's human reader: without it, `feint fault list` fell through to
+	// the status branch and printed `answered 0` for a request that had not
+	// been answered at all. A contract review measured that against a live
+	// emulator while the HTTP surface was already saying `in_flight: true`.
+	InFlight bool `json:"in_flight,omitempty"`
+}
+
+// describeFiredLine is the one sentence a receipt line is worth, shared by
+// `feint fault list` and by a run's receipt so the two cannot drift apart.
+//
+// In flight comes FIRST and before the transport switch, because a held
+// connection carries `transport: "hang"` for as long as it is held: deciding
+// on the transport alone would describe a connection this emulator is still
+// holding in the past tense.
+func describeFiredLine(line firedFault) string {
+	if line.InFlight {
+		if line.Transport == emulator.TransportHang {
+			return "the connection is held open right now, no answer yet"
+		}
+		return "still in flight, no answer yet"
+	}
+	switch line.Transport {
+	case emulator.TransportClose:
+		return "the connection was dropped, no answer sent"
+	case emulator.TransportHang:
+		return "the connection was held open, no answer sent"
+	}
+	if line.Abandoned {
+		return "the client left before the answer"
+	}
+	return fmt.Sprintf("answered %d", line.Status)
 }
 
 // faultsDocument is what /_feint/faults answers to all three methods.
@@ -284,22 +321,7 @@ func reportFaults(stdout io.Writer, document faultsDocument) {
 		fmt.Fprintf(stdout, "fired (%d):\n", len(document.Fired))
 	}
 	for _, line := range document.Fired {
-		switch line.Transport {
-		case emulator.TransportClose:
-			fmt.Fprintf(stdout, "  %s call %d: the connection was dropped, no answer sent\n",
-				line.Operation, line.Rank)
-			continue
-		case emulator.TransportHang:
-			fmt.Fprintf(stdout, "  %s call %d: the connection was held open, no answer sent\n",
-				line.Operation, line.Rank)
-			continue
-		}
-		if line.Abandoned {
-			fmt.Fprintf(stdout, "  %s call %d: the client left before the answer\n",
-				line.Operation, line.Rank)
-			continue
-		}
-		fmt.Fprintf(stdout, "  %s call %d answered %d\n", line.Operation, line.Rank, line.Status)
+		fmt.Fprintf(stdout, "  %s call %d: %s\n", line.Operation, line.Rank, describeFiredLine(line))
 	}
 }
 
