@@ -1,0 +1,69 @@
+{
+  "package": "./internal/core/machine/",
+  "mutations": [
+    {
+      "label": "the boot stops asking whether the network is ours, so a crafted snapshot puts the machine on the operator's own bridge with `init --network incusbr0`. Byte-identical to the next mutation, which judges it by the other test: two witnesses on one removal, and neither of them says anything about the extra NICs",
+      "file": "internal/core/machine/incus.go",
+      "find": "\t\tif !safeName.MatchString(att.Network) || !ownedNetwork(att.Network) {\n\t\t\treturn fmt.Errorf(\"refusing to boot",
+      "replace": "\t\tif !safeName.MatchString(att.Network) || (!ownedNetwork(att.Network) && len(name) < 0) {\n\t\t\treturn fmt.Errorf(\"refusing to boot",
+      "test": "TestStartRefusesANetworkOutsideThePrefix"
+    },
+    {
+      "label": "the same whole-guard removal, judged by the extra-NIC test instead: a second witness on the same text, and it proves only that the removal is caught, not that the extra NICs are covered. The third mutation is the one that proves that",
+      "file": "internal/core/machine/incus.go",
+      "find": "\t\tif !safeName.MatchString(att.Network) || !ownedNetwork(att.Network) {\n\t\t\treturn fmt.Errorf(\"refusing to boot",
+      "replace": "\t\tif !safeName.MatchString(att.Network) || (!ownedNetwork(att.Network) && len(name) < 0) {\n\t\t\treturn fmt.Errorf(\"refusing to boot",
+      "test": "TestStartRefusesAForeignNetworkOnAnExtraNIC"
+    },
+    {
+      "label": "the question is asked of the primary attachment only, which is the per-call-site check this issue exists to refuse: the extra NICs go unasked and `config device add … network=incusbr0` is emitted on a running instance",
+      "file": "internal/core/machine/incus.go",
+      "find": "\tfor _, att := range atts {\n\t\tif !safeName.MatchString(att.Network) || !ownedNetwork(att.Network) {",
+      "replace": "\tfor _, att := range atts[:min(1, len(atts))] {\n\t\tif !safeName.MatchString(att.Network) || !ownedNetwork(att.Network) {",
+      "test": "TestStartRefusesAForeignNetworkOnAnExtraNIC"
+    },
+    {
+      "label": "the question is asked of the machine name instead of the network, the copy-paste a reviewer would not see: the shape check beside it still reads att.Network, so the line still looks like a guard",
+      "file": "internal/core/machine/incus.go",
+      "find": "\t\tif !safeName.MatchString(att.Network) || !ownedNetwork(att.Network) {\n\t\t\treturn fmt.Errorf(\"refusing to boot",
+      "replace": "\t\tif !safeName.MatchString(att.Network) || !ownedNetwork(name) {\n\t\t\treturn fmt.Errorf(\"refusing to boot",
+      "test": "TestStartRefusesANetworkOutsideThePrefix"
+    },
+    {
+      "label": "the guard refuses every network, which passes every attack test above and breaks the product: no pack can boot a machine, Outscale's public-cloud Vm on fnt-default included",
+      "file": "internal/core/machine/incus.go",
+      "find": "\t\tif !safeName.MatchString(att.Network) || !ownedNetwork(att.Network) {\n\t\t\treturn fmt.Errorf(\"refusing to boot",
+      "replace": "\t\tif !safeName.MatchString(att.Network) || !ownedNetwork(att.Network) || len(name) > 0 {\n\t\t\treturn fmt.Errorf(\"refusing to boot",
+      "test": "TestStartStillBootsOnTheNetworksTheEmulatorCreated"
+    },
+    {
+      "label": "the refusal no longer says which network was refused, so an operator reading the log cannot tell a crafted snapshot from a typo",
+      "file": "internal/core/machine/incus.go",
+      "find": "fmt.Errorf(\"refusing to boot %s on network %q: not one the emulator created\", name, att.Network)",
+      "replace": "fmt.Errorf(\"refusing to boot %s on a network it does not own (%d characters)\", name, len(att.Network))",
+      "test": "TestStartRefusesANetworkOutsideThePrefix"
+    },
+    {
+      "label": "the shape half of the guard is neutralised and the ownership half kept, so a stored name with a slash or a space reaches `--network`, `network=`, the network lock and the /1.0/networks/<name> queries: the two per-site safeName checks were deleted when this guard was centralised, so this is the only shape check the boot path has left",
+      "file": "internal/core/machine/incus.go",
+      "find": "\t\tif !safeName.MatchString(att.Network) || !ownedNetwork(att.Network) {\n\t\t\treturn fmt.Errorf(\"refusing to boot",
+      "replace": "\t\tif (!safeName.MatchString(att.Network) && len(name) < 0) || !ownedNetwork(att.Network) {\n\t\t\treturn fmt.Errorf(\"refusing to boot",
+      "test": "TestStartRefusesANetworkOutsideThePrefix"
+    },
+    {
+      "label": "ownership is narrowed to the derived shape, which refuses fnt-default and keeps every NetworkName-derived name working: the realistic future defect, and it breaks Outscale's public-cloud Vm path (internal/providers/outscale/machines.go) where no pack test can see it, because this driver's fake runner is package-private",
+      "file": "internal/core/machine/incus.go",
+      "find": "\t\tif !safeName.MatchString(att.Network) || !ownedNetwork(att.Network) {\n\t\t\treturn fmt.Errorf(\"refusing to boot",
+      "replace": "\t\tif !safeName.MatchString(att.Network) || !ownedNetwork(att.Network) || att.Network == DefaultMachineNetwork {\n\t\t\treturn fmt.Errorf(\"refusing to boot",
+      "test": "TestStartStillBootsOnTheNetworksTheEmulatorCreated/the_default_machine_network_Outscale_asks_for"
+    },
+    {
+      "label": "the whole guard removed, judged by the restart branch: a poweron of a machine already running whose stored plan names the host's bridge must be refused before the Inspect, with nothing sent at all",
+      "file": "internal/core/machine/incus.go",
+      "find": "\t\tif !safeName.MatchString(att.Network) || !ownedNetwork(att.Network) {\n\t\t\treturn fmt.Errorf(\"refusing to boot",
+      "replace": "\t\tif !safeName.MatchString(att.Network) || (!ownedNetwork(att.Network) && len(name) < 0) {\n\t\t\treturn fmt.Errorf(\"refusing to boot",
+      "test": "TestARestartIsRefusedWhenThePlanNamesAForeignNetwork"
+    }
+  ],
+  "note": "#932, the cold twin of #909. Start's primary attachment and attachExtra validated the shape of their network name and asked ownership of neither, where Attach asks both since #909. The question is asked once at the entry of Start over the whole of Spec.Attachments, before anything is sent to the runtime, so it covers the primary interface, the extra NICs (Start is attachExtra's only caller) and the restart branch alike. Proven through the injectable runner, not against a running Incus. Two things this spec does NOT hold, so that nobody reads its count as a full proof. The second mutation is the same find/replace as the first with a different judge: it removes the whole guard, and it is the third mutation, which narrows the loop to the primary attachment, that actually proves the extra NICs are covered. And no mutation here anchors the guard's POSITION: move the loop below the Inspect and all of them still apply and still bite, while 'before anything is sent to the runtime' would have become false. That position is held by the tests, not by this spec: TestStartRefusesANetworkOutsideThePrefix requires len(f.calls)==0, and TestStartRefusesAForeignNetworkOnAnExtraNIC requires that no init and no start were emitted. Two measured facts that belong with this guard and are not mutations here. ownedAttachments is called twice, by Start at its entry and by attachExtra at its own, and only the first is measured: deleting the attachExtra call leaves TestStartRefusesAForeignNetworkOnAnExtraNIC green, measured by hand on 2026-11-14, because Start's call already refused the boot. That inner call is defence in depth for a caller added later, and no mutation can express 'a second caller appears'. And before this lot, a bad network on an extra NIC was refused by attachExtra AFTER init and start, and that return path does not call abandonStart, so the instance stayed running while the pack published FailedState. The entry call removes the name-caused version of that; the runtime-caused version stands and is getting its own issue. A machine already sitting on a foreign network also cannot have that NIC removed through the API, since Detach refuses the network; terminate still works, because the instance carries our label, so nothing is stuck."
+}
