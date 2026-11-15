@@ -187,6 +187,112 @@ func faultList(args []string, stdout, stderr io.Writer) int {
 	return exitOK
 }
 
+// The /_feint/faults schema versions this CLI's rendering depends on, one per
+// field, so that the version the rendering needs is a fact about a field and
+// not a bare number (#928). Nothing makes the CLI and the emulator it reads the
+// same build, so the rendering has to know what each version can say.
+//
+// Measured on 2026-11-15 with `git show <tag>:internal/core/emulator/schema.go`:
+// every published release from v0.11.0 to v0.16.0 serves schema 1, which has
+// no receipt at all. Versions 2, 3 and 4 exist only on main (2026-11-13 and
+// 2026-11-14), so the population this protects is a build of main, or a
+// release after v0.16.0, read by a newer CLI.
+const (
+	// faultsSchemaReceipt added the receipt itself, `fired` (#851). Schema 1,
+	// which every release up to v0.16.0 serves, counts hits per rule and
+	// publishes no line per call, so an empty `fired` below it is not "nothing
+	// fired": it is a lab that does not say. renderFaultReceipt refuses to
+	// read it as the first.
+	faultsSchemaReceipt = 2
+
+	// faultsSchemaInFlightDerivable is the first schema whose receipt lets a
+	// reader tell a line in flight. Since version 2, `abandoned` is `!answered
+	// || status == 0` at the call site in conformance.go, so a finished line is
+	// always `status != 0, abandoned: false` or `status == 0, abandoned: true`,
+	// and `status: 0, abandoned: false` is a line in flight and nothing else.
+	// The FaultsSchemaVersion note in internal/core/emulator/schema.go states
+	// this invariant; deriveInFlight applies it.
+	faultsSchemaInFlightDerivable = 2
+
+	// faultsSchemaTransport added `transport` (#851): "close" or "hang" when
+	// the failure happened below HTTP. It is NOT in faultsSchemaRendered, and
+	// the first version of #928 put it there wrongly: the failures it names
+	// arrived in the same change (51612e6). At schema 2 (b89fd75) faults.go
+	// still said transport failures "would need a hook", so a schema 2 lab
+	// cannot drop or hold a connection, and `status: 0, abandoned: true` there
+	// can only be a client that left, which is what describeFiredLine prints.
+	// A field that did not exist cannot be ambiguous.
+	// TestASchema2ReceiptCarriesNoNote fails if it goes back into the max.
+	faultsSchemaTransport = 3
+
+	// faultsSchemaInFlight added `in_flight` itself (#925). From here the
+	// emulator says it, and nothing is derived.
+	faultsSchemaInFlight = 4
+
+	// faultsSchemaRendered is the oldest schema the rendering is exact for: the
+	// highest of the versions at which a rendered field becomes NEEDED, derived
+	// or published. A field is needed from the schema where its absence would
+	// leave two different events reading alike; a field that arrived with the
+	// events it tells apart is not.
+	faultsSchemaRendered = max(faultsSchemaReceipt, faultsSchemaInFlightDerivable)
+)
+
+// deriveInFlight marks the fired lines of a schema 2 or 3 receipt that are
+// still in flight, which those schemas could tell without saying it.
+//
+// It runs in callFaults, the one door `fault list`, `fault add` and the run
+// receipt all go through, so the three cannot disagree. Without it a request
+// the emulator is still holding renders `answered 0`, the exact line #925
+// removed. TestAnOlderReceiptStillSaysWhatIsInFlight fails without it, and
+// TestAnOlderReceiptKeepsItsFinishedLinesFinished fails if it marks more than
+// the one pair.
+//
+// Not below 2: a document that names no schema promises no invariant, and
+// version 1 has no receipt. Not from 4: the emulator says it there.
+//
+// The run receipt's JSON therefore carries a DERIVED `in_flight: true` for a
+// schema 2 or 3 lab: a value the lab did not publish, written because the
+// invariant stated in the FaultsSchemaVersion note of
+// internal/core/emulator/schema.go makes it true. Kept on purpose: the JSON
+// receipt is written once and cannot be re-polled, and the alternative is
+// persisting `status: 0, abandoned: false` for a reader to decode alone.
+func deriveInFlight(document *faultsDocument) {
+	if document.SchemaVersion < faultsSchemaInFlightDerivable || document.SchemaVersion >= faultsSchemaInFlight {
+		return
+	}
+	for i := range document.Fired {
+		line := &document.Fired[i]
+		line.InFlight = line.Status == 0 && !line.Abandoned
+	}
+}
+
+// faultsSchemaNote is the one line that says the fired lines are less exact
+// than this CLI can make them, or "" when they are exact.
+//
+// Three outcomes, not two. A schema at or above faultsSchemaRendered is
+// silent, including a NEWER one: versioning here is additive, so an emulator
+// that knows more still carries every field this CLI reads. A document with no
+// schema_version is named in its own words: version 1 already carried the key,
+// so its absence is a document that does not say what it is, and
+// deriveInFlight derives nothing from it. A schema below faultsSchemaRendered
+// that still carries fired lines is named too; schema 1 has no receipt, so no
+// emulator of this repository publishes one, and the sentence says only that
+// these lines cannot be read exactly.
+func faultsSchemaNote(version int) string {
+	const remedy = "Use an emulator from the same release as this feint CLI."
+	switch {
+	case version >= faultsSchemaRendered:
+		return ""
+	case version <= 0:
+		return "note: this emulator's fault receipt does not name its schema_version, so this feint CLI " +
+			"cannot read its fired lines exactly: a request still in progress may show as \"answered 0\". " +
+			remedy
+	default:
+		return fmt.Sprintf("note: this emulator's fault receipt says schema_version %d, which has no "+
+			"per-call receipt, so this feint CLI cannot read these fired lines exactly. %s", version, remedy)
+	}
+}
+
 // Three consequences a caller must know, and the limits page states them:
 // the receipt is cleared, two `add` at once can lose a rule, and **every
 // armed rule's call counter goes back to zero**, so a `--nth` campaign in
@@ -320,6 +426,25 @@ func reportFaults(stdout io.Writer, document faultsDocument) {
 	} else {
 		fmt.Fprintf(stdout, "fired (%d):\n", len(document.Fired))
 	}
+	// Under the heading and above the lines it qualifies, and only when there
+	// are lines: an empty receipt has nothing to be inexact about (#928).
+	// `feint fault list` reaches this with the emulator's receipt as it
+	// stands; `feint fault add` rarely does, because the PUT it ends with
+	// clears the receipt (faultSet.replace in internal/core/emulator/faults.go).
+	// The run receipt prints the same sentence in renderFaultReceipt. Exit
+	// codes do not move: an older emulator is served, never refused.
+	//
+	// TestAReceiptThatNamesNoSchemaSaysSo fails without this print or if a
+	// missing schema_version is taken for a current one,
+	// TestAnEmptyReceiptCarriesNoNote if it is printed with no line,
+	// TestALineUnderASchemaWithoutAReceiptIsNamed if schema 1 is let through,
+	// and the silent halves (TestASchema2ReceiptCarriesNoNote,
+	// TestTheFirstExactSchemaCarriesNoNote, TestTheCurrentSchemaCarriesNoNote,
+	// TestANewerSchemaCarriesNoNote) if the comparison widens. tools/falsify/specs/an-older-emulator-is-named.json
+	// removes each.
+	if note := faultsSchemaNote(document.SchemaVersion); note != "" {
+		fmt.Fprintf(stdout, "  %s\n", note)
+	}
 	for _, line := range document.Fired {
 		fmt.Fprintf(stdout, "  %s call %d: %s\n", line.Operation, line.Rank, describeFiredLine(line))
 	}
@@ -445,5 +570,6 @@ func callFaults(method, url string, rules []faultRule) (faultsDocument, error) {
 	if err := json.Unmarshal(raw, &document); err != nil {
 		return faultsDocument{}, fmt.Errorf("the emulator's answer is not a fault document: %w", err)
 	}
+	deriveInFlight(&document)
 	return document, nil
 }

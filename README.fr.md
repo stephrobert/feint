@@ -597,6 +597,16 @@ nulle part ailleurs :
 [docs/limits.md](docs/limits.md#a-fault-schedule-counts-arrivals-and-no-client-sends-an-identity-to-replay-851)
 mesure pourquoi aucun client n'envoie mieux.
 
+La CLI lit le `schema_version` du reçu. À partir du schéma 2, une requête que
+l'émulateur retient encore s'affiche en cours, jamais `answered 0`. Quand le
+reçu ne nomme pas son schéma, `feint fault list`, `feint fault add` et le reçu
+de `feint run` impriment une ligne `note:` au-dessus des lignes déclenchées. Pour `run`, elle part sur stderr avec
+le reste du reçu ; aucun code de sortie ne change, et le reçu `--json` ne la
+porte pas encore (#964). Toutes les versions publiées jusqu'à v0.16.0 servent
+le schéma 1, qui n'a pas de reçu du tout ; face à l'une d'elles, `feint run`
+dit que le labo ne publie pas de reçu par appel, au lieu d'affirmer que rien
+ne s'est déclenché.
+
 Quatre propriétés, et chacune est un refus dans le code plutôt qu'une promesse
 ici. **Éteint par défaut** : un émulateur neuf n'arme rien. **Déterministe sous un
 seul client** : « les N premiers appels de cette opération » ou « le N-ième

@@ -1,0 +1,146 @@
+{
+ "package": "./internal/cli/",
+ "note": "The subject is #928: the fault receipt's schema_version was decoded and read nowhere, by `feint fault list`, `feint fault add` and the run receipt alike. Nothing makes the CLI and the emulator it reads the same build.\n\nThree corrections shaped what is checked, each measured against the emulator's own history rather than reasoned. First, a line in flight CAN be told below schema 4: since schema 2, `abandoned` is `!answered || status == 0`, so `status: 0, abandoned: false` is a line in flight and nothing else, and callFaults derives in_flight for schema 2 and 3. Second, schema 2 is exact: the transport failures arrived with schema 3 (51612e6), and at schema 2 (b89fd75) faults.go said they 'would need a hook', so a field that did not exist cannot be ambiguous. Third, schema 1, which every release from v0.11.0 to v0.16.0 serves, has no receipt, so the run receipt no longer reads its absent `fired` as 'none fired'.\n\nWhat remains is a note when the document does not name its schema (or claims schema 1 yet carries lines), printed under the heading, above the lines, only when there are lines; and the run's refusal to claim 'none fired' from a lab without a receipt. One mutation per question, each naming the one test that answers it. The older schemas are served by a stub, because this tree cannot build them; the bodies hold only what those schemas really publish.",
+ "mutations": [
+  {
+   "label": "the in-flight derivation never runs, so a schema 3 request the emulator is still holding reads `answered 0`, the line #925 removed",
+   "file": "internal/cli/fault.go",
+   "find": "\tderiveInFlight(&document)\n\treturn document, nil",
+   "replace": "\tif false {\n\t\tderiveInFlight(&document)\n\t}\n\treturn document, nil",
+   "test": "TestAnOlderReceiptStillSaysWhatIsInFlight/schema_3"
+  },
+  {
+   "label": "the derivation marks every status 0 line, so a client that walked away is reported as still in flight",
+   "file": "internal/cli/fault.go",
+   "find": "\t\tline.InFlight = line.Status == 0 && !line.Abandoned",
+   "replace": "\t\tline.InFlight = line.Status == 0 && (!line.Abandoned || true)",
+   "test": "TestAnOlderReceiptKeepsItsFinishedLinesFinished/schema_3"
+  },
+  {
+   "label": "the derivation starts at schema 3 instead of 2, so a schema 2 request the emulator is still holding reads `answered 0`. Schema 2 carries no note, so nothing else on the page would say so, and with the tests at schema 3 alone the whole package stayed green under this",
+   "file": "internal/cli/fault.go",
+   "find": "\tif document.SchemaVersion < faultsSchemaInFlightDerivable || document.SchemaVersion >= faultsSchemaInFlight {",
+   "replace": "\tif document.SchemaVersion < max(faultsSchemaInFlightDerivable, faultsSchemaTransport) || document.SchemaVersion >= faultsSchemaInFlight {",
+   "test": "TestAnOlderReceiptStillSaysWhatIsInFlight/schema_2"
+  },
+  {
+   "label": "the note is computed and never printed, so a receipt that does not name its schema renders a request still in progress as `answered 0`, and nothing says the CLI could derive nothing",
+   "file": "internal/cli/fault.go",
+   "find": "\tif note := faultsSchemaNote(document.SchemaVersion); note != \"\" {",
+   "replace": "\tif note := faultsSchemaNote(document.SchemaVersion); note != \"\" && false {",
+   "test": "TestAReceiptThatNamesNoSchemaSaysSo"
+  },
+  {
+   "label": "the note is printed on a receipt with no line, the way the first version of this lot printed it with `fired: []`: a caveat about lines that are not there",
+   "file": "internal/cli/fault.go",
+   "find": "\tif len(document.Fired) == 0 {\n\t\treturn\n\t}\n\tif document.FiredDropped > 0 {",
+   "replace": "\tif note := faultsSchemaNote(document.SchemaVersion); note != \"\" && len(document.Fired) == 0 {\n\t\tfmt.Fprintf(stdout, \"  %s\\n\", note)\n\t}\n\tif len(document.Fired) == 0 {\n\t\treturn\n\t}\n\tif document.FiredDropped > 0 {",
+   "test": "TestAnEmptyReceiptCarriesNoNote"
+  },
+  {
+   "label": "a missing schema_version is taken for the current one, which is how a Go struct reads an absent key: a document that does not say what it is is served in silence",
+   "file": "internal/cli/fault.go",
+   "find": "\tcase version >= faultsSchemaRendered:",
+   "replace": "\tcase version >= faultsSchemaRendered || version == 0:",
+   "test": "TestAReceiptThatNamesNoSchemaSaysSo"
+  },
+  {
+   "label": "a missing schema_version falls through to the generic sentence and is printed as `schema_version 0`, a number the emulator never said",
+   "file": "internal/cli/fault.go",
+   "find": "\tcase version <= 0:",
+   "replace": "\tcase version <= 0 && false:",
+   "test": "TestAReceiptThatNamesNoSchemaSaysSo"
+  },
+  {
+   "label": "a negative schema_version is printed as `says schema_version -1`, a number no emulator publishes, instead of reading like a missing one",
+   "file": "internal/cli/fault.go",
+   "find": "\tcase version <= 0:",
+   "replace": "\tcase version == 0:",
+   "test": "TestAReceiptThatNamesNoSchemaSaysSo"
+  },
+  {
+   "label": "the comparison is strict, so the first schema the rendering is exact for is flagged. Only the boundary case sees this once the current schema has moved past it",
+   "file": "internal/cli/fault.go",
+   "find": "\tcase version >= faultsSchemaRendered:",
+   "replace": "\tcase version > faultsSchemaRendered:",
+   "test": "TestTheFirstExactSchemaCarriesNoNote"
+  },
+  {
+   "label": "the comparison is an equality, so a newer emulator is flagged: a false alarm on the ordinary skew, a CLI kept while the container moves on",
+   "file": "internal/cli/fault.go",
+   "find": "\tcase version >= faultsSchemaRendered:",
+   "replace": "\tcase version == faultsSchemaRendered:",
+   "test": "TestANewerSchemaCarriesNoNote"
+  },
+  {
+   "label": "the CLI claims to need a schema the emulator it ships with does not serve, so every receipt from this build carries the note and the note stops meaning anything",
+   "file": "internal/cli/fault.go",
+   "find": "\tfaultsSchemaRendered = max(faultsSchemaReceipt, faultsSchemaInFlightDerivable)\n",
+   "replace": "\tfaultsSchemaRendered = max(faultsSchemaReceipt, faultsSchemaInFlightDerivable, faultsSchemaInFlight+1)\n",
+   "test": "TestTheCurrentSchemaCarriesNoNote"
+  },
+  {
+   "label": "faultsSchemaTransport goes back into the rendered minimum, which is the first version of #928 verbatim: an exact schema 2 receipt is then told a dropped connection and a client that left read alike, when schema 2 had no dropped connection to confuse",
+   "file": "internal/cli/fault.go",
+   "find": "\tfaultsSchemaRendered = max(faultsSchemaReceipt, faultsSchemaInFlightDerivable)\n",
+   "replace": "\tfaultsSchemaRendered = max(faultsSchemaReceipt, faultsSchemaInFlightDerivable, faultsSchemaTransport)\n",
+   "test": "TestASchema2ReceiptCarriesNoNote"
+  },
+  {
+   "label": "a document claiming schema 1 yet carrying fired lines passes as exact, though nothing could be derived from it",
+   "file": "internal/cli/fault.go",
+   "find": "\tcase version >= faultsSchemaRendered:",
+   "replace": "\tcase version >= faultsSchemaRendered || version > 0:",
+   "test": "TestALineUnderASchemaWithoutAReceiptIsNamed"
+  },
+  {
+   "label": "the run receipt computes the note and never prints it, so a receipt written once, after the child exits, carries lines from a lab that does not name its schema with nothing saying so",
+   "file": "internal/cli/run_faults.go",
+   "find": "\tif note := faultsSchemaNote(r.FaultsSchema); note != \"\" {",
+   "replace": "\tif note := faultsSchemaNote(r.FaultsSchema); note != \"\" && false {",
+   "test": "TestARunReceiptSaysWhenTheLabNamesNoSchema"
+  },
+  {
+   "label": "the lab's schema_version is read and not carried to the receipt, the original defect one hop further: the run then names every lab as one that does not name its schema",
+   "file": "internal/cli/run_faults.go",
+   "find": "\treturn len(document.Faults), document.Fired, document.FiredDropped, document.SchemaVersion, true",
+   "replace": "\treturn len(document.Faults), document.Fired, document.FiredDropped, 0 * document.SchemaVersion, true",
+   "test": "TestARunReceiptAgainstASchema2LabCarriesNoNote"
+  },
+  {
+   "label": "the run receipt flags every lab, so the note is on every run with a fired line and stops meaning anything",
+   "file": "internal/cli/run_faults.go",
+   "find": "\tif note := faultsSchemaNote(r.FaultsSchema); note != \"\" {",
+   "replace": "\tif note := faultsSchemaNote(min(r.FaultsSchema, faultsSchemaRendered-1)); note != \"\" {",
+   "test": "TestARunReceiptAgainstACurrentLabCarriesNoNote"
+  },
+  {
+   "label": "the run reads a missing receipt as an empty one, so against every released emulator it reports that no call reached the operations named, from a field those emulators do not publish",
+   "file": "internal/cli/run_faults.go",
+   "find": "\t\tif r.FaultsSchema < faultsSchemaReceipt {",
+   "replace": "\t\tif r.FaultsSchema < faultsSchemaReceipt && false {",
+   "test": "TestARunReceiptAgainstALabWithoutAReceiptClaimsNothing"
+  },
+  {
+   "label": "a document with no schema_version is read as one that publishes a receipt, so its silence becomes 'none fired'",
+   "file": "internal/cli/run_faults.go",
+   "find": "\t\tif r.FaultsSchema < faultsSchemaReceipt {",
+   "replace": "\t\tif r.FaultsSchema < faultsSchemaReceipt && r.FaultsSchema != 0 {",
+   "test": "TestARunReceiptThatNamesNoSchemaClaimsNothing"
+  },
+  {
+   "label": "a document with no schema_version is named as `schema_version 0`, a number the lab never said",
+   "file": "internal/cli/run_faults.go",
+   "find": "\t\t\tif r.FaultsSchema <= 0 {",
+   "replace": "\t\t\tif r.FaultsSchema <= 0 && false {",
+   "test": "TestARunReceiptThatNamesNoSchemaClaimsNothing"
+  },
+  {
+   "label": "the refusal reaches the first schema that publishes a receipt, so a founded 'none fired' becomes 'cannot be told': the verdict refused where it is earned",
+   "file": "internal/cli/run_faults.go",
+   "find": "\t\tif r.FaultsSchema < faultsSchemaReceipt {",
+   "replace": "\t\tif r.FaultsSchema <= faultsSchemaReceipt {",
+   "test": "TestARunReceiptWithAnEmptyReceiptStillSaysNoneFired"
+  }
+ ]
+}
