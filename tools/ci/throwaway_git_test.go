@@ -36,8 +36,14 @@ import (
 //     left a second commit in the decoy: green, and wrong.
 //
 // TestAThrowawayRepoIgnoresTheGitDirAHookExports fails without the scrubbing
-// below, and TestNoToolTestWritesThroughARawGitCommand refuses a third copy of
-// the harness written without it.
+// below, and TestNoTestWritesThroughARawGitCommand refuses a third copy of the
+// harness written without it.
+//
+// Since #955 every test binary that starts a process also drops GIT_* in its
+// TestMain (hermetic_test.go), so a hook's variables are gone before this runs.
+// The scrubbing here stays: a test may set GIT_DIR itself after TestMain
+// (TestAThrowawayRepoIgnoresTheGitDirAHookExports does, to play the hook), and
+// the global configuration below is not a GIT_* a hook exports.
 type throwawayRepo struct {
 	t   *testing.T
 	Dir string
@@ -177,9 +183,18 @@ var gitReads = []string{"cat-file", "log", "ls-files", "ls-tree", "rev-list", "r
 // rawGitFindings parses one Go file and returns a refusal for every call to
 // os/exec's Command or CommandContext whose program is the literal "git",
 // unless it is the shared helper's own call, or a read whose every argument is
-// a string literal, whose first argument is one of gitReads, and whose command
-// has its Env assigned from gitScrubber(...) in the same function. accepted counts
-// the calls it let through, so that a caller can prove the scan saw something.
+// a string literal and whose first argument is one of gitReads. accepted
+// counts the calls it let through, so that a caller can prove the scan saw
+// something.
+//
+// Which repository a read lists is no longer this guard's question (#955): it
+// asked whether the read's Env came from a function named
+// withoutInheritedGit, matched by name and blind to what the function did.
+// The hermetic default answers it at the source for every call of the binary,
+// and TestEveryTestBinaryThatStartsAProcessDropsInheritedGit holds that
+// default. What a hermetic environment cannot stop is a write aimed at the
+// tree the test runs in, by a cmd.Dir left unset or pointed at it: that is
+// what is left here.
 func rawGitFindings(path string, src []byte) (refused []string, accepted int, err error) {
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, path, src, parser.SkipObjectResolution)
@@ -205,7 +220,6 @@ func rawGitFindings(path string, src []byte) (refused []string, accepted int, er
 		if fn != nil {
 			enclosing = funcName(fn)
 		}
-		bound, scrubbedEnv := envBindings(decl)
 		ast.Inspect(decl, func(n ast.Node) bool {
 			call, ok := n.(*ast.CallExpr)
 			if !ok {
@@ -259,10 +273,6 @@ func rawGitFindings(path string, src []byte) (refused []string, accepted int, er
 				refused = append(refused, where+": git takes the option "+strconv.Quote(literal[0])+" before its subcommand, which can redirect a read to another repository; use newThrowawayRepo")
 			case !slices.Contains(gitReads, literal[0]):
 				refused = append(refused, where+": git "+strconv.Quote(literal[0])+" is not a known read; use newThrowawayRepo")
-			case bound[call] == "":
-				refused = append(refused, where+": git read is not bound to a variable, so its Env cannot be set and a hook's GIT_DIR decides which repository it reads; assign it, then set Env from "+gitScrubber+"(...)")
-			case !scrubbedEnv[bound[call]]:
-				refused = append(refused, where+": git read whose Env is not assigned from "+gitScrubber+"(...), so a hook's GIT_DIR decides which repository it reads")
 			default:
 				accepted++
 			}
@@ -270,57 +280,6 @@ func rawGitFindings(path string, src []byte) (refused []string, accepted int, er
 		})
 	}
 	return refused, accepted, nil
-}
-
-// gitScrubber is the name a git read's Env must be assigned from. It is the
-// local filter of tools/testplan (plan_test.go): a _test.go helper cannot be
-// imported across packages, so the guard recognises the name. What the
-// function does is proved by TestTrackedIgnoresTheGitDirAHookExports, not
-// here: a function of that name that scrubbed nothing would pass this guard.
-const gitScrubber = "withoutInheritedGit"
-
-// envBindings maps each call bound by `x := …` or `x = …` to x, and names the
-// variables whose Env is assigned from gitScrubber(…), directly or as the first
-// argument of append.
-func envBindings(decl ast.Decl) (map[*ast.CallExpr]string, map[string]bool) {
-	bound, scrubbed := map[*ast.CallExpr]string{}, map[string]bool{}
-	ast.Inspect(decl, func(n ast.Node) bool {
-		as, ok := n.(*ast.AssignStmt)
-		if !ok || len(as.Lhs) != len(as.Rhs) {
-			return true
-		}
-		for i, lhs := range as.Lhs {
-			switch l := lhs.(type) {
-			case *ast.Ident:
-				if call, isCall := as.Rhs[i].(*ast.CallExpr); isCall {
-					bound[call] = l.Name
-				}
-			case *ast.SelectorExpr:
-				if x, isIdent := l.X.(*ast.Ident); isIdent && l.Sel.Name == "Env" && fromScrubber(as.Rhs[i]) {
-					scrubbed[x.Name] = true
-				}
-			}
-		}
-		return true
-	})
-	return bound, scrubbed
-}
-
-func fromScrubber(e ast.Expr) bool {
-	call, ok := e.(*ast.CallExpr)
-	if !ok {
-		return false
-	}
-	fn, ok := call.Fun.(*ast.Ident)
-	switch {
-	case !ok:
-		return false
-	case fn.Name == gitScrubber:
-		return true
-	case fn.Name == "append" && len(call.Args) > 0:
-		return fromScrubber(call.Args[0])
-	}
-	return false
 }
 
 func funcName(fn *ast.FuncDecl) string {
@@ -352,20 +311,26 @@ func stringLit(e ast.Expr) string {
 	return s
 }
 
-// TestNoToolTestWritesThroughARawGitCommand walks every _test.go under tools/
-// and refuses a git that does not go through newThrowawayRepo, unless it is a
-// literal read (gitReads). The third copy of the harness, written without the
-// scrubbing, is what this exists to stop.
+// TestNoTestWritesThroughARawGitCommand walks every _test.go of the
+// repository and refuses a git that does not go through newThrowawayRepo,
+// unless it is a literal read (gitReads). The third copy of the harness,
+// written without the scrubbing, is what this exists to stop.
 //
-// A read is not exempt for being a read. tools/testplan/plan_test.go's
-// `git ls-files` wrote nothing and still listed whichever repository an
-// inherited GIT_DIR named, measured on 2026-11-15 against a decoy: so a read
-// is accepted only when its command's Env is assigned from gitScrubber(...).
+// Before #955 this guard read tools/ only, under a narrower name. A
+// read used to be accepted only when its Env came from a function named
+// withoutInheritedGit; that question moved to the source (#955): every test
+// binary that starts a process drops GIT_* in its TestMain, proved by
+// TestATestBinaryDropsTheGitDirAHookExports and held by
+// TestEveryTestBinaryThatStartsAProcessDropsInheritedGit. What the hermetic
+// default does not stop is a write into the tree the test runs in, which is
+// this guard's remaining question.
 //
 // What this does not see: a program name held in a variable, a git run by a
-// shell script or `bash -c`, and Python tests. It sees os/exec calls whose
-// program is the literal "git", and says how many it judged.
-func TestNoToolTestWritesThroughARawGitCommand(t *testing.T) {
+// shell script or `bash -c`, and Python. Against a hook's GIT_DIR those are
+// covered by the hermetic default (falsify.py drops GIT_* when it starts, its
+// selftest proves it); against a write aimed at the working tree itself, they
+// are not covered by anything, and this guard says so rather than pretending.
+func TestNoTestWritesThroughARawGitCommand(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {
 		t.Fatal(err)
@@ -373,12 +338,12 @@ func TestNoToolTestWritesThroughARawGitCommand(t *testing.T) {
 	files, accepted := 0, 0
 	var refused []string
 	sawHelper := false
-	walkErr := filepath.WalkDir(filepath.Join(root, "tools"), func(path string, d fs.DirEntry, err error) error {
+	walkErr := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 		if d.IsDir() {
-			if name := d.Name(); name == "testdata" || (strings.HasPrefix(name, ".") && path != filepath.Join(root, "tools")) {
+			if name := d.Name(); path != root && (name == "testdata" || name == "node_modules" || name == "vendor" || strings.HasPrefix(name, ".")) {
 				return filepath.SkipDir
 			}
 			return nil
@@ -408,7 +373,7 @@ func TestNoToolTestWritesThroughARawGitCommand(t *testing.T) {
 		return nil
 	})
 	if walkErr != nil {
-		t.Fatalf("the walk of tools/ failed, so nothing was judged: %v", walkErr)
+		t.Fatalf("the walk of the repository failed, so nothing was judged: %v", walkErr)
 	}
 	// A scan that found nothing cannot tell a clean tree from a scan that
 	// looked nowhere: the helper's own call is the witness it must find.
@@ -418,7 +383,7 @@ func TestNoToolTestWritesThroughARawGitCommand(t *testing.T) {
 	for _, r := range refused {
 		t.Error(r)
 	}
-	t.Logf("%d test files under tools/, %d git calls accepted, %d refused", files, accepted, len(refused))
+	t.Logf("%d test files, %d git calls accepted, %d refused", files, accepted, len(refused))
 }
 
 // TestTheRawGitGuardAsksEachQuestion: one case per question the guard asks,
@@ -426,10 +391,10 @@ func TestNoToolTestWritesThroughARawGitCommand(t *testing.T) {
 // asserted, since one refusal answers several questions.
 func TestTheRawGitGuardAsksEachQuestion(t *testing.T) {
 	const imports = "package x\n\nimport (\n\t\"context\"\n\t\"os/exec\"\n)\n\nvar _ = context.Background\n\n"
-	// scrubbed wraps one call so that it passes the Env question, leaving the
-	// case to fail only the question it is about.
+	// scrubbed wraps one call in a function, so that a case differs from the
+	// next by the call alone.
 	scrubbed := func(call string) string {
-		return "func withoutInheritedGit(e []string) []string { return e }\n\nfunc f(sub string) { cmd := " + call + "; cmd.Env = withoutInheritedGit(nil); _, _ = cmd, sub }\n"
+		return "func f(sub string) { cmd := " + call + "; _, _ = cmd, sub }\n"
 	}
 	helperBody := "type throwawayRepo struct{}\n\nfunc (r *throwawayRepo) Git(args ...string) { _ = exec.Command(\"git\", args...) }\n"
 	for _, tc := range []struct {
@@ -441,18 +406,15 @@ func TestTheRawGitGuardAsksEachQuestion(t *testing.T) {
 		{"the same call in another file is refused", "tools/x/y_test.go", imports + helperBody, 0, "spread from a slice"},
 		{"the same call under another method name is refused", throwawayHelperFile, imports + strings.Replace(helperBody, ") Git(", ") Run(", 1), 0, "spread from a slice"},
 		{"a scrubbed literal read is accepted", "tools/x/y_test.go", imports + scrubbed(`exec.Command("git", "ls-files")`), 1, ""},
-		{"a read appended onto the scrubbed environment is accepted", "tools/x/y_test.go", imports + "func f() { cmd := exec.Command(\"git\", \"ls-files\"); cmd.Env = append(withoutInheritedGit(nil), \"GIT_DIR=/d\"); _ = cmd }\n", 1, ""},
+		{"a read bound to no variable is accepted, its environment is the binary's", "internal/x/y_test.go", imports + "func f() { _, _ = exec.Command(\"git\", \"ls-files\").Output() }\n", 1, ""},
 		{"a literal write is refused", "tools/x/y_test.go", imports + scrubbed(`exec.Command("git", "add", "README.md")`), 0, "\"add\" is not a known read"},
 		{"an unknown subcommand is refused, not guessed at", "tools/x/y_test.go", imports + scrubbed(`exec.Command("git", "frobnicate")`), 0, "\"frobnicate\" is not a known read"},
 		{"a read whose subcommand is a variable is refused", "tools/x/y_test.go", imports + scrubbed(`exec.Command("git", sub)`), 0, "not all string literals"},
 		{"an option before a read is refused", "tools/x/y_test.go", imports + scrubbed(`exec.Command("git", "-C", "/elsewhere", "ls-files")`), 0, "option \"-C\" before its subcommand"},
 		{"git with no argument is refused", "tools/x/y_test.go", imports + scrubbed(`exec.Command("git")`), 0, "no subcommand"},
 		{"CommandContext is judged like Command", "tools/x/y_test.go", imports + scrubbed(`exec.CommandContext(context.Background(), "git", "commit")`), 0, "\"commit\" is not a known read"},
-		{"an aliased os/exec is judged like exec", "tools/x/y_test.go", "package x\n\nimport osexec \"os/exec\"\n\nfunc f() { cmd := osexec.Command(\"git\", \"init\"); cmd.Env = withoutInheritedGit(nil); _ = cmd }\n", 0, "\"init\" is not a known read"},
-		{"a read whose Env is inherited is refused", "tools/x/y_test.go", imports + "func f() { cmd := exec.Command(\"git\", \"ls-files\"); _ = cmd }\n", 0, "Env is not assigned from withoutInheritedGit"},
-		{"a read whose Env comes from anything else is refused", "tools/x/y_test.go", imports + "func f() { cmd := exec.Command(\"git\", \"ls-files\"); cmd.Env = append([]string{}, \"A=b\"); _ = cmd }\n", 0, "Env is not assigned from withoutInheritedGit"},
-		{"a scrubbed Env on another command does not count", "tools/x/y_test.go", imports + "func f() { cmd := exec.Command(\"git\", \"ls-files\"); other := exec.Command(\"bash\"); other.Env = withoutInheritedGit(nil); _, _ = cmd, other }\n", 0, "Env is not assigned from withoutInheritedGit"},
-		{"a read bound to no variable is refused", "tools/x/y_test.go", imports + "func f() { _, _ = exec.Command(\"git\", \"ls-files\").Output() }\n", 0, "not bound to a variable"},
+		{"an aliased os/exec is judged like exec", "tools/x/y_test.go", "package x\n\nimport osexec \"os/exec\"\n\nfunc f() { cmd := osexec.Command(\"git\", \"init\"); _ = cmd }\n", 0, "\"init\" is not a known read"},
+		{"a write outside tools/ is refused too", "internal/x/y_test.go", imports + scrubbed(`exec.Command("git", "commit", "-m", "x")`), 0, "\"commit\" is not a known read"},
 		{"another program is not the guard's business", "tools/x/y_test.go", imports + "func f() { _ = exec.Command(\"bash\", \"-c\", \"true\") }\n", 0, ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

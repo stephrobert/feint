@@ -29,6 +29,13 @@ import (
 func TestTheFalsifyHarnessHoldsItsOwnSelftest(t *testing.T) {
 	script := filepath.Join("..", "..", "tools", "falsify", "falsify.py")
 	cmd := exec.Command("python3", "-I", script, "--selftest")
+	// A hook's pair, exported towards a directory under this test's own
+	// temporary tree, never a repository anybody works in. falsify.py must drop
+	// both when it starts (#955) and its selftest must say so by name: without
+	// the export, "no GIT_* left" would hold for a program that drops nothing,
+	// since TestMain has already dropped this binary's own.
+	decoy := filepath.Join(t.TempDir(), "decoy.git")
+	cmd.Env = append(os.Environ(), "GIT_DIR="+decoy, "GIT_INDEX_FILE="+filepath.Join(decoy, "index"))
 	out, err := cmd.CombinedOutput()
 	var exit *exec.ExitError
 	switch {
@@ -42,6 +49,9 @@ func TestTheFalsifyHarnessHoldsItsOwnSelftest(t *testing.T) {
 	}
 	if !strings.Contains(string(out), "the rule refuses all ") {
 		t.Fatalf("falsify.py --selftest exited 0 without its closing sentence, so it may have run nothing:\n%s", out)
+	}
+	if !regexp.MustCompile(`(?m)^ok  the process holds no GIT_\* variable; dropped at start: .*\bGIT_DIR\b.*\bGIT_INDEX_FILE\b`).Match(out) {
+		t.Fatalf("falsify.py --selftest did not say it dropped the GIT_DIR and GIT_INDEX_FILE it was started with (#955):\n%s", out)
 	}
 }
 

@@ -199,13 +199,28 @@ def dropped_identifiers(find, replace):
     return sorted(lost | set(orphaned_by_declaration(find, replace)))
 
 
+class Verdict(int):
+    """An exit code that is a verdict: every mutation of the spec was applied
+    and its test run. main() returns one only from its last line. Every other
+    code it returns, whatever its value, is the ABSENCE of a verdict.
+
+    The number alone cannot say which (#954). A copy red before any mutation
+    used to answer 2 so that the replay could tell it from a guard that stopped
+    biting (1); 2 is drift in this repository (rule 9), and a red tree is not
+    drift. It answers 1 now, like a guard that stopped biting, and what tells
+    them apart is this type, which an int that merely equals 1 does not carry.
+    """
+
+
 def replay_outcome(code):
     """What one spec's exit code means for the replay's tally.
 
-    Three answers, and the middle one is the whole point. Exit 1 is a VERDICT:
-    a mutation applied, compiled, and the test stayed green, so that guard is
-    not guarded. Any other non-zero is the ABSENCE of a verdict: the copy was
-    red before any mutation, or the spec was refused, so nothing was measured.
+    Three answers, and the middle one is the whole point. A Verdict of 1 is a
+    VERDICT: a mutation applied, compiled, and the test stayed green, so that
+    guard is not guarded. Any other non-zero is the ABSENCE of a verdict: the
+    copy was red before any mutation (1, a plain int), or the spec was refused
+    (2), so nothing was measured. Read the value alone and the red copy becomes
+    a broken guard, which is the arithmetic of 2026-09-14 below.
 
     They were added together until 2026-09-14, and a mise shim that would not
     start in the copy turned that arithmetic into "199 of 199 falsifications no
@@ -217,7 +232,7 @@ def replay_outcome(code):
     """
     if code == 0:
         return "bit"
-    if code == 1:
+    if isinstance(code, Verdict):
         return "stopped biting"
     return "not measured"
 
@@ -311,7 +326,17 @@ def unrestored(dst, pristine):
 def refuse(message, code=2):
     """Print why, and hand back 2 by default: what the lint refuses is a spec
     that drifted from the code. A usage error passes code=1 (rule 9: 0 ok, 1
-    error, 2 drift); it used to be 2, which a caller reads as drift."""
+    error, 2 drift); it used to be 2, which a caller reads as drift.
+
+    The line between the two, for every exit of this program (#954): 2 means
+    the fault is in a committed spec and the spec is what to fix (a fragment
+    gone or doubled, a test renamed, a path spelled two ways, a mutation that
+    would not compile or changes nothing, a spec with no mutation). 1 means the
+    fault is anywhere else: the invocation, the tree, the environment, the
+    harness, a guard that stopped biting, or nothing to judge at all. A
+    directory with no spec in it is the last: no spec drifted, there is none.
+    _exit_code_cases() asserts the code and the reason of each outcome it can
+    reach offline."""
     print(f"falsify: {message}", file=sys.stderr)
     return code
 
@@ -376,6 +401,66 @@ ACCEPTED = [
 ]
 
 
+def drop_inherited_git(environ):
+    """Remove every GIT_* variable from `environ` and return their names, sorted.
+
+    Inside a git hook, git exports GIT_DIR and GIT_INDEX_FILE, and a child git
+    obeys them before it looks at its working directory. This program copies
+    the repository WITHOUT .git and runs `go test` in the copy, so a test there
+    that ran git with the hook's variables would write into the repository the
+    hook named, not into the copy (#955; the Go tests measured it on
+    2026-11-14). Dropped once, when the program starts, before any selftest
+    case or any replay: what this protects is whatever runs afterwards, a git
+    called by a script or a program name nobody can read statically.
+    _git_scrub_cases() holds the function and the wiring both.
+    """
+    names = sorted(name for name in environ if name.startswith("GIT_"))
+    for name in names:
+        del environ[name]
+    return names
+
+
+# What drop_inherited_git() removed when this program started; None when the
+# module was not started as a program, so the selftest can say it cannot judge.
+DROPPED_GIT = None
+
+
+def _git_scrub_cases():
+    """One case per question drop_inherited_git() asks, then the wiring.
+
+    The wiring is only measurable with a witness: a process started without any
+    GIT_* passes "none is left" for nothing. TestTheFalsifyHarnessHoldsItsOwnSelftest
+    exports GIT_DIR and GIT_INDEX_FILE (towards a decoy under its own temporary
+    directory) and requires the line below that names GIT_DIR as dropped.
+    """
+    failures = 0
+    for environ, want, why in (
+        ({"GIT_DIR": "/d", "GIT_INDEX_FILE": "/d/i"}, {}, "a variable a hook exports is dropped"),
+        ({"MY_GIT_DIR": "x"}, {"MY_GIT_DIR": "x"}, "GIT_ inside a name is kept"),
+        ({"PATH": "/bin"}, {"PATH": "/bin"}, "an unrelated variable is kept"),
+    ):
+        got = dict(environ)
+        drop_inherited_git(got)
+        if got != want:
+            print(f"!! drop_inherited_git leaves {got!r}, want {want!r}: {why}")
+            failures += 1
+        else:
+            print(f"ok  {why}")
+    left = sorted(name for name in os.environ if name.startswith("GIT_"))
+    if DROPPED_GIT is None:
+        print("!! not started as a program: whether GIT_* was dropped cannot be judged")
+        failures += 1
+    elif left:
+        print(f"!! the process still holds {', '.join(left)}: a git started now obeys a hook")
+        failures += 1
+    else:
+        print(
+            "ok  the process holds no GIT_* variable; dropped at start: "
+            + (", ".join(DROPPED_GIT) or "none was exported")
+        )
+    return failures
+
+
 def selftest():
     """Prove the rule on the four mistakes of 2026-08-15 it was written for.
 
@@ -385,7 +470,8 @@ def selftest():
     place the number could go stale, and CONTRIBUTING.md said three while this
     printed four for long enough to be found by an audit (#937).
     """
-    failures = 0
+    failures = _git_scrub_cases()
+    print()
     for find, replace, why in ACCEPTED:
         lost = dropped_identifiers(find, replace)
         if lost:
@@ -443,6 +529,12 @@ def _selftest_module(tmp, second_package=False, gated=False, panicking=False):
     their cases: 1.43 s to 1.51 s over three runs through `mise run
     falsify:selftest` with GOMAXPROCS=4 GOFLAGS=-p=2, 49 `ok` lines.
 
+    Beside both, on 2026-11-15 with the cases of #954 and #955 and the
+    skipped, anchoring and field-type cases: 2.31 s to 2.39 s over three runs
+    through `mise run falsify:selftest` with GOMAXPROCS=4 GOFLAGS=-p=2, 104
+    `ok` lines. Wall time of the mise task, measured with `date +%s%N` around
+    it, so it includes mise starting; the earlier figures may not.
+
     The module name is a constant, and it makes no difference either way: the
     same measurement under a module name the build cache had never seen cost
     0.54 s, because the cache keys on the bytes compiled and not on the path
@@ -472,6 +564,17 @@ def _selftest_module(tmp, second_package=False, gated=False, panicking=False):
             '\tt.Run("named-sub", func(t *testing.T) {\n'
             '\t\tif !guard() || !a() || !b() {\n\t\t\tt.Fatal("the guard does not hold")\n\t\t}\n'
             "\t})\n}\n"
+        )
+
+    # Two names, one the prefix of the other, and only the longer one catches
+    # a mutation of guard(): what _anchoring_cases() and the lint's
+    # "prefix.json" case need, a name that exists and selects a neighbour.
+    with open(os.path.join(tmp, "p", "loose_test.go"), "w", encoding="utf-8") as fh:
+        fh.write(
+            'package p\n\nimport "testing"\n\n'
+            "func TestLoose(t *testing.T) {}\n\n"
+            "func TestLooseButStrict(t *testing.T) {\n"
+            '\tif !guard() {\n\t\tt.Fatal("the guard does not hold")\n\t}\n}\n'
         )
 
     if gated:
@@ -1091,6 +1194,18 @@ def lint_selftest():
                 "a subtest name no subtest of that parent carries",
                 "but no subtest of it matches 'TestTheGuardHolds/no-such-sub'",
             ),
+            # A name that is only the prefix of a test: unanchored, `-run
+            # TestTheGuardHold` selects TestTheGuardHolds and the lint answers
+            # 0, then the replay measures the neighbour (see anchored()).
+            (
+                subject,
+                "prefix.json",
+                live,
+                "TestTheGuardHold",
+                2,
+                "a name that is only the prefix of a test that exists",
+                "./p/ holds no test matching 'TestTheGuardHold'",
+            ),
             # A `test` field that is not a usable pattern. Not a void verdict but
             # a FALSE one: `go test -run 'TestX('` rejects the pattern and exits
             # non-zero, the replay reads non-zero as "the test bit", and the
@@ -1131,7 +1246,534 @@ def lint_selftest():
     print()
     failures += _replay_reporting_cases()
     print()
+    failures += _exit_code_cases()
+    print()
+    failures += _unreadable_cases()
+    print()
+    failures += _spec_outcome_cases()
+    print()
+    failures += _skipped_cases()
+    print()
+    failures += _anchoring_cases()
+    print()
+    failures += _field_type_cases()
+    print()
     failures += _budget_cases()
+    return failures
+
+
+def _red_toolchain(dst, cmd, extra_env=None):
+    """Stands in for run() in _exit_code_cases(): every command is red, the way
+    a tree that does not pass its tests, or a toolchain that will not start in
+    the copy, answers the baseline."""
+    del dst, extra_env
+    return subprocess.CompletedProcess(cmd, 1, "selftest: the copy is red\n", "")
+
+
+def _exit_code_cases():
+    """The code AND the reason of the outcomes #954 moved from 2 to 1.
+
+    Neither is drift: a directory with no spec holds no spec that could have
+    drifted, and a copy red before any mutation is the tree or the environment.
+    Each case is one outcome, and each asserts the words its branch prints,
+    because 1 answers several questions.
+
+    The red copy is driven through main() and replay_all(), the real reader,
+    with run() replaced by _red_toolchain() so that this stays offline: what is
+    measured is what the harness does with a red baseline, not why it is red.
+    Read replay_outcome() by the value again and the replay case reports the
+    spec as no longer holding; that is the regression it holds.
+    """
+    failures = 0
+
+    def check(got, said, want, reason, why):
+        if got != want or reason not in said:
+            print(f"!! answers {got} on {why}, want {want} saying {reason!r}. It said:")
+            for line in said.strip().splitlines()[:4]:
+                print(f"   {line}")
+            return 1
+        print(f"ok  answers {got} on {why}: {reason}")
+        return 0
+
+    with tempfile.TemporaryDirectory() as empty:
+        for fn, label in ((lint, "--lint"), (replay_all, "--all")):
+            said = io.StringIO()
+            with contextlib.redirect_stderr(said), contextlib.redirect_stdout(io.StringIO()):
+                got = fn(empty)
+            failures += check(
+                got, said.getvalue(), 1, "holds no spec", f"{label} over a directory with no spec"
+            )
+
+    with tempfile.TemporaryDirectory() as tmp:
+        _selftest_module(tmp)
+        specs = os.path.join(tmp, "specs")
+        os.mkdir(specs)
+        spec = _one_spec(
+            specs,
+            "red-copy.json",
+            package="./p/",
+            file="p/subject.go",
+            find="func guard() bool { return true }",
+            test="TestTheGuardHolds",
+        )
+        here, real_run = os.getcwd(), globals()["run"]
+        try:
+            os.chdir(tmp)
+            globals()["run"] = _red_toolchain
+            said, out = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stderr(said), contextlib.redirect_stdout(io.StringIO()):
+                got = main([argv0, spec])
+            failures += check(
+                got,
+                said.getvalue(),
+                1,
+                "red before any mutation",
+                "a single spec whose copy is red before any mutation",
+            )
+            if isinstance(got, Verdict):
+                print("!! a red copy came back as a Verdict: the replay counts it a broken guard")
+                failures += 1
+            with contextlib.redirect_stderr(io.StringIO()), contextlib.redirect_stdout(out):
+                got = replay_all(specs)
+            tally = out.getvalue()
+            if got != 1 or "1 of 1 were NOT MEASURED" not in tally or "no longer hold" in tally:
+                print(f"!! the replay answers {got} over one red copy and tallies it as:")
+                for line in tally.strip().splitlines()[-4:]:
+                    print(f"   {line}")
+                failures += 1
+            else:
+                print("ok  the replay answers 1 over a red copy and tallies it NOT MEASURED")
+
+            # The other half, which keeps the first honest: a guard that stopped
+            # biting is still a verdict. With every command green, the mutation
+            # applies and its test stays green, which is TEST STILL PASSED.
+            # Without this case, a last line that lost its Verdict would turn
+            # every broken guard into "not measured" and no case would notice.
+            globals()["run"] = _green_toolchain
+            out = io.StringIO()
+            with contextlib.redirect_stderr(io.StringIO()), contextlib.redirect_stdout(out):
+                got = replay_all(specs)
+            tally = out.getvalue()
+            if got != 1 or "1 of 1 falsifications no longer hold" not in tally:
+                print(f"!! the replay answers {got} over a test that stayed green, tallied as:")
+                for line in tally.strip().splitlines()[-4:]:
+                    print(f"   {line}")
+                failures += 1
+            else:
+                print("ok  the replay answers 1 over a test that stayed green and calls it broken")
+        finally:
+            globals()["run"] = real_run
+            BASELINES.clear()
+            os.chdir(here)
+    return failures
+
+
+def _unreadable_cases():
+    """A malformed spec, and a directory that is not one (#954): code and reason.
+
+    A malformed spec is a fault in the spec, so 2, naming the file, the line
+    and the column; and `--all` goes on to the next spec and counts this one as
+    not measured, where it used to die on a traceback. A missing directory is
+    an error of the call, so 1, said in a sentence instead of a traceback.
+    """
+    failures = 0
+
+    def check(got, said, want, reason, why):
+        if got != want or reason not in said:
+            print(f"!! answers {got} on {why}, want {want} saying {reason!r}. It said:")
+            for line in said.strip().splitlines()[:4]:
+                print(f"   {line}")
+            return 1
+        print(f"ok  answers {got} on {why}: {reason}")
+        return 0
+
+    with tempfile.TemporaryDirectory() as tmp:
+        for fn, label in ((lint, "--lint"), (replay_all, "--all")):
+            said = io.StringIO()
+            with contextlib.redirect_stderr(said), contextlib.redirect_stdout(io.StringIO()):
+                got = fn(os.path.join(tmp, "nowhere"))
+            failures += check(
+                got, said.getvalue(), 1, "is not a directory", f"{label} over a missing directory"
+            )
+
+        _selftest_module(tmp)
+        specs = os.path.join(tmp, "specs")
+        os.mkdir(specs)
+        with open(os.path.join(specs, "a-broken.json"), "w", encoding="utf-8") as fh:
+            fh.write('{\n  "mutations": [\n    {"label": "x",\n  ]\n}\n')
+        broken_at = "a-broken.json:4:3: is not valid JSON"
+        for name, body, reason, why in (
+            ("b-list.json", "[]", "holds a JSON list", "a spec that is a JSON list"),
+            (
+                "c-shape.json",
+                '{"mutations": ["x"]}',
+                "is not a list of objects",
+                "a mutation that is a string",
+            ),
+        ):
+            with open(os.path.join(specs, name), "w", encoding="utf-8") as fh:
+                fh.write(body)
+            said = io.StringIO()
+            with contextlib.redirect_stderr(said), contextlib.redirect_stdout(io.StringIO()):
+                got = main([argv0, os.path.join(specs, name)])
+            failures += check(got, said.getvalue(), 2, reason, f"a single spec: {why}")
+            os.remove(os.path.join(specs, name))
+
+        said = io.StringIO()
+        with contextlib.redirect_stderr(said), contextlib.redirect_stdout(io.StringIO()):
+            got = main([argv0, os.path.join(specs, "a-broken.json")])
+        failures += check(got, said.getvalue(), 2, broken_at, "a single malformed spec")
+
+        # A live spec AFTER the broken one, in the same directory: the lint
+        # must name the broken one and still judge the other, and the replay
+        # must reach the other.
+        _one_spec(
+            specs,
+            "z-live.json",
+            package="./p/",
+            file="p/subject.go",
+            find="func guard() bool { return true }",
+            test="TestTheGuardHolds",
+        )
+        here, real_run = os.getcwd(), globals()["run"]
+        try:
+            os.chdir(tmp)
+            said = io.StringIO()
+            with contextlib.redirect_stderr(said), contextlib.redirect_stdout(io.StringIO()):
+                got = lint(specs, tmp)
+            failures += check(got, said.getvalue(), 2, broken_at, "--lint over a malformed spec")
+            globals()["run"] = _red_toolchain
+            out = io.StringIO()
+            with contextlib.redirect_stderr(io.StringIO()), contextlib.redirect_stdout(out):
+                got = replay_all(specs)
+            tally = out.getvalue()
+            want = "2 of 2 were NOT MEASURED: a-broken.json, z-live.json"
+            if got != 1 or want not in tally:
+                print(f"!! the replay answers {got} past a malformed spec, tallied as:")
+                for line in tally.strip().splitlines()[-4:]:
+                    print(f"   {line}")
+                failures += 1
+            else:
+                print("ok  the replay goes past a malformed spec and counts it NOT MEASURED")
+        finally:
+            globals()["run"] = real_run
+            BASELINES.clear()
+            os.chdir(here)
+
+        # A mutation that does not build, end to end: `go vet` red, everything
+        # else green. Not a Verdict, and the reason says so.
+        def vet_red(dst, cmd, extra_env=None):
+            del dst, extra_env
+            code = 1 if cmd[:2] == ["go", "vet"] else 0
+            return subprocess.CompletedProcess(cmd, code, "selftest\n", "selftest: vet\n")
+
+        try:
+            os.chdir(tmp)
+            globals()["run"] = vet_red
+            said = io.StringIO()
+            with contextlib.redirect_stderr(said), contextlib.redirect_stdout(io.StringIO()):
+                got = main([argv0, os.path.join(specs, "z-live.json")])
+            failures += check(
+                got,
+                said.getvalue(),
+                1,
+                "did not build",
+                "a mutation that does not build",
+            )
+            if isinstance(got, Verdict):
+                print("!! a mutation that did not build came back as a Verdict")
+                failures += 1
+        finally:
+            globals()["run"] = real_run
+            BASELINES.clear()
+            os.chdir(here)
+    return failures
+
+
+def _spec_outcome_cases():
+    """One row per question spec_outcome() asks, the reason asserted where one is given.
+
+    The broken restore is held here and not end to end: making a restore fail
+    for real needs a file the harness cannot write, which takes the run down
+    rather than through this branch.
+    """
+    bit = ("a", "the test bit", "yes")
+    still = ("b", "TEST STILL PASSED", "yes")
+    void = ("c", "DID NOT COMPILE (void)", "no")
+    absent = ("d", "DID NOT APPLY", "-")
+    skipped = ("e", SKIPPED, "yes")
+    failures = 0
+    for verdicts, broken, want, typed, reason, why in (
+        ([bit], [], 0, True, None, "every mutation bit: a verdict, green"),
+        ([bit, still], [], 1, True, None, "a test stayed green: a verdict, red"),
+        ([bit, void], [], 1, False, "did not build", "a mutation did not build"),
+        ([bit, absent], [], 1, False, "did not apply", "a mutation did not apply"),
+        ([bit, skipped], [], 1, False, "its test was skipped", "a test skipped or never ran"),
+        ([bit], ["p/x.go"], 1, False, "the restore broke (p/x.go)", "the restore broke"),
+        ([still, void], [], 1, True, None, "a measured green test outranks a void sibling"),
+        ([still], ["p/x.go"], 1, False, "the restore broke", "a broken restore outranks a verdict"),
+    ):
+        code, said = spec_outcome(verdicts, broken)
+        ok = code == want and isinstance(code, Verdict) == typed
+        ok = ok and (
+            reason is None and said is None or reason is not None and reason in (said or "")
+        )
+        if not ok:
+            print(f"!! spec_outcome answers ({code!r}, {said!r}) on {why}")
+            failures += 1
+        else:
+            print(f"ok  spec_outcome: {why}")
+    return failures
+
+
+def _green_toolchain(dst, cmd, extra_env=None):
+    """Stands in for run() in _exit_code_cases(): every command is green, so a
+    mutation applies, compiles, and its test does not notice. The test run
+    says the test passed, the way `go test -v` does, since a green run that
+    names no test is not a verdict (passed_leaves)."""
+    del dst, extra_env
+    said = "--- PASS: TestTheGuardHolds (0.00s)\nPASS\n" if "-run" in cmd else ""
+    return subprocess.CompletedProcess(cmd, 0, said + "selftest: green\n", "")
+
+
+def _skipping_toolchain(dst, cmd, extra_env=None):
+    """Like _green_toolchain(), but the test the mutation names calls t.Skip."""
+    del dst, extra_env
+    said = "--- SKIP: TestTheGuardHolds (0.00s)\nPASS\n" if "-run" in cmd else ""
+    return subprocess.CompletedProcess(cmd, 0, said, "")
+
+
+def _loose_toolchain(dst, cmd, extra_env=None):
+    """Stands in for run() with Go's selection: `-run` is searched, unanchored,
+    in TestLoose and TestLooseButStrict. TestLooseButStrict catches the
+    mutation and TestLoose does not, so the run is red whenever the pattern
+    reaches the neighbour."""
+    del dst, extra_env
+    if "-run" not in cmd:
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+    pattern = cmd[cmd.index("-run") + 1]
+    if re.search(pattern, "TestLooseButStrict"):
+        return subprocess.CompletedProcess(cmd, 1, "--- FAIL: TestLooseButStrict (0.00s)\n", "")
+    return subprocess.CompletedProcess(cmd, 0, "--- PASS: TestLoose (0.00s)\nPASS\n", "")
+
+
+def _driven(fn, *args):
+    """(answer, stdout, stderr) of fn(*args), with both streams captured."""
+    out, err = io.StringIO(), io.StringIO()
+    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+        got = fn(*args)
+    return got, out.getvalue(), err.getvalue()
+
+
+def _skipped_cases():
+    """A green run whose named test never ran to a PASS is not a verdict.
+
+    passed_leaves() row by row, then end to end through main() and replay_all()
+    with run() replaced: a test that calls t.Skip must come back a plain 1 with
+    its reason, tallied NOT MEASURED, where it used to be TEST STILL PASSED and
+    "no longer hold". _exit_code_cases() holds the accepting half: the same run
+    reporting a PASS is still a Verdict.
+    """
+    failures = 0
+    for out, pattern, want, why in (
+        ("--- PASS: TestX (0.00s)\n", "^TestX$", ["TestX"], "a test that passed is measured"),
+        ("--- SKIP: TestX (0.00s)\n", "^TestX$", [], "a test that skipped is not"),
+        ("", "^TestX$", [], "a run that names no test is not"),
+        (
+            "--- PASS: TestX (0.00s)\n    --- SKIP: TestX/sub (0.00s)\n",
+            "^TestX$",
+            [],
+            "a parent whose only subtest skipped measured nothing",
+        ),
+        (
+            "--- PASS: TestXY (0.00s)\n",
+            "^TestX$",
+            [],
+            "a neighbour the pattern does not select is not the test",
+        ),
+        (
+            "--- SKIP: TestX (0.00s)\n--- PASS: TestX (0.00s)\n",
+            "^TestX$",
+            ["TestX"],
+            "one PASS among -count runs is enough",
+        ),
+    ):
+        got = passed_leaves(pattern, out)
+        if got != want:
+            print(f"!! passed_leaves answers {got} where {why}")
+            failures += 1
+        else:
+            print(f"ok  passed_leaves: {why}")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        _selftest_module(tmp)
+        specs = os.path.join(tmp, "specs")
+        os.mkdir(specs)
+        spec = _one_spec(
+            specs,
+            "skipped.json",
+            package="./p/",
+            file="p/subject.go",
+            find="func guard() bool { return true }",
+            test="TestTheGuardHolds",
+        )
+        here, real_run = os.getcwd(), globals()["run"]
+        try:
+            os.chdir(tmp)
+            globals()["run"] = _skipping_toolchain
+            got, _, said = _driven(main, [argv0, spec])
+            if got != 1 or isinstance(got, Verdict) or "its test was skipped" not in said:
+                print(f"!! a skipped test answers {got!r} ({type(got).__name__}), saying: {said!r}")
+                failures += 1
+            else:
+                print("ok  a skipped test answers a plain 1: its test was skipped")
+            got, tally, _ = _driven(replay_all, specs)
+            if got != 1 or "1 of 1 were NOT MEASURED" not in tally or "no longer hold" in tally:
+                print(f"!! the replay answers {got} over a skipped test and tallies it as:")
+                for line in tally.strip().splitlines()[-4:]:
+                    print(f"   {line}")
+                failures += 1
+            else:
+                print("ok  the replay tallies a skipped test NOT MEASURED, not broken")
+        finally:
+            globals()["run"] = real_run
+            BASELINES.clear()
+            os.chdir(here)
+    return failures
+
+
+def _anchoring_cases():
+    """A declared name selects that test and no neighbour (anchored()).
+
+    Row by row, then through the replay, where it decides a verdict: TestLoose
+    does not catch the mutation and TestLooseButStrict does, so an unanchored
+    `-run TestLoose` reports "the test bit" and the spec exits 0 having proved
+    nothing about TestLoose. Anchored, the spec is a Verdict(1), TEST STILL
+    PASSED, which is the truth about TestLoose. The lint half is the
+    "prefix.json" case of lint_selftest().
+    """
+    failures = 0
+    for pattern, want, why in (
+        ("TestX", "^TestX$", "a plain name is anchored"),
+        ("TestX/named-sub", "^TestX$/^named-sub$", "each level of a plain name is anchored"),
+        ("^TestX$", "^TestX$", "an anchored name is left as written"),
+        ("TestX/a|TestX/b", "TestX/a|TestX/b", "an alternation across levels is left as written"),
+        ("TestA|TestB", "TestA|TestB", "an alternation is left as written"),
+    ):
+        got = anchored(pattern)
+        if got != want:
+            print(f"!! anchored({pattern!r}) is {got!r}: {why}")
+            failures += 1
+        else:
+            print(f"ok  anchored: {why}")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        _selftest_module(tmp)
+        specs = os.path.join(tmp, "specs")
+        os.mkdir(specs)
+        spec = _one_spec(
+            specs,
+            "loose.json",
+            package="./p/",
+            file="p/subject.go",
+            find="func guard() bool { return true }",
+            test="TestLoose",
+        )
+        here, real_run = os.getcwd(), globals()["run"]
+        try:
+            os.chdir(tmp)
+            globals()["run"] = _loose_toolchain
+            got, out, _ = _driven(main, [argv0, spec])
+            if not isinstance(got, Verdict) or got != 1 or "TEST STILL PASSED" not in out:
+                print(
+                    f"!! a name its neighbour extends answers {got!r}: the neighbour's bite counted"
+                )
+                failures += 1
+            else:
+                print("ok  a name its neighbour extends is replayed alone: TEST STILL PASSED")
+        finally:
+            globals()["run"] = real_run
+            BASELINES.clear()
+            os.chdir(here)
+    return failures
+
+
+def _field_type_cases():
+    """One case per type question field_problem() asks, through main() and
+    then through `--all`, which must go on to the next spec (#954)."""
+    failures = 0
+    live = {
+        "label": "selftest typed",
+        "file": "p/subject.go",
+        "find": "func guard() bool { return true }",
+        "replace": "func guard() bool { return true && false }",
+        "test": "TestTheGuardHolds",
+    }
+    cases = (
+        (
+            "a-repeat.json",
+            {"package": "./p/", "mutations": [{**live, "repeat": "deux"}]},
+            'mutation 1: `repeat` is "deux"',
+            "a repeat that is a word",
+        ),
+        (
+            "b-env.json",
+            {"package": "./p/", "env": {"X": 1}, "mutations": [live]},
+            'the spec: `env` is {"X": 1}',
+            "an env value that is a number",
+        ),
+        (
+            "c-test.json",
+            {"package": "./p/", "mutations": [{**live, "test": 5}]},
+            "mutation 1: `test` is 5, not a string",
+            "a test that is a number",
+        ),
+        (
+            "d-flag.json",
+            {"package": "./p/", "repeat": True, "mutations": [live]},
+            "the spec: `repeat` is true",
+            "a repeat that is a boolean",
+        ),
+    )
+    with tempfile.TemporaryDirectory() as tmp:
+        _selftest_module(tmp)
+        specs = os.path.join(tmp, "specs")
+        os.mkdir(specs)
+        for name, body, _reason, _why in cases:
+            with open(os.path.join(specs, name), "w", encoding="utf-8") as fh:
+                json.dump(body, fh)
+        with open(os.path.join(specs, "z-live.json"), "w", encoding="utf-8") as fh:
+            json.dump({"package": "./p/", "repeat": 2, "env": {"X": "1"}, "mutations": [live]}, fh)
+        _, why = load_spec(os.path.join(specs, "z-live.json"))
+        if why:
+            print(f"!! a spec with a whole repeat and a text env is refused: {why}")
+            failures += 1
+        else:
+            print("ok  a spec with a whole repeat and a text env is read")
+        here, real_run = os.getcwd(), globals()["run"]
+        try:
+            os.chdir(tmp)
+            globals()["run"] = _green_toolchain
+            for name, _, reason, why in cases:
+                got, _, said = _driven(main, [argv0, os.path.join(specs, name)])
+                if got != 2 or reason not in said:
+                    print(f"!! answers {got} on {why}, want 2 saying {reason!r}. It said: {said!r}")
+                    failures += 1
+                else:
+                    print(f"ok  answers 2 on {why}: {reason}")
+            got, tally, _ = _driven(replay_all, specs)
+            want = "4 of 5 were NOT MEASURED"
+            if got != 1 or want not in tally or "no longer hold: z-live.json" not in tally:
+                print(f"!! the replay answers {got} past four mistyped specs, tallied as:")
+                for line in tally.strip().splitlines()[-4:]:
+                    print(f"   {line}")
+                failures += 1
+            else:
+                print("ok  the replay goes past four mistyped specs and still judges the fifth")
+        finally:
+            globals()["run"] = real_run
+            BASELINES.clear()
+            os.chdir(here)
     return failures
 
 
@@ -1284,12 +1926,14 @@ def _replay_reporting_cases():
 
     # An absence of measurement must not be spelled as a verdict. The two lists
     # are built from the same exit codes the replay reads, so folding the
-    # branches back together fails this.
+    # branches back together fails this. The second row is #954: the red copy
+    # answers the same number as a guard that stopped biting, and only the
+    # type tells them apart.
     for code, want, why in (
-        (1, "stopped biting", "a mutation that applied and left its test green is a verdict"),
-        (2, "not measured", "a copy red before any mutation measured no guard"),
-        (3, "not measured", "a refused spec measured no guard either"),
-        (0, "bit", "a mutation that bit is neither failed nor unmeasured"),
+        (Verdict(1), "stopped biting", "a mutation applied, its test still green: a verdict"),
+        (1, "not measured", "a copy red before any mutation measured nothing, at 1"),
+        (2, "not measured", "a refused spec measured no guard either"),
+        (Verdict(0), "bit", "a mutation that bit is neither failed nor unmeasured"),
     ):
         got = replay_outcome(code)
         if got != want:
@@ -1404,6 +2048,77 @@ def _budget_cases():
             print("ok  a file that came back byte for byte is not named")
 
     return failures
+
+
+def load_spec(path):
+    """(spec, None), or (None, why) when `path` does not hold a spec this harness can read.
+
+    A malformed spec used to reach json.load() bare: `--lint` and `--all` died
+    on a traceback, and `--all` stopped at that spec without replaying the ones
+    after it (#954). The fault is in a committed spec, so the caller refuses it
+    with 2 and names the file, the line and the column. A document that parses
+    and is not the shape a spec has is refused the same way, rather than
+    failing later on an AttributeError: an unrecognised shape must refuse.
+    """
+    try:
+        with open(path, encoding="utf-8") as fh:
+            spec = json.load(fh)
+    except json.JSONDecodeError as err:
+        return None, f"{path}:{err.lineno}:{err.colno}: is not valid JSON ({err.msg})"
+    except UnicodeDecodeError as err:
+        return None, f"{path}: is not UTF-8 text ({err.reason} at byte {err.start})"
+    mutations = spec.get("mutations") if isinstance(spec, dict) else None
+    if not isinstance(spec, dict):
+        return None, f"{path}: holds a JSON {type(spec).__name__}, not the object a spec is"
+    if mutations is not None and not (
+        isinstance(mutations, list) and all(isinstance(m, dict) for m in mutations)
+    ):
+        return None, f"{path}: `mutations` is not a list of objects"
+    holders = [("the spec", spec)]
+    holders += [(f"mutation {i + 1}", m) for i, m in enumerate(mutations or [])]
+    for where, holder in holders:
+        why = field_problem(holder)
+        if why:
+            return None, f"{path}: {where}: {why}"
+    return spec, None
+
+
+# The fields read as text. A number in one of them reached `in` or `+` and
+# died on a TypeError.
+STRING_FIELDS = ("label", "file", "find", "replace", "test", "package")
+
+
+def field_problem(holder):
+    """Why one object of a spec (the spec itself or a mutation) has a field of
+    the wrong type, or None.
+
+    `"repeat": "deux"` reached int() in the middle of a replay and `"env":
+    {"X": 1}` reached subprocess as an environment value: a ValueError and a
+    TypeError, each a traceback that killed `--all` at that spec (measured by
+    a falsifier on 2026-11-15). The fault is in the spec, so it is refused
+    with 2 before anything is copied, and `--all` goes on to the next spec.
+    _field_type_cases() asks each question with its own case.
+    """
+    for key in STRING_FIELDS:
+        if key in holder and not isinstance(holder[key], str):
+            return f"`{key}` is {json.dumps(holder[key])}, not a string"
+    if "repeat" in holder:
+        repeat = holder["repeat"]
+        if isinstance(repeat, bool) or not isinstance(repeat, int) or repeat < 1:
+            return f"`repeat` is {json.dumps(repeat)}, not a whole number of runs, at least 1"
+    if "env" in holder:
+        env = holder["env"]
+        if not isinstance(env, dict) or not all(isinstance(v, str) for v in env.values()):
+            return f"`env` is {json.dumps(env)}, not an object whose every value is a string"
+    return None
+
+
+def not_a_directory(directory):
+    """The reason `directory` cannot hold specs, or None. It was a
+    FileNotFoundError traceback (#954): exit 1 already, and unreadable."""
+    if os.path.isdir(directory):
+        return None
+    return f"{directory}: is not a directory, so there is no spec to read"
 
 
 def every_spec(directory):
@@ -1560,6 +2275,63 @@ def names_a_subtest(pattern):
 # TestA/sub (0.00s)`. SKIP counts as ran: a subtest that skips exists, and the
 # question here is existence, not outcome.
 RAN = re.compile(r"^\s*--- (?:PASS|FAIL|SKIP): (\S+)")
+
+# The characters that make a `-run` element a regular expression rather than a
+# name. An element holding none of them is a name.
+REGEX_META = frozenset("\\.^$*+?()[]{}|")
+
+
+def anchored(pattern):
+    """The `-run` pattern a declared test name is handed to `go test` as.
+
+    `-run` is an unanchored regular expression, element by element, so `go test
+    -run TestLoose` also runs TestLooseButStrict. A mutation TestLoose does not
+    catch then reads "the test bit" because its neighbour failed, and the spec
+    exits 0 having proved nothing about the test it names: measured by a
+    falsifier on 2026-11-15. So a declared name whose every element is a plain
+    name is anchored element by element (`^TestX$/^sub$`). A pattern holding
+    any regular-expression character is the author's own and goes through
+    unchanged, because an alternation across levels (`TestX/a|TestX/b`, which
+    committed specs use) means something else once each element is anchored.
+
+    Both the lint and the replay ask with this, so a name that is only the
+    prefix of a test is refused by the lint rather than replayed against its
+    neighbour. Measured before it was wired, on 2026-11-15 at bd56053 plus this
+    lot: `mise run falsify:lint` over the 257 committed specs answers 0 with
+    the anchoring and with it removed, so no committed name relied on a prefix.
+    _anchoring_cases() fails without it, through the lint and through the replay.
+    """
+    elems = run_elements(pattern)
+    if any(not e or REGEX_META & set(e) for e in elems):
+        return pattern
+    return "/".join(f"^{e}$" for e in elems)
+
+
+# A `-v` result line, with its outcome.
+RESULT = re.compile(r"^\s*--- (PASS|FAIL|SKIP): (\S+)")
+
+
+def passed_leaves(pattern, stdout):
+    """The tests `-run pattern` selected that ran to a PASS, deepest level only.
+
+    A green `go test` is a verdict only if the test it names ran. It exits 0
+    when that test calls t.Skip, and when nothing was selected at all, and the
+    replay read both as TEST STILL PASSED, so `--all` said "no longer hold" over
+    a test that measured nothing (measured by a falsifier on 2026-11-15). A
+    parent whose every selected subtest skipped measured nothing either, so
+    only the deepest selected names count. With -count=N each name is printed N
+    times, and one PASS is enough.
+    """
+    status = {}
+    for line in stdout.splitlines():
+        m = RESULT.match(line)
+        if m and selects(pattern, m.group(2)) and status.get(m.group(2)) != "PASS":
+            status[m.group(2)] = m.group(1)
+    return sorted(
+        name
+        for name, outcome in status.items()
+        if outcome == "PASS" and not any(other.startswith(name + "/") for other in status)
+    )
 
 
 def ran_under(parent, pkg, root, env=()):
@@ -1763,7 +2535,7 @@ def _checked_under(entries, env, root):
         names = set()
         for path in covered_paths(pkg, module, by_path):
             names |= by_path[path]
-        head = top_level_pattern(test)
+        head = top_level_pattern(anchored(test))
         try:
             rx = re.compile(head)
         except re.error as exc:
@@ -1812,9 +2584,9 @@ def _checked_under(entries, env, root):
     for origin, label, test, pkg, _ in [] if err else entries:
         if not names_a_subtest(test) or (label, test, pkg) in already:
             continue  # no subtest named, or its top level is already named above
-        parent = top_level_pattern(test)
+        parent = top_level_pattern(anchored(test))
         entered, doubt = ran_under(parent, pkg, root, env)
-        if any(selects(test, full) for full in entered):
+        if any(selects(anchored(test), full) for full in entered):
             continue
         missing.append(
             (
@@ -1930,14 +2702,20 @@ def lint(directory, root="."):
     `root` is the tree the packages are resolved in; the selftest points it at a
     module of its own so this function is driven rather than imitated.
     """
+    absent = not_a_directory(directory)
+    if absent:
+        return refuse(absent, code=1)
     specs = every_spec(directory)
     if not specs:
-        return refuse(f"{directory} holds no spec, so this checked nothing")
+        return refuse(f"{directory} holds no spec, so this checked nothing", code=1)
 
-    stale, entries = [], []
+    stale, entries, malformed, count = [], [], [], 0
     for path in specs:
-        with open(path, encoding="utf-8") as fh:
-            spec = json.load(fh)
+        spec, why = load_spec(path)
+        if why:
+            malformed.append(why)
+            continue
+        count += len(spec.get("mutations") or [])
         entries += entries_of(spec, path)
         for m in spec.get("mutations") or []:
             why = path_problem(m.get("file"), root) or fragment_problem(
@@ -1946,6 +2724,14 @@ def lint(directory, root="."):
             if why:
                 stale.append((path, m.get("label", "?"), why))
 
+    if malformed:
+        print(
+            f"falsify: {len(malformed)} spec(s) cannot be read, so none of their mutations "
+            "is measured:",
+            file=sys.stderr,
+        )
+        for why in malformed:
+            print(f"  {why}", file=sys.stderr)
     if stale:
         print(
             f"falsify: {len(stale)} declared mutation(s) no longer apply. The code moved and "
@@ -1959,6 +2745,7 @@ def lint(directory, root="."):
             "mutation and say in the spec why it no longer has a subject.",
             file=sys.stderr,
         )
+    if malformed or stale:
         return 2
 
     # The fourth state, and it is neither of the three the replay already draws.
@@ -1985,10 +2772,6 @@ def lint(directory, root="."):
         )
         return 2
 
-    count = 0
-    for path in specs:
-        with open(path, encoding="utf-8") as fh:
-            count += len(json.load(fh).get("mutations") or [])
     print(f"every declared fragment still applies: {count} mutation(s) across {len(specs)} spec(s)")
     subs = sum(1 for _, _, test, _, _ in entries if names_a_subtest(test))
     print(
@@ -2011,15 +2794,20 @@ def replay_all(directory):
     failure and not a skip: code moved under it, so it has silently stopped
     measuring, which is the exact thing this replay exists to catch.
     """
+    absent = not_a_directory(directory)
+    if absent:
+        return refuse(absent, code=1)
     specs = every_spec(directory)
     if not specs:
-        return refuse(f"{directory} holds no spec, so a replay would measure nothing")
+        return refuse(f"{directory} holds no spec, so a replay would measure nothing", code=1)
 
     print(f"replaying {len(specs)} falsification(s)\n")
-    # Two outcomes that must never be added together. Exit 1 is a verdict: a
-    # mutation applied, compiled, and the test stayed green, so that guard is
-    # not guarded. Exit 2 is the ABSENCE of a verdict: the copy was red before
-    # any mutation, or the spec was refused, so nothing was measured at all.
+    # Two outcomes that must never be added together. A Verdict of 1 is a
+    # verdict: a mutation applied, compiled, and the test stayed green, so that
+    # guard is not guarded. Anything else non-zero is the ABSENCE of a verdict:
+    # the copy was red before any mutation (a plain 1 since #954), or the spec
+    # was refused (2), so nothing was measured at all. replay_outcome() tells
+    # them apart by type, because the value no longer can.
     #
     # They were counted as one, and on 2026-09-14 a mise shim that would not
     # start in the copy turned into "199 of 199 falsifications no longer hold" —
@@ -2045,9 +2833,12 @@ def replay_all(directory):
     if unmeasured:
         print(f"{len(unmeasured)} of {len(specs)} were NOT MEASURED: {', '.join(unmeasured)}")
         print(
-            "A copy that is red before any mutation measures no guard, so these say "
-            "nothing about the guards they name. Read the first failure above: it is "
-            "the harness or the environment, not the subject."
+            "A spec refused or unreadable, a copy red before any mutation, a mutation "
+            "that did not apply or did not build, a test that was skipped or never ran, "
+            "a restore that broke: none of these "
+            "measures a guard, so these say nothing about the guards they name. Read "
+            "the reason above each: it is the spec, the harness or the environment, "
+            "not the subject."
         )
     if failed:
         print(f"{len(failed)} of {len(specs)} falsifications no longer hold: {', '.join(failed)}")
@@ -2082,8 +2873,9 @@ def main(argv):
     spec_path = argv[1]
     if not os.path.isfile(spec_path):
         return refuse(f"{spec_path}: is not a regular file, so there is no spec to read", code=1)
-    with open(spec_path, encoding="utf-8") as fh:
-        spec = json.load(fh)
+    spec, why = load_spec(spec_path)
+    if why:
+        return refuse(why)
 
     mutations = spec.get("mutations") or []
     if not mutations:
@@ -2180,7 +2972,10 @@ def main(argv):
             )
             print(base.stdout[-2500:], file=sys.stderr)
             shutil.rmtree(dst, ignore_errors=True)
-            return 2
+            # 1 and not 2: the tree or the environment is red, no spec drifted.
+            # A plain int, not a Verdict, so the replay counts it as not
+            # measured (replay_outcome).
+            return 1
         BASELINES[key] = True
         print("baseline: green\n")
 
@@ -2219,12 +3014,20 @@ def main(argv):
             # A spec whose subject is a race declares `repeat`, and the odds of
             # a false green fall from p to p**n.
             repeat = int(m.get("repeat") or spec.get("repeat") or 1)
-            res = run(dst, ["go", "test", f"-count={repeat}", "-run", m["test"], pkg], spec_env)
-            bit = res.returncode != 0
-            verdicts.append((m["label"], "the test bit" if bit else "TEST STILL PASSED", "yes"))
+            # Anchored, and read with -v: see anchored() and passed_leaves().
+            # _anchoring_cases() and _skipped_cases() fail without each.
+            pattern = anchored(m["test"])
+            res = run(dst, ["go", "test", f"-count={repeat}", "-run", pattern, "-v", pkg], spec_env)
+            if res.returncode != 0:
+                verdict, said = "the test bit", "red"
+            elif passed_leaves(pattern, res.stdout):
+                verdict, said = "TEST STILL PASSED", "STILL GREEN"
+            else:
+                verdict, said = SKIPPED, "green, but no test it names ran to a PASS: NOT MEASURED"
+            verdicts.append((m["label"], verdict, "yes"))
             print(
-                f"{'ok ' if bit else '!! '}{m['label']}\n    {m['test']}: "
-                f"{'red' if bit else 'STILL GREEN'}\n"
+                f"{'ok ' if verdict == 'the test bit' else '!! '}{m['label']}\n    {pattern}: "
+                f"{said}\n"
             )
 
         with open(path, "w", encoding="utf-8") as fh:
@@ -2246,9 +3049,55 @@ def main(argv):
         print(final.stdout[-2000:], file=sys.stderr)
     shutil.rmtree(dst, ignore_errors=True)
 
-    everything_bit = all(v[1] == "the test bit" for v in verdicts)
-    return 0 if (everything_bit and ok_final) else 1
+    code, why = spec_outcome(verdicts, broken)
+    if why:
+        print(f"falsify: {why}", file=sys.stderr)
+    return code
+
+
+def spec_outcome(verdicts, broken):
+    """(exit code, reason) of one spec's run, from its verdicts and its restore.
+
+    Only a mutation that applied, built, and whose test ran is a verdict
+    (Verdict). A mutation that did not apply or did not build measured nothing,
+    and so did one whose test was skipped or never ran (SKIPPED, since a
+    falsifier measured it reported as a broken guard on 2026-11-15),
+    and neither did a run whose restore broke, since the copy every later test
+    ran in is then not the tree the baseline was green on. They were all a
+    Verdict(1) until #954, so the replay tallied a harness fault as a guard that
+    stopped biting. They answer a plain 1 now: an error of the run, read by
+    replay_outcome() as not measured.
+
+    A broken restore outranks everything: nothing that ran after it can be
+    trusted. A mutation that applied and left its test green is still a verdict
+    when another mutation of the spec was void, because that one was measured.
+    _spec_outcome_cases() holds each row.
+    """
+    if broken:
+        return 1, f"the restore broke ({', '.join(broken)}), so no verdict of this run holds"
+    if any(v[1] == "TEST STILL PASSED" for v in verdicts):
+        return Verdict(1), None
+    void = [(label, verdict) for label, verdict, _ in verdicts if verdict != "the test bit"]
+    if void:
+        return 1, (
+            f"{len(void)} mutation(s) measured nothing: "
+            + "; ".join(f"{label} ({VOID_WHY.get(verdict, verdict)})" for label, verdict in void)
+        )
+    return Verdict(0), None
+
+
+# A mutation whose test was green without any test it names running to a PASS.
+SKIPPED = "SKIPPED OR NEVER RAN (void)"
+
+# Why each void verdict measured nothing, in the words spec_outcome() prints.
+# A verdict missing here is printed as itself and still counted void.
+VOID_WHY = {
+    "DID NOT APPLY": "did not apply",
+    "DID NOT COMPILE (void)": "did not build",
+    SKIPPED: "its test was skipped, or nothing it names ran",
+}
 
 
 if __name__ == "__main__":
+    DROPPED_GIT = drop_inherited_git(os.environ)
     sys.exit(main(sys.argv))

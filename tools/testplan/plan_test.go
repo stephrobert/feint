@@ -67,8 +67,13 @@ func tracked(t *testing.T) []string {
 // its repository from its working directory and from nothing a caller (a
 // hook, a falsify replay) happened to export. tools/ci keeps its own copy for
 // the repositories it writes (newThrowawayRepo): a _test.go helper cannot be
-// imported across packages. TestNoToolTestWritesThroughARawGitCommand accepts
-// a git read only when its command's Env is assigned from a call to this name.
+// imported across packages.
+//
+// Since #955 this package's TestMain (hermetic_test.go) drops GIT_* before any
+// test runs, so a hook's variables never reach here. This filter stays for a
+// variable set after TestMain, which is what
+// TestTrackedIgnoresTheGitDirAHookExports does to play the hook, and it is that
+// test, not a static guard reading this function's name, that proves it.
 func withoutInheritedGit(env []string) []string {
 	out := make([]string, 0, len(env))
 	for _, kv := range env {

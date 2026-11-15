@@ -325,7 +325,7 @@
       "file": "tools/testplan/plan_test.go",
       "find": "cmd := exec.Command(\"git\", \"ls-files\")",
       "replace": "cmd := exec.Command(\"git\", \"add\", \"--all\")",
-      "test": "TestNoToolTestWritesThroughARawGitCommand"
+      "test": "TestNoTestWritesThroughARawGitCommand"
     },
     {
       "label": "the shared throwaway repository stops dropping GIT_*, so a hook's GIT_DIR and GIT_INDEX_FILE send its add and commit into another repository",
@@ -341,6 +341,265 @@
       "replace": "if strings.HasPrefix(kv, \"GIT_\") && kv == \"\" {",
       "test": "TestTrackedIgnoresTheGitDirAHookExports",
       "package": "./tools/testplan/"
+    },
+    {
+      "label": "tools/ci's TestMain stops dropping GIT_* (#955), so a script a test runs obeys the GIT_DIR and GIT_INDEX_FILE a hook exported and commits into that repository",
+      "file": "tools/ci/hermetic_test.go",
+      "find": "\thermetic.DropInheritedGit()\n\tos.Exit(m.Run())",
+      "replace": "\tif m == nil {\n\t\thermetic.DropInheritedGit()\n\t}\n\tos.Exit(m.Run())",
+      "test": "TestATestBinaryDropsTheGitDirAHookExports"
+    },
+    {
+      "label": "hermetic.DropInheritedGit drops nothing (#955), so every test binary that calls it keeps a hook's GIT_DIR",
+      "file": "internal/hermetic/hermetic.go",
+      "find": "if strings.HasPrefix(name, \"GIT_\") {",
+      "replace": "if strings.HasPrefix(name, \"GIT_\") && name == \"\" {",
+      "test": "TestATestBinaryDropsTheGitDirAHookExports"
+    },
+    {
+      "label": "tools/testplan's TestMain stops dropping GIT_* (#955), and the wiring guard must name the package",
+      "file": "tools/testplan/hermetic_test.go",
+      "find": "\thermetic.DropInheritedGit()\n\tos.Exit(m.Run())",
+      "replace": "\tif m == nil {\n\t\thermetic.DropInheritedGit()\n\t}\n\tos.Exit(m.Run())",
+      "test": "TestEveryTestBinaryThatStartsAProcessDropsInheritedGit"
+    },
+    {
+      "label": "the wiring guard stops judging test binaries at all, so it judges none and its witness (tools/ci) is missing",
+      "file": "tools/ci/hermetic_test.go",
+      "find": "\t\t\tjudged = true\n",
+      "replace": "\t\t\tjudged = true && dir == \"\"\n",
+      "test": "TestTheHermeticGuardAsksEachQuestion"
+    },
+    {
+      "label": "the wiring guard stops asking whether TestMain drops GIT_* first, so a TestMain that runs the tests before dropping passes",
+      "file": "tools/ci/hermetic_test.go",
+      "find": "\tcase callee == \"\":\n",
+      "replace": "\tcase callee == \"\" && dir == \"\":\n",
+      "test": "TestTheHermeticGuardAsksEachQuestion"
+    },
+    {
+      "label": "the wiring guard stops asking whose DropInheritedGit is called, so a local function of that name, which may drop nothing, passes",
+      "file": "tools/ci/hermetic_test.go",
+      "find": "\tcase mainAlias == \"\" || callee != mainAlias:\n",
+      "replace": "\tcase (mainAlias == \"\" || callee != mainAlias) && dir == \"\":\n",
+      "test": "TestTheHermeticGuardAsksEachQuestion"
+    },
+    {
+      "label": "the wiring guard goes back to judging only test files that import os/exec, so a test that starts git through a function outside its test files escapes and the decoy receives the commit (#955)",
+      "file": "tools/ci/hermetic_test.go",
+      "find": "\t\t\tjudged = true\n",
+      "replace": "\t\t\tjudged = true && (alias[\"os/exec\"] != \"\" || judged)\n",
+      "test": "TestTheHermeticGuardAsksEachQuestion"
+    },
+    {
+      "label": "the wiring guard reads files the default build does not compile, so a TestMain behind //go:build x is accepted for a binary that has none (#955)",
+      "file": "tools/ci/hermetic_test.go",
+      "find": "\t\tif !ok {\n\t\t\tcontinue\n\t\t}\n\t\tfset",
+      "replace": "\t\tif !ok && dir == \"\" {\n\t\t\tcontinue\n\t\t}\n\t\tfset",
+      "test": "TestTheHermeticGuardAsksEachQuestion"
+    },
+    {
+      "label": "the wiring guard accepts any DropInheritedGit once the real package is imported, so a TestMain calling a local function of that name passes (#955)",
+      "file": "tools/ci/hermetic_test.go",
+      "find": "\tcase mainAlias == \"\" || callee != mainAlias:\n",
+      "replace": "\tcase mainAlias == \"\" || (callee != mainAlias && dir == \"\"):\n",
+      "test": "TestTheHermeticGuardAsksEachQuestion"
+    },
+    {
+      "label": "the wiring guard stops refusing a read of the environment while the package initialises, so a package-level copy keeps a hook's GIT_DIR whatever TestMain drops (#955)",
+      "file": "tools/ci/hermetic_test.go",
+      "find": "\tif early != \"\" {\n",
+      "replace": "\tif early != \"\" && dir == \"\" {\n",
+      "test": "TestTheHermeticGuardAsksEachQuestion"
+    },
+    {
+      "label": "the wiring guard stops reading package-level var values, so os.Environ() copied there before TestMain passes (#955)",
+      "file": "tools/ci/hermetic_test.go",
+      "find": "\t\t\tif d.Tok == token.VAR {\n",
+      "replace": "\t\t\tif d.Tok == token.VAR && len(file.Decls) < 0 {\n",
+      "test": "TestTheHermeticGuardAsksEachQuestion"
+    },
+    {
+      "label": "the wiring guard stops reading init functions, so a GIT_* variable read there before TestMain passes (#955)",
+      "file": "tools/ci/hermetic_test.go",
+      "find": "d.Name.Name == \"init\" && d.Body != nil {",
+      "replace": "d.Name.Name == \"init\" && d.Body != nil && len(file.Decls) < 0 {",
+      "test": "TestTheHermeticGuardAsksEachQuestion"
+    },
+    {
+      "label": "falsify.py drops GIT_* from a copy of its environment instead of its own (#955), so the go test it runs in a copy without .git obeys a hook's GIT_DIR",
+      "file": "tools/falsify/falsify.py",
+      "find": "    DROPPED_GIT = drop_inherited_git(os.environ)\n",
+      "replace": "    DROPPED_GIT = drop_inherited_git({**os.environ})\n",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "drop_inherited_git() drops any name holding GIT_, not only one starting with it (#955)",
+      "file": "tools/falsify/falsify.py",
+      "find": "names = sorted(name for name in environ if name.startswith(\"GIT_\"))",
+      "replace": "names = sorted(name for name in environ if name.startswith(\"GIT_\") or \"GIT_\" in name)",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "--lint over a directory with no spec answers 2 again, drift, where no spec could have drifted (#954)",
+      "file": "tools/falsify/falsify.py",
+      "find": "return refuse(f\"{directory} holds no spec, so this checked nothing\", code=1)",
+      "replace": "return refuse(f\"{directory} holds no spec, so this checked nothing\", code=2)",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "--all over a directory with no spec answers 2 again, drift, where no spec could have drifted (#954)",
+      "file": "tools/falsify/falsify.py",
+      "find": "return refuse(f\"{directory} holds no spec, so a replay would measure nothing\", code=1)",
+      "replace": "return refuse(f\"{directory} holds no spec, so a replay would measure nothing\", code=2)",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "a copy red before any mutation answers 2 again, drift, where the tree or the environment is red (#954)",
+      "file": "tools/falsify/falsify.py",
+      "find": "            # measured (replay_outcome).\n            return 1\n",
+      "replace": "            # measured (replay_outcome).\n            return 2\n",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "the replay reads the bare value 1 as a guard that stopped biting, so a red copy, which now answers 1, is tallied as a broken guard: the arithmetic of 2026-09-14 (#954)",
+      "file": "tools/falsify/falsify.py",
+      "find": "    if isinstance(code, Verdict):\n",
+      "replace": "    if isinstance(code, Verdict) or code == 1:\n",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "spec_outcome() loses the Verdict of a test that stayed green, so every guard that stopped biting is tallied as not measured (#954)",
+      "file": "tools/falsify/falsify.py",
+      "find": "        return Verdict(1), None\n",
+      "replace": "        return int(Verdict(1)), None\n",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "a malformed spec reaches json.load bare again: --lint and --all die on a traceback and the replay stops at it (#954)",
+      "file": "tools/falsify/falsify.py",
+      "find": "    except json.JSONDecodeError as err:\n",
+      "replace": "    except (json.JSONDecodeError, ValueError)[2:] as err:\n",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "--lint names a malformed spec and still answers 0 when nothing else is stale (#954)",
+      "file": "tools/falsify/falsify.py",
+      "find": "    if malformed or stale:\n        return 2\n",
+      "replace": "    if (malformed and stale) or stale:\n        return 2\n",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "a single malformed spec answers 1, an error, where the fault is in the spec (#954)",
+      "file": "tools/falsify/falsify.py",
+      "find": "    if why:\n        return refuse(why)\n",
+      "replace": "    if why:\n        return refuse(why, code=1)\n",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "a spec that is a JSON list is taken for a spec and fails later on an AttributeError (#954)",
+      "file": "tools/falsify/falsify.py",
+      "find": "    if not isinstance(spec, dict):\n",
+      "replace": "    if not isinstance(spec, dict) and spec == {}:\n",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "a mutation that is not an object is taken for one and fails later on an AttributeError (#954)",
+      "file": "tools/falsify/falsify.py",
+      "find": "all(isinstance(m, dict) for m in mutations)",
+      "replace": "all(isinstance(m, dict) or m for m in mutations)",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "--lint and --all over a missing directory die on a FileNotFoundError traceback again (#954)",
+      "file": "tools/falsify/falsify.py",
+      "find": "    if os.path.isdir(directory):\n        return None\n",
+      "replace": "    if os.path.isdir(directory) or directory:\n        return None\n",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "a broken restore is a Verdict again, so the replay tallies a harness fault as a guard that stopped biting (#954)",
+      "file": "tools/falsify/falsify.py",
+      "find": "    if broken:\n        return 1, f\"the restore broke",
+      "replace": "    if broken and verdicts == []:\n        return 1, f\"the restore broke",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "a mutation that did not apply or did not build is a Verdict again, tallied as a guard that stopped biting (#954)",
+      "file": "tools/falsify/falsify.py",
+      "find": "    if void:\n        return 1, (\n",
+      "replace": "    if void and verdicts == []:\n        return 1, (\n",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "a green run whose named test was skipped is read as TEST STILL PASSED again, so --all says the guard no longer holds over a test that measured nothing",
+      "file": "tools/falsify/falsify.py",
+      "find": "            elif passed_leaves(pattern, res.stdout):\n",
+      "replace": "            elif passed_leaves(pattern, res.stdout) or pattern:\n",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "a parent counts as measured when its only selected subtest skipped, because passed_leaves() stops keeping the deepest level",
+      "file": "tools/falsify/falsify.py",
+      "find": "not any(other.startswith(name + \"/\") for other in status)",
+      "replace": "not any(other.startswith(name + \"//\") for other in status)",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "anchored() hands every name over as written, so TestLoose also runs TestLooseButStrict and the neighbour's bite is read as TestLoose's",
+      "file": "tools/falsify/falsify.py",
+      "find": "        return pattern\n    return \"/\".join(f\"^{e}$\" for e in elems)",
+      "replace": "        return pattern\n    return pattern or \"/\".join(f\"^{e}$\" for e in elems)",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "the replay stops anchoring the name it hands to go test, while the lint still anchors it",
+      "file": "tools/falsify/falsify.py",
+      "find": "            pattern = anchored(m[\"test\"])\n",
+      "replace": "            pattern = anchored(m[\"test\"]) if not m else m[\"test\"]\n",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "the lint stops anchoring a top-level name, so a name that is only the prefix of a test is accepted",
+      "file": "tools/falsify/falsify.py",
+      "find": "        head = top_level_pattern(anchored(test))\n",
+      "replace": "        head = top_level_pattern(test if test else anchored(test))\n",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "load_spec stops asking the type questions, so a mistyped field reaches the replay and kills --all on a traceback",
+      "file": "tools/falsify/falsify.py",
+      "find": "        why = field_problem(holder)\n        if why:\n",
+      "replace": "        why = field_problem(holder)\n        if why and not holder:\n",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "\"repeat\": \"deux\" is accepted again and dies on a TypeError, where it is refused with 2",
+      "file": "tools/falsify/falsify.py",
+      "find": "        if isinstance(repeat, bool) or not isinstance(repeat, int) or repeat < 1:\n",
+      "replace": "        if isinstance(repeat, bool) or (not isinstance(repeat, int) and not holder) or repeat < 1:\n",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "\"repeat\": true is accepted as one run, where a boolean is not a number of runs",
+      "file": "tools/falsify/falsify.py",
+      "find": "        if isinstance(repeat, bool) or not isinstance(repeat, int) or repeat < 1:\n",
+      "replace": "        if (isinstance(repeat, bool) and not holder) or not isinstance(repeat, int) or repeat < 1:\n",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "\"env\": {\"X\": 1} is accepted again, where subprocess would die on a TypeError",
+      "file": "tools/falsify/falsify.py",
+      "find": "not all(isinstance(v, str) for v in env.values()):",
+      "replace": "not all(isinstance(v, str) or holder for v in env.values()):",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "a number in a text field is accepted again and dies later on a TypeError",
+      "file": "tools/falsify/falsify.py",
+      "find": "        if key in holder and not isinstance(holder[key], str):\n",
+      "replace": "        if key in holder and not isinstance(holder[key], str) and not holder:\n",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
     }
   ]
 }
