@@ -16,8 +16,8 @@
 # release server, no network weather. Its verdict is a property of the tree, and
 # the same input gives the same answer every night.
 #
-# Why it is still not on pull_request: it copies the tree once per spec (257
-# copies) and runs `go test` once per mutation, 1789 times, and that cost grows
+# Why it is still not on pull_request: it copies the tree once per spec (258
+# copies) and runs `go test` once per mutation, 1810 times, and that cost grows
 # with every guard the project adds — which is the direction we want it to grow in.
 #
 # Both figures are recounted against tools/falsify/specs by

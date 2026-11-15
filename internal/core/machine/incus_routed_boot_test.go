@@ -65,7 +65,7 @@ func TestTheRoutedNetplanDeclaresTheLaunchAddress(t *testing.T) {
 	if len(inits) != 1 {
 		t.Fatalf("expected one init, got:\n%s", strings.Join(f.commands(), "\n"))
 	}
-	_, cfg, found := strings.Cut(inits[0], "cloud-init.network-config=")
+	cfg, found := f.initConfig(t)["cloud-init.network-config"]
 	if !found {
 		t.Fatalf("no network-config was handed to the guest: %s", inits[0])
 	}

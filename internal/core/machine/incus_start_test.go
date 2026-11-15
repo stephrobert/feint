@@ -80,7 +80,7 @@ func TestAMachineWithNoNetworkCarriesOnlyItsPublicAddress(t *testing.T) {
 	}
 	// The guest has to be told, or the routed address lands on the device and
 	// the interface comes up carrying nothing.
-	if !strings.Contains(inits[0], "cloud-init.network-config=") {
+	if f.initConfig(t)["cloud-init.network-config"] == "" {
 		t.Errorf("no network-config was rendered, so the guest configures nothing: %s", inits[0])
 	}
 
