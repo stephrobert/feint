@@ -1,0 +1,153 @@
+{
+  "package": "./internal/core/machine/",
+  "mutations": [
+    {
+      "label": "the user data goes back on argv beside stdin, so any local user reads the cloud-config, authorized keys and client secrets included, in /proc/<pid>/cmdline for the whole create; stdin still carries it, so only the off-argv question can see this",
+      "file": "internal/core/machine/incus.go",
+      "find": "\t\tconfig[\"cloud-init.user-data\"] = spec.CloudInit\n",
+      "replace": "\t\tconfig[\"cloud-init.user-data\"] = spec.CloudInit\n\t\targs = append(args, \"--config\", \"cloud-init.user-data=\"+spec.CloudInit)\n",
+      "test": "TestNoInstanceConfigReachesArgv/the_user_data"
+    },
+    {
+      "label": "the labels go back on argv beside stdin: emulator-made today, but the Spec field is the pack's to fill",
+      "file": "internal/core/machine/incus.go",
+      "find": "\t\tconfig[\"user.\"+k] = v\n",
+      "replace": "\t\tconfig[\"user.\"+k] = v\n\t\targs = append(args, \"--config\", \"user.\"+k+\"=\"+v)\n",
+      "test": "TestNoInstanceConfigReachesArgv/a_label"
+    },
+    {
+      "label": "the environment goes back on argv beside stdin, which is what `environment.<e>` did before #910",
+      "file": "internal/core/machine/incus.go",
+      "find": "\t\tconfig[\"environment.\"+key] = value\n",
+      "replace": "\t\tconfig[\"environment.\"+key] = value\n\t\targs = append(args, \"--config\", \"environment.\"+e)\n",
+      "test": "TestNoInstanceConfigReachesArgv/an_environment_variable"
+    },
+    {
+      "label": "the user data stops reaching the instance at all: nothing on argv, so the off-argv test stays green, and the machine boots without its keys or the client's cloud-config; the accepting half is the only one that sees it",
+      "file": "internal/core/machine/incus.go",
+      "find": "\t\tconfig[\"cloud-init.user-data\"] = spec.CloudInit\n",
+      "replace": "\t\tconfig[\"cloud-init.user-data\"] = spec.CloudInit[:0]\n",
+      "test": "TestTheInstanceConfigArrivesOnStdin/the_user_data"
+    },
+    {
+      "label": "the labels stop reaching the instance, user.feint.provider included, which is the mark mustOwnInstance reads: every later stop or delete of the machine would be refused as foreign",
+      "file": "internal/core/machine/incus.go",
+      "find": "\t\tconfig[\"user.\"+k] = v\n",
+      "replace": "\t\tconfig[\"user.\"+k] = v[:0]\n",
+      "test": "TestTheInstanceConfigArrivesOnStdin/a_label"
+    },
+    {
+      "label": "the driver hands the CLI an empty stdin: the document is rendered and never delivered, so the create succeeds with no config at all",
+      "file": "internal/core/machine/incus.go",
+      "find": "\treturn d.runWithin(withStdin(ctx, input), d.controlTimeout(), args...)",
+      "replace": "\treturn d.runWithin(withStdin(ctx, input[len(input):]), d.controlTimeout(), args...)",
+      "test": "TestTheInstanceConfigArrivesOnStdin"
+    },
+    {
+      "label": "runCLI stops passing the context's input to the process: the seam tests above stay green because the runner reads the context itself, and only the real-process test sees the binary fed nothing",
+      "file": "internal/core/machine/cli.go",
+      "find": "\t\tcmd.Stdin = bytes.NewReader(input)",
+      "replace": "\t\tcmd.Stdin = bytes.NewReader(input[len(input):])",
+      "test": "TestRunCLIFeedsTheProcessItsStdin"
+    },
+    {
+      "label": "yamlSafe writes every rune raw, which is json.Marshal alone: a DEL or a C1 control in a client's user data makes the CLI's YAML reader refuse the whole create, where argv used to accept it",
+      "file": "internal/core/machine/incus_stdin.go",
+      "find": "\t\tif yamlVerbatim(r) {",
+      "replace": "\t\tif yamlVerbatim(r) || r > 0 {",
+      "test": "TestTheStdinDocumentCarriesNoCharacterYAMLRefuses"
+    },
+    {
+      "label": "yamlVerbatim falls back to YAML's c-printable set, which admits NEL: no reader refuses it, they fold it into a space, so the user data is altered in silence. Distinct from the mutation above, which only the refused runes could catch",
+      "file": "internal/core/machine/incus_stdin.go",
+      "find": "\tcase r >= 0x20 && r <= 0x7e:\n\t\treturn true\n",
+      "replace": "\tcase r >= 0x20 && r <= 0x7e, r == 0x85:\n\t\treturn true\n",
+      "test": "TestTheStdinDocumentCarriesNoCharacterYAMLRefuses"
+    },
+    {
+      "label": "yamlSafe escapes everything outside ASCII, the over-eager fix: an astral rune becomes a five-digit \\u escape that JSON and YAML both misread, so the refusing half stays green and only the round trip sees the user data corrupted",
+      "file": "internal/core/machine/incus_stdin.go",
+      "find": "\t\tif yamlVerbatim(r) {",
+      "replace": "\t\tif yamlVerbatim(r) && r < 0x80 {",
+      "test": "TestTheStdinDocumentCarriesNoCharacterYAMLRefuses"
+    },
+    {
+      "label": "a start that fails no longer removes the instance it created: it stays behind, never booted, holding the user data in its config, and the next poweron takes the already-exists path instead of creating it again",
+      "file": "internal/core/machine/incus.go",
+      "find": "\t_, _ = d.run(context.WithoutCancel(ctx), \"delete\", \"--force\", name)\n\treturn cause",
+      "replace": "\t_, _ = d.run(context.WithoutCancel(ctx), \"info\", \"--force\", name)\n\treturn cause",
+      "test": "TestAFailedFirstBootIsRemovedAndTheRetryIsFedTheUserDataAgain"
+    },
+    {
+      "label": "the cleanup runs on the caller's context again: when the failure is the client hanging up, exec.CommandContext refuses the delete and the instance stays, user data in its config. A plain failed start still cleans up, so only the cancelled case sees it",
+      "file": "internal/core/machine/incus.go",
+      "find": "\t_, _ = d.run(context.WithoutCancel(ctx), \"delete\", \"--force\", name)\n\treturn cause",
+      "replace": "\t_, _ = d.run(func() context.Context { _ = context.WithoutCancel; return ctx }(), \"delete\", \"--force\", name)\n\treturn cause",
+      "test": "TestACancelledFirstBootIsStillRemoved"
+    },
+    {
+      "label": "the cleanup delete is fed the instance name on stdin: harmless here, and the proof that only init is ever fed anything, the delete included",
+      "file": "internal/core/machine/incus.go",
+      "find": "\t_, _ = d.run(context.WithoutCancel(ctx), \"delete\", \"--force\", name)\n\treturn cause",
+      "replace": "\t_, _ = d.runFed(context.WithoutCancel(ctx), []byte(name), \"delete\", \"--force\", name)\n\treturn cause",
+      "test": "TestAFailedFirstBootIsRemovedAndTheRetryIsFedTheUserDataAgain"
+    },
+    {
+      "label": "an environment entry with no `=` is accepted and becomes an empty variable, where the CLI refused it when it rode argv; the empty-key row keeps its `=`, so only this row sees it",
+      "file": "internal/core/machine/incus_stdin.go",
+      "find": "\t\tif !ok || key == \"\" {\n\t\t\treturn fmt.Errorf(\"environment entry %d of %s is not KEY=VALUE\", i, spec.Name)",
+      "replace": "\t\tif (!ok && len(key) < 0) || key == \"\" {\n\t\t\treturn fmt.Errorf(\"environment entry %d of %s is not KEY=VALUE\", i, spec.Name)",
+      "test": "TestAnEnvironmentEntryThatIsNotKeyValueIsRefused/no_equals_sign"
+    },
+    {
+      "label": "an environment entry with an empty key is accepted and becomes a config key named `environment.`; the no-equals row fails the other half, so only this row sees it",
+      "file": "internal/core/machine/incus_stdin.go",
+      "find": "\t\tif !ok || key == \"\" {\n\t\t\treturn fmt.Errorf(\"environment entry %d of %s is not KEY=VALUE\", i, spec.Name)",
+      "replace": "\t\tif !ok || key == \"\\x00never\" {\n\t\t\treturn fmt.Errorf(\"environment entry %d of %s is not KEY=VALUE\", i, spec.Name)",
+      "test": "TestAnEnvironmentEntryThatIsNotKeyValueIsRefused/an_empty_key"
+    },
+    {
+      "label": "the refusal quotes the entry it refused, which puts a value the pack may hold secret into the emulator's log",
+      "file": "internal/core/machine/incus_stdin.go",
+      "find": "fmt.Errorf(\"environment entry %d of %s is not KEY=VALUE\", i, spec.Name)",
+      "replace": "fmt.Errorf(\"environment entry %d (%s) of %s is not KEY=VALUE\", i, e, spec.Name)",
+      "test": "TestAnEnvironmentEntryThatIsNotKeyValueIsRefused"
+    },
+    {
+      "label": "the guard runs after the runtime is reached instead of at the entry: moved below the Inspect, an invalid entry is still refused, but only once `list` (and, for a machine on fnt-default, the network creation) has run",
+      "file": "internal/core/machine/incus.go",
+      "find": "\tif err := instanceConfigFits(spec); err != nil {\n\t\treturn Machine{}, err\n\t}\n\n\tif _, ok, err := d.Inspect(ctx, spec.Name); err != nil {\n\t\treturn Machine{}, err\n\t} else if ok {",
+      "replace": "\tif _, ok, err := d.Inspect(ctx, spec.Name); err != nil {\n\t\treturn Machine{}, err\n\t} else if err := instanceConfigFits(spec); err != nil {\n\t\treturn Machine{}, err\n\t} else if ok {",
+      "test": "TestAnEnvironmentEntryThatIsNotKeyValueIsRefused"
+    },
+    {
+      "label": "an environment key over the YAML key limit is accepted: the CLI's reader then refuses the whole document, user data included, over one variable. The label loop is untouched, so only the environment row sees it",
+      "file": "internal/core/machine/incus_stdin.go",
+      "find": "\t\tif n := encodedKeyLen(\"environment.\" + key); n > maxConfigKey {",
+      "replace": "\t\tif n := encodedKeyLen(\"environment.\" + key); n > maxConfigKey && len(key) < 0 {",
+      "test": "TestAConfigKeyAYAMLReaderWouldRefuseIsRefused/an_environment_key_one_byte_over"
+    },
+    {
+      "label": "a label key over the YAML key limit is accepted, the same refusal of the whole document through the other loop",
+      "file": "internal/core/machine/incus_stdin.go",
+      "find": "\t\tif n := encodedKeyLen(\"user.\" + k); n > maxConfigKey {",
+      "replace": "\t\tif n := encodedKeyLen(\"user.\" + k); n > maxConfigKey && len(k) < 0 {",
+      "test": "TestAConfigKeyAYAMLReaderWouldRefuseIsRefused/a_label_key_one_byte_over"
+    },
+    {
+      "label": "the limit is off by one and refuses a key of exactly 1024 bytes, which all three readers measured accept: the refusing rows stay green, only the boundary row sees it",
+      "file": "internal/core/machine/incus_stdin.go",
+      "find": "\t\tif n := encodedKeyLen(\"user.\" + k); n > maxConfigKey {",
+      "replace": "\t\tif n := encodedKeyLen(\"user.\" + k); n >= maxConfigKey {",
+      "test": "TestAConfigKeyAYAMLReaderWouldRefuseIsRefused/a_label_key_at_the_limit"
+    },
+    {
+      "label": "the key is measured before yamlSafe escapes it: an ASCII key over the limit is still refused, and a short key of DEL characters, six times longer once escaped, passes. Only the escaped row sees it",
+      "file": "internal/core/machine/incus_stdin.go",
+      "find": "\treturn len(yamlSafe(encoded))\n",
+      "replace": "\treturn len(yamlSafe(encoded[:0])) + len(encoded)\n",
+      "test": "TestAConfigKeyAYAMLReaderWouldRefuseIsRefused/a_label_key_short_as_written,_long_escaped"
+    }
+  ],
+  "note": "#910. Every config key `incus init` receives goes on stdin as a JSON document (YAML 1.2 is a superset of JSON), none on argv, because /proc/<pid>/cmdline is world-readable for the whole create. Proven through the injectable runner, which reads stdin from the same context value runCLI does, plus one real-process test against cat; nothing here proves that Incus accepts the document, which is the runtime conformance leg's job. The stdin route itself was measured on Incus 7.2 on 2026-11-14 with `incus create` (issue comment); feint calls `init`, the CLI's alias of the same cobra command. The YAML readability was measured on 2026-11-15 outside the repository against yaml.v2 v2.4.0, yaml.v3 v3.0.1 and yaml/v4 v4.0.0-rc.3: the escaped document decodes intact under all three and PyYAML 6.0.3, and the unescaped witness (a raw DEL) is refused by all three. Two exclusions in yamlVerbatim carry no mutation, on purpose: U+2028/U+2029, because json.Marshal already escapes them so yamlSafe never sees them raw, and U+FEFF, which the three readers measured kept intact; both are excluded as caution, and a mutation removing either would survive, which this note says rather than leaves to be discovered. Added after the contradictor's pass of 2026-11-15: the cleanup delete runs on context.WithoutCancel, because Start receives the HTTP request's context and the failure being cleaned up may be the client hanging up; the environment shape and the YAML key limit (1024 bytes once encoded, measured on the three readers) are asked by instanceConfigFits at the entry of Start, before anything reaches the runtime. The position mutation moves the guard below the Inspect, and TestAnEnvironmentEntryThatIsNotKeyValueIsRefused requires len(f.calls)==0. Invalid UTF-8 in a user data becomes U+FFFD in the JSON document; that is a limit, written in docs/limits.md, not a mutation here."
+}

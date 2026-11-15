@@ -464,6 +464,12 @@ func (d *Incus) Start(ctx context.Context, spec Spec) (Machine, error) {
 	if err := ownedAttachments(spec.Name, spec.Attachments); err != nil {
 		return Machine{}, err
 	}
+	// Before anything reaches the runtime, the default network included: the
+	// configuration this boot would feed `incus init` must be one the CLI's
+	// YAML reader accepts as meant (#910).
+	if err := instanceConfigFits(spec); err != nil {
+		return Machine{}, err
+	}
 
 	if _, ok, err := d.Inspect(ctx, spec.Name); err != nil {
 		return Machine{}, err
@@ -553,6 +559,7 @@ func (d *Incus) Start(ctx context.Context, spec Spec) (Machine, error) {
 	}
 
 	args := []string{"init", d.resolveImage(ctx, spec.Image), spec.Name}
+	config := map[string]string{}
 	if d.VM {
 		args = append(args, "--vm")
 	}
@@ -601,22 +608,43 @@ func (d *Incus) Start(ctx context.Context, spec Spec) (Machine, error) {
 		if err != nil {
 			return Machine{}, err
 		}
-		args = append(args, "--config", "cloud-init.network-config="+netcfg)
+		config["cloud-init.network-config"] = netcfg
 	}
 	// Labels become user.* config keys, the Incus equivalent of container labels.
 	for k, v := range spec.Labels {
-		args = append(args, "--config", "user."+k+"="+v)
+		config["user."+k] = v
 	}
 	// cloud-init is how a real cloud provisions the default account and its
 	// keys, and Incus feeds it to containers and virtual machines alike. This is
 	// what lets this driver produce a machine you can actually ssh into.
 	if spec.CloudInit != "" {
-		args = append(args, "--config", "cloud-init.user-data="+spec.CloudInit)
+		config["cloud-init.user-data"] = spec.CloudInit
 	}
 	for _, e := range spec.Env {
-		args = append(args, "--config", "environment."+e)
+		// Shape asked at the entry, by instanceConfigFits.
+		key, value, _ := strings.Cut(e, "=")
+		config["environment."+key] = value
 	}
-	if _, err := d.run(ctx, args...); err != nil {
+	// Every config key goes to `incus init` on stdin, none on argv (#910).
+	// /proc/<pid>/cmdline is world-readable for the whole create, and the
+	// user data is either the rendered cloud-config, authorized keys included,
+	// or the client's own document handed over verbatim — where a
+	// `terraform apply` puts passwords, tokens and write_files. The labels
+	// and the environment take the same road: the labels are emulator-made
+	// today, but a pack is free to pass anything there, and one road for the
+	// whole map is one road to hold.
+	//
+	// `init` is the CLI's alias of `create` (one cobra command), the verb the
+	// stdin route was measured on, Incus 7.2, 2026-11-14: the value read back
+	// by `incus config get` was intact. The flags left on argv carry names
+	// the guards at the top of this function vetted, never a payload.
+	// TestNoInstanceConfigReachesArgv and TestTheInstanceConfigArrivesOnStdin
+	// fail without this.
+	stdin, err := instanceConfig(config)
+	if err != nil {
+		return Machine{}, fmt.Errorf("render the configuration of %s: %w", spec.Name, err)
+	}
+	if _, err := d.runFed(ctx, stdin, args...); err != nil {
 		return Machine{}, fmt.Errorf("create instance %s from %s: %w", spec.Name, d.resolveImage(ctx, spec.Image), err)
 	}
 
@@ -721,8 +749,17 @@ func (d *Incus) Start(ctx context.Context, spec Spec) (Machine, error) {
 // caller must hear, and a delete that fails leaves exactly the state it found.
 //
 // TestAFailedStartLeavesNoHalfMadeInstance fails without this.
+//
+// The delete runs detached from the caller's cancellation. The context Start
+// receives is the HTTP request's (scaleway's servers.go hands r.Context() to
+// startMachine), so a client that hangs up mid-boot cancels it, and the
+// failure being cleaned up may be that very cancellation: exec.CommandContext
+// then refuses to run the delete at all, and the instance stays — created,
+// never booted, its user data in its config (#910). WithoutCancel keeps the
+// values and drops the deadline; run puts the control cap back on.
+// TestACancelledFirstBootIsStillRemoved fails without it.
 func (d *Incus) abandonStart(ctx context.Context, name string, cause error) error {
-	_, _ = d.run(ctx, "delete", "--force", name)
+	_, _ = d.run(context.WithoutCancel(ctx), "delete", "--force", name)
 	return cause
 }
 
@@ -2200,6 +2237,13 @@ func (d *Incus) inspectOrFail(ctx context.Context, name string) (Machine, error)
 
 func (d *Incus) run(ctx context.Context, args ...string) ([]byte, error) {
 	return d.runWithin(ctx, d.controlTimeout(), args...)
+}
+
+// runFed is run with input on the command's stdin, under the control cap.
+// The input rides the context (withStdin), which both the runner seam and
+// runCLI read, so a test sees exactly what the binary would be fed (#910).
+func (d *Incus) runFed(ctx context.Context, input []byte, args ...string) ([]byte, error) {
+	return d.runWithin(withStdin(ctx, input), d.controlTimeout(), args...)
 }
 
 // controlTimeout caps a CONTROL command: `incus info`, `start`, `network

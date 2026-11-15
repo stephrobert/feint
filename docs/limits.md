@@ -3138,6 +3138,38 @@ runtime's own (`PCI: slot … not available`), so this section is to re-measure
 when the station's Incus moves past the version above — nothing here can widen
 what the daemon refuses.
 
+## A user data that is not UTF-8 does not reach the machine intact (#910)
+
+The Incus driver hands a machine its user data on the stdin of `incus init`,
+never on argv, because `/proc/<pid>/cmdline` is readable by every local user for
+as long as the create runs. The document on stdin is built by `json.Marshal`,
+and JSON carries text: `encoding/json` replaces every byte sequence that is not
+valid UTF-8 with U+FFFD. A user data that is binary, a gzip-compressed
+cloud-config being the ordinary case, is therefore altered on the way.
+
+What is measured, on 2026-11-15 with Go 1.27.4: a gzip of a two-line
+cloud-config (57 bytes, header `1f 8b 08 00`) comes back from a `json.Marshal`
+and `json.Unmarshal` round trip as 67 bytes that are no longer the gzip; the
+`8b` of the header is already a U+FFFD. That is the document the driver writes.
+Text user data, whatever characters it holds, comes back byte for byte: that
+half is held by `TestTheStdinDocumentCarriesNoCharacterYAMLRefuses`, and the
+YAML readers' side of it (DEL, C1 controls and NEL escaped rather than refused
+or folded) by the same test.
+
+What is **not** measured: whether the argv route this replaced kept those bytes.
+It probably did not, since the `incus` client itself sends the configuration to
+its daemon as JSON over the REST API, but no binary user data was ever run
+through either route against a real Incus. Nor is it measured what cloud-init
+inside the guest does with the altered document: the expectation is that it
+fails to decompress it and runs nothing.
+
+What to do instead: hand the machine the uncompressed text.
+
+The lifting condition is a binary-safe hand-off, which would mean writing the
+user data through the REST API as base64 or through a file, rather than through
+a JSON string, and a measurement that a gzip user data then boots a machine
+that runs it.
+
 ## DryRun answers, and does not validate
 
 Outscale declares `DryRun` on every action, and the real API uses it to say

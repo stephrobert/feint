@@ -134,9 +134,36 @@ func isNotFound(err error) bool {
 	return false
 }
 
+// stdinKey carries the bytes a command reads on its standard input (#910).
+type stdinKey struct{}
+
+// withStdin returns a context whose command is fed input on stdin.
+//
+// A context value rather than a parameter, and for one reason: the injectable
+// runner and the real binary must read the payload from the same place. runCLI
+// reads it here, and so does any test runner, through stdinOf — so what a test
+// asserts arrived on stdin is exactly what the binary would have been given, and
+// no second copy of the hand-off exists to drift from the first. It also leaves
+// the runner's signature, and the fifty-odd fakes written against it, alone.
+func withStdin(ctx context.Context, input []byte) context.Context {
+	return context.WithValue(ctx, stdinKey{}, input)
+}
+
+// stdinOf is the input withStdin attached, or nil: a command fed nothing reads
+// /dev/null, which is what every call but `init` wants.
+func stdinOf(ctx context.Context) []byte {
+	input, _ := ctx.Value(stdinKey{}).([]byte)
+	return input
+}
+
 // runCLI executes a runtime CLI with explicit arguments. Arguments are passed as
 // a slice and never interpreted by a shell, so a resource name can never become
 // a command.
+//
+// Whatever the context carries for stdin (withStdin) is what the process reads.
+// That is the only channel a client payload may take into a command, because
+// argv is world-readable in /proc/<pid>/cmdline for as long as the process runs
+// (#910). TestRunCLIFeedsTheProcessItsStdin fails if this stops being set.
 func runCLI(ctx context.Context, binary string, timeout time.Duration, args ...string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -145,6 +172,9 @@ func runCLI(ctx context.Context, binary string, timeout time.Duration, args ...s
 	cmd := exec.CommandContext(ctx, binary, args...) //nolint:gosec // fixed binary, arguments never shell-interpreted
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
+	if input := stdinOf(ctx); input != nil {
+		cmd.Stdin = bytes.NewReader(input)
+	}
 
 	if err := cmd.Run(); err != nil {
 		msg := strings.TrimSpace(stderr.String())

@@ -30,10 +30,14 @@ type fakeRuntime struct {
 	// on what came before: a network that refuses to go on the first pass and
 	// accepts on the second.
 	hook func(call int, args []string) ([]byte, error, bool)
+	// inputs is what each call was fed on stdin, index for index with calls:
+	// nil for a command fed nothing (#910).
+	inputs [][]byte
 }
 
-func (f *fakeRuntime) run(_ context.Context, args ...string) ([]byte, error) {
+func (f *fakeRuntime) run(ctx context.Context, args ...string) ([]byte, error) {
 	f.calls = append(f.calls, args)
+	f.inputs = append(f.inputs, stdinOf(ctx))
 	if f.hook != nil {
 		if out, err, handled := f.hook(len(f.calls)-1, args); handled {
 			return out, err
