@@ -45,7 +45,9 @@ func TestObserveReadsInsideTheHold(t *testing.T) {
 		})
 	}()
 
-	<-holding
+	// Bounded (#935): an Observe that returned without calling look, or never
+	// returned, would otherwise hang the package on each of these waits.
+	awaitEvent(t, holding, eventDeadline, "the first Observe never called its look")
 	// The second caller starts now, so whatever copy it ends up with, it asked
 	// for it before the first one had written anything.
 	second := make(chan string, 1)
@@ -60,9 +62,9 @@ func TestObserveReadsInsideTheHold(t *testing.T) {
 	// a Get placed before the lock has run.
 	time.Sleep(20 * time.Millisecond)
 	close(waiting)
-	<-done
+	awaitEvent(t, done, eventDeadline, "the first Observe never returned once its look was released")
 
-	if seen := <-second; seen != "running" {
+	if seen := awaitEvent(t, second, eventDeadline, "the second Observe never called its look"); seen != "running" {
 		t.Errorf("the second look saw %q; it was handed a copy read before the hold, so its "+
 			"write-back would undo what the first one had just committed", seen)
 	}

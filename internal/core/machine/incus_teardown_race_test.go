@@ -184,7 +184,8 @@ func TestAnIsolationDetachDoesNotOrphanTheNetworkBeingDeleted(t *testing.T) {
 
 	var wg sync.WaitGroup
 	var detachErr, deleteErr error
-	wg.Add(2)
+	wg.Add(1)
+	returned := make(chan error, 1)
 	go func() {
 		defer wg.Done()
 		// Empty foreign list: the detach branch, which is the one the log line
@@ -192,12 +193,13 @@ func TestAnIsolationDetachDoesNotOrphanTheNetworkBeingDeleted(t *testing.T) {
 		// reconciliation applies to a subnet whose only neighbours are its own
 		// Net's, which is every subnet of examples/stacks/outscale.
 		detachErr = d.IsolateNetwork(context.Background(), network, nil)
+		returned <- detachErr
 	}()
-	go func() {
-		defer wg.Done()
-		<-f.touched
-		deleteErr = d.RemoveNetwork(context.Background(), network)
-	}()
+	// From the test's own goroutine, and bounded: a guard that refuses before
+	// this event fails here at once with the subject's own error, instead of
+	// hanging the package (#935).
+	awaitEventBefore(t, f.touched, returned, eventDeadline, "the detach never issued a command, so IsolateNetwork refused before reaching the runtime")
+	deleteErr = d.RemoveNetwork(context.Background(), network)
 	wg.Wait()
 
 	if orphans := f.orphans(); len(orphans) != 0 {
@@ -216,6 +218,13 @@ func TestAnIsolationDetachDoesNotOrphanTheNetworkBeingDeleted(t *testing.T) {
 	// never neither.
 	if detachErr != nil && !errors.Is(detachErr, ErrNetworkGone) {
 		t.Fatalf("the detach failed for a reason other than the network being gone: %v", detachErr)
+	}
+	// And a detach that reports success did the edit this race is about: one
+	// that returned nil without touching the network would pass every check
+	// above (#935).
+	if detachErr == nil && !f.issued("network unset "+network) && !f.issued("network set "+network) {
+		t.Fatalf("the detach returned nil without editing %s, so the test measured nothing:\n%s",
+			network, strings.Join(f.commands(), "\n"))
 	}
 }
 

@@ -48,6 +48,7 @@ type fakeOVNd struct {
 	deviceRoutes string // eth0's ipv4.routes.external
 	uplinkRoutes string
 	calls        []string
+	edits        int
 	editFailures []string
 
 	// landed closes when the ACL delete has been applied, so an edit in
@@ -216,7 +217,16 @@ func (f *fakeOVNd) deviceEdit(key string) ([]byte, error) {
 		return nil, errors.New("Error: " + failure)
 	}
 	f.deviceRoutes = strings.TrimPrefix(key, "config device set "+racedMachine+" eth0 ipv4.routes.external=")
+	f.edits++
 	return nil, nil
+}
+
+// editCount is how many device edits resolved: each race test asserts its
+// subject really made the edit it races (#935).
+func (f *fakeOVNd) editCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.edits
 }
 
 func (f *fakeOVNd) failures() []string {
@@ -251,16 +261,18 @@ func TestAPublicAddressEditAndAnIsolationDetachTakeTurns(t *testing.T) {
 
 	var wg sync.WaitGroup
 	var unrouteErr, detachErr error
-	wg.Add(2)
+	wg.Add(1)
+	returned := make(chan error, 1)
 	go func() {
 		defer wg.Done()
 		unrouteErr = d.UnrouteAddress(context.Background(), racedMachine, racedAddress)
+		returned <- unrouteErr
 	}()
-	go func() {
-		defer wg.Done()
-		<-f.editStarted
-		detachErr = d.IsolateNetwork(context.Background(), racedNetwork, nil)
-	}()
+	// From the test's own goroutine, and bounded: a guard that refuses before
+	// this event fails here at once with the subject's own error, instead of
+	// hanging the package (#935).
+	awaitEventBefore(t, f.editStarted, returned, eventDeadline, "the device edit never began, so UnrouteAddress refused or stalled before it")
+	detachErr = d.IsolateNetwork(context.Background(), racedNetwork, nil)
 	wg.Wait()
 
 	if failures := f.failures(); len(failures) != 0 {
@@ -269,6 +281,9 @@ func TestAPublicAddressEditAndAnIsolationDetachTakeTurns(t *testing.T) {
 	}
 	if unrouteErr != nil {
 		t.Fatalf("the address withdrawal failed: %v", unrouteErr)
+	}
+	if f.editCount() == 0 {
+		t.Fatal("the subject returned without the device edit this race is about, so the test measured nothing")
 	}
 	if detachErr != nil && !errors.Is(detachErr, ErrNetworkGone) {
 		t.Fatalf("the detach failed for a reason other than the network being gone: %v", detachErr)
@@ -297,16 +312,18 @@ func TestARouteAddressEditAndAnIsolationDetachTakeTurns(t *testing.T) {
 	const granted = "198.51.100.4"
 	var wg sync.WaitGroup
 	var routeErr, detachErr error
-	wg.Add(2)
+	wg.Add(1)
+	returned := make(chan error, 1)
 	go func() {
 		defer wg.Done()
 		routeErr = d.RouteAddress(context.Background(), AddressSpec{Machine: racedMachine, Address: granted})
+		returned <- routeErr
 	}()
-	go func() {
-		defer wg.Done()
-		<-f.editStarted
-		detachErr = d.IsolateNetwork(context.Background(), racedNetwork, nil)
-	}()
+	// From the test's own goroutine, and bounded: a guard that refuses before
+	// this event fails here at once with the subject's own error, instead of
+	// hanging the package (#935).
+	awaitEventBefore(t, f.editStarted, returned, eventDeadline, "the device edit never began, so RouteAddress refused or stalled before it")
+	detachErr = d.IsolateNetwork(context.Background(), racedNetwork, nil)
 	wg.Wait()
 
 	if failures := f.failures(); len(failures) != 0 {
@@ -315,6 +332,9 @@ func TestARouteAddressEditAndAnIsolationDetachTakeTurns(t *testing.T) {
 	}
 	if routeErr != nil {
 		t.Fatalf("the address grant failed: %v", routeErr)
+	}
+	if f.editCount() == 0 {
+		t.Fatal("the subject returned without the device edit this race is about, so the test measured nothing")
 	}
 	if detachErr != nil && !errors.Is(detachErr, ErrNetworkGone) {
 		t.Fatalf("the detach failed for a reason other than the network being gone: %v", detachErr)

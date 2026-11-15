@@ -19,7 +19,7 @@ import (
 // applies textually and that the test each mutation names exists in the package
 // it declares (#923); replaying the mutation is what proves the test bites.
 //
-// 258 specs name 308 distinct files today, in 1847 mutations, so the mapping is
+// 259 specs name 309 distinct files today, in 1857 mutations, so the mapping is
 // far past the size anybody holds in their head, and it is exact: a spec says
 // which file it mutates. Nothing here is a judgement — the specs are the source, and a spec
 // that stops naming a file stops earning its replay on the same commit.
