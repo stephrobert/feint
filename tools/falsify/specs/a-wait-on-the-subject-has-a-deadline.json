@@ -1,0 +1,77 @@
+{
+  "package": "./internal/core/machine/",
+  "subject": "awaitEvent (internal/core/machine/await_test.go), the bounded wait every test of the package uses for an event the code under test must produce (#935)",
+  "why": "A bare receive on such an event turns a guard that refuses early into a hang until the package timeout, and a falsify verdict cut short that way reads like a mutation with fewer catchers. awaitEvent asks three questions of a wait: did the event come, did it come before the deadline given, and if not, does the failure say what did not happen; one mutation per question, the first two both striking the deadline (unreachable, then early). awaitEventBefore adds three: did the subject return before the event, does the failure then carry the subject's error, and does an event that came win over a return that followed it; one mutation each, and a fourth for a nil return before the event. And one proving a race test does not lean on the helper alone: the subject produced the event, then returned nil without the step. And one on a call site, to show a real early refusal now fails at once with its cause instead of hanging.",
+  "mutations": [
+    {
+      "label": "the deadline is removed in effect: the timer is armed for a million times what the caller gave, so a wait on an event that never comes blocks for fourteen hours, which is the bare `<-f.plugBegun` this issue replaces",
+      "file": "internal/core/machine/await_test.go",
+      "find": "\ttimer := time.NewTimer(within)\n\tdefer timer.Stop()\n\tselect {\n\tcase v := <-ch:\n",
+      "replace": "\ttimer := time.NewTimer(within * 1_000_000)\n\tdefer timer.Stop()\n\tselect {\n\tcase v := <-ch:\n",
+      "test": "TestAwaitEventFailsFastOnAnEventThatNeverComes"
+    },
+    {
+      "label": "the deadline is honoured early: the helper gives up at a hundredth of what it was given, so a slow but correct event under -race on a loaded machine becomes a flaky failure",
+      "file": "internal/core/machine/await_test.go",
+      "find": "\ttimer := time.NewTimer(within)\n\tdefer timer.Stop()\n\tselect {\n\tcase v := <-ch:\n",
+      "replace": "\ttimer := time.NewTimer(within / 100)\n\tdefer timer.Stop()\n\tselect {\n\tcase v := <-ch:\n",
+      "test": "TestAwaitEventFailsFastOnAnEventThatNeverComes"
+    },
+    {
+      "label": "the failure no longer says what did not happen: the test fails, but the reader learns only that a wait expired, which is the diagnosis cost this issue is about",
+      "file": "internal/core/machine/await_test.go",
+      "find": "\tcase <-timer.C:\n\t}\n\tt.Fatalf(\"waited %v and %s\", within, what)\n",
+      "replace": "\tcase <-timer.C:\n\t}\n\tt.Fatalf(\"waited %v and %s\", within, what[:0]+\"an event did not come\")\n",
+      "test": "TestAwaitEventFailsFastOnAnEventThatNeverComes"
+    },
+    {
+      "label": "an event that came is reported as missing: the receiving branch fails too, so the helper fails every wait, which passes the refusing test above and breaks every caller in the package",
+      "file": "internal/core/machine/await_test.go",
+      "find": "\tcase v := <-ch:\n\t\treturn v\n",
+      "replace": "\tcase v := <-ch:\n\t\tt.Fatalf(\"waited %v and %s\", within, what)\n\t\treturn v\n",
+      "test": "TestAwaitEventReturnsTheEventThatComes"
+    },
+    {
+      "label": "a call site, end to end: Attach's ownership probe asks about the wrong instance and refuses an owned machine before the device add, the early refusal of #909's Q2-b/Q2-c/M3 that each hung until the sweep's timeout. The verdict measures only that the test goes red: the harness runs go test without -timeout and counts any non-zero exit as a bite, so a hang would bite too. The timing was measured by hand on 2026-11-15, in a copy: 0.00 s with the fix, printing Attach's own error (was not created by the emulator); on main 7e44bfa, `panic: test timed out after 30s`",
+      "file": "internal/core/machine/incus.go",
+      "find": "\tif err := d.mustOwnInstance(ctx, name); err != nil {\n\t\treturn fmt.Errorf(\"attach %s to network %s: %w\", name, att.Network, err)",
+      "replace": "\tif err := d.mustOwnInstance(ctx, name+\"-elsewhere\"); err != nil {\n\t\treturn fmt.Errorf(\"attach %s to network %s: %w\", name, att.Network, err)",
+      "test": "TestAHotAttachAndAnIsolationDetachTakeTurns"
+    },
+    {
+      "label": "the early return is ignored: the returned case reads a nil channel, so a subject that refused before the event is only caught by the deadline, five seconds later and without its error, which is what the reviewer of cycle 1 saw under the call-site mutation",
+      "file": "internal/core/machine/await_test.go",
+      "find": "\tcase err := <-returned:\n",
+      "replace": "\tcase err := <-map[bool]<-chan error{true: returned}[false]:\n",
+      "test": "TestAwaitEventBeforeFailsAtOnceWhenTheSubjectReturnsFirst"
+    },
+    {
+      "label": "the early return fails without its error: the test still fails at once, but the subject's own refusal (`was not created by the emulator`) is dropped from the message, so the reader is back to guessing why the plug never began",
+      "file": "internal/core/machine/await_test.go",
+      "find": "\t\tt.Fatalf(\"%s: the subject returned first, with %v\", what, err)\n",
+      "replace": "\t\tt.Fatalf(\"%s: the subject returned first, with %v\", what, fmt.Sprint(err)[:0])\n",
+      "test": "TestAwaitEventBeforeFailsAtOnceWhenTheSubjectReturnsFirst"
+    },
+    {
+      "label": "the return is trusted over the event: the second look at event reads a nil channel, so when the event came and the subject then returned before the test goroutine ran, select's random pick fails a correct run about one time in two",
+      "file": "internal/core/machine/await_test.go",
+      "find": "\t\tselect {\n\t\tcase <-event:\n\t\t\treturn\n\t\tdefault:\n\t\t}\n",
+      "replace": "\t\tselect {\n\t\tcase <-map[bool]<-chan struct{}{true: event}[false]:\n\t\t\treturn\n\t\tdefault:\n\t\t}\n",
+      "test": "TestAwaitEventBeforeTakesTheEventOverALaterReturn"
+    },
+    {
+      "label": "a nil return before the event is let through: the subject answered \"nothing to do\" without producing the event, and the helper returns as if the event had come. The falsifier of cycle 2 measured this one green on every TestAwaitEvent*, and green on two race tests over a product mutation where Attach returned nil without attaching",
+      "file": "internal/core/machine/await_test.go",
+      "find": "\t\tdefault:\n\t\t}\n\t\tt.Fatalf(\"%s: the subject returned first, with %v\", what, err)\n",
+      "replace": "\t\tdefault:\n\t\t\tif err == nil {\n\t\t\t\treturn\n\t\t\t}\n\t\t}\n\t\tt.Fatalf(\"%s: the subject returned first, with %v\", what, err)\n",
+      "test": "TestAwaitEventBeforeFailsAtOnceWhenTheSubjectReturnsFirst/a_subject_that_returns_nil_before_the_event"
+    },
+    {
+      "label": "a race test that leans on the helper alone: the isolation detach asks whether the network is there (the first command, which is the event the helper waits for) and then returns nil without the edit the race is about. The helper is satisfied, the orphan check finds nothing, both errors are nil: only the assertion that a successful detach issued its edit catches it",
+      "file": "internal/core/machine/incus_isolate.go",
+      "find": "\tif len(foreign) == 0 {\n\t\t// Nothing to keep out: detach and drop the rule set",
+      "replace": "\tif len(foreign) == 0 {\n\t\tif len(name) > 0 {\n\t\t\treturn nil\n\t\t}\n\t\t// Nothing to keep out: detach and drop the rule set",
+      "test": "TestAnIsolationDetachDoesNotOrphanTheNetworkBeingDeleted"
+    }
+  ]
+}

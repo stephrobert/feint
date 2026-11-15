@@ -44,6 +44,11 @@ const (
 	racedStartMachine = "feint-osc-i-9"
 )
 
+// Reading a red run of these tests: the network and attach locks are
+// process-wide (serialise), so a subject that stalls while holding one makes
+// the next tests that need it fail on their own 5 s deadline too. Only the
+// first failure of such a series is the real one.
+
 // fakeStartd is the daemon's start-time ACL resolution as observed, not a
 // line-by-line replay: an operation that plugs an OVN port (an instance
 // start, a NIC add on a running instance) snapshots the ACLs its networks
@@ -76,6 +81,10 @@ type fakeStartd struct {
 	// beat is how long a plug waits for a delete to cross it: long enough
 	// that a racing delete is inside rather than merely likely to be.
 	beat time.Duration
+	// stagedPlugs counts the staged plugs that resolved: each test asserts its
+	// subject really did the step it races, so a subject that returned without
+	// doing it cannot pass on empty failures and a nil error (#935).
+	stagedPlugs int
 }
 
 func newFakeStartd(exists bool) *fakeStartd {
@@ -162,6 +171,9 @@ func (f *fakeStartd) plug(networks ...string) error {
 			f.failures = append(f.failures, failure)
 			return errors.New("Error: " + failure)
 		}
+	}
+	if staged {
+		f.stagedPlugs++
 	}
 	return nil
 }
@@ -304,6 +316,12 @@ func (f *fakeStartd) plugFailures() []string {
 	return append([]string(nil), f.failures...)
 }
 
+func (f *fakeStartd) stagedPlugCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.stagedPlugs
+}
+
 func (f *fakeStartd) isRunning() bool {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -328,7 +346,8 @@ func TestAStartAndAnIsolationDetachTakeTurns(t *testing.T) {
 
 	var wg sync.WaitGroup
 	var startErr, detachErr error
-	wg.Add(2)
+	wg.Add(1)
+	returned := make(chan error, 1)
 	go func() {
 		defer wg.Done()
 		_, startErr = d.Start(context.Background(), Spec{
@@ -336,12 +355,13 @@ func TestAStartAndAnIsolationDetachTakeTurns(t *testing.T) {
 			Image:       "alpine:3.21",
 			Attachments: []Attachment{{Network: racedStartNet}},
 		})
+		returned <- startErr
 	}()
-	go func() {
-		defer wg.Done()
-		<-f.plugBegun
-		detachErr = d.IsolateNetwork(context.Background(), racedStartNet, nil)
-	}()
+	// From the test's own goroutine, and bounded: a guard that refuses before
+	// this event fails here at once with the subject's own error, instead of
+	// hanging the package (#935).
+	awaitEventBefore(t, f.plugBegun, returned, eventDeadline, "the plug never began, so the first boot refused or stalled before `incus start` plugged eth0")
+	detachErr = d.IsolateNetwork(context.Background(), racedStartNet, nil)
 	wg.Wait()
 
 	if failures := f.plugFailures(); len(failures) != 0 {
@@ -350,6 +370,9 @@ func TestAStartAndAnIsolationDetachTakeTurns(t *testing.T) {
 	}
 	if startErr != nil {
 		t.Fatalf("the start failed: %v", startErr)
+	}
+	if f.stagedPlugCount() == 0 {
+		t.Fatal("the subject returned without plugging the port this race is about, so the test measured nothing")
 	}
 	if detachErr != nil && !errors.Is(detachErr, ErrNetworkGone) {
 		t.Fatalf("the detach failed for a reason other than the network being gone: %v", detachErr)
@@ -375,7 +398,8 @@ func TestARestartAndAnIsolationDetachTakeTurns(t *testing.T) {
 
 	var wg sync.WaitGroup
 	var startErr, detachErr error
-	wg.Add(2)
+	wg.Add(1)
+	returned := make(chan error, 1)
 	go func() {
 		defer wg.Done()
 		_, startErr = d.Start(context.Background(), Spec{
@@ -383,12 +407,13 @@ func TestARestartAndAnIsolationDetachTakeTurns(t *testing.T) {
 			Image:       "alpine:3.21",
 			Attachments: []Attachment{{Network: racedStartNet}},
 		})
+		returned <- startErr
 	}()
-	go func() {
-		defer wg.Done()
-		<-f.plugBegun
-		detachErr = d.IsolateNetwork(context.Background(), racedStartNet, nil)
-	}()
+	// From the test's own goroutine, and bounded: a guard that refuses before
+	// this event fails here at once with the subject's own error, instead of
+	// hanging the package (#935).
+	awaitEventBefore(t, f.plugBegun, returned, eventDeadline, "the plug never began, so the restart refused or stalled before `incus start` re-plugged its ports")
+	detachErr = d.IsolateNetwork(context.Background(), racedStartNet, nil)
 	wg.Wait()
 
 	if failures := f.plugFailures(); len(failures) != 0 {
@@ -397,6 +422,9 @@ func TestARestartAndAnIsolationDetachTakeTurns(t *testing.T) {
 	}
 	if startErr != nil {
 		t.Fatalf("the restart failed: %v", startErr)
+	}
+	if f.stagedPlugCount() == 0 {
+		t.Fatal("the subject returned without plugging the port this race is about, so the test measured nothing")
 	}
 	if detachErr != nil && !errors.Is(detachErr, ErrNetworkGone) {
 		t.Fatalf("the detach failed for a reason other than the network being gone: %v", detachErr)
@@ -421,7 +449,8 @@ func TestAnExtraInterfaceAndAnIsolationDetachTakeTurns(t *testing.T) {
 
 	var wg sync.WaitGroup
 	var startErr, detachErr error
-	wg.Add(2)
+	wg.Add(1)
+	returned := make(chan error, 1)
 	go func() {
 		defer wg.Done()
 		_, startErr = d.Start(context.Background(), Spec{
@@ -432,12 +461,13 @@ func TestAnExtraInterfaceAndAnIsolationDetachTakeTurns(t *testing.T) {
 				{Network: racedStartNet2},
 			},
 		})
+		returned <- startErr
 	}()
-	go func() {
-		defer wg.Done()
-		<-f.plugBegun
-		detachErr = d.IsolateNetwork(context.Background(), racedStartNet2, nil)
-	}()
+	// From the test's own goroutine, and bounded: a guard that refuses before
+	// this event fails here at once with the subject's own error, instead of
+	// hanging the package (#935).
+	awaitEventBefore(t, f.plugBegun, returned, eventDeadline, "the plug never began, so the start refused or stalled before the second interface was added")
+	detachErr = d.IsolateNetwork(context.Background(), racedStartNet2, nil)
 	wg.Wait()
 
 	if failures := f.plugFailures(); len(failures) != 0 {
@@ -446,6 +476,9 @@ func TestAnExtraInterfaceAndAnIsolationDetachTakeTurns(t *testing.T) {
 	}
 	if startErr != nil {
 		t.Fatalf("the start failed: %v", startErr)
+	}
+	if f.stagedPlugCount() == 0 {
+		t.Fatal("the subject returned without plugging the port this race is about, so the test measured nothing")
 	}
 	if detachErr != nil && !errors.Is(detachErr, ErrNetworkGone) {
 		t.Fatalf("the detach failed for a reason other than the network being gone: %v", detachErr)
@@ -469,17 +502,19 @@ func TestAHotAttachAndAnIsolationDetachTakeTurns(t *testing.T) {
 
 	var wg sync.WaitGroup
 	var attachErr, detachErr error
-	wg.Add(2)
+	wg.Add(1)
+	returned := make(chan error, 1)
 	go func() {
 		defer wg.Done()
 		attachErr = d.Attach(context.Background(), racedStartMachine,
 			Attachment{Network: racedStartNet2})
+		returned <- attachErr
 	}()
-	go func() {
-		defer wg.Done()
-		<-f.plugBegun
-		detachErr = d.IsolateNetwork(context.Background(), racedStartNet2, nil)
-	}()
+	// From the test's own goroutine, and bounded: a guard that refuses before
+	// this event fails here at once with the subject's own error, instead of
+	// hanging the package (#935).
+	awaitEventBefore(t, f.plugBegun, returned, eventDeadline, "the plug never began, so Attach refused before the device add")
+	detachErr = d.IsolateNetwork(context.Background(), racedStartNet2, nil)
 	wg.Wait()
 
 	if failures := f.plugFailures(); len(failures) != 0 {
@@ -488,6 +523,9 @@ func TestAHotAttachAndAnIsolationDetachTakeTurns(t *testing.T) {
 	}
 	if attachErr != nil {
 		t.Fatalf("the attach failed: %v", attachErr)
+	}
+	if f.stagedPlugCount() == 0 {
+		t.Fatal("the subject returned without plugging the port this race is about, so the test measured nothing")
 	}
 	if detachErr != nil && !errors.Is(detachErr, ErrNetworkGone) {
 		t.Fatalf("the detach failed for a reason other than the network being gone: %v", detachErr)
@@ -511,17 +549,19 @@ func TestAnAddressMoveAndAnIsolationDetachTakeTurns(t *testing.T) {
 
 	var wg sync.WaitGroup
 	var attachErr, detachErr error
-	wg.Add(2)
+	wg.Add(1)
+	returned := make(chan error, 1)
 	go func() {
 		defer wg.Done()
 		attachErr = d.Attach(context.Background(), racedStartMachine,
 			Attachment{Network: racedStartNet2, Address: "10.0.9.30"})
+		returned <- attachErr
 	}()
-	go func() {
-		defer wg.Done()
-		<-f.plugBegun
-		detachErr = d.IsolateNetwork(context.Background(), racedStartNet2, nil)
-	}()
+	// From the test's own goroutine, and bounded: a guard that refuses before
+	// this event fails here at once with the subject's own error, instead of
+	// hanging the package (#935).
+	awaitEventBefore(t, f.plugBegun, returned, eventDeadline, "the plug never began, so Attach refused before the address move re-plugged the device")
+	detachErr = d.IsolateNetwork(context.Background(), racedStartNet2, nil)
 	wg.Wait()
 
 	if failures := f.plugFailures(); len(failures) != 0 {
@@ -530,6 +570,9 @@ func TestAnAddressMoveAndAnIsolationDetachTakeTurns(t *testing.T) {
 	}
 	if attachErr != nil {
 		t.Fatalf("the attach failed: %v", attachErr)
+	}
+	if f.stagedPlugCount() == 0 {
+		t.Fatal("the subject returned without plugging the port this race is about, so the test measured nothing")
 	}
 	if detachErr != nil && !errors.Is(detachErr, ErrNetworkGone) {
 		t.Fatalf("the detach failed for a reason other than the network being gone: %v", detachErr)

@@ -103,16 +103,23 @@ func TestOneBuilderPerImageAndPerProcess(t *testing.T) {
 		d := &Incus{runner: rec.run}
 		spec := RequiredImages()[0]
 
-		done := make(chan bool, 2)
+		// The outcome travels back to the test's goroutine rather than being
+		// reported from the build's own: once a bounded wait below has failed
+		// the test, a t.Errorf from a build that finishes later panics the
+		// whole package ("Log in goroutine after … has completed").
+		type outcome struct {
+			made bool
+			err  error
+		}
+		done := make(chan outcome, 2)
 		build := func() {
 			made, err := BuildIfMissing(context.Background(), d, spec, nil)
-			if err != nil {
-				t.Errorf("build: %v", err)
-			}
-			done <- made
+			done <- outcome{made, err}
 		}
 		go build()
-		<-rec.entered // the first caller holds the container
+		// The first caller holds the container. Bounded (#935): a build that
+		// refuses before its launch would otherwise hang the package here.
+		awaitEvent(t, rec.entered, eventDeadline, "the first build never launched its builder")
 		go build()
 
 		// The witness, and it has to be this shape. Releasing the first caller
@@ -136,7 +143,11 @@ func TestOneBuilderPerImageAndPerProcess(t *testing.T) {
 
 		built := 0
 		for i := 0; i < 2; i++ {
-			if <-done {
+			out := awaitEvent(t, done, eventDeadline, "a build never returned once its builder was released")
+			if out.err != nil {
+				t.Errorf("build: %v", out.err)
+			}
+			if out.made {
 				built++
 			}
 		}
