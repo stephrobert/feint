@@ -21,6 +21,14 @@ at and by whom.
 
 | date | role | scope | found | not looked at |
 |---|---|---|---|---|
+| 2026-11-15 | `falsifier` | lot #954 / #955, two cycles | **three paths by which a test still reached another repository**; a skipped test counted as "guard broken"; two outputs left in trace; an unanchored test name giving a false green | the suites behind the `conformance` label under a decoy |
+| 2026-11-15 | `security-challenger` | lot #910, the cloud-config off argv | no blocker: no customer data on argv, no stdin leak, the YAML keeps its meaning (2000 random strings, 8 MiB) | how the packs log the user data |
+| 2026-11-14 and 15 | `falsifier` | lot #950 / #938 / #936 / #949 / #951, two cycles | **the test of #936 falsely certified `drift:check`**, whose step is `continue-on-error`; a symbolic link made the mutation write into the real file; a false present-tense line filed among the dated ones | not recorded: the report's gaps were not carried into the hand-off of 2026-11-15 |
+| 2026-11-14 and 15 | `security-challenger` | lot #945 / #947 / #944 / #934, two cycles | **a regression introduced by the first version of #947**: `route` and `Unroute` on two different machines, the address never removed; four reads of the device not parsed | `setUplinkRoute` |
+| 2026-11-14 | `falsifier` | lot #937 | three present-tense figures outside the control; two tests that did not bite; three undeclared mutations | the `./x` paths (became #950) |
+| 2026-11-14 | `security-challenger` | lot #933 | no blocker; removing the guard of `releaseFromRoutedNIC` verified safe; `plan.go:443` without `ours` (became #947) | who owns the OVN uplink |
+| 2026-11-14 | `go-reviewer` | PR #946 (`nonEmptyList`), an external contributor's | the added comment states the opposite of the code; no regression on the six workflows; two parsers of the same key (became #948) | `night-report.sh` executed |
+| 2026-11-14 | `falsifier` | PR #946 (`nonEmptyList`), an external contributor's | the `default: return true` lets through **nine spellings YAML reads as empty**, `'' # none yet` among them; two of the six terms are isolated by no case; five legitimate forms become refused; no spec names this guard | the branch was not executed (external contributor): everything comes from a copy of the function |
 | 2026-11-14 | `falsifier` | PR #926 second cycle, the contributor's answer | the three blocking points **closed**, each driven rather than read: a failing job in neither list now refuses the night, `judged-jobs: ''` and five other empty spellings now fail the guard, and a judged job at `in_progress` refuses instead of being dropped. His own additions go further than the review asked: the tests read the lists and the env wiring out of the workflows, so narrowing a list reddens the Go tests and commenting out `NIGHT_JUDGED_JOBS:` is caught, a failure mode neither reviewer had named. **Residual of the shape it answers**: `nonEmptyList`'s switch ends in `default: return true`, so `judged-jobs: >-` passes the guard while YAML yields an empty string | no Go test, no `mise run check`, no `tools/falsify` run on his branch (executing a contributor's branch is refused in this session); the `>-` case traced by hand, the sandbox refused the extracted copy; no API call, so the matrix display names rest on his own fixtures |
 | 2026-11-14 | `falsifier` | #923 / the new falsify check, two cycles | **four BLOCKER, all the same shape: the guard this lot adds was not held by its own tests.** `covered_paths`' package filter could be deleted and the selftest stayed green, because a one-package module makes "in this package" and "anywhere" the same set; the unbuildable-listing branch passed through the ordinary missing-name path; the pre-copy wiring in `main()` could be removed and reprinted TEST STILL PASSED verbatim; and a stale **subtest** name was still accepted, with 13 committed mutations naming one, nine of them rows of a single table. Second cycle: nine mutations, nine bites, all closed. Two more taken in the lot, one of them the lot's own lesson unapplied to its own new code (`ran_under` ignored its exit code) | `mise run falsify:all`; `mise run falsify:selftest` through mise rather than python directly, both cycles; the four behaviours no case holds, left to #938 |
 | 2026-11-14 | `doc-auditor` | #923, the three sentences it changes | no published page made false, and the two sentences claiming the lint needed no Go are both corrected. **Two MUST inside the lot**: a comment stating a mechanism the code does not have ("the module path is new on every run") where the path is a constant, and a cost published as 3.0 s warm that measures 0.25 s to 0.56 s depending only on which Python runs it. **Five pre-existing stale numbers** (#937), and `falsify:lint` run by no pull request while `CONTRIBUTING.md` says prepush is what a pull request refuses (#936) | `falsify:all` after the change, so the added per-spec cost is unmeasured; the 12.6 s counterfactual; a cold-cache measurement; the 251 specs' contents beyond counting |
@@ -40,10 +48,12 @@ at and by whom.
 
 ## What this register already says
 
-Sixteen audits over two days, on a repository that holds itself to a high
-standard, and every one found something. Most of the findings are the same
-defect wearing different clothes: **a control that cannot fail**. A register
-that says so is worth more than sixteen reports nobody reads twice.
+Twenty-four audits over three days, on a repository that holds itself to a
+high standard, and all but one found something; the exception, the 2026-11-15
+`security-challenger` pass on #910, is recorded with what it checked. Most of
+the findings are the same defect wearing different clothes: **a control that
+cannot fail**. A register that says so is worth more than twenty-four reports
+nobody reads twice.
 
 The 2026-11-14 rows add a second pattern, and it is worth naming separately:
 **several found a control whose verdict was true but drawn from the wrong
