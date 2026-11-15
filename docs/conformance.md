@@ -337,12 +337,14 @@ mise run falsify:selftest      # the harness against its own history
 ```
 
 Each mutation is applied in a copy outside the working tree, one at a time, and
-five outcomes are distinguished rather than merged:
+these outcomes are distinguished rather than merged:
 
 | verdict | what it means |
 |---|---|
 | the test bit | the guard is measured, today |
 | **test still passed** | the guard is not measured, and the test is what to fix |
+| **hung until timeout** | void, not favourable: the run was killed at its timeout, by the test binary's own alarm (`panic: test timed out`) or by `go test` itself when that alarm never fired (`*** Test killed … ran too long`), which is not the test catching the mutation; a mutation or a spec may declare a shorter `timeout` than Go's 10 minutes (#965) |
+| **skipped or never ran** | void, not favourable: `go test` exited 0, but no test the mutation names ran to a PASS (it called `t.Skip`, or nothing was selected), so a green run measured nothing |
 | **did not compile** | void, not favourable: every test fails, which reads like success |
 | **did not apply** | the code moved out from under the declaration |
 | **names a test that does not exist** | refused before the copy: `go test -run` would select nothing there and exit 0 — a top-level name the package does not hold, or a subtest the parent does not carry (#923) |

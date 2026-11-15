@@ -1,5 +1,6 @@
 {
   "package": "./internal/core/machine/",
+  "note": "#972. The first four mutations are judged by a staged race, not a scheduled one, and declare no repeat for that reason: the first pair's create waits in the fake with its pending half in the table, the rival is sent only then, and the fake records the moment two pending halves aim at one network, or the moment the rival takes down a half whose declaration is still in flight. The staging holds while the rival lands inside the fake's 300 ms beat; measured on 2026-11-15 under -race at GOMAXPROCS=2, -count=50 for each of the four, it landed within 0.46 ms at worst (median under 0.1 ms), and each failure prints that delay. Without -race, 50 runs per profile: each of the four bites 50 of 50 at GOMAXPROCS=2 and at GOMAXPROCS=1. Before #972 the first one was judged by a three-subnet mesh sent at once, which stayed green under it on 7 of 550 runs at GOMAXPROCS=2, 12 of 500 at 4, 24 of 500 at 20 and 0 of 550 at 1, and once on the night runner. The four mutations ask the four questions the lock answers: is there an exclusion at all; does it cover both ends of a pair rather than either end in sorted order; is it keyed by network rather than by pair, the design the comment on peerLock names as the one that lets #456 through; and does a declaration lock its own network and not only its peer. The test's first three rows put the shared network first, in the middle and last in the lock order, so a lock on either end in sorted order bites in one of them; in all three the shared network is the peer argument, which is why the fourth row sends the same pair from its other end and judges the fourth mutation alone. Measured row by row under -race: no lock fails all four rows, the first name only fails middle and last, the per-pair key fails the three sorted rows, the peer only fails the fourth row alone.",
   "mutations": [
     {
       "label": "the peering of a pair stops excluding the networks it names, so two pairs of one Net leave two pending halves aiming at the same network and the runtime refuses every create on it (#456)",
@@ -7,6 +8,27 @@
       "find": "\tslices.Sort(ordered)\n\treleases := make([]func(), 0, len(ordered))",
       "replace": "\tslices.Sort(ordered)\n\tordered = ordered[:0]\n\treleases := make([]func(), 0, len(ordered))",
       "test": "TestConcurrentPairsOfOneNetDoNotCollideOnAPendingHalf"
+    },
+    {
+      "label": "the peering of a pair locks only the first of its networks in sorted order, so two pairs sharing the other end both get in and leave two pending halves aiming at it (#456, #972)",
+      "file": "internal/core/machine/incus_ovn.go",
+      "find": "\tfor _, name := range ordered {\n\t\treleases = append(releases, serialise.Lock(\"incus.peering.\"+name))",
+      "replace": "\tfor _, name := range ordered[:1] {\n\t\treleases = append(releases, serialise.Lock(\"incus.peering.\"+name))",
+      "test": "TestConcurrentPairsOfOneNetDoNotCollideOnAPendingHalf"
+    },
+    {
+      "label": "the peering takes one lock per pair instead of one per network, so (A,B) and (C,B) never wait for each other and leave two pending halves aiming at B (#456, #972)",
+      "file": "internal/core/machine/incus_ovn.go",
+      "find": "\tfor _, name := range ordered {\n\t\treleases = append(releases, serialise.Lock(\"incus.peering.\"+name))\n\t}",
+      "replace": "\tfor _, name := range ordered[:1] {\n\t\treleases = append(releases, serialise.Lock(\"incus.peering.\"+name+\"+\"+strings.Join(ordered[1:], \"+\")))\n\t}",
+      "test": "TestConcurrentPairsOfOneNetDoNotCollideOnAPendingHalf"
+    },
+    {
+      "label": "the declaration of a pair locks its peer and not its own network, so the same pair declared from its other end takes down the half the first declaration is still making (#456, #972)",
+      "file": "internal/core/machine/incus_ovn.go",
+      "find": "\trelease := d.peerLock(network, peer)\n\tdefer release()\n\n\tnear, err := d.networkPeers(ctx, network)",
+      "replace": "\trelease := d.peerLock(peer)\n\tdefer release()\n\n\tnear, err := d.networkPeers(ctx, network)",
+      "test": "TestConcurrentPairsOfOneNetDoNotCollideOnAPendingHalf/the_same_pair_declared_from_its_other_end"
     },
     {
       "label": "the rebuild ignores the half holding the target's name with no target left, so the create answers \"a peer for that name already exists\" and the peering is reported applied without existing (#456)",

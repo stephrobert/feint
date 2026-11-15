@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stephrobert/feint/internal/proxy"
 )
@@ -136,16 +137,16 @@ func TestProxyRefusesAnUnusableInvocation(t *testing.T) {
 		"unknown provider":  {[]string{"--upstream", "https://api.scaleway.com", "--record", "-", "--provider", "aws"}, "unknown provider"},
 		"unusable upstream": {[]string{"--upstream", "://", "--record", "-"}, "--upstream"},
 		"exposed address": {[]string{
-			"--upstream", "https://api.scaleway.com", "--record", "-", "--addr", "0.0.0.0:4600",
+			"--upstream", "https://api.scaleway.com", "--record", "-", "--addr", "192.0.2.1:0",
 		}, "--expose-to-network"},
 		// The CONNECT door gets no bypass of its own: the same three refusals
 		// apply to it, and the exposure one applies harder.
 		"forward with no record": {[]string{"--forward", "api.scaleway.com"}, "--record"},
 		"forward off loopback": {[]string{
-			"--forward", "api.scaleway.com", "--record", "-", "--addr", "0.0.0.0:4600",
+			"--forward", "api.scaleway.com", "--record", "-", "--addr", "192.0.2.1:0",
 		}, "--expose-to-network"},
 		"forward exposed on purpose": {[]string{
-			"--forward", "api.scaleway.com", "--record", "-", "--addr", "0.0.0.0:4600", "--expose-to-network",
+			"--forward", "api.scaleway.com", "--record", "-", "--addr", "192.0.2.1:0", "--expose-to-network",
 		}, "loopback"},
 		"forward and upstream": {[]string{
 			"--forward", "api.scaleway.com", "--upstream", "https://api.scaleway.com", "--record", "-",
@@ -163,7 +164,7 @@ func TestProxyRefusesAnUnusableInvocation(t *testing.T) {
 		}, "every host"},
 		"forward exposed on purpose, mapped": {[]string{
 			"--forward", "api.scaleway.com=http://127.0.0.1:4599", "--record", "-",
-			"--addr", "0.0.0.0:4600", "--expose-to-network",
+			"--addr", "192.0.2.1:0", "--expose-to-network",
 		}, "loopback"},
 		"forward to a target that is a path": {[]string{
 			"--forward", "api.scaleway.com=http://127.0.0.1:4599/v2", "--record", "-", "--addr", "127.0.0.1:0",
@@ -174,7 +175,7 @@ func TestProxyRefusesAnUnusableInvocation(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			var stdout, stderr bytes.Buffer
-			if code := proxyCommand(tc.args, &stdout, &stderr); code != exitError {
+			if code := proxyCommandBounded(t, tc.args, &stdout, &stderr); code != exitError {
 				t.Fatalf("exit %d, expected %d", code, exitError)
 			}
 			if !strings.Contains(stderr.String(), tc.want) {
@@ -183,7 +184,59 @@ func TestProxyRefusesAnUnusableInvocation(t *testing.T) {
 			if stdout.Len() != 0 {
 				t.Errorf("a refusal wrote to stdout, where --record - puts the transcript: %q", stdout.String())
 			}
+			// A failed bind also exits 1, so the exit code alone cannot tell a
+			// refusal from a lifted one that tried to listen on 192.0.2.1. The
+			// banner cannot tell them apart either since the proxy binds before
+			// announcing: a failed bind prints none. What a lifted refusal does
+			// leave is the bind's own error, which names `listen tcp`.
+			if strings.Contains(stderr.String(), "listen tcp") {
+				t.Errorf("the command went on to listen instead of refusing: %s", stderr.String())
+			}
 		})
+	}
+}
+
+// refusalWait bounds a proxyCommand that a test expects to refuse. A refusal
+// returns before anything listens, in well under a second even when a forward
+// entry has minted its authority first; reaching the bound means the command
+// is serving instead.
+const refusalWait = 10 * time.Second
+
+// proxyCommandBounded runs proxyCommand and fails the test if it has not
+// returned within refusalWait, naming the invocation that kept listening.
+//
+// It exists because a refusal that is lifted does not fail: the command goes on
+// to listen and blocks until a signal, and the bare call hung
+// TestProxyRefusesAnUnusableInvocation until go test's 10-minute alarm when
+// --forward --expose-to-network was let through (#971).
+//
+// The off-loopback cases of TestProxyRefusesAnUnusableInvocation ask for
+// 192.0.2.1:0 (TEST-NET-1, RFC 5737), an address no host is configured with.
+// The refusal reads the host alone (emulator.LoopbackListen), so it fires as it
+// would on 0.0.0.0; a lifted refusal fails on bind within milliseconds instead
+// of serving. With 0.0.0.0 it served: an open relay to the real cloud on every
+// interface for the rest of the package run, a TLS-intercepting one in forward
+// mode, its CA left in $TMPDIR because the command's defer never ran, and
+// signal.NotifyContext swallowing the first SIGTERM sent to the test binary.
+//
+// A stated limit: proxyCommand has no context to cancel. On a host that does
+// hold 192.0.2.1, or that sets net.ipv4.ip_nonlocal_bind=1, the bind of a
+// lifted refusal succeeds, so the case fails on the 10 s Fatalf below instead
+// of failing fast on `listen tcp` (it still fails), and the command would
+// stay listening until the test binary exits. It writes only to the buffers of the subtest that started it,
+// and that subtest reads neither once it has failed.
+func proxyCommandBounded(t *testing.T, args []string, stdout, stderr *bytes.Buffer) int {
+	t.Helper()
+	code := make(chan int, 1)
+	go func() { code <- proxyCommand(args, stdout, stderr) }()
+	timer := time.NewTimer(refusalWait)
+	defer timer.Stop()
+	select {
+	case c := <-code:
+		return c
+	case <-timer.C:
+		t.Fatalf("waited %v and proxy %q had not returned: it is listening instead of refusing", refusalWait, args)
+		return 0
 	}
 }
 

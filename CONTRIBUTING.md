@@ -63,7 +63,7 @@ decision (#564).
 
 It also prints **the falsifications the diff has earned**, read off
 `tools/falsify/specs/` rather than remembered: 260 specs name 310 distinct files
-in 1877 mutations, and a spec that mutates a file you touched is the subset of
+in 1933 mutations, and a spec that mutates a file you touched is the subset of
 `falsify:all` your change can have stopped biting. Every batch here has followed
 that discipline by hand and said so in its pull request, which means it has also
 been forgotten by hand — `mise run check` cannot see a guard whose test still

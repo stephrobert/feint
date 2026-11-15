@@ -305,12 +305,14 @@ mise run falsify:selftest      # le harnais contre sa propre histoire
 ```
 
 Chaque mutation s'applique dans une copie hors de l'arbre de travail, une à la
-fois, et cinq issues sont distinguées plutôt que confondues :
+fois, et ces issues sont distinguées plutôt que confondues :
 
 | verdict | ce que cela veut dire |
 |---|---|
 | le test a mordu | la garde est mesurée, aujourd'hui |
 | **le test est resté vert** | la garde n'est pas mesurée, et c'est le test qu'il faut corriger |
+| **bloqué jusqu'au délai** | verdict nul, pas favorable : l'exécution a été tuée à son délai, par l'alarme du binaire de test lui-même (`panic: test timed out`) ou par `go test` quand cette alarme ne s'est jamais déclenchée (`*** Test killed … ran too long`), ce qui ne veut pas dire que le test attrape la mutation ; une mutation ou une spec peut déclarer un `timeout` plus court que les 10 minutes de Go (#965) |
+| **sauté ou jamais exécuté** | verdict nul, pas favorable : `go test` est sorti en 0, mais aucun test que nomme la mutation n'est allé jusqu'à un PASS (il a appelé `t.Skip`, ou rien n'a été sélectionné), donc une exécution verte n'a rien mesuré |
 | **n'a pas compilé** | verdict nul, pas favorable : tous les tests échouent, ce qui se lit comme un succès |
 | **ne s'applique pas** | le code a bougé sous la déclaration |
 | **nomme un test qui n'existe pas** | refusé avant la copie : `go test -run` n'y sélectionnerait rien et sortirait en 0, qu'il s'agisse d'un nom de test que le paquet ne porte pas ou d'un sous-test que le parent ne porte pas (#923) |

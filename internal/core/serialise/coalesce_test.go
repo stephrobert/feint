@@ -22,26 +22,44 @@ func TestRunWaitsForAPassThatSawTheCall(t *testing.T) {
 
 	release := make(chan struct{})
 	firstStarted := make(chan struct{})
+	// Once rather than select/default: a mutant that ran two passes at once
+	// could reach close twice and panic the whole test binary.
+	var first sync.Once
 	pass := func() {
 		mu.Lock()
 		snapshot := append([]string(nil), state...)
 		seen = append(seen, snapshot)
 		mu.Unlock()
-		select {
-		case <-firstStarted:
-		default:
+		isFirst := false
+		first.Do(func() {
+			isFirst = true
 			close(firstStarted)
+		})
+		if isFirst {
 			<-release // hold the first pass open so the second caller arrives inside it
 		}
 	}
 
-	var wg sync.WaitGroup
-	wg.Add(1)
+	firstDone := make(chan struct{})
 	go func() {
-		defer wg.Done()
 		c.Run(pass)
+		close(firstDone)
 	}()
-	<-firstStarted
+	// Bounded, and watching the caller as well as the pass: a Run that returns
+	// on an idle coalescer without running anything never closes firstStarted,
+	// and a bare receive here hung the test until go test's 10-minute alarm
+	// (#970) instead of saying so.
+	select {
+	case <-firstStarted:
+	case <-firstDone:
+		select {
+		case <-firstStarted:
+		default:
+			t.Fatal("the first caller returned from an idle coalescer without running a pass")
+		}
+	case <-time.After(testWait):
+		t.Fatalf("waited %v and the first caller's pass never started", testWait)
+	}
 
 	// The second caller writes its change, then asks. The running pass has
 	// already taken its snapshot and cannot have seen it.
@@ -62,14 +80,35 @@ func TestRunWaitsForAPassThatSawTheCall(t *testing.T) {
 	}
 
 	close(release)
-	<-secondDone
-	wg.Wait()
+	awaitClosed(t, secondDone, "the second caller never returned once the held pass was released")
+	awaitClosed(t, firstDone, "the first caller never returned once its pass was released")
 
 	mu.Lock()
 	defer mu.Unlock()
 	last := seen[len(seen)-1]
 	if len(last) != 1 || last[0] != "late-change" {
 		t.Fatalf("the pass that satisfied the second caller did not read its change: %v", seen)
+	}
+}
+
+// testWait bounds every wait of this file on something the coalescer must make
+// happen. It is generous because a pass here takes microseconds: reaching it
+// means the event is not coming, and the test says which one instead of
+// hanging until go test's alarm.
+const testWait = 10 * time.Second
+
+// awaitClosed waits for ch to close, at most testWait, and fails naming what did
+// not happen. It is a minimal copy of the shape of awaitEvent
+// (internal/core/machine, await_test.go), kept here because a test helper is
+// not importable across packages and this package needs only the bare wait.
+func awaitClosed(t *testing.T, ch <-chan struct{}, what string) {
+	t.Helper()
+	timer := time.NewTimer(testWait)
+	defer timer.Stop()
+	select {
+	case <-ch:
+	case <-timer.C:
+		t.Fatalf("waited %v and %s", testWait, what)
 	}
 }
 

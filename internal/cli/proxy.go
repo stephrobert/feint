@@ -89,9 +89,10 @@ func proxyCommand(args []string, _ io.Writer, stderr io.Writer) int {
 	var (
 		rec       proxyRecorder
 		forwarder *proxy.Forward
+		caPath    string
 	)
 	if *forward != "" {
-		authority, caPath, removeCA, err := mintTemporaryAuthority()
+		authority, path, removeCA, err := mintTemporaryAuthority()
 		if err != nil {
 			_ = writer.Close()
 			_ = closeOut()
@@ -102,6 +103,7 @@ func proxyCommand(args []string, _ io.Writer, stderr io.Writer) int {
 		// command returns, whatever the exit path, and it is never installed
 		// anywhere a process could trust it by accident.
 		defer removeCA()
+		caPath = path
 		forwarder, err = proxy.NewForward(proxy.ForwardOptions{
 			Hosts:     splitHosts(*forward),
 			Writer:    writer,
@@ -117,7 +119,6 @@ func proxyCommand(args []string, _ io.Writer, stderr io.Writer) int {
 			return exitError
 		}
 		rec = forwarder
-		printForwardRecipe(stderr, forwarder.Destinations(), *addr, caPath)
 	} else {
 		p, err := proxy.New(proxy.Options{
 			Upstream: target,
@@ -135,21 +136,44 @@ func proxyCommand(args []string, _ io.Writer, stderr io.Writer) int {
 		rec = p
 	}
 
+	// Bound before anything says "listening": the banner printed first used to
+	// announce an address the bind then refused, and `--addr 127.0.0.1:0` was
+	// announced as `:0`, never the port the system chose. Every address this
+	// command prints from here on is the listener's own.
+	// TestTheProxyAnnouncesTheAddressItBound fails without it.
+	//
+	// The signals are taken first: from the banner on, an operator (or a test)
+	// may stop the proxy, and a SIGTERM that arrived before NotifyContext was
+	// armed killed the process without draining the transcript.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	ln, err := net.Listen("tcp", *addr)
+	if err != nil {
+		_ = writer.Close()
+		_ = closeOut()
+		fmt.Fprintf(stderr, "feint: %v\n", err)
+		return exitError
+	}
+	bound := ln.Addr().String()
+
 	// Everything this command says goes to stderr, without exception: --record -
 	// puts the transcript on stdout, and a status line landing in the middle of a
 	// JSON Lines stream would break every reader of it.
-	fmt.Fprintf(stderr, "feint proxy listening on %s\n", *addr)
+	if forwarder != nil {
+		printForwardRecipe(stderr, forwarder.Destinations(), bound, caPath)
+	}
+	fmt.Fprintf(stderr, "feint proxy listening on %s\n", bound)
 	if *forward == "" {
 		fmt.Fprintf(stderr, "  upstream  %s\n", target)
 	}
 	fmt.Fprintf(stderr, "  recording %s\n", *record)
 	fmt.Fprintf(stderr, "  naming    %s\n", namingOf(*provider))
 	if *intercept == "" && *forward == "" {
-		fmt.Fprintf(stderr, "  point a client at http://%s and drive it as usual\n", *addr)
+		fmt.Fprintf(stderr, "  point a client at http://%s and drive it as usual\n", bound)
 	}
 
 	srv := &http.Server{
-		Addr:    *addr,
+		Addr:    bound,
 		Handler: rec,
 		// The only timeout set, and the omissions are deliberate: a real cloud
 		// answering a large list is allowed to take its time, and a proxy that
@@ -162,10 +186,11 @@ func proxyCommand(args []string, _ io.Writer, stderr io.Writer) int {
 	// serve is the listener the run blocks on. Plain HTTP by default; HTTPS with a
 	// minted certificate when --intercept names the hosts a redirected client will
 	// address. The certificate half of #76: everything after this is identical.
-	serve := srv.ListenAndServe
+	serve := func() error { return srv.Serve(ln) }
 	if *intercept != "" {
-		cfg, cleanup, err := setUpInterception(*intercept, *addr, stderr)
+		cfg, cleanup, err := setUpInterception(*intercept, bound, stderr)
 		if err != nil {
+			_ = ln.Close()
 			_ = writer.Close()
 			_ = closeOut()
 			fmt.Fprintf(stderr, "feint: %v\n", err)
@@ -173,11 +198,8 @@ func proxyCommand(args []string, _ io.Writer, stderr io.Writer) int {
 		}
 		defer cleanup()
 		srv.TLSConfig = cfg
-		serve = func() error { return srv.ListenAndServeTLS("", "") }
+		serve = func() error { return srv.ServeTLS(ln, "", "") }
 	}
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 
 	errs := make(chan error, 1)
 	go func() {

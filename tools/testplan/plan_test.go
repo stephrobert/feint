@@ -511,20 +511,293 @@ func TestAChangedFileEarnsTheSpecsThatMutateIt(t *testing.T) {
 	}
 }
 
+// A spec stops biting in three ways, and each earns its replay on its own: the
+// file it mutates changed, the spec itself changed, or a test that judges its
+// mutations changed. Measured on #965: a diff changing peering-pairs.json and
+// incus_ovn_peering_test.go, but not incus_ovn.go, earned no replay of that
+// spec while only the first link existed.
+//
+// One case per question, and each case passes every other question: the spec
+// names a test, mutates a file and lives at a path, and only the link under
+// test is in the diff. The reason is asserted, not only the command, because
+// one command answers four reasons and a case that routes through the wrong
+// one measures nothing. tools/falsify/specs/a-plan-that-cannot-rot.json
+// neutralises each link and each reading of a test name in turn.
+func TestASpecIsEarnedByEachOfItsThreeLinks(t *testing.T) {
+	const declares = "package a\n\nimport \"testing\"\n\nfunc TestGuardHolds(t *testing.T) {}\n"
+	spec := func(pkg, mutationPkg, test string) string {
+		m := `{"file":"a/guard.go","find":"x","replace":"y","test":"` + test + `"`
+		if mutationPkg != "" {
+			m += `,"package":"` + mutationPkg + `"`
+		}
+		return `{"package":"` + pkg + `","mutations":[` + m + `}]}`
+	}
+	const run = "mise run falsify -- tools/falsify/specs/s.json"
+
+	cases := []struct {
+		name  string
+		spec  string
+		files map[string]string // what the tree holds besides the spec
+		diff  []string
+		want  []string // the reasons the spec is earned for; none means not earned
+	}{
+		{
+			name: "the_spec_itself_changed",
+			spec: spec("./a/", "", "TestGuardHolds"),
+			diff: []string{"tools/falsify/specs/s.json"},
+			want: []string{becauseTheSpecChanged},
+		},
+		{
+			// The harness is what says why a broken spec refuses; the plan's
+			// job is only to ask for it.
+			name: "a_changed_spec_that_does_not_parse_is_still_earned",
+			spec: `{"mutations": [`,
+			diff: []string{"tools/falsify/specs/s.json"},
+			want: []string{becauseTheSpecChanged, becauseTheSpecCannotBeRead},
+		},
+		{
+			// Unchanged, and nothing else in the diff: still earned, since
+			// no link can be judged on a spec nobody can read.
+			name: "an_unreadable_spec_is_earned_whatever_the_diff",
+			spec: `{"mutations": [`,
+			diff: []string{"c/other.go"},
+			want: []string{becauseTheSpecCannotBeRead},
+		},
+		{
+			name: "the_file_it_mutates_changed",
+			spec: spec("./a/", "", "TestGuardHolds"),
+			diff: []string{"a/guard.go"},
+			want: []string{becauseMutatesAChangedFile},
+		},
+		{
+			name:  "a_test_it_names_changed",
+			spec:  spec("./a/", "", "TestGuardHolds"),
+			files: map[string]string{"a/guard_test.go": declares},
+			diff:  []string{"a/guard_test.go"},
+			want:  []string{becauseANamedTestChanged},
+		},
+		{
+			name:  "a_subtest_names_its_parent",
+			spec:  spec("./a/", "", "TestGuardHolds/the_bad_case"),
+			files: map[string]string{"a/guard_test.go": declares},
+			diff:  []string{"a/guard_test.go"},
+			want:  []string{becauseANamedTestChanged},
+		},
+		{
+			name:  "an_alternative_names_each_side",
+			spec:  spec("./a/", "", "TestElsewhere|TestGuardHolds"),
+			files: map[string]string{"a/guard_test.go": declares},
+			diff:  []string{"a/guard_test.go"},
+			want:  []string{becauseANamedTestChanged},
+		},
+		{
+			// falsify.py hands a pattern holding `|` to -run unanchored, so
+			// its first alternative also runs the longer name the fixture
+			// declares. (Fixture names stay out of comments: the citation
+			// guard would look for them as real tests.)
+			name:  "an_alternative_also_selects_a_longer_name",
+			spec:  spec("./a/", "", "TestGuard|TestElsewhere"),
+			files: map[string]string{"a/guard_test.go": declares},
+			diff:  []string{"a/guard_test.go"},
+			want:  []string{becauseANamedTestChanged},
+		},
+		{
+			// …while a plain name is anchored by falsify.py and selects
+			// itself alone.
+			name:  "a_plain_name_selects_itself_alone",
+			spec:  spec("./a/", "", "TestGuard"),
+			files: map[string]string{"a/guard_test.go": declares},
+			diff:  []string{"a/guard_test.go"},
+		},
+		{
+			// A pattern in the subtest element leaves the whole pattern
+			// unanchored, the parent included.
+			name:  "a_pattern_in_a_subtest_unanchors_the_parent",
+			spec:  spec("./a/", "", "TestGuard/a|b"),
+			files: map[string]string{"a/guard_test.go": declares},
+			diff:  []string{"a/guard_test.go"},
+			want:  []string{becauseANamedTestChanged},
+		},
+		{
+			name:  "a_slash_inside_a_group_does_not_split",
+			spec:  spec("./a/", "", "(TestGuardHolds|TestX/y)"),
+			files: map[string]string{"a/guard_test.go": declares},
+			diff:  []string{"a/guard_test.go"},
+			want:  []string{becauseANamedTestChanged},
+		},
+		{
+			name:  "a_package_pattern_with_dots_covers_its_subtree",
+			spec:  spec("./a/...", "", "TestGuardHolds"),
+			files: map[string]string{"a/sub/guard_test.go": declares},
+			diff:  []string{"a/sub/guard_test.go"},
+			want:  []string{becauseANamedTestChanged},
+		},
+		{
+			// ab/ is not under a/, even though its name starts with a.
+			name:  "a_package_pattern_with_dots_stops_at_its_subtree",
+			spec:  spec("./a/...", "", "TestGuardHolds"),
+			files: map[string]string{"ab/guard_test.go": declares},
+			diff:  []string{"ab/guard_test.go"},
+		},
+		{
+			name:  "an_unreadable_package_pattern_routes_rather_than_excuses",
+			spec:  spec("a", "", "TestGuardHolds"),
+			files: map[string]string{"a/guard_test.go": declares},
+			diff:  []string{"a/guard_test.go"},
+			want:  []string{becauseATestCannotBeJudged},
+		},
+		{
+			name:  "an_anchored_name_is_the_name",
+			spec:  spec("./a/", "", "^TestGuardHolds$/sub$"),
+			files: map[string]string{"a/guard_test.go": declares},
+			diff:  []string{"a/guard_test.go"},
+			want:  []string{becauseANamedTestChanged},
+		},
+		{
+			name:  "a_mutation_s_own_package_overrides_the_spec_s",
+			spec:  spec("./b/", "./a/", "TestGuardHolds"),
+			files: map[string]string{"a/guard_test.go": declares},
+			diff:  []string{"a/guard_test.go"},
+			want:  []string{becauseANamedTestChanged},
+		},
+		{
+			// The same name, declared in a package the spec does not judge.
+			name:  "a_named_test_in_another_package_does_not_link",
+			spec:  spec("./b/", "", "TestGuardHolds"),
+			files: map[string]string{"a/guard_test.go": declares},
+			diff:  []string{"a/guard_test.go"},
+		},
+		{
+			// The right package, another test.
+			name:  "a_test_file_without_the_named_test_does_not_link",
+			spec:  spec("./a/", "", "TestGuardHolds"),
+			files: map[string]string{"a/other_test.go": "package a\n\nimport \"testing\"\n\nfunc TestSomethingElse(t *testing.T) {}\n"},
+			diff:  []string{"a/other_test.go"},
+		},
+		{
+			// A pattern that does not compile must route, never read as
+			// "names nothing".
+			name:  "a_test_pattern_that_does_not_compile_routes_rather_than_excuses",
+			spec:  spec("./a/", "", "Test(GuardHolds"),
+			files: map[string]string{"a/guard_test.go": declares},
+			diff:  []string{"a/guard_test.go"},
+			want:  []string{becauseATestCannotBeJudged},
+		},
+		{
+			name:  "a_test_file_that_does_not_parse_routes_rather_than_excuses",
+			spec:  spec("./a/", "", "TestGuardHolds"),
+			files: map[string]string{"a/guard_test.go": "package a\n\nfunc (\n"},
+			diff:  []string{"a/guard_test.go"},
+			want:  []string{becauseATestCannotBeJudged},
+		},
+		{
+			// Listed through --paths but absent from the tree.
+			// TestARemovedTestFileEarnsTheSpecsThatNameItsPackage is the
+			// deletion git reports.
+			name: "a_listed_test_file_that_is_absent_routes_rather_than_excuses",
+			spec: spec("./a/", "", "TestGuardHolds"),
+			diff: []string{"a/guard_test.go"},
+			want: []string{becauseATestCannotBeJudged},
+		},
+		{
+			// Nothing links: another package's test declaring the same name,
+			// another spec-shaped path, an unrelated source file.
+			name: "nothing_links",
+			spec: spec("./a/", "", "TestGuardHolds"),
+			files: map[string]string{
+				"c/other_test.go":           "package c\n\nimport \"testing\"\n\nfunc TestGuardHolds(t *testing.T) {}\n",
+				"tools/falsify/specs/t.txt": "not a spec",
+			},
+			diff: []string{"c/other.go", "c/other_test.go", "tools/falsify/specs/t.txt"},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			files := map[string]string{"tools/falsify/specs/s.json": tc.spec}
+			for p, body := range tc.files {
+				files[p] = body
+			}
+			for p, body := range files {
+				full := filepath.Join(dir, filepath.FromSlash(p))
+				if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(full, []byte(body), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			got := build(dir, tc.diff)
+			var because []string
+			for _, r := range got.Runs {
+				if strings.HasPrefix(r.Command, "mise run falsify -- ") && r.Command != run {
+					t.Errorf("a spec the fixture does not hold was earned: %q", r.Command)
+				}
+				if r.Command == run {
+					because = r.Because
+				}
+			}
+			if strings.Join(because, "\n") != strings.Join(tc.want, "\n") {
+				t.Fatalf("diff %v earned s.json for\n  %q\nwant\n  %q", tc.diff, because, tc.want)
+			}
+		})
+	}
+}
+
+// A deleted test file reaches the test link through the removed list alone:
+// changed() leaves deleted paths out on purpose, so the file is in no path the
+// plan triages. The control is the same diff without the removed list: no
+// replay. That git reports the deletion, and that main hands it here, is
+// TestTheTestplanAsksForTheSpecADeletedTestWasJudgedBy in tools/ci, which owns
+// the throwaway-repository helper a test needs to write with git.
+func TestARemovedTestFileEarnsTheSpecsThatNameItsPackage(t *testing.T) {
+	dir := t.TempDir()
+	for p, body := range map[string]string{
+		"tools/falsify/specs/s.json": `{"package":"./a/","mutations":[{"file":"a/guard.go","find":"x","replace":"y","test":"TestGuardHolds"}]}`,
+		"a/guard.go":                 "package a\n",
+	} {
+		full := filepath.Join(dir, filepath.FromSlash(p))
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	const run = "mise run falsify -- tools/falsify/specs/s.json"
+	because := func(p plan) []string {
+		for _, r := range p.Runs {
+			if r.Command == run {
+				return r.Because
+			}
+		}
+		return nil
+	}
+	if got := because(buildRemoving(dir, nil, []string{"a/guard_test.go"})); strings.Join(got, "\n") != becauseATestCannotBeJudged {
+		t.Fatalf("a deleted test file earned s.json for %q, want %q", got, becauseATestCannotBeJudged)
+	}
+	if got := because(build(dir, nil)); len(got) != 0 {
+		t.Fatalf("without the removed list s.json was still earned, for %q: the case above does not measure the removed list", got)
+	}
+}
+
 // The real corpus, not a fixture: the mapping is only worth having if it is
 // exact against what this repository actually declares.
 func TestTheRealSpecsAreReadAndOnlyTheMatchingOnesAreEarned(t *testing.T) {
 	dir := root(t)
-	got := falsifications(dir, []string{"internal/core/machine/incus_ovn.go"})
+	got := falsifications(dir, []string{"internal/core/machine/incus_ovn.go"}, nil)
 	if len(got) == 0 {
 		t.Fatal("no spec earned for internal/core/machine/incus_ovn.go, which committed mutations name; the specs are not being read")
 	}
 	for _, cmd := range got {
-		if !strings.HasPrefix(cmd, "mise run falsify -- tools/falsify/specs/") {
-			t.Errorf("earned command is not runnable as printed: %q", cmd)
+		if !strings.HasPrefix(cmd.command, "mise run falsify -- tools/falsify/specs/") {
+			t.Errorf("earned command is not runnable as printed: %q", cmd.command)
 		}
 	}
-	if none := falsifications(dir, []string{"quantum/teleporter.go"}); len(none) != 0 {
+	if none := falsifications(dir, []string{"quantum/teleporter.go"}, nil); len(none) != 0 {
 		t.Errorf("a file no spec names earned %v", none)
 	}
 }
@@ -554,7 +827,7 @@ func TestEveryPlanSaysWhatItCannotKnow(t *testing.T) {
 		{"a plan that refuses an un-triaged path", []string{"quantum/teleporter.go"}},
 	} {
 		got := build(t.TempDir(), tc.paths).String()
-		for _, want := range []string{"which population the defect lives in", "#521", "floor"} {
+		for _, want := range []string{"which population the defect lives in", "#521", "only a helper that test", "floor"} {
 			if !strings.Contains(got, want) {
 				t.Errorf("%s does not say %q, so it can be read as a ceiling:\n%s", tc.what, want, got)
 			}
