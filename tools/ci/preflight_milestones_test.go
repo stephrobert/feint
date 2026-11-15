@@ -74,36 +74,12 @@ func runMilestoneGate(t *testing.T, version, milestones string) (int, string) {
 		t.Fatal(err)
 	}
 
-	repo := filepath.Join(dir, "repo")
-	if err := os.Mkdir(repo, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	// Every GIT_* and PRE_COMMIT_* variable is dropped rather than inherited.
-	// This test passed standalone and failed under the pre-push hook, which
-	// exports GIT_DIR, GIT_INDEX_FILE and friends: the throwaway repository
-	// then pointed at the real one, and `git commit` ran the project's hooks.
-	// An inherited environment is the harness measuring whoever ran it.
-	clean := make([]string, 0, len(os.Environ()))
-	for _, kv := range os.Environ() {
-		if strings.HasPrefix(kv, "GIT_") || strings.HasPrefix(kv, "PRE_COMMIT") {
-			continue
-		}
-		clean = append(clean, kv)
-	}
-	git := func(args ...string) {
-		t.Helper()
-		cmd := exec.Command("git", args...)
-		cmd.Dir = repo
-		cmd.Env = append(append([]string{}, clean...),
-			"GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@example.invalid",
-			"GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@example.invalid")
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("git %v: %v\n%s", args, err, out)
-		}
-	}
-	// An empty template directory, so no hook of the operator's own is copied
-	// into a repository this test is about to commit in.
-	git("-c", "init.templateDir=", "init", "--quiet")
+	// newThrowawayRepo (throwaway_git_test.go) drops every GIT_* and
+	// PRE_COMMIT_* variable: this test passed standalone and failed under the
+	// pre-push hook, whose GIT_DIR pointed the throwaway repository at the real
+	// one. TestAThrowawayRepoIgnoresTheGitDirAHookExports holds that.
+	repo := newThrowawayRepo(t, filepath.Join(dir, "repo"))
+	git := func(args ...string) { t.Helper(); repo.Git(args...) }
 	git("commit", "--allow-empty", "--quiet", "-m", "root")
 	// The published history these fixtures are about. v0.16.0 is deliberately
 	// absent: it is the version being tagged.
@@ -112,8 +88,8 @@ func runMilestoneGate(t *testing.T, version, milestones string) (int, string) {
 	}
 
 	cmd := exec.Command("bash", script, version)
-	cmd.Dir = repo
-	cmd.Env = append(append([]string{}, clean...),
+	cmd.Dir = repo.Dir
+	cmd.Env = append(repo.Env(),
 		"PATH="+dir+string(os.PathListSeparator)+os.Getenv("PATH"),
 		"GH_STUB_MILESTONES="+fixture,
 	)

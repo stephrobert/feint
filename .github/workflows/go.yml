@@ -27,6 +27,12 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          # The whole history, so origin/main and the merge base exist for the
+          # testplan step below. A depth-1 checkout of a pull request's merge
+          # commit has no parent to diff from, and testplan then refuses with
+          # exit 1 rather than answer over nothing. Measured on 2026-11-14:
+          # 425 commits, a 14.67 MiB pack.
+          fetch-depth: 0
 
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -91,6 +97,16 @@ jobs:
           # hit, which is a cache that costs and returns nothing.
           cache: false
 
+      # Every changed path is triaged by some rule of tools/testplan/rules.go
+      # (#564), on the pull request and not only in a local hook (#936). Exit 2
+      # names a path no rule sorts: `mise run testplan` would answer "nothing to
+      # run" for it, which is the cheap default the tool exists to refuse. First,
+      # before any step writes into the tree, because an untracked file counts
+      # as changed. On a push to main the diff is empty and it says so. Through
+      # check.sh rather than `go run`, which turns the program's exit 2 into 1.
+      - name: Every changed path is triaged by the test plan
+        run: bash --noprofile --norc tools/testplan/check.sh
+
       - name: gofmt
         run: |
           unformatted="$(gofmt -l .)"
@@ -128,6 +144,20 @@ jobs:
 
       - name: go build
         run: go build ./...
+
+      # The falsification harness, on every pull request (#936). Both lived in
+      # `mise run prepush` and in a hook only, which a fresh clone does not have
+      # and `--no-verify` skips. The lint is what refuses a mutation naming a
+      # test that does not exist (#923) or a file spelled two ways (#950), so
+      # leaving it to a hook left the guard against an unmeasured guard
+      # unmeasured. Offline and seconds; the nightly falsify.yml is the replay,
+      # this is the cheap half. TestEveryPrepushTaskRunsOnAPullRequest
+      # (tools/ci/falsify_harness_test.go) fails if either line goes.
+      - name: The falsify harness, against the mistakes it was written for
+        run: python3 tools/falsify/falsify.py --selftest
+
+      - name: Every declared mutation still finds its code and its test
+        run: python3 tools/falsify/falsify.py --lint tools/falsify/specs
 
       # The README's coverage tables are generated from the committed artefacts.
       # A route added without regenerating them makes the README claim a surface

@@ -1,0 +1,346 @@
+{
+  "package": "./tools/ci/",
+  "mutations": [
+    {
+      "label": "an absolute file is accepted at intake, so a single-spec run rewrites the working repository instead of its copy (#950)",
+      "file": "tools/falsify/falsify.py",
+      "find": "    if os.path.isabs(target):\n",
+      "replace": "    if os.path.isabs(target) and not target:\n",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "a file reached by climbing out of the tree is accepted, a path no diff of this tree can touch (#950)",
+      "file": "tools/falsify/falsify.py",
+      "find": "    if normal == os.pardir or normal.startswith(os.pardir + os.sep):",
+      "replace": "    if (normal == os.pardir or normal.startswith(os.pardir + os.sep)) and not target:",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "a file spelled ./x.go or a/../x.go is accepted, and mise run testplan never claims the spec for a diff touching x.go (#950)",
+      "file": "tools/falsify/falsify.py",
+      "find": "    if normal != target:\n",
+      "replace": "    if normal != target and not target:\n",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "the lint stops asking the path question, so the check exists and nothing calls it (#950)",
+      "file": "tools/falsify/falsify.py",
+      "find": "            why = path_problem(m.get(\"file\"), root) or fragment_problem(",
+      "replace": "            why = (path_problem(m.get(\"file\"), root) and not m) or fragment_problem(",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "a single-spec run stops asking the path question, so main() copies the tree for a spec the lint refuses (#950)",
+      "file": "tools/falsify/falsify.py",
+      "find": "        ambiguous = path_problem(m[\"file\"]) or fragment_problem(m[\"file\"], m[\"find\"])",
+      "replace": "        ambiguous = (path_problem(m[\"file\"]) and not m) or fragment_problem(m[\"file\"], m[\"find\"])",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "the fragment is read against the working directory again while the Go half lists under root: one argument, two trees (#938)",
+      "file": "tools/falsify/falsify.py",
+      "find": "    path = os.path.join(root, target)\n",
+      "replace": "    path = os.path.join(root, target) if not root else target\n",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "the ./... branch of covered_paths is lost; the lint still answers 2 on the unbuildable case, for another reason, which only the reason assertion sees (#938)",
+      "file": "tools/falsify/falsify.py",
+      "find": "    if p.endswith(\"...\"):",
+      "replace": "    if p.endswith(\"...\") and not p:",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "the package set leaves the listing's memoisation key, so the listing of one package is handed back for another (#938)",
+      "file": "tools/falsify/falsify.py",
+      "find": "    key = (\"list\", tuple(packages), os.path.abspath(root), tuple(env))",
+      "replace": "    key = (\"list\", tuple(packages) and (), os.path.abspath(root), tuple(env))",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "a mutation's own package is ignored and the spec's default is checked instead (#938)",
+      "file": "tools/falsify/falsify.py",
+      "find": "            m.get(\"package\", default),\n",
+      "replace": "            m.get(\"package\", default) and default,\n",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "declared names are compared literally, so every anchored ^Test...$ spec is refused (#938)",
+      "file": "tools/falsify/falsify.py",
+      "find": "        if not any(rx.search(name) for name in names):",
+      "replace": "        if not any(rx.search(name) and head == name for name in names):",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "a CONTRIBUTING page publishing a stale count of HISTORY is accepted (#949)",
+      "file": "tools/falsify/falsify.py",
+      "find": "        if found != 1:\n",
+      "replace": "        if found != 1 and not text:\n",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "the Go workflow stops running on pull requests, and the two falsify steps with it (#936)",
+      "file": ".github/workflows/go.yml",
+      "find": "  pull_request:\n  workflow_dispatch:\n",
+      "replace": "  workflow_dispatch:\n  # pull_request:\n",
+      "test": "TestEveryPrepushTaskRunsOnAPullRequest"
+    },
+    {
+      "label": "the falsify lint step is made unable to fail, the command still written in it (#936)",
+      "file": ".github/workflows/go.yml",
+      "find": "        run: python3 tools/falsify/falsify.py --lint tools/falsify/specs\n",
+      "replace": "        run: python3 tools/falsify/falsify.py --lint tools/falsify/specs || true\n",
+      "test": "TestEveryPrepushTaskRunsOnAPullRequest"
+    },
+    {
+      "label": "prepush gains a task no pull request is known to run, and nothing says so (#936)",
+      "file": "mise.toml",
+      "find": "\"release:surface\", \"testplan:check\"]",
+      "replace": "\"release:surface\", \"testplan:check\", \"falsify:all\"]",
+      "test": "TestEveryPrepushTaskRunsOnAPullRequest"
+    },
+    {
+      "label": "a figure in a recounted file is accepted anywhere in that file rather than inside the recounted sentence (#951)",
+      "package": "./tools/testplan/",
+      "file": "tools/testplan/figure_search_test.go",
+      "find": "\t\tif strings.Contains(s, match) {",
+      "replace": "\t\tif strings.Contains(s, match) || match != \"\" {",
+      "test": "TestASpecFigureNobodyClassifiedIsRefused"
+    },
+    {
+      "label": "a dated line that is no longer there stays in the list and keeps excusing whatever replaces it (#951)",
+      "package": "./tools/testplan/",
+      "file": "tools/testplan/figure_search_test.go",
+      "find": "\t\t\tif !seen {",
+      "replace": "\t\t\tif !seen && line == \"\" {",
+      "test": "TestASpecFigureNobodyClassifiedIsRefused"
+    },
+    {
+      "label": "a search that skips every file reads as clean, which only the zero-match refusal tells from a clean tree (#951)",
+      "package": "./tools/testplan/",
+      "file": "tools/testplan/figure_search_test.go",
+      "find": "\t\tif file == skip || (strings.HasSuffix(skip, \"/\") && strings.HasPrefix(file, skip)) {",
+      "replace": "\t\tif file == skip || (strings.HasSuffix(skip, \"/\") && strings.HasPrefix(file, skip)) || file != \"\" {",
+      "test": "TestEverySpecFigureIsRecountedOrDated"
+    },
+    {
+      "label": "the required Go job is kept to the schedule by a job-level if:, its steps still written in it (#936)",
+      "file": ".github/workflows/go.yml",
+      "find": "  quality:\n    name: Build, test, lint, vuln-scan\n",
+      "replace": "  quality:\n    name: Build, test, lint, vuln-scan\n    if: github.event_name == 'schedule'\n",
+      "test": "TestEveryPrepushTaskRunsOnAPullRequest"
+    },
+    {
+      "label": "the testplan step is made unable to fail, so an untriaged path passes the pull request (#936)",
+      "file": ".github/workflows/go.yml",
+      "find": "        run: bash --noprofile --norc tools/testplan/check.sh\n",
+      "replace": "        run: bash --noprofile --norc tools/testplan/check.sh || true\n",
+      "test": "TestEveryPrepushTaskRunsOnAPullRequest"
+    },
+    {
+      "label": "a job-level if: is ignored, so a job that never runs on a pull request counts as running there (#936)",
+      "file": "tools/ci/falsify_harness_test.go",
+      "find": "\t\t\tcase \"if\":\n\t\t\t\tjob.cond = m[2]\n",
+      "replace": "\t\t\tcase \"if\":\n\t\t\t\tjob.cond = strings.TrimPrefix(m[2], m[2])\n",
+      "test": "TestAConditionedJobDoesNotCountAsRunningOnAPullRequest"
+    },
+    {
+      "label": "a step-level if: is ignored, so a step kept off pull requests counts as running there (#936)",
+      "file": "tools/ci/falsify_harness_test.go",
+      "find": "\t\t\tcase \"if\":\n\t\t\t\tstep.cond = m[2]\n",
+      "replace": "\t\t\tcase \"if\":\n\t\t\t\tstep.cond = strings.TrimPrefix(m[2], m[2])\n",
+      "test": "TestAConditionedJobDoesNotCountAsRunningOnAPullRequest"
+    },
+    {
+      "label": "a site is dropped from HISTORY_SITES and its sentence stops being judged, in silence (#949)",
+      "file": "tools/falsify/falsify.py",
+      "find": "    (\"CONTRIBUTING.fr.md\", \"fr\", \"Le « {word} » de cette section est le chiffre que la tâche\"),\n",
+      "replace": "    # (\"CONTRIBUTING.fr.md\", \"fr\", \"Le « {word} » de cette section est le chiffre que la tâche\"),\n",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "check.sh collapses the plan's exit 2 into 1, the way `go run` did, so testplan:check lies about its own contract (rule 9)",
+      "file": "tools/testplan/check.sh",
+      "find": "exit \"$status\"\n",
+      "replace": "exit \"$(( status ? 1 : 0 ))\"\n",
+      "test": "TestTheTestplanCheckHandsBackItsOwnExitCode"
+    },
+    {
+      "label": "the step that fails a pull request on drift is neutralised; the gate line is still written in its continue-on-error step (#936)",
+      "file": ".github/workflows/drift.yml",
+      "find": "          echo \"Run: mise run drift:update, then triage the new operations.\" >&2\n          exit 1\n",
+      "replace": "          echo \"Run: mise run drift:update, then triage the new operations.\" >&2\n          exit 0\n",
+      "test": "TestEveryPrepushTaskRunsOnAPullRequest"
+    },
+    {
+      "label": "a step's continue-on-error is ignored, so a step that cannot fail counts as running on pull requests (#936)",
+      "file": "tools/ci/falsify_harness_test.go",
+      "find": "\t\t\t\tstep.soft = m[2] != \"false\"\n",
+      "replace": "\t\t\t\tstep.soft = m[2] != \"false\" && line == \"\"\n",
+      "test": "TestAConditionedJobDoesNotCountAsRunningOnAPullRequest"
+    },
+    {
+      "label": "a job's continue-on-error is ignored, so a job that cannot fail counts as running on pull requests (#936)",
+      "file": "tools/ci/falsify_harness_test.go",
+      "find": "\t\t\t\tjob.soft = m[2] != \"false\"\n",
+      "replace": "\t\t\t\tjob.soft = m[2] != \"false\" && line == \"\"\n",
+      "test": "TestAConditionedJobDoesNotCountAsRunningOnAPullRequest"
+    },
+    {
+      "label": "needs: is ignored, so a job skipped with the conditioned job it needs counts as running (#936)",
+      "file": "tools/ci/falsify_harness_test.go",
+      "find": "\t\tif !prRuns(jobs, need, visiting) {",
+      "replace": "\t\tif !prRuns(jobs, need, visiting) && need == \"\" {",
+      "test": "TestAConditionedJobDoesNotCountAsRunningOnAPullRequest"
+    },
+    {
+      "label": "a line under with: is read as a line a shell runs (#936)",
+      "file": "tools/ci/falsify_harness_test.go",
+      "find": "\t\tif !inBlock || !strings.HasPrefix(line, \"          \") {",
+      "replace": "\t\tif (!inBlock && !strings.HasPrefix(line, \"          \")) || !strings.HasPrefix(line, \"          \") {",
+      "test": "TestAConditionedJobDoesNotCountAsRunningOnAPullRequest"
+    },
+    {
+      "label": "a heredoc's lines are read as lines a shell runs (#936)",
+      "file": "tools/ci/falsify_harness_test.go",
+      "find": "\t\tif heredoc != \"\" {\n",
+      "replace": "\t\tif heredoc != \"\" && line == \"\" {\n",
+      "test": "TestAConditionedJobDoesNotCountAsRunningOnAPullRequest"
+    },
+    {
+      "label": "a pull_request filtered by paths, branches or types counts as every pull request (#936)",
+      "file": "tools/ci/falsify_harness_test.go",
+      "find": "\t\treturn !strings.HasPrefix(line, \"   \")\n",
+      "replace": "\t\treturn !strings.HasPrefix(line, \"   \") || line != \"\"\n",
+      "test": "TestAConditionedJobDoesNotCountAsRunningOnAPullRequest"
+    },
+    {
+      "label": "the later step's continue-on-error is ignored in the drift:check proof (#936)",
+      "file": "tools/ci/falsify_harness_test.go",
+      "find": "\t\t\t\tif later.cond == prFailedLater(st.id) && !later.soft &&",
+      "replace": "\t\t\t\tif later.cond == prFailedLater(st.id) && (!later.soft || true) &&",
+      "test": "TestAStepFailedByALaterStepIsReadOnlyInOneSpelling"
+    },
+    {
+      "label": "a file reached through a symbolic link is accepted, so the replay writes the working file and reads TEST STILL PASSED (#950)",
+      "file": "tools/falsify/falsify.py",
+      "find": "    if real != joined:\n",
+      "replace": "    if real != joined and not target:\n",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "a directory is not refused as one: `p` dies on IsADirectoryError and `.` is called a symbolic link, in the lint and in a single-spec run (#950)",
+      "file": "tools/falsify/falsify.py",
+      "find": "    if os.path.exists(here) and not os.path.isfile(here):\n",
+      "replace": "    if os.path.exists(here) and not os.path.isfile(here) and not target:\n",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "--help is read as a spec path again, and the run dies on FileNotFoundError (#950)",
+      "file": "tools/falsify/falsify.py",
+      "find": "    if argv[1:] in ([\"--help\"], [\"-h\"]):\n",
+      "replace": "    if argv[1:] in ([\"--help\"], [\"-h\"]) and not argv:\n",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "a number ending a version (the 0.9 specs) is read as a count of specs again (#951)",
+      "package": "./tools/testplan/",
+      "file": "tools/testplan/figure_search_test.go",
+      "find": "`(?:^|[^0-9.])([0-9]+ (?:specs?|",
+      "replace": "`(?:^|[^0-9.]|\\.)([0-9]+ (?:specs?|",
+      "test": "TestASpecFigureNobodyClassifiedIsRefused"
+    },
+    {
+      "label": "a usage error hands back 2 again, which every caller reads as drift (rule 9)",
+      "file": "tools/falsify/falsify.py",
+      "find": "        return refuse(USAGE, code=1)",
+      "replace": "        return refuse(USAGE, code=1 + 1)",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "a step's own shell: is ignored, so a shell that may drop -e counts as failing the pull request (#936)",
+      "file": "tools/ci/falsify_harness_test.go",
+      "find": "\t\t\t\tstep.shell = true\n",
+      "replace": "\t\t\t\tstep.shell = true && line == \"\"\n",
+      "test": "TestAConditionedJobDoesNotCountAsRunningOnAPullRequest"
+    },
+    {
+      "label": "a job's defaults.run.shell is ignored (#936)",
+      "file": "tools/ci/falsify_harness_test.go",
+      "find": "\t\t\tjob.shell = true\n",
+      "replace": "\t\t\tjob.shell = true && line == \"\"\n",
+      "test": "TestAConditionedJobDoesNotCountAsRunningOnAPullRequest"
+    },
+    {
+      "label": "a workflow's defaults.run.shell is ignored (#936)",
+      "file": "tools/ci/falsify_harness_test.go",
+      "find": "\t\t\tworkflowShell = true\n",
+      "replace": "\t\t\tworkflowShell = true && line == \"\"\n",
+      "test": "TestAConditionedJobDoesNotCountAsRunningOnAPullRequest"
+    },
+    {
+      "label": "a set +e earlier in the block is ignored, so a line that cannot fail counts (#936)",
+      "file": "tools/ci/falsify_harness_test.go",
+      "find": "\t\tif prSetPlusE.MatchString(line) || prExitZero.MatchString(line) {",
+      "replace": "\t\tif (prSetPlusE.MatchString(line) && line == \"\") || prExitZero.MatchString(line) {",
+      "test": "TestAConditionedJobDoesNotCountAsRunningOnAPullRequest"
+    },
+    {
+      "label": "an exit 0 or a bare exit earlier in the block is ignored (#936)",
+      "file": "tools/ci/falsify_harness_test.go",
+      "find": "\t\tif prSetPlusE.MatchString(line) || prExitZero.MatchString(line) {",
+      "replace": "\t\tif prSetPlusE.MatchString(line) || (prExitZero.MatchString(line) && line == \"\") {",
+      "test": "TestAConditionedJobDoesNotCountAsRunningOnAPullRequest"
+    },
+    {
+      "label": "the line a backslash continues into counts as a command of its own (#936)",
+      "file": "tools/ci/falsify_harness_test.go",
+      "find": "\t\tif !continued && !excused {",
+      "replace": "\t\tif (!continued || true) && !excused {",
+      "test": "TestAConditionedJobDoesNotCountAsRunningOnAPullRequest"
+    },
+    {
+      "label": "a line whose next line starts with || counts, though the || may excuse it (#936)",
+      "file": "tools/ci/falsify_harness_test.go",
+      "find": "\t\tif !continued && !excused {",
+      "replace": "\t\tif !continued && (!excused || true) {",
+      "test": "TestAConditionedJobDoesNotCountAsRunningOnAPullRequest"
+    },
+    {
+      "label": "a step key written 'if', \"if\" or `if :` is read strictly again, so that condition is no condition (#936)",
+      "file": "tools/ci/falsify_harness_test.go",
+      "find": "regexp.MustCompile(`^        [\"']?([A-Za-z0-9_-]+)[\"']?\\s*:\\s*(.*)$`)",
+      "replace": "regexp.MustCompile(`^        ([A-Za-z0-9_-]+):\\s*(.*)$`)",
+      "test": "TestAConditionedJobDoesNotCountAsRunningOnAPullRequest"
+    },
+    {
+      "label": "a job key written \"if\" or `if :` is read strictly again (#936)",
+      "file": "tools/ci/falsify_harness_test.go",
+      "find": "regexp.MustCompile(`^    [\"']?([A-Za-z0-9_-]+)[\"']?\\s*:\\s*(.*)$`)",
+      "replace": "regexp.MustCompile(`^    ([A-Za-z0-9_-]+):\\s*(.*)$`)",
+      "test": "TestAConditionedJobDoesNotCountAsRunningOnAPullRequest"
+    },
+    {
+      "label": "a third tools/ test writes with a bare exec.Command(\"git\", \"add\", ...) instead of newThrowawayRepo, the shape that wrote into the real worktree's index from the pre-push hook on 2026-11-15",
+      "file": "tools/testplan/plan_test.go",
+      "find": "cmd := exec.Command(\"git\", \"ls-files\")",
+      "replace": "cmd := exec.Command(\"git\", \"add\", \"--all\")",
+      "test": "TestNoToolTestWritesThroughARawGitCommand"
+    },
+    {
+      "label": "the shared throwaway repository stops dropping GIT_*, so a hook's GIT_DIR and GIT_INDEX_FILE send its add and commit into another repository",
+      "file": "tools/ci/throwaway_git_test.go",
+      "find": "if strings.HasPrefix(kv, \"GIT_\") || strings.HasPrefix(kv, \"PRE_COMMIT\") {",
+      "replace": "if strings.HasPrefix(kv, \"PRE_COMMIT\") {",
+      "test": "TestAThrowawayRepoIgnoresTheGitDirAHookExports"
+    },
+    {
+      "label": "tracked() keeps an inherited GIT_DIR, so under a hook every guard of plan_test.go judges the file list of whichever repository the hook named",
+      "file": "tools/testplan/plan_test.go",
+      "find": "if strings.HasPrefix(kv, \"GIT_\") {",
+      "replace": "if strings.HasPrefix(kv, \"GIT_\") && kv == \"\" {",
+      "test": "TestTrackedIgnoresTheGitDirAHookExports",
+      "package": "./tools/testplan/"
+    }
+  ]
+}

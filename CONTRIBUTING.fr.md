@@ -38,11 +38,19 @@ Elle installe trois types de hooks, et les deux derniers se ratent facilement :
 ### Avant de pousser
 
 Le hook `pre-push` lance `mise run prepush` : `check`, `docs:check`,
-`drift:check`, `shapes:check`, `corpus:check`, `falsify:selftest` et
-`falsify:lint`.
+`drift:check`, `shapes:check`, `corpus:check`, `falsify:selftest`,
+`falsify:lint`, `release:surface` et `testplan:check`.
 Déterministe, hors ligne, quelques secondes.
 C'est ce qu'une pull request refusera, sans jamais dépendre de la météo d'un
-runner.
+runner. Un hook n'est pas un portillon : un clone neuf n'en a aucun, et
+`--no-verify` le saute, donc chacune des neuf est aussi une étape d'un workflow
+déclenché par toute `pull_request`, dans un job et une étape qui ne portent
+ni `if:` ni `continue-on-error`. Une exception, lue sous une seule écriture :
+`drift:check` tourne dans une étape `continue-on-error`, et l'étape suivante
+fait échouer la pull request quand elle lit que la première a échoué.
+`TestEveryPrepushTaskRunsOnAPullRequest` (`tools/ci/falsify_harness_test.go`,
+#936) échoue quand une tâche entre dans `prepush` sans qu'aucune pull request la
+lance.
 
 **Ce n'est pas suffisant**, et ce qui manque dépend de ce que vous avez changé.
 Vous n'avez pas à vous en souvenir — demandez :
@@ -59,8 +67,8 @@ poussée dit quoi jouer ensuite et refuse un chemin qu'aucune règle ne trie —
 un chemin non trié est une absence, pas une décision (#564).
 
 Il imprime aussi **les falsifications que le diff a méritées**, lues dans
-`tools/falsify/specs/` plutôt que retenues : 255 specs nomment 296 fichiers
-distincts en 1709 mutations, et une spec qui mute un fichier que vous avez
+`tools/falsify/specs/` plutôt que retenues : 256 specs nomment 303 fichiers
+distincts en 1757 mutations, et une spec qui mute un fichier que vous avez
 touché est le sous-ensemble de `falsify:all` que votre changement peut avoir
 empêché de mordre. Chaque lot d'ici a suivi cette discipline à la main et l'a
 écrit dans sa pull request, ce qui veut dire qu'il l'a aussi oubliée à la main :
