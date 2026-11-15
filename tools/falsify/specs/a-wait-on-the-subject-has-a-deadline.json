@@ -32,11 +32,12 @@
       "test": "TestAwaitEventReturnsTheEventThatComes"
     },
     {
-      "label": "a call site, end to end: Attach's ownership probe asks about the wrong instance and refuses an owned machine before the device add, the early refusal of #909's Q2-b/Q2-c/M3 that each hung until the sweep's timeout. The verdict measures only that the test goes red: the harness runs go test without -timeout and counts any non-zero exit as a bite, so a hang would bite too. The timing was measured by hand on 2026-11-15, in a copy: 0.00 s with the fix, printing Attach's own error (was not created by the emulator); on main 7e44bfa, `panic: test timed out after 30s`",
+      "label": "a call site, end to end: Attach's ownership probe asks about the wrong instance and refuses an owned machine before the device add, the early refusal of #909's Q2-b/Q2-c/M3 that each hung until the sweep's timeout. The test now fails fast with the cause: this mutation declares a 20 s timeout, and since #965 a run that hangs until its timeout reads HUNG UNTIL TIMEOUT (void) and never \"the test bit\", so this verdict says the test went red inside 20 s rather than hanging. Measured by hand on 2026-11-15, in a copy: 0.00 s with the fix, printing Attach's own error (was not created by the emulator); on main 7e44bfa, `panic: test timed out after 30s`",
       "file": "internal/core/machine/incus.go",
       "find": "\tif err := d.mustOwnInstance(ctx, name); err != nil {\n\t\treturn fmt.Errorf(\"attach %s to network %s: %w\", name, att.Network, err)",
       "replace": "\tif err := d.mustOwnInstance(ctx, name+\"-elsewhere\"); err != nil {\n\t\treturn fmt.Errorf(\"attach %s to network %s: %w\", name, att.Network, err)",
-      "test": "TestAHotAttachAndAnIsolationDetachTakeTurns"
+      "test": "TestAHotAttachAndAnIsolationDetachTakeTurns",
+      "timeout": "20s"
     },
     {
       "label": "the early return is ignored: the returned case reads a nil channel, so a subject that refused before the event is only caught by the deadline, five seconds later and without its error, which is what the reviewer of cycle 1 saw under the call-site mutation",

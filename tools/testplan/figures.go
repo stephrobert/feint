@@ -107,11 +107,7 @@ func censusOfSpecs(dir string) (census, error) {
 		if readErr != nil {
 			return census{}, fmt.Errorf("%s cannot be read, so any count would be short by at least one spec: %w", entry.Name(), readErr)
 		}
-		var spec struct {
-			Mutations []struct {
-				File string `json:"file"`
-			} `json:"mutations"`
-		}
+		var spec specFile
 		if err := json.Unmarshal(body, &spec); err != nil {
 			return census{}, fmt.Errorf("%s is not readable JSON, so any count would be short by at least one spec: %w", entry.Name(), err)
 		}

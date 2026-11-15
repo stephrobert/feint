@@ -89,8 +89,8 @@
     {
       "label": "the falsifications a diff earned stop being read off the specs, so the discipline every batch here states in its pull request goes back to being remembered by hand (#564)",
       "file": "tools/testplan/plan.go",
-      "find": "\tfor _, spec := range falsifications(root, paths) {",
-      "replace": "\tfor _, spec := range falsifications(root, paths)[:0] {",
+      "find": "\tfor _, spec := range falsifications(root, paths, removed) {",
+      "replace": "\tfor _, spec := range falsifications(root, paths, removed)[:0] {",
       "test": "TestAChangedFileEarnsTheSpecsThatMutateIt"
     },
     {
@@ -148,6 +148,149 @@
       "find": "const runtimeLeg = \"FEINT_VM=incus-ovn mise run conformance:leg -- runtime\"",
       "replace": "const runtimeLeg = \"mise run conformance:leg -- runtime\"",
       "test": "TestARuleMayNotPrescribeARunThatCannotDriveWhatItGoverns"
+    },
+    {
+      "label": "a changed spec stops earning its own replay, so a spec edited until it no longer bites is never asked to prove it (#965)",
+      "file": "tools/testplan/specs.go",
+      "find": "\t\tif changed[specPath] {",
+      "replace": "\t\tif changed[specPath+\"~\"] {",
+      "test": "TestASpecIsEarnedByEachOfItsThreeLinks/the_spec_itself_changed"
+    },
+    {
+      "label": "every spec earns a replay as if it had changed, which reads as thoroughness and is noise nobody runs twice (#965)",
+      "file": "tools/testplan/specs.go",
+      "find": "\t\tif changed[specPath] {",
+      "replace": "\t\tif changed[specPath] || specPath != \"\" {",
+      "test": "TestASpecIsEarnedByEachOfItsThreeLinks/nothing_links"
+    },
+    {
+      "label": "a spec that cannot be read is skipped, so the plan answers \"no link\" for a spec nobody can say anything about (#965)",
+      "file": "tools/testplan/specs.go",
+      "find": "\t\tif err != nil || json.Unmarshal(body, &spec) != nil {",
+      "replace": "\t\tif (err != nil || json.Unmarshal(body, &spec) != nil) && false {",
+      "test": "TestASpecIsEarnedByEachOfItsThreeLinks/an_unreadable_spec_is_earned_whatever_the_diff"
+    },
+    {
+      "label": "a changed test that a spec names stops earning the replay, so the test judging a guard can stop biting and the plan says nothing: the gap measured on peering-pairs.json (#965)",
+      "file": "tools/testplan/specs.go",
+      "find": "\t\t\t\tif selects(n) {",
+      "replace": "\t\t\t\tif selects(n) && n == \"\" {",
+      "test": "TestASpecIsEarnedByEachOfItsThreeLinks/a_test_it_names_changed"
+    },
+    {
+      "label": "any changed test file of the package earns the replay, whichever test it holds (#965)",
+      "file": "tools/testplan/specs.go",
+      "find": "\t\t\t\tif selects(n) {",
+      "replace": "\t\t\t\tif selects(n) || n != \"\" {",
+      "test": "TestASpecIsEarnedByEachOfItsThreeLinks/a_test_file_without_the_named_test_does_not_link"
+    },
+    {
+      "label": "a plain name is read as an unanchored pattern, though falsify.py anchors it, so TestGuard is taken to select TestGuardHolds (#965)",
+      "file": "tools/testplan/specs.go",
+      "find": "\tif plain {",
+      "replace": "\tif plain && false {",
+      "test": "TestASpecIsEarnedByEachOfItsThreeLinks/a_plain_name_selects_itself_alone"
+    },
+    {
+      "label": "a pattern is anchored though falsify.py hands it to -run unanchored, so TestA|TestB stops selecting TestAB (#965)",
+      "file": "tools/testplan/specs.go",
+      "find": "\tre, err := regexp.Compile(top)",
+      "replace": "\tre, err := regexp.Compile(\"^(?:\" + top + \")$\")",
+      "test": "TestASpecIsEarnedByEachOfItsThreeLinks/an_alternative_also_selects_a_longer_name"
+    },
+    {
+      "label": "only the top element is checked for a pattern, so TestX/a|b reads the parent as anchored while falsify.py leaves it unanchored (#965)",
+      "file": "tools/testplan/specs.go",
+      "find": "\tfor _, e := range elements {",
+      "replace": "\tfor _, e := range elements[:1] {",
+      "test": "TestASpecIsEarnedByEachOfItsThreeLinks/a_pattern_in_a_subtest_unanchors_the_parent"
+    },
+    {
+      "label": "a slash inside a group splits the pattern, which run_elements() does not do (#965)",
+      "file": "tools/testplan/specs.go",
+      "find": "\t\tcase '[', '(':",
+      "replace": "\t\tcase '\\x00':",
+      "test": "TestASpecIsEarnedByEachOfItsThreeLinks/a_slash_inside_a_group_does_not_split"
+    },
+    {
+      "label": "a test pattern that does not compile reads as selecting nothing, so the spec is excused rather than routed (#965)",
+      "file": "tools/testplan/specs.go",
+      "find": "\t\t\tif !readable || f.unreadable {",
+      "replace": "\t\t\tif (!readable && false) || f.unreadable {",
+      "test": "TestASpecIsEarnedByEachOfItsThreeLinks/a_test_pattern_that_does_not_compile_routes_rather_than_excuses"
+    },
+    {
+      "label": "a changed test file that cannot be parsed reads as holding nothing, so the spec is excused rather than routed (#965)",
+      "file": "tools/testplan/specs.go",
+      "find": "\t\t\tif !readable || f.unreadable {",
+      "replace": "\t\t\tif !readable || (f.unreadable && false) {",
+      "test": "TestASpecIsEarnedByEachOfItsThreeLinks/a_test_file_that_does_not_parse_routes_rather_than_excuses"
+    },
+    {
+      "label": "the package filter is dropped, so a test of the same name in another package earns the replay (#965)",
+      "file": "tools/testplan/specs.go",
+      "find": "\t\t\tif !covered {",
+      "replace": "\t\t\tif !covered && false {",
+      "test": "TestASpecIsEarnedByEachOfItsThreeLinks/a_named_test_in_another_package_does_not_link"
+    },
+    {
+      "label": "a mutation's own package is ignored for the spec's, so a test in the package the mutation declares never links (#965)",
+      "file": "tools/testplan/specs.go",
+      "find": "\t\tpkg := m.Package\n",
+      "replace": "\t\tpkg := m.Package[:0]\n",
+      "test": "TestASpecIsEarnedByEachOfItsThreeLinks/a_mutation_s_own_package_overrides_the_spec_s"
+    },
+    {
+      "label": "a package pattern ending in /... stops covering its subtree, so ./internal/providers/... never matches a changed test, the false negative measured on address-kind.json (#965)",
+      "file": "tools/testplan/specs.go",
+      "find": "\t\t\treturn dir == base || strings.HasPrefix(dir, base+\"/\"), true",
+      "replace": "\t\t\treturn dir == base || strings.HasPrefix(dir, base+\"\\x00\"), true",
+      "test": "TestASpecIsEarnedByEachOfItsThreeLinks/a_package_pattern_with_dots_covers_its_subtree"
+    },
+    {
+      "label": "a package pattern ending in /... covers every directory whose name starts like it, so ./a/... takes ab/ (#965)",
+      "file": "tools/testplan/specs.go",
+      "find": "\t\t\treturn dir == base || strings.HasPrefix(dir, base+\"/\"), true",
+      "replace": "\t\t\treturn dir == base || strings.HasPrefix(dir, base+\"\"), true",
+      "test": "TestASpecIsEarnedByEachOfItsThreeLinks/a_package_pattern_with_dots_stops_at_its_subtree"
+    },
+    {
+      "label": "a package pattern this does not read is taken as covering nothing, so the spec is excused rather than routed (#965)",
+      "file": "tools/testplan/specs.go",
+      "find": "\t\t\tif !known {",
+      "replace": "\t\t\tif !known && false {",
+      "test": "TestASpecIsEarnedByEachOfItsThreeLinks/an_unreadable_package_pattern_routes_rather_than_excuses"
+    },
+    {
+      "label": "a removed test file stops marking its package as unknown, so the spec judged by the test it held is never asked to prove it (#965)",
+      "file": "tools/testplan/specs.go",
+      "find": "\t\t\tof(p).unreadable = true",
+      "replace": "\t\t\tof(p).unreadable = false",
+      "test": "TestARemovedTestFileEarnsTheSpecsThatNameItsPackage"
+    },
+    {
+      "label": "the uncommitted deletions stop being listed, so a test file deleted in the working tree never reaches the test link (#965)",
+      "file": "tools/testplan/plan.go",
+      "find": "\tdirty, err := git(root, \"diff\", \"--name-only\", \"--no-renames\", \"--diff-filter=D\", \"HEAD\")",
+      "replace": "\tdirty, err := git(root, \"diff\", \"--name-only\", \"--no-renames\", \"--diff-filter=A\", \"HEAD\")",
+      "test": "TestTheTestplanAsksForTheSpecADeletedTestWasJudgedBy",
+      "package": "./tools/ci/"
+    },
+    {
+      "label": "rename detection is left on for the uncommitted deletions, so a test file moved and staged to another directory reads as R and the package it left is never marked (#965)",
+      "file": "tools/testplan/plan.go",
+      "find": "\"--name-only\", \"--no-renames\", \"--diff-filter=D\", \"HEAD\")",
+      "replace": "\"--name-only\", \"--diff-filter=D\", \"HEAD\")",
+      "test": "TestTheTestplanAsksForTheSpecADeletedTestWasJudgedBy/moved_and_staged",
+      "package": "./tools/ci/"
+    },
+    {
+      "label": "rename detection is left on for the committed range, so a test file moved in a commit reads as R and the package it left is never marked (#965)",
+      "file": "tools/testplan/plan.go",
+      "find": "\"--name-only\", \"--no-renames\", \"--diff-filter=D\", base+\"...HEAD\")",
+      "replace": "\"--name-only\", \"--diff-filter=D\", base+\"...HEAD\")",
+      "test": "TestTheTestplanAsksForTheSpecADeletedTestWasJudgedBy/moved_in_a_commit_on_a_branch",
+      "package": "./tools/ci/"
     }
   ]
 }

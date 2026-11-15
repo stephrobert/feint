@@ -121,6 +121,14 @@ func reachesMachineLayer(root, path string) bool {
 
 // build assembles the plan for a set of repository-relative paths.
 func build(root string, paths []string) plan {
+	return buildRemoving(root, paths, nil)
+}
+
+// buildRemoving is build, plus the `_test.go` files the diff deleted. Those
+// feed the falsifications' test link and nothing else: a deleted file earns no
+// conformance leg and needs no triage, but the test it held may have been the
+// one a spec's mutations were judged by.
+func buildRemoving(root string, paths, removed []string) plan {
 	var p plan
 	because := map[string][]string{}
 	order := []string{}
@@ -164,9 +172,8 @@ func build(root string, paths []string) plan {
 		}
 	}
 
-	for _, spec := range falsifications(root, paths) {
-		add(spec, "this spec mutates a file the diff touches, so it is the subset of "+
-			"`falsify:all` that can have stopped biting")
+	for _, spec := range falsifications(root, paths, removed) {
+		add(spec.command, spec.why)
 	}
 
 	sort.Slice(order, func(i, j int) bool { return cost(order[i]) < cost(order[j]) })
@@ -280,11 +287,16 @@ func (p plan) String() string {
 //
 // TestEveryPlanSaysWhatItCannotKnow fails without this line, in all three of a
 // plan's shapes: runs, nothing-to-run, and un-triaged.
+// The helper sentence is the limit of the second link in specs.go (#965): a
+// helper declared in a sibling _test.go is not followed, and the test asserts
+// the sentence so it cannot be dropped in silence.
 const cannotKnow = "\n" +
 	"What this plan cannot know is which population the defect lives in. It routes\n" +
 	"on the paths a diff touched: on #521 it named four runs and 27 specs, all\n" +
-	"green, while the leg that reproduces the defect was in none of them. So it is\n" +
-	"a floor — add whatever you know that a path cannot say.\n"
+	"green, while the leg that reproduces the defect was in none of them. A spec\n" +
+	"is asked for when a test it names changes, not when only a helper that test\n" +
+	"calls changes in another _test.go file. So it is a floor — add whatever you\n" +
+	"know that a path cannot say.\n"
 
 // resolve turns the requested base into one this clone actually has.
 //
@@ -341,6 +353,40 @@ func changed(root, since string) ([]string, error) {
 	}
 	sort.Strings(paths)
 	return paths, nil
+}
+
+// removedTests lists the `_test.go` files a range, or the uncommitted work on
+// top of it, deleted. changed() leaves deleted paths out on purpose, since a
+// file that is gone earns no leg; this is the one consumer that needs them.
+//
+// `--no-renames` on both calls: with rename detection on, a test file moved to
+// another directory reads as R, never D, and the package it left is never
+// marked. TestTheTestplanAsksForTheSpecADeletedTestWasJudgedBy (tools/ci)
+// fails without this function, and its staged and committed move cases fail
+// without either flag.
+func removedTests(root, since string) ([]string, error) {
+	base, err := resolve(root, since)
+	if err != nil {
+		return nil, err
+	}
+	committed, err := git(root, "diff", "--name-only", "--no-renames", "--diff-filter=D", base+"...HEAD")
+	if err != nil {
+		return nil, err
+	}
+	dirty, err := git(root, "diff", "--name-only", "--no-renames", "--diff-filter=D", "HEAD")
+	if err != nil {
+		return nil, err
+	}
+	seen := map[string]bool{}
+	var gone []string
+	for _, line := range append(committed, dirty...) {
+		if strings.HasSuffix(line, "_test.go") && !seen[line] {
+			seen[line] = true
+			gone = append(gone, line)
+		}
+	}
+	sort.Strings(gone)
+	return gone, nil
 }
 
 func git(root string, args ...string) ([]string, error) {

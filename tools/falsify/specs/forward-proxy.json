@@ -143,7 +143,8 @@
       "find": "\tif forward && expose {",
       "replace": "\tif forward && expose && false {",
       "test": "TestProxyRefusesAnUnusableInvocation",
-      "package": "./internal/cli/"
+      "package": "./internal/cli/",
+      "timeout": "30s"
     },
     {
       "label": "THE MAPPED DOOR: the outbound authority is left as the host the client asked for, so every request of a mapped run is refused by the emulator's own rebinding guard and the recording is a transcript of 403s",
@@ -151,6 +152,24 @@
       "find": "\t\t\t\tif reoriginated(pr.In) {",
       "replace": "\t\t\t\tif reoriginated(pr.In) && false {",
       "test": "TestAMappedTunnelRecordsTheHostTheClientAsked"
+    },
+    {
+      "label": "the banner is printed before the bind again, from the configured address: `--addr 127.0.0.1:0` is announced as :0 and a failed bind still says \"listening on\" (lot A, cycle 3)",
+      "file": "internal/cli/proxy.go",
+      "find": "\tctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)\n\tdefer stop()\n\tln, err := net.Listen(\"tcp\", *addr)\n\tif err != nil {\n\t\t_ = writer.Close()\n\t\t_ = closeOut()\n\t\tfmt.Fprintf(stderr, \"feint: %v\\n\", err)\n\t\treturn exitError\n\t}\n\tbound := ln.Addr().String()\n\n\t// Everything this command says goes to stderr, without exception: --record -\n\t// puts the transcript on stdout, and a status line landing in the middle of a\n\t// JSON Lines stream would break every reader of it.\n\tif forwarder != nil {\n\t\tprintForwardRecipe(stderr, forwarder.Destinations(), bound, caPath)\n\t}\n\tfmt.Fprintf(stderr, \"feint proxy listening on %s\\n\", bound)\n",
+      "replace": "\tctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)\n\tdefer stop()\n\tfmt.Fprintf(stderr, \"feint proxy listening on %s\\n\", *addr)\n\tln, err := net.Listen(\"tcp\", *addr)\n\tif err != nil {\n\t\t_ = writer.Close()\n\t\t_ = closeOut()\n\t\tfmt.Fprintf(stderr, \"feint: %v\\n\", err)\n\t\treturn exitError\n\t}\n\tbound := ln.Addr().String()\n\n\t// Everything this command says goes to stderr, without exception: --record -\n\t// puts the transcript on stdout, and a status line landing in the middle of a\n\t// JSON Lines stream would break every reader of it.\n\tif forwarder != nil {\n\t\tprintForwardRecipe(stderr, forwarder.Destinations(), bound, caPath)\n\t}\n",
+      "test": "TestTheProxyAnnouncesTheAddressItBound|TestAProxyThatCannotBindAnnouncesNothing",
+      "package": "./internal/cli/",
+      "timeout": "30s"
+    },
+    {
+      "label": "signal.NotifyContext no longer takes SIGTERM, so a SIGTERM sent to a proxy that announced itself kills it without draining the transcript (lot A, cycle 3)",
+      "file": "internal/cli/proxy.go",
+      "find": "\tctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)\n",
+      "replace": "\tctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGUSR2)\n",
+      "test": "TestTheProxyAnnouncesTheAddressItBound",
+      "package": "./internal/cli/",
+      "timeout": "30s"
     }
   ]
 }

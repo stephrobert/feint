@@ -42,6 +42,15 @@ The spec is JSON:
     }
 
 Per-mutation `package` is optional and falls back to the top-level one.
+
+`timeout` is optional too, on a mutation or on the spec, and the mutation's
+wins. It is a Go duration ("20s", "1m30s") handed to `go test -timeout`, so it
+bounds the whole test run of that mutation, every `repeat` included. Without
+one, Go's own default applies (10 minutes). Either way, a run that exits
+non-zero with `panic: test timed out after …`, or with go's own `*** Test
+killed … ran too long` when the test binary's alarm never fired, is HUNG
+(void), never "the test bit": a test that hangs until it is killed has not
+shown that it catches the mutation (#965).
 """
 
 import contextlib
@@ -51,9 +60,11 @@ import json
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
+import time
 
 EXCLUDE = {".git", ".upstream", ".terraform", "notes", ".claude"}
 
@@ -534,6 +545,28 @@ def _selftest_module(tmp, second_package=False, gated=False, panicking=False):
     through `mise run falsify:selftest` with GOMAXPROCS=4 GOFLAGS=-p=2, 104
     `ok` lines. Wall time of the mise task, measured with `date +%s%N` around
     it, so it includes mise starting; the earlier figures may not.
+
+    Beside those, on 2026-11-15 with the cases of #965, same invocation and
+    same flags: 3.69 s to 4.30 s over three runs, 121 `ok` lines (one run
+    before them, on the same tree without #965: 1.91 s, 104 lines). One of
+    the new seconds is spent on purpose: _hang_cases() waits a real `go test`
+    out to its 1 s timeout, because a hang is only shown by hanging.
+
+    Beside those, the same day, after the lint bounds were added: 5.42 s to
+    5.49 s over three runs, 127 `ok` lines, same invocation and flags. Two
+    more seconds spent on purpose, one per lint call killed at its 1 s bound
+    in _lint_bound_cases().
+
+    Beside those, after the red-baseline cases of #967: 5.64 s to 5.72 s over
+    three runs, 133 `ok` lines, same invocation and flags.
+
+    Beside those, after cycle 1 of lot A (both kill forms, the exit-0 case,
+    more red-baseline rows): 5.70 s to 5.75 s over three runs, 142 `ok`
+    lines. Go's own kill is driven from captured output, not live: it comes
+    at the timeout plus one minute (see _hang_cases()).
+
+    Beside those, after cycle 2 (the duration read as a Go duration): 5.66 s
+    to 5.68 s over three runs, 144 `ok` lines.
 
     The module name is a constant, and it makes no difference either way: the
     same measurement under a module name the build cache had never seen cost
@@ -1259,6 +1292,12 @@ def lint_selftest():
     failures += _field_type_cases()
     print()
     failures += _budget_cases()
+    print()
+    failures += _hang_cases()
+    print()
+    failures += _lint_bound_cases()
+    print()
+    failures += _red_baseline_cases()
     return failures
 
 
@@ -1502,6 +1541,7 @@ def _spec_outcome_cases():
     void = ("c", "DID NOT COMPILE (void)", "no")
     absent = ("d", "DID NOT APPLY", "-")
     skipped = ("e", SKIPPED, "yes")
+    hung = ("f", HUNG, "yes")
     failures = 0
     for verdicts, broken, want, typed, reason, why in (
         ([bit], [], 0, True, None, "every mutation bit: a verdict, green"),
@@ -1509,6 +1549,7 @@ def _spec_outcome_cases():
         ([bit, void], [], 1, False, "did not build", "a mutation did not build"),
         ([bit, absent], [], 1, False, "did not apply", "a mutation did not apply"),
         ([bit, skipped], [], 1, False, "its test was skipped", "a test skipped or never ran"),
+        ([bit, hung], [], 1, False, "hung until the timeout", "a test that hung (#965)"),
         ([bit], ["p/x.go"], 1, False, "the restore broke (p/x.go)", "the restore broke"),
         ([still, void], [], 1, True, None, "a measured green test outranks a void sibling"),
         ([still], ["p/x.go"], 1, False, "the restore broke", "a broken restore outranks a verdict"),
@@ -2050,6 +2091,581 @@ def _budget_cases():
     return failures
 
 
+def _unwrapped_toolchain(dst, cmd, extra_env=None):
+    """Stands in for run() in _hang_cases(): the same command, run by the real
+    Go toolchain, without the systemd-run scope around it, which a CI runner
+    may have no user session to give. What this measures is what Go prints and
+    what main() makes of it, not the memory cap.
+
+    Bounded on its own, at 60 s: a declared timeout that never reaches `go
+    test` would leave the hang case waiting Go's ten minutes, which is the
+    hang it exists to name. Killed, it answers 124 with no panic line, main()
+    reads that as "the test bit", and the case fails saying so.
+    """
+    env = {**os.environ, "MISE_TRUSTED_CONFIG_PATHS": dst, **(extra_env or {})}
+    try:
+        return subprocess.run(cmd, cwd=dst, capture_output=True, text=True, env=env, timeout=60)
+    except subprocess.TimeoutExpired:
+        return subprocess.CompletedProcess(cmd, 124, "selftest: killed after 60 s\n", "")
+
+
+def _timing_out_toolchain(seen):
+    """A stand-in for run() whose every test run times out, the way Go reports
+    it, after the -timeout the command carries or after Go's own default when
+    it carries none. Each test command is appended to `seen`."""
+
+    def toolchain(dst, cmd, extra_env=None):
+        del dst, extra_env
+        if "-run" not in cmd:
+            return subprocess.CompletedProcess(cmd, 0, "", "")
+        seen.append(cmd)
+        after = cmd[cmd.index("-timeout") + 1] if "-timeout" in cmd else "10m0s"
+        out = (
+            "=== RUN   TestTheGuardHolds\n"
+            f"panic: test timed out after {after}\n"
+            f"\trunning tests:\n\t\tTestTheGuardHolds ({after})\n"
+        )
+        return subprocess.CompletedProcess(cmd, 1, out, "")
+
+    return toolchain
+
+
+def _hang_cases():
+    """A test that hangs is not a test that bites (#965). One case per question.
+
+    Before #965 the replay ran `go test` without -timeout and read every
+    non-zero exit as "the test bit", so a mutation that made its test hang
+    printed `ok` after Go's ten minutes, exactly like one that made it fail at
+    once with a reason. The questions:
+
+      - is a declared timeout a duration `go test` can be handed (the lint,
+        and main() before the copy): one case per refusal, and the accepting
+        half on a mutation and on a spec;
+      - is the timeout line recognised, and only at the start of a line;
+      - does the declared timeout reach `go test`, the mutation's winning
+        over the spec's, and none at all when neither declares one;
+      - is a hang HUNG whether or not a timeout was declared, a plain 1, and
+        tallied NOT MEASURED by the replay;
+      - end to end, through a real `go test`: a mutation that hangs under a
+        1 s timeout is HUNG, and one that fails at once under the same
+        timeout is still "the test bit".
+    """
+    failures = 0
+    live = {
+        "label": "selftest timed",
+        "file": "p/subject.go",
+        "find": "func guard() bool { return true }",
+        "replace": "func guard() bool { return true && false }",
+        "test": "TestTheGuardHolds",
+    }
+    with tempfile.TemporaryDirectory() as tmp:
+        _selftest_module(tmp)
+
+        def spec_at(name, spec_timeout=None, mutation=None):
+            directory = os.path.join(tmp, name.removesuffix(".json"))
+            os.mkdir(directory)
+            body = {"package": "./p/", "mutations": [{**live, **(mutation or {})}]}
+            if spec_timeout is not None:
+                body["timeout"] = spec_timeout
+            path = os.path.join(directory, name)
+            with open(path, "w", encoding="utf-8") as fh:
+                json.dump(body, fh)
+            return directory, path
+
+        for name, spec_timeout, mutation, want, why, reason in (
+            ("t-mutation.json", None, {"timeout": "20s"}, 0, "a mutation timeout of 20s", None),
+            ("t-spec.json", "1m30s", None, 0, "a spec timeout of 1m30s", None),
+            (
+                "t-number.json",
+                None,
+                {"timeout": 20},
+                2,
+                "a timeout that is a JSON number",
+                "`timeout` is 20, not a string",
+            ),
+            (
+                "t-unitless.json",
+                None,
+                {"timeout": "20"},
+                2,
+                "a timeout with no unit",
+                '`timeout` is "20", not a Go duration',
+            ),
+            (
+                "t-zero.json",
+                "0s",
+                None,
+                2,
+                "a timeout of zero, which disables the bound",
+                "a timeout of zero disables the bound",
+            ),
+        ):
+            directory, _ = spec_at(name, spec_timeout, mutation)
+            got, said = _linted(directory, tmp)
+            failures += _report(got, want, why, said, reason)
+
+        _, garbage = spec_at("t-garbage.json", None, {"timeout": "soon"})
+        here = os.getcwd()
+        try:
+            os.chdir(tmp)
+            got, out, said = _driven(main, [argv0, garbage])
+        finally:
+            os.chdir(here)
+        reason = '`timeout` is "soon", not a Go duration'
+        if got != 2 or reason not in said or "copying" in out:
+            print(f"!! a single spec with timeout 'soon' answers {got}, saying {said!r}")
+            failures += 1
+        else:
+            print(f"ok  a single spec answers 2 before any copy: {reason}")
+
+        # The tail go1.26.11 printed on 2026-11-15 for a TestMain sleeping past
+        # `-timeout 1s`, copied from a real run (61 s, exit 1). Captured rather
+        # than replayed here: go waits the timeout plus one minute before it
+        # kills, and the harness's own spec runs this selftest once per
+        # mutation, so a live 61 s case would cost over an hour per replay.
+        # The live half is the 1 s `select {}` run below, same code path.
+        killed = (
+            "fs     0x0\ngs     0x0\n*** Test killed with quit: ran too long (1m1s).\n"
+            "FAIL\tk/p\t61.029s\nFAIL\n"
+        )
+        for out, err, want, why in (
+            (
+                "=== RUN   TestX\npanic: test timed out after 1s\n\trunning tests:\n",
+                "",
+                "panic: test timed out after 1s",
+                "the line Go prints on stdout is a hang",
+            ),
+            (
+                "",
+                "panic: test timed out after 2m0s\n",
+                "panic: test timed out after 2m0s",
+                "the same line on stderr too",
+            ),
+            (
+                "=== RUN   TestX\n....panic: test timed out after 1s\n",
+                "",
+                "panic: test timed out after 1s",
+                "the line after characters a test printed without a newline",
+            ),
+            (
+                killed,
+                "",
+                "*** Test killed with quit: ran too long (1m1s).",
+                "go killing a TestMain that blocks before m.Run, captured from a real run",
+            ),
+            (
+                "*** Test killed: ran too long (1m1s).\nFAIL\n",
+                "",
+                "*** Test killed: ran too long (1m1s).",
+                "the same kill without a signal trace, as go's source writes it",
+            ),
+            (
+                "    x_test.go:9: panic: test timed out after 1s\n--- FAIL: TestX (0.00s)\n",
+                "",
+                "",
+                "a test that logs those words is not a hang",
+            ),
+            (
+                "    x_test.go:9: *** Test killed: ran too long (1m1s).\n--- FAIL: TestX (0.00s)\n",
+                "",
+                "",
+                "a test that logs the kill line is not a hang either",
+            ),
+            (
+                '    x_test.go:9: waited for "panic: test timed out after 1s"\n--- FAIL: TestX\n',
+                "",
+                "",
+                "a test that quotes the words with %q is a bite, its line ending in a quote",
+            ),
+            (
+                "*** Test killed: ran too long (forever).\nFAIL\n",
+                "",
+                "",
+                "a kill line whose duration is not a Go duration is not go's",
+            ),
+            ("--- FAIL: TestX (0.00s)\nFAIL\n", "", "", "a plain failure is not a hang"),
+        ):
+            got = hung_after(out, err)
+            if got != want:
+                print(f"!! hung_after answers {got!r} where {why}")
+                failures += 1
+            else:
+                print(f"ok  hung_after: {why}")
+
+        here, real_run = os.getcwd(), globals()["run"]
+        try:
+            os.chdir(tmp)
+            for name, spec_timeout, mutation, want, why in (
+                ("r-spec.json", "3s", None, ["-timeout", "3s"], "the spec's timeout"),
+                ("r-both.json", "3s", {"timeout": "1s"}, ["-timeout", "1s"], "the mutation's wins"),
+                ("r-neither.json", None, None, [], "none declared, none passed"),
+            ):
+                _, path = spec_at(name, spec_timeout, mutation)
+                seen = []
+                globals()["run"] = _timing_out_toolchain(seen)
+                got, out, said = _driven(main, [argv0, path])
+                cmd = seen[0] if seen else []
+                bound = (
+                    cmd[cmd.index("-timeout") : cmd.index("-timeout") + 2]
+                    if "-timeout" in cmd
+                    else []
+                )
+                after = want[1] if want else "10m0s"
+                if bound != want:
+                    print(f"!! go test is handed {bound} for {why}, want {want}")
+                    failures += 1
+                elif got != 1 or isinstance(got, Verdict) or HUNG not in out:
+                    print(f"!! a run that timed out answers {got!r} for {why}, printing {out!r}")
+                    failures += 1
+                elif f"timed out after {after}" not in out or "hung until" not in said:
+                    print(f"!! a hang after {after} is not named so for {why}: {out!r} {said!r}")
+                    failures += 1
+                else:
+                    print(f"ok  {why}: go test gets {bound or 'no -timeout'}, and the run is HUNG")
+                BASELINES.clear()
+
+            # Only a non-zero exit can be a hang. A test that passes and
+            # prints the words (here at the start of a line) is read for its
+            # PASS lines like any green run, so a guard that stopped biting is
+            # still TEST STILL PASSED, a Verdict, and not hidden as void.
+            def quoting(dst, cmd, extra_env=None):
+                del dst, extra_env
+                said = (
+                    "panic: test timed out after 1s\n--- PASS: TestTheGuardHolds (0.00s)\nPASS\n"
+                    if "-run" in cmd
+                    else ""
+                )
+                return subprocess.CompletedProcess(cmd, 0, said, "")
+
+            _, path = spec_at("r-zero.json")
+            globals()["run"] = quoting
+            got, out, _ = _driven(main, [argv0, path])
+            if got != 1 or not isinstance(got, Verdict) or "TEST STILL PASSED" not in out:
+                print(f"!! a green run printing the timeout words answers {got!r}: {out!r}")
+                failures += 1
+            else:
+                print("ok  a green run that prints the timeout words is TEST STILL PASSED")
+            BASELINES.clear()
+
+            globals()["run"] = _timing_out_toolchain([])
+            directory = os.path.join(tmp, "r-neither")
+            got, tally, _ = _driven(replay_all, directory)
+            if got != 1 or "1 of 1 were NOT MEASURED" not in tally or "no longer hold" in tally:
+                print(f"!! the replay answers {got} over a hang and tallies it as:")
+                for line in tally.strip().splitlines()[-4:]:
+                    print(f"   {line}")
+                failures += 1
+            else:
+                print("ok  the replay tallies a hang NOT MEASURED, neither bitten nor broken")
+
+            globals()["run"] = _unwrapped_toolchain
+            _, hang = spec_at(
+                "e-hang.json",
+                mutation={"replace": "func guard() bool { select {} }", "timeout": "1s"},
+            )
+            got, out, said = _driven(main, [argv0, hang])
+            if (
+                got != 1
+                or isinstance(got, Verdict)
+                or HUNG not in out
+                or "timed out after 1s" not in out
+                or VOID_WHY[HUNG] not in said
+            ):
+                print(f"!! a real hang under a 1s timeout answers {got!r}. It printed:")
+                for line in (out + said).strip().splitlines()[-6:]:
+                    print(f"   {line}")
+                failures += 1
+            else:
+                print("ok  a real `go test` that hangs past its 1s timeout is HUNG, a plain 1")
+            _, bite = spec_at("e-bite.json", mutation={"timeout": "1s"})
+            got, out, said = _driven(main, [argv0, bite])
+            if got != 0 or not isinstance(got, Verdict) or "the test bit" not in out:
+                print(f"!! a real test that fails at once under a 1s timeout answers {got!r}:")
+                for line in (out + said).strip().splitlines()[-6:]:
+                    print(f"   {line}")
+                failures += 1
+            else:
+                print("ok  a real `go test` that fails at once under the same timeout still bit")
+        finally:
+            globals()["run"] = real_run
+            BASELINES.clear()
+            os.chdir(here)
+    return failures
+
+
+def _survivors(mark):
+    """The pids still carrying FALSIFY_SELFTEST_MARK=mark, other than this one,
+    or None when /proc cannot be read (an unknown, never an empty answer).
+
+    Read twice over two seconds at most: a process killed by SIGKILL may still
+    be on its way out when the first look happens.
+    """
+    if not os.path.isdir("/proc"):
+        return None
+    needle = f"FALSIFY_SELFTEST_MARK={mark}\0".encode()
+    left = []
+    for _ in range(20):
+        left = []
+        for pid in (p for p in os.listdir("/proc") if p.isdigit()):
+            if int(pid) == os.getpid():
+                continue
+            try:
+                with open(f"/proc/{pid}/environ", "rb") as fh:
+                    if needle in fh.read():
+                        left.append(int(pid))
+            except OSError:
+                continue
+        if not left:
+            return []
+        time.sleep(0.1)
+    return left
+
+
+def _lint_bound_cases():
+    """A lint call that hangs is killed and named, never waited out. One case per call.
+
+    Each case is a real module and a real `go test`, with the bound lowered
+    to 1 s. The hang is a 20 s sleep rather than `select {}`, so that a
+    harness without its bound waits 20 s and then fails on the wrong reason,
+    instead of waiting Go's ten minutes: the listing then completes and the
+    names are found (lint 0), the parent then passes without its subtest
+    (lint 2, "no subtest of it matches").
+
+      - the listing: a package whose TestMain sleeps before m.Run, which
+        `go test -list` runs and `go test -timeout` would not bound;
+      - the parent run: a parent that sleeps before its t.Run.
+
+    The accepting half is every other lint case, which runs under the
+    default bounds and must stay green.
+    """
+    failures = 0
+    sleeping_main = (
+        'package s\n\nimport (\n\t"os"\n\t"testing"\n\t"time"\n)\n\n'
+        "func TestMain(m *testing.M) {\n\ttime.Sleep(20 * time.Second)\n\tos.Exit(m.Run())\n}\n\n"
+        "func TestListedLate(t *testing.T) {}\n"
+    )
+    sleeping_parent = (
+        'package p\n\nimport (\n\t"testing"\n\t"time"\n)\n\n'
+        "func TestTheSleepingParent(t *testing.T) {\n\ttime.Sleep(20 * time.Second)\n"
+        '\tt.Run("sub", func(t *testing.T) {})\n}\n'
+    )
+    for package, test, bound, files, why in (
+        (
+            "./s/",
+            "TestListedLate",
+            "LIST_BOUND",
+            {"s/main_test.go": sleeping_main, "s/s.go": "package s\n"},
+            "a listing whose TestMain hangs",
+        ),
+        (
+            "./p/",
+            "TestTheSleepingParent/sub",
+            "PARENT_BOUND",
+            {"p/sleeping_test.go": sleeping_parent},
+            "a parent run that hangs before its t.Run",
+        ),
+    ):
+        with tempfile.TemporaryDirectory() as tmp:
+            _selftest_module(tmp)
+            for name, body in files.items():
+                os.makedirs(os.path.join(tmp, os.path.dirname(name)), exist_ok=True)
+                with open(os.path.join(tmp, name), "w", encoding="utf-8") as fh:
+                    fh.write(body)
+            directory = os.path.join(tmp, "specs")
+            os.mkdir(directory)
+            _one_spec(
+                directory,
+                "bound.json",
+                package=package,
+                file="p/subject.go",
+                find="func guard() bool { return true }",
+                test=test,
+            )
+            saved = globals()[bound]
+            globals()[bound] = 1
+            mark = f"{os.getpid()}-{bound}"
+            os.environ["FALSIFY_SELFTEST_MARK"] = mark
+            start = time.monotonic()
+            try:
+                got, said = _linted(directory, tmp)
+            finally:
+                globals()[bound] = saved
+                del os.environ["FALSIFY_SELFTEST_MARK"]
+            took = time.monotonic() - start
+            left = _survivors(mark)
+            if left is None:
+                print(
+                    f"!! {why}: /proc cannot be read, so whether the call left a process is unknown"
+                )
+                failures += 1
+            elif left:
+                print(f"!! {why}: the killed call left {len(left)} process(es) running: {left}")
+                failures += 1
+            else:
+                print(f"ok  {why}: no process of the killed call survives it")
+            failures += _report(got, 2, why, said, "did not finish within 1 s, the lint's bound")
+            # Killed, not waited out: a kill that reaches `go` but not the
+            # test binary under it leaves the pipes open for the full sleep.
+            if took >= 15:
+                print(
+                    f"!! {why}: the lint took {took:.1f} s, so the hang was waited out, not killed"
+                )
+                failures += 1
+            else:
+                print(f"ok  {why}: killed after {took:.1f} s, not waited out")
+    return failures
+
+
+def _red_baseline_cases():
+    """A red baseline names what made it red, wherever it sits (#967).
+
+    Row by row on red_baseline_report(), one question each, then through
+    main() with a real `go test` over a module whose first test fails and
+    whose next test prints 4000 characters: the `--- FAIL` line then sits
+    beyond the last 2500 characters, which is all the harness used to print.
+    The case asserts that too, so it cannot pass on output too short to
+    have hidden anything.
+    """
+    failures = 0
+    pad = "x" * 3000
+    # (stdout, stderr, lines that must be NAMED, a line that must not be, the
+    # words that must reach the tails, why). Named lines are looked for in the
+    # named section only: the tails repeat the whole output, and a check over
+    # everything would find an indented line there that was never named.
+    for stdout, stderr, named, absent, tail, why in (
+        (
+            f"--- FAIL: TestEarly (0.00s)\n{pad}\nFAIL\tm/p\t0.1s\n",
+            "",
+            ["  --- FAIL: TestEarly (0.00s)", "  FAIL\tm/p\t0.1s"],
+            None,
+            None,
+            "a failing test far from the end is named, and its package",
+        ),
+        (
+            "    --- FAIL: TestA/sub (0.00s)\n",
+            "",
+            ["  --- FAIL: TestA/sub (0.00s)"],
+            None,
+            None,
+            "a failing subtest is named",
+        ),
+        (
+            f"{pad}\npanic: test timed out after 1s\n\trunning tests:\n",
+            "",
+            ["  panic: test timed out after 1s"],
+            None,
+            None,
+            "a panic is named, the timeout's included",
+        ),
+        (
+            "",
+            "# m/p\np/x.go:3:1: syntax error\n",
+            [],
+            None,
+            "p/x.go:3:1: syntax error",
+            "the stderr tail is printed, and a build failure there is read",
+        ),
+        (
+            "        --- FAIL: TestA/sub/deeper (0.00s)\n",
+            "",
+            ["  --- FAIL: TestA/sub/deeper (0.00s)"],
+            None,
+            None,
+            "a failing subtest two levels down is named",
+        ),
+        (
+            "fatal error: concurrent map writes\n\ngoroutine 7 [running]:\nFAIL\tm/p\t0.1s\n",
+            "",
+            ["  fatal error: concurrent map writes"],
+            None,
+            None,
+            "a fatal runtime error is named, which prints no --- FAIL line",
+        ),
+        (
+            "",
+            "--- FAIL: TestOnStderr (0.00s)\n",
+            ["  --- FAIL: TestOnStderr (0.00s)"],
+            None,
+            None,
+            "a failure line on stderr is named too",
+        ),
+        (
+            "flag provided but not defined: -nope\nUsage of p.test:\n",
+            "",
+            ["(no line names a test, a package or a panic"],
+            None,
+            "flag provided but not defined: -nope",
+            "the stdout tail is printed, the only clue when no line names a failure",
+        ),
+        (
+            "    x_test.go:9: --- FAIL: written by a test\nok\n",
+            "",
+            ["(no line names a test, a package or a panic"],
+            "x_test.go:9",
+            None,
+            "a test that logs those words names nothing",
+        ),
+    ):
+        got = red_baseline_report(stdout, stderr)
+        head = got.split("stdout, last")[0]
+        missing = [w for w in named if w not in head]
+        if missing or (absent and absent in head) or (tail and tail not in got):
+            print(f"!! red_baseline_report: {why}. It printed: {got[:300]!r}")
+            failures += 1
+        else:
+            print(f"ok  red_baseline_report: {why}")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        _selftest_module(tmp)
+        with open(os.path.join(tmp, "p", "red_test.go"), "w", encoding="utf-8") as fh:
+            fh.write(
+                'package p\n\nimport (\n\t"fmt"\n\t"strings"\n\t"testing"\n)\n\n'
+                "func TestTheBaselineFailsEarly(t *testing.T) {\n"
+                '\tt.Fatal("red on purpose, before a chatty neighbour")\n}\n\n'
+                "func TestTheBaselineChattyNeighbour(t *testing.T) {\n"
+                '\tfmt.Println(strings.Repeat("flag usage text ", 250))\n}\n'
+            )
+        spec = _one_spec(
+            tmp,
+            "red-baseline.json",
+            package="./p/",
+            file="p/subject.go",
+            find="func guard() bool { return true }",
+            test="TestTheGuardHolds",
+        )
+        seen = []
+
+        def recording(dst, cmd, extra_env=None):
+            res = _unwrapped_toolchain(dst, cmd, extra_env)
+            seen.append(res)
+            return res
+
+        here, real_run = os.getcwd(), globals()["run"]
+        try:
+            os.chdir(tmp)
+            globals()["run"] = recording
+            got, _, said = _driven(main, [argv0, spec])
+        finally:
+            globals()["run"] = real_run
+            BASELINES.clear()
+            os.chdir(here)
+        line = "--- FAIL: TestTheBaselineFailsEarly"
+        stdout = seen[0].stdout if seen else ""
+        if line not in stdout or line in stdout[-2500:]:
+            print(
+                f"!! the red module's FAIL line is not beyond the last 2500 characters: {stdout!r}"
+            )
+            failures += 1
+        elif got != 1 or isinstance(got, Verdict) or line not in said:
+            print(f"!! a red baseline answers {got!r} and does not name its test. It said:")
+            for text in said.strip().splitlines()[:6]:
+                print(f"   {text}")
+            failures += 1
+        else:
+            print("ok  a red baseline names its failing test, beyond the old 2500-character tail")
+    return failures
+
+
 def load_spec(path):
     """(spec, None), or (None, why) when `path` does not hold a spec this harness can read.
 
@@ -2110,6 +2726,48 @@ def field_problem(holder):
         env = holder["env"]
         if not isinstance(env, dict) or not all(isinstance(v, str) for v in env.values()):
             return f"`env` is {json.dumps(env)}, not an object whose every value is a string"
+    if "timeout" in holder:
+        why = timeout_problem(holder["timeout"])
+        if why:
+            return why
+    return None
+
+
+# A Go duration as `go test -timeout` reads it (time.ParseDuration), without the
+# sign: one or more number-and-unit terms, `1m30s`, `1.5s`, `500ms`. A bare
+# number is refused although Go accepts "0": a timeout of zero DISABLES the
+# bound, which is the opposite of what declaring one asks for.
+GO_DURATION_TERM = re.compile(r"(\d+(?:\.\d*)?|\.\d+)(ns|us|µs|ms|s|m|h)")
+GO_DURATION_UNIT = {
+    "ns": 1e-9,
+    "us": 1e-6,
+    "µs": 1e-6,
+    "ms": 1e-3,
+    "s": 1.0,
+    "m": 60.0,
+    "h": 3600.0,
+}
+
+
+def timeout_problem(value):
+    """Why `value` is not a timeout this harness can hand to `go test`, or None (#965).
+
+    Refused rather than passed through, because `go test -timeout soon` does
+    not fail in a way the replay could read: it prints its usage and exits 2,
+    and the replay counts a non-zero exit as a run of the test. Three
+    questions, one case each in _hang_cases(): is it a string, is it a
+    duration Go reads, is it longer than zero.
+    """
+    if not isinstance(value, str):
+        return f'`timeout` is {json.dumps(value)}, not a string such as "20s"'
+    if not value or GO_DURATION_TERM.sub("", value) != "":
+        return (
+            f'`timeout` is {json.dumps(value)}, not a Go duration such as "20s" or "1m30s" '
+            "(a number and a unit, ns us ms s m h)"
+        )
+    seconds = sum(float(n) * GO_DURATION_UNIT[u] for n, u in GO_DURATION_TERM.findall(value))
+    if seconds <= 0:
+        return f"`timeout` is {json.dumps(value)}, and a timeout of zero disables the bound"
     return None
 
 
@@ -2334,6 +2992,55 @@ def passed_leaves(pattern, stdout):
     )
 
 
+# How long the lint lets one `go` call run before it kills it (found beside
+# #965). Without a bound, a parent test that hangs, or
+# a TestMain that hangs before m.Run, held `falsify:lint`, and so `prepush`,
+# for Go's ten minutes. Measured on 2026-11-15 on Stéphane's station over
+# the 259 committed specs, through the pinned interpreter with
+# GOMAXPROCS=4 GOFLAGS=-p=2 (scratchpad time_lint.py wrapping every call):
+# the one listing took 2.12 s warm and 19.50 s with an empty GOCACHE, which
+# is what a CI job meets after `check` built everything with -race; the
+# slowest parent run took 0.47 s warm and cold alike. The bounds are about
+# nine times the cold listing and a hundred times the slowest parent run, so
+# a slow runner is not mistaken for a hang. _lint_bound_cases() lowers them
+# to one second and drives a real hang through each call.
+LIST_BOUND = 180
+PARENT_BOUND = 60
+
+
+def bounded_go(cmd, root, env, seconds):
+    """(CompletedProcess, why it was killed or "") of `cmd`, killed after `seconds`.
+
+    Its own session, and the whole group killed: `go test` runs the test
+    binary as a child, and killing `go` alone returns at once (go relays the
+    child's output, so the pipes close with it) but leaves the hung binary
+    running, measured on 2026-11-15 by the selftest's first version. A TestMain
+    that hangs before m.Run is never stopped by Go's own alarm either, which
+    starts in m.Run; so the group goes, and _lint_bound_cases() requires that
+    no process of the call survives it.
+    """
+    proc = subprocess.Popen(
+        cmd,
+        cwd=root,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=env,
+        start_new_session=True,
+    )
+    try:
+        out, err = proc.communicate(timeout=seconds)
+        return subprocess.CompletedProcess(cmd, proc.returncode, out, err), ""
+    except subprocess.TimeoutExpired:
+        os.killpg(proc.pid, signal.SIGKILL)
+        out, err = proc.communicate()
+        why = (
+            f"`{' '.join(cmd)}` did not finish within {seconds} s, the lint's bound, and was "
+            "killed: a test or a TestMain that hangs, not a stale name"
+        )
+        return subprocess.CompletedProcess(cmd, -signal.SIGKILL, out or "", err or ""), why
+
+
 def ran_under(parent, pkg, root, env=()):
     """The full names `go test -run <parent> -v <pkg>` entered, and why it could
     not be trusted to say, or "".
@@ -2364,16 +3071,17 @@ def ran_under(parent, pkg, root, env=()):
     key = ("subtests", parent, pkg, os.path.abspath(root), tuple(env))
     if key in LISTINGS:
         return LISTINGS[key]
-    res = subprocess.run(
+    res, late = bounded_go(
         ["go", "test", "-count=1", "-run", parent, "-v", pkg],
-        cwd=root,
-        capture_output=True,
-        text=True,
-        env={**os.environ, **dict(env)},
+        root,
+        {**os.environ, **dict(env)},
+        PARENT_BOUND,
     )
     names = {m.group(1) for m in (RAN.match(line) for line in res.stdout.splitlines()) if m}
     doubt = ""
-    if res.returncode != 0:
+    if late:
+        doubt = late
+    elif res.returncode != 0:
         tail = (res.stdout + res.stderr).strip().splitlines()
         doubt = f"`go test -run {parent} -v {pkg}` exited non-zero" + (
             f": {tail[-1].strip()}" if tail else ""
@@ -2443,12 +3151,11 @@ def listed_tests(packages, root, env=()):
     key = ("list", tuple(packages), os.path.abspath(root), tuple(env))
     if key in LISTINGS:
         return LISTINGS[key]
-    res = subprocess.run(
+    res, late = bounded_go(
         ["go", "test", "-list", ".*", *packages],
-        cwd=root,
-        capture_output=True,
-        text=True,
-        env={**os.environ, **dict(env)},
+        root,
+        {**os.environ, **dict(env)},
+        LIST_BOUND,
     )
     by_path, pending = {}, []
     for line in res.stdout.splitlines():
@@ -2460,7 +3167,8 @@ def listed_tests(packages, root, env=()):
             pending = []
         elif line.strip():
             pending.append(line.strip())
-    LISTINGS[key] = (by_path, res.stderr.strip() if res.returncode != 0 else "")
+    doubt = res.stderr.strip() if res.returncode != 0 else ""
+    LISTINGS[key] = (by_path, late or doubt)
     return LISTINGS[key]
 
 
@@ -2835,7 +3543,7 @@ def replay_all(directory):
         print(
             "A spec refused or unreadable, a copy red before any mutation, a mutation "
             "that did not apply or did not build, a test that was skipped or never ran, "
-            "a restore that broke: none of these "
+            "a test that hung until its timeout, a restore that broke: none of these "
             "measures a guard, so these say nothing about the guards they name. Read "
             "the reason above each: it is the spec, the harness or the environment, "
             "not the subject."
@@ -2970,7 +3678,9 @@ def main(argv):
                 "the copy is red before any mutation, so nothing below measures a guard",
                 file=sys.stderr,
             )
-            print(base.stdout[-2500:], file=sys.stderr)
+            # Every failing name, wherever it sits, then both tails (#967).
+            # _red_baseline_cases() fails without it, through a real `go test`.
+            print(red_baseline_report(base.stdout, base.stderr), file=sys.stderr)
             shutil.rmtree(dst, ignore_errors=True)
             # 1 and not 2: the tree or the environment is red, no spec drifted.
             # A plain int, not a Verdict, so the replay counts it as not
@@ -3014,11 +3724,29 @@ def main(argv):
             # A spec whose subject is a race declares `repeat`, and the odds of
             # a false green fall from p to p**n.
             repeat = int(m.get("repeat") or spec.get("repeat") or 1)
+            # The mutation's timeout wins over the spec's; with neither, Go's
+            # own default (10 minutes) bounds the run. See the module docstring.
+            timeout = m.get("timeout") or spec.get("timeout")
+            bound = ["-timeout", timeout] if timeout else []
             # Anchored, and read with -v: see anchored() and passed_leaves().
             # _anchoring_cases() and _skipped_cases() fail without each.
             pattern = anchored(m["test"])
-            res = run(dst, ["go", "test", f"-count={repeat}", "-run", pattern, "-v", pkg], spec_env)
-            if res.returncode != 0:
+            res = run(
+                dst,
+                ["go", "test", f"-count={repeat}", *bound, "-run", pattern, "-v", pkg],
+                spec_env,
+            )
+            # Asked before "the test bit", since a hang also exits non-zero:
+            # every non-zero exit read "the test bit", so a mutation that made
+            # the test hang printed `ok` after Go's ten minutes (#965). Only a
+            # non-zero exit can be a hang: a test that exits 0 and merely
+            # prints the words is still read for its PASS lines.
+            # _hang_cases() fails without this branch, through a real `go test`.
+            after = hung_after(res.stdout, res.stderr)
+            if res.returncode != 0 and after:
+                verdict = HUNG
+                said = f"hung until it was killed ({after}): NOT MEASURED, not a bite"
+            elif res.returncode != 0:
                 verdict, said = "the test bit", "red"
             elif passed_leaves(pattern, res.stdout):
                 verdict, said = "TEST STILL PASSED", "STILL GREEN"
@@ -3055,13 +3783,46 @@ def main(argv):
     return code
 
 
+# The lines that name what failed in a `go test` run, wherever they sit: a
+# failing test at any depth, a package that failed, a panic at the start of a
+# line (a test's panic, or `panic: test timed out after …`).
+# Read with .match(), which anchors at the start of the line: a test that
+# logs "--- FAIL:" writes it after its file and line, and is not a failure.
+NAMES_A_FAILURE = re.compile(r"(?:\s*--- FAIL: |FAIL\t|panic: |fatal error: )")
+
+
+def red_baseline_report(stdout, stderr):
+    """What a red baseline prints, so the test that made it red can be named (#967).
+
+    It printed the last 2500 characters of stdout and nothing else, and the
+    copy is deleted right after. During #928 on 2026-11-15 a baseline came
+    back red once in four runs of a-failure-below-http.json, the tail was
+    flag usage text a test had logged, and nobody could say which test it
+    was: a flake that cannot be named cannot be fixed.
+
+    So: every line that names a failure, from the whole output, then the two
+    tails. A run that names no failure says so instead of printing nothing,
+    because "no name found" is not "nothing failed".
+    """
+    named = [line for line in (stdout or "").splitlines() if NAMES_A_FAILURE.match(line)]
+    named += [line for line in (stderr or "").splitlines() if NAMES_A_FAILURE.match(line)]
+    out = ["what failed, every line that names it:"]
+    out += [f"  {line.strip()}" for line in named] or [
+        "  (no line names a test, a package or a panic: read the tails below)"
+    ]
+    out += ["stdout, last 1500 characters:", (stdout or "")[-1500:].rstrip() or "  (empty)"]
+    out += ["stderr, last 1500 characters:", (stderr or "")[-1500:].rstrip() or "  (empty)"]
+    return "\n".join(out)
+
+
 def spec_outcome(verdicts, broken):
     """(exit code, reason) of one spec's run, from its verdicts and its restore.
 
     Only a mutation that applied, built, and whose test ran is a verdict
     (Verdict). A mutation that did not apply or did not build measured nothing,
     and so did one whose test was skipped or never ran (SKIPPED, since a
-    falsifier measured it reported as a broken guard on 2026-11-15),
+    falsifier measured it reported as a broken guard on 2026-11-15), and one
+    whose test hung until `go test -timeout` killed it (HUNG, #965),
     and neither did a run whose restore broke, since the copy every later test
     ran in is then not the tree the baseline was green on. They were all a
     Verdict(1) until #954, so the replay tallied a harness fault as a guard that
@@ -3089,12 +3850,60 @@ def spec_outcome(verdicts, broken):
 # A mutation whose test was green without any test it names running to a PASS.
 SKIPPED = "SKIPPED OR NEVER RAN (void)"
 
+# A mutation whose test run was killed at its timeout (#965).
+HUNG = "HUNG UNTIL TIMEOUT (void)"
+
+# The two lines a timeout ends a run with, measured with go1.26.11 on
+# 2026-11-15, both on stdout:
+#
+#   - `panic: test timed out after 1s`, printed by the test binary's own
+#     alarm when -timeout (declared, or Go's 10-minute default) expires;
+#   - `*** Test killed with quit: ran too long (1m1s).`, printed by `go test`
+#     when it kills a binary whose alarm never fired, which is a TestMain or
+#     an init that blocks before m.Run. go kills at the timeout plus one
+#     minute (src/cmd/go/internal/test/test.go, 1740-1742 and 841); without
+#     the signal trace it reads `*** Test killed: ran too long (…).`
+#
+# Either may follow characters a test printed without a newline
+# (`....panic: test timed out after 1s`), so the line may start with
+# anything that does not end in a space. A line where a space comes right
+# before the words is a test logging them, t.Log and t.Fatal output being
+# indented, and it must stay a bite.
+#
+# The duration is read as a Go duration, never as "anything up to the end":
+# `t.Fatalf("waited for %q", "panic: test timed out after 1s")` is a bite whose
+# line ends in `1s"`, and `\S+` took the quote for part of the duration.
+GO_DURATION = r"\d[\d.]*(?:ns|us|µs|ms|s|m|h)(?:[\d.]+(?:ns|us|µs|ms|s|m|h))*"
+TIMED_OUT = re.compile(
+    r"^(?:.*\S)?("
+    + r"panic: test timed out after "
+    + GO_DURATION
+    + r"|\*\*\* Test killed(?: with \w+)?: ran too long \("
+    + GO_DURATION
+    + r"\)\."
+    + r")$",
+    re.MULTILINE,
+)
+
+
+def hung_after(stdout, stderr):
+    """The line saying the run was killed at its timeout, or "" when none does.
+
+    Both streams are read: `go test` prints both forms on its own stdout
+    today, and a harness that read one stream only would miss them the day
+    that changes, and read the hang as a bite again.
+    """
+    m = TIMED_OUT.search(stdout or "") or TIMED_OUT.search(stderr or "")
+    return m.group(1) if m else ""
+
+
 # Why each void verdict measured nothing, in the words spec_outcome() prints.
 # A verdict missing here is printed as itself and still counted void.
 VOID_WHY = {
     "DID NOT APPLY": "did not apply",
     "DID NOT COMPILE (void)": "did not build",
     SKIPPED: "its test was skipped, or nothing it names ran",
+    HUNG: "its test hung until the timeout killed it, which is not a bite",
 }
 
 

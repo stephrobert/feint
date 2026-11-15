@@ -600,6 +600,195 @@
       "find": "        if key in holder and not isinstance(holder[key], str):\n",
       "replace": "        if key in holder and not isinstance(holder[key], str) and not holder:\n",
       "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "a hang is read as a bite again: the timeout line is never asked about, and a mutation that makes its test hang prints `ok` after Go's ten minutes (#965)",
+      "file": "tools/falsify/falsify.py",
+      "find": "            if res.returncode != 0 and after:\n",
+      "replace": "            if res.returncode != 0 and after and not res:\n",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "a declared timeout never reaches go test, so a mutation that hangs waits Go's ten minutes whatever the spec says (#965)",
+      "file": "tools/falsify/falsify.py",
+      "find": "            bound = [\"-timeout\", timeout] if timeout else []",
+      "replace": "            bound = [\"-timeout\", timeout] if timeout and not m else []",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "the spec's timeout wins over the mutation's, so a mutation that asks for a shorter bound than its siblings does not get it (#965)",
+      "file": "tools/falsify/falsify.py",
+      "find": "            timeout = m.get(\"timeout\") or spec.get(\"timeout\")",
+      "replace": "            timeout = spec.get(\"timeout\") or m.get(\"timeout\")",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "a timeout is never validated, so `go test -timeout soon` prints its usage, exits 2, and the replay reads that as a run of the test (#965)",
+      "file": "tools/falsify/falsify.py",
+      "find": "    if \"timeout\" in holder:\n",
+      "replace": "    if \"timeout\" in holder and not holder:\n",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "a timeout with no unit is accepted as a duration; the lint still refuses \"20\", but as a zero, which only the reason assertion tells apart (#965)",
+      "file": "tools/falsify/falsify.py",
+      "find": "    if not value or GO_DURATION_TERM.sub(\"\", value) != \"\":",
+      "replace": "    if not value or (GO_DURATION_TERM.sub(\"\", value) != \"\" and not value):",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "a timeout of zero is accepted, which Go reads as no bound at all, the opposite of what declaring one asks for (#965)",
+      "file": "tools/falsify/falsify.py",
+      "find": "    if seconds <= 0:\n",
+      "replace": "    if seconds <= 0 and not value:\n",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "the timeout line is matched anywhere in a line, so a test that logs those words while failing is read as a hang instead of a bite (#965)",
+      "file": "tools/falsify/falsify.py",
+      "find": "    r\"^(?:.*\\S)?(\"\n",
+      "replace": "    r\"^(?:.*)?(\"\n",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "only stdout is read for the timeout line, so the day go test prints the panic on stderr a hang reads as a bite again (#965)",
+      "file": "tools/falsify/falsify.py",
+      "find": "    m = TIMED_OUT.search(stdout or \"\") or TIMED_OUT.search(stderr or \"\")",
+      "replace": "    m = TIMED_OUT.search(stdout or \"\") or TIMED_OUT.search((stderr and \"\") or \"\")",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "a lint call past its bound kills `go` but not the test binary under it, so the lint waits the hang out on the pipes the child still holds",
+      "file": "tools/falsify/falsify.py",
+      "find": "        os.killpg(proc.pid, signal.SIGKILL)\n",
+      "replace": "        os.killpg(proc.pid, signal.SIGKILL) if not proc else proc.kill()\n",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "the listing is effectively unbounded again, so a TestMain that hangs holds falsify:lint and prepush for Go's ten minutes",
+      "file": "tools/falsify/falsify.py",
+      "find": "        LIST_BOUND,\n",
+      "replace": "        LIST_BOUND * 1000,\n",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "a subtest's parent run is effectively unbounded again, so a parent that hangs holds falsify:lint and prepush for Go's ten minutes",
+      "file": "tools/falsify/falsify.py",
+      "find": "        PARENT_BOUND,\n",
+      "replace": "        PARENT_BOUND * 1000,\n",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "a parent run killed at its bound is reported as an ordinary non-zero exit, so the reader is not told the lint gave up on a hang",
+      "file": "tools/falsify/falsify.py",
+      "find": "    if late:\n        doubt = late\n",
+      "replace": "    if late and not res:\n        doubt = late\n",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "a listing killed at its bound is reported with whatever stderr it had, so the reader is not told the lint gave up on a hang",
+      "file": "tools/falsify/falsify.py",
+      "find": "    LISTINGS[key] = (by_path, late or doubt)",
+      "replace": "    LISTINGS[key] = (by_path, (late and not res) or doubt)",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "a red baseline is read from its last 2500 characters again, so a failing test followed by a chatty one cannot be named (#967)",
+      "file": "tools/falsify/falsify.py",
+      "find": "            print(red_baseline_report(base.stdout, base.stderr), file=sys.stderr)",
+      "replace": "            print(red_baseline_report(base.stdout[-2500:], base.stderr), file=sys.stderr)",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "a line that names a failure is searched for anywhere in it, so a test that logs the words --- FAIL is reported as the failing test (#967)",
+      "file": "tools/falsify/falsify.py",
+      "find": "    named = [line for line in (stdout or \"\").splitlines() if NAMES_A_FAILURE.match(line)]",
+      "replace": "    named = [line for line in (stdout or \"\").splitlines() if NAMES_A_FAILURE.search(line)]",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "a panic is no longer named, so a baseline killed by a panic or by its timeout prints no name at all (#967)",
+      "file": "tools/falsify/falsify.py",
+      "find": "NAMES_A_FAILURE = re.compile(r\"(?:\\s*--- FAIL: |FAIL\\t|panic: |fatal error: )\")",
+      "replace": "NAMES_A_FAILURE = re.compile(r\"(?:\\s*--- FAIL: |FAIL\\t|panic: never|fatal error: )\")",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "a failing subtest is no longer named, since its --- FAIL line is indented (#967)",
+      "file": "tools/falsify/falsify.py",
+      "find": "NAMES_A_FAILURE = re.compile(r\"(?:\\s*--- FAIL: |FAIL\\t|panic: |fatal error: )\")",
+      "replace": "NAMES_A_FAILURE = re.compile(r\"(?:--- FAIL: |FAIL\\t|panic: |fatal error: )\")",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "the stderr tail of a red baseline is dropped, so a build failure prints nothing that says what broke (#967)",
+      "file": "tools/falsify/falsify.py",
+      "find": "    out += [\"stderr, last 1500 characters:\", (stderr or \"\")[-1500:].rstrip() or \"  (empty)\"]",
+      "replace": "    out += [\"stderr, last 1500 characters:\", (stderr or \"\")[-1500:][:0].rstrip() or \"  (empty)\"]",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "a run that exits 0 and prints the timeout words is read as a hang, so a guard that stopped biting is hidden as void instead of TEST STILL PASSED (lot A, cycle 1)",
+      "file": "tools/falsify/falsify.py",
+      "find": "            if res.returncode != 0 and after:\n",
+      "replace": "            if (res.returncode != 0 or after) and after:\n",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "go killing a TestMain that blocks before m.Run is not recognised, so that hang reads as a bite (lot A, cycle 1)",
+      "file": "tools/falsify/falsify.py",
+      "find": "    + r\"|\\*\\*\\* Test killed(?: with \\w+)?: ran too long \\(\"\n",
+      "replace": "    + r\"|\\*\\*\\* Test killed never(?: with \\w+)?: ran too long \\(\"\n",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "the timeout line is only recognised at the start of a line, so a test that printed without a newline first turns its hang into a bite (lot A, cycle 1)",
+      "file": "tools/falsify/falsify.py",
+      "find": "    r\"^(?:.*\\S)?(\"\n",
+      "replace": "    r\"^(\"\n",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "a package that failed is no longer named on a red baseline (lot A, cycle 1)",
+      "file": "tools/falsify/falsify.py",
+      "find": "NAMES_A_FAILURE = re.compile(r\"(?:\\s*--- FAIL: |FAIL\\t|panic: |fatal error: )\")",
+      "replace": "NAMES_A_FAILURE = re.compile(r\"(?:\\s*--- FAIL: |FAIL\\tnever|panic: |fatal error: )\")",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "a fatal runtime error is no longer named on a red baseline, and it prints no --- FAIL line of its own (lot A, cycle 1)",
+      "file": "tools/falsify/falsify.py",
+      "find": "NAMES_A_FAILURE = re.compile(r\"(?:\\s*--- FAIL: |FAIL\\t|panic: |fatal error: )\")",
+      "replace": "NAMES_A_FAILURE = re.compile(r\"(?:\\s*--- FAIL: |FAIL\\t|panic: |fatal error: never)\")",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "the stdout tail of a red baseline is dropped, the only clue when no line names a failure (lot A, cycle 1)",
+      "file": "tools/falsify/falsify.py",
+      "find": "    out += [\"stdout, last 1500 characters:\", (stdout or \"\")[-1500:].rstrip() or \"  (empty)\"]",
+      "replace": "    out += [\"stdout, last 1500 characters:\", (stdout or \"\")[-1500:][:0].rstrip() or \"  (empty)\"]",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "a failure line on stderr is no longer named on a red baseline (lot A, cycle 1)",
+      "file": "tools/falsify/falsify.py",
+      "find": "    named += [line for line in (stderr or \"\").splitlines() if NAMES_A_FAILURE.match(line)]",
+      "replace": "    named += [line for line in (stderr or \"\")[:0].splitlines() if NAMES_A_FAILURE.match(line)]",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "the timeout's duration is anything up to the end of the line again, so a test that fails at once quoting the words with %q reads as a hang (lot A, cycle 2)",
+      "file": "tools/falsify/falsify.py",
+      "find": "GO_DURATION = r\"\\d[\\d.]*(?:ns|us|µs|ms|s|m|h)(?:[\\d.]+(?:ns|us|µs|ms|s|m|h))*\"",
+      "replace": "GO_DURATION = r\"\\S+\"",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "go's kill line accepts any text as its duration, so a line that only looks like go's reads as a hang (lot A, cycle 2)",
+      "file": "tools/falsify/falsify.py",
+      "find": "    + r\"|\\*\\*\\* Test killed(?: with \\w+)?: ran too long \\(\"\n    + GO_DURATION\n",
+      "replace": "    + r\"|\\*\\*\\* Test killed(?: with \\w+)?: ran too long \\(\"\n    + (GO_DURATION[:0] or r\"[^)]*\")\n",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
     }
   ]
 }

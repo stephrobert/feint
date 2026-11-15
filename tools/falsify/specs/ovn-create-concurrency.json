@@ -2,11 +2,20 @@
   "package": "./internal/core/serialise/",
   "mutations": [
     {
-      "label": "the coalescer satisfies a caller with the pass that was already reading when it arrived, so a change landing mid-pass is answered before anything reconciled it (#473)",
+      "label": "the coalescer counts the pass already done or reading as covering a new caller, so an idle caller returns without running any pass at all; the test fails at once on that first caller instead of hanging on it (#473, #970)",
       "file": "internal/core/serialise/coalesce.go",
       "find": "\ttarget := c.begun + 1",
       "replace": "\ttarget := c.begun",
-      "test": "TestRunWaitsForAPassThatSawTheCall"
+      "test": "TestRunWaitsForAPassThatSawTheCall",
+      "timeout": "30s"
+    },
+    {
+      "label": "the coalescer satisfies a caller with the pass that was already reading when it arrived, while an idle caller still runs its own, so a change landing mid-pass is answered before anything reconciled it (#473)",
+      "file": "internal/core/serialise/coalesce.go",
+      "find": "\ttarget := c.begun + 1",
+      "replace": "\ttarget := c.begun\n\tif !c.running {\n\t\ttarget++\n\t}",
+      "test": "TestRunWaitsForAPassThatSawTheCall",
+      "timeout": "30s"
     },
     {
       "label": "the pack runs its own full pass per request again instead of sharing, which is the O(N) per create the straight line of #473 is made of",

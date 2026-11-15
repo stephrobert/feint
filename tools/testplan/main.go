@@ -58,23 +58,26 @@ func main() {
 		os.Exit(1)
 	}
 
-	var paths []string
+	var paths, removed []string
 	if *fromStdin != "" {
 		paths, err = readPaths(*fromStdin)
 	} else {
 		paths, err = changed(root, *since)
+		if err == nil {
+			removed, err = removedTests(root, *since)
+		}
 	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "testplan:", err)
 		os.Exit(1)
 	}
 
-	if len(paths) == 0 {
+	if len(paths) == 0 && len(removed) == 0 {
 		fmt.Printf("No path changed against %s. Nothing to run.\n", *since)
 		return
 	}
 
-	p := build(root, paths)
+	p := buildRemoving(root, paths, removed)
 	fmt.Printf("%d path(s) changed against %s\n\n", len(paths), *since)
 	fmt.Print(p.String())
 
