@@ -425,9 +425,8 @@ func (p *Pack) DeleteNode(ctx context.Context, id string) error {
 		return ErrNoSuchResource
 	}
 	worn := wornBarriers(res)
-	name := res.Runtime[p.binding().RuntimeKey]
 	for _, address := range p.anchorsOf(res.ID) {
-		p.reconciler().Unroute(ctx, name, address)
+		p.reconciler().Unroute(ctx, res, address)
 	}
 	p.binding().Destroy(ctx, res)
 	p.env.Store.Delete(Name, KindNode, id)
@@ -601,11 +600,11 @@ func (p *Pack) DetachAnchor(ctx context.Context, anchorID string) error {
 	if !found {
 		return ErrNoSuchResource
 	}
-	name := ""
-	if node, found := p.env.Store.Get(Name, KindNode, attrString(anchor, "node")); found {
-		name = node.Runtime[p.binding().RuntimeKey]
+	var node *resource.Resource
+	if found, ok := p.env.Store.Get(Name, KindNode, attrString(anchor, "node")); ok {
+		node = found
 	}
-	p.reconciler().Unroute(ctx, name, attrString(anchor, "address"))
+	p.reconciler().Unroute(ctx, node, attrString(anchor, "address"))
 
 	base := anchor.Clone()
 	anchor.Attrs["node"] = ""

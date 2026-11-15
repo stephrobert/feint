@@ -76,11 +76,7 @@ func (p *Pack) routeElasticIP(ctx context.Context, address string, inst *resourc
 // driver treats that as nothing left to undo, and on OVN it still withdraws
 // the uplink route, which outlives the machine.
 func (p *Pack) unrouteElasticIP(ctx context.Context, address string, inst *resource.Resource) {
-	name := ""
-	if inst != nil {
-		name = inst.Runtime[p.binding().RuntimeKey]
-	}
-	p.reconciler().Unroute(ctx, name, address)
+	p.reconciler().Unroute(ctx, inst, address)
 }
 
 // elasticBootAddresses is what an instance's machine must answer on from its

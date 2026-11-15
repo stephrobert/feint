@@ -3,6 +3,7 @@ package machine
 import (
 	"context"
 	"fmt"
+	"net/netip"
 	"slices"
 	"strings"
 )
@@ -242,16 +243,18 @@ func (d *Incus) routedNICCarrying(ctx context.Context, machine, address string) 
 //
 // Whether the instance is ours is not asked again here, and that is
 // deliberate (#933). RouteAddress is this function's only caller and asks it at
-// its entry, ahead of every branch; a second call on the same path could never
-// fail, so no mutation could measure it.
+// its entry, ahead of every branch; a second call on the same path could not
+// fail for any caller there is today, and only a test driving this function
+// directly could measure it.
 //
-// Being unmeasurable is not on its own what decided it, and the narrower rule
-// is worth stating because this driver does keep checks of that kind:
-// routeAddressOVN re-asks safeName of a name RouteAddress has already checked,
-// and attachExtra re-asks ownedAttachments of a slice Start has already
-// checked. Both are pure local predicates — free, and unable to answer
-// differently the second time — and both say in place that they are defence in
-// depth rather than the guard. mustOwnInstance is not one of those: it is an
+// That is not what decided it, and the narrower rule is worth stating because
+// this driver does keep checks of that kind: routeAddressOVN re-asks safeName
+// of a name RouteAddress has already checked, and attachExtra re-asks
+// ownedAttachments of a slice Start has already checked. Both are pure local
+// predicates — free, and unable to answer differently the second time — both
+// say in place that they are not the guard, and both are measured on their own
+// by a test that calls them directly (#945). mustOwnInstance is not one of
+// those: it is an
 // `incus config get` on the host, so a duplicate is a second command and a
 // second reading of a label, and on this single path it can answer nothing the
 // reading at the entry has not already answered. So what #933 removed is a
@@ -484,6 +487,30 @@ func (d *Incus) repairRoutedInterface(ctx context.Context, machine, device strin
 		return fmt.Errorf("inspect %s after re-plug: %w", machine, err)
 	}
 	cfg := devices.own[device]
+	next := cfg["ipv4.host_address"]
+	if next == "" {
+		next = routedNextHop
+	}
+	// Everything below is read off the device, state the host holds, and each
+	// value becomes an argument of its own in the guest's `ip`: the addresses
+	// as `<it>/32`, the routes as they stand, the next hop in two route
+	// commands. So all three keys are parsed before the first command is sent,
+	// and a value that is not what its key holds refuses the repair with a
+	// message naming it, rather than half-repairing the interface.
+	// TestARoutedRepairParsesEveryKeyItReadsBack fails without each check.
+	for _, address := range splitList(cfg["ipv4.address"]) {
+		if addr, _ := netip.ParseAddr(address); !addr.Is4() {
+			return fmt.Errorf("refusing to repair %s/%s: ipv4.address %q is not an IPv4 address", machine, device, address)
+		}
+	}
+	for _, route := range splitList(cfg["ipv4.routes"]) {
+		if prefix, _ := netip.ParsePrefix(route); !prefix.Addr().Is4() {
+			return fmt.Errorf("refusing to repair %s/%s: ipv4.routes entry %q is not an IPv4 prefix", machine, device, route)
+		}
+	}
+	if hop, _ := netip.ParseAddr(next); !hop.Is4() {
+		return fmt.Errorf("refusing to repair %s/%s: ipv4.host_address %q is not an IPv4 address", machine, device, next)
+	}
 	if _, err := d.run(ctx, "exec", machine, "--", "ip", "link", "set", device, "up"); err != nil {
 		if isNotRunning(err) {
 			// A cold edit re-plugged nothing: the next boot reads its netplan,
@@ -509,10 +536,6 @@ func (d *Incus) repairRoutedInterface(ctx context.Context, machine, device strin
 		if err := give(route); err != nil {
 			return err
 		}
-	}
-	next := cfg["ipv4.host_address"]
-	if next == "" {
-		next = routedNextHop
 	}
 	for _, hop := range [][]string{
 		{"ip", "route", "add", next, "dev", device},

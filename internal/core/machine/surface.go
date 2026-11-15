@@ -129,7 +129,7 @@ func PackSurface() map[string]string {
 		"Binding.ReconcileMissing": "start again the machines of records a reset brought back and the host no longer holds (#853), with the Boot this pack builds",
 		"Reconciled":               "what a reconciliation did: what it destroyed, and what it could not act on",
 		"Binding.RefreshIfRunning": "re-read what the host holds for a machine the store calls running",
-		"Binding.RuntimeKey":       "the pack's own Runtime key, to read the machine name it is about to hand to Unroute",
+		"Binding.RuntimeKey":       "the pack's own Runtime key, under which the layer records the machine name and reads it back",
 		"Boot":                     "what to boot: image, login, keys, user data",
 		"Image":                    "one entry of the pack's image table, the runtime image and the login together",
 		"Image.Ref":                "the image identifier that table resolved to",

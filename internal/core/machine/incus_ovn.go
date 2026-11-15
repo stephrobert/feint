@@ -805,19 +805,20 @@ func (d *Incus) networkPeers(ctx context.Context, network string) ([]peerRow, er
 // puts them back; the observable effect is a brief interface bounce at attach
 // time, which real clouds also produce when reshaping a live NIC.
 func (d *Incus) routeAddressOVN(ctx context.Context, spec AddressSpec) error {
-	// Defence in depth, not the guard, and which of the two it is was measured
-	// rather than assumed (#933). RouteAddress is this function's only caller
-	// and asks safeName at its entry, so no mutation can redden this call:
-	// deleting it leaves every test in this package green, run on 2026-11-14.
-	// The refusal itself is held there, by
-	// TestRouteAddressRefusesAMachineNameThatIsNotACommandArgument, which
-	// requires that an ill-formed name reach no command at all.
+	// Not the guard: RouteAddress is this function's only caller and asks
+	// safeName at its entry, and that call is what
+	// TestRouteAddressRefusesAMachineNameThatIsNotACommandArgument holds —
+	// an ill-formed name reaches no command at all.
 	//
-	// It stays for the reason attachExtra re-asks ownedAttachments of a slice
-	// Start has already checked: a caller added later is safe by construction
-	// instead of inheriting an obligation written in a comment, and the
-	// predicate is pure and local, so the second call costs nothing and cannot
-	// answer differently than the first.
+	// This one is for a caller added later, which is safe by construction
+	// instead of inheriting an obligation written in a comment; the predicate
+	// is pure and local, so the second call costs nothing and cannot answer
+	// differently than the first. #933 kept it while recording that deleting
+	// it left every test in this package green, which was true of the tests
+	// that go through RouteAddress. It is measured on its own since the same
+	// approach as #945's: TestRouteAddressOVNRefusesAnIllFormedNameOnItsOwnEntry
+	// calls this function directly, with no RouteAddress in front, and fails
+	// without this check.
 	//
 	// That purity is the line, and it is why the ownership probe #933 took out
 	// of releaseFromRoutedNIC was not kept on these same terms: mustOwnInstance
@@ -993,6 +994,16 @@ func (d *Incus) repairGuestInterface(ctx context.Context, machine, network, devi
 		// The interface never carried an address; there is nothing to put back.
 		return nil
 	}
+	// What was read back off the device is asked the questions a pin is asked
+	// on its way in, the way restorePinnedAddress asks them: the device's
+	// config is state the host holds, an untrusted input whoever wrote it, and
+	// the address is about to become `<it>/<len>` in the guest's
+	// `ip address add`. The leased branch has already parsed its address
+	// (lastKnownAddress); the call covers both because it costs nothing.
+	// TestARepairAsksWhatItReadsOffTheDevice fails without it.
+	if err := ownedAttachments(machine, []Attachment{{Network: network, Address: address}}); err != nil {
+		return fmt.Errorf("repair the interface of %s/%s: %w", machine, device, err)
+	}
 	gateway, err := d.networkGateway(ctx, network)
 	if err != nil {
 		return err
@@ -1037,10 +1048,21 @@ func (d *Incus) repairGuestInterface(ctx context.Context, machine, network, devi
 // device's ipv4.routes.external still names: the public addresses routed
 // onto an OVN NIC (#675). Already-there is the second call's success, in
 // whichever wording the guest's `ip` uses.
+//
+// Every entry is parsed before any is sent: each becomes a bare argument of
+// the guest's `ip address add`, and the list is read off the device, state
+// the host holds. An entry that is not an IPv4 prefix refuses the whole
+// restore with a message naming it, rather than half-applying the list.
+// TestARestoreOfExternalAddressesParsesEveryEntry fails without it.
 func (d *Incus) restoreExternalAddresses(ctx context.Context, machine, device string, cfg map[string]string) error {
 	external := splitList(cfg["ipv4.routes.external"])
 	if len(external) == 0 {
 		return nil
+	}
+	for _, route := range external {
+		if prefix, _ := netip.ParsePrefix(route); !prefix.Addr().Is4() {
+			return fmt.Errorf("refusing to give %s/%s back the external route %q: not an IPv4 prefix", machine, device, route)
+		}
 	}
 	iface, err := d.guestInterface(ctx, machine, device)
 	if err != nil {
@@ -1273,6 +1295,14 @@ func (d *Incus) ownedManagedNICs(ctx context.Context, machine string) (instanceV
 		// write inside the guest through it: a NIC an operator added by hand to
 		// one of our machines is theirs, and is left exactly as they
 		// configured it.
+		//
+		// Skipped, not refused, and that is why the read-back check in
+		// restorePinnedAddress (#944) does not make this redundant: that one
+		// refuses, which ends the caller's loop, so without this skip every
+		// NIC of ours sorted after a foreign one would go unrestored.
+		// TestAFirstBootLeavesAForeignNICAlone and
+		// TestRestoringRoutesLeavesAForeignNICAlone put a foreign NIC first
+		// and fail without it.
 		if !ownedNetwork(cfg["network"]) {
 			continue
 		}
@@ -1596,10 +1626,20 @@ func (d *Incus) releaseStaleRoutedAddresses(ctx context.Context, machine, device
 // The mask comes from the network rather than from the caller: the reservation
 // on the device carries no prefix length, and an address configured as a /32
 // inside the guest has no connected route to its own subnet.
+//
+// What it reads back is asked the same questions a pin is asked on its way in
+// (ownedAttachments): a device's config is state the host holds, and state
+// from outside the process is an untrusted input whoever wrote it. A pin
+// written before #944 parsed it, or by anything other than this driver,
+// would otherwise reach the guest's `ip address add` as a bare argv element.
+// TestAPinnedAddressReadBackOffTheDeviceIsAskedAgain fails without the call.
 func (d *Incus) restorePinnedAddress(ctx context.Context, machine, device string, cfg map[string]string) error {
 	address := cfg["ipv4.address"]
 	if address == "" {
 		return nil
+	}
+	if err := ownedAttachments(machine, []Attachment{{Network: cfg["network"], Address: address}}); err != nil {
+		return fmt.Errorf("restore the address of %s/%s: %w", machine, device, err)
 	}
 	gateway, err := d.networkGateway(ctx, cfg["network"])
 	if err != nil {

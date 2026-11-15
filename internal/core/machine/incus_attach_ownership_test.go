@@ -109,6 +109,13 @@ func TestAttachRefusesANetworkOutsideThePrefix(t *testing.T) {
 		// guard reading the machine where it should read the network accepts
 		// this row and the attach goes through.
 		{"fnt-mine", "incusbr0"},
+		// Owned prefix, ill-formed name: ownedNetwork accepts these two and
+		// only safeName refuses them. Attach carried its own copy of the
+		// condition until #944 and this table had no such row, so its shape
+		// half was measured by nothing; since Attach asks ownedAttachments,
+		// these rows are what hold that half on the hot door.
+		{"feint-scw-mine", "fnt-a/b"},
+		{"feint-scw-mine", "fnt-a b"},
 	} {
 		f := attachRuntime(c.machine)
 		d := newFakeDriver(f)

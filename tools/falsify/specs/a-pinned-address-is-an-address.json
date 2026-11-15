@@ -1,0 +1,160 @@
+{
+  "package": "./internal/core/machine/",
+  "mutations": [
+    {
+      "label": "the address question is removed, judged on Start's primary interface: `-foo` reaches `config device set … ipv4.address=-foo`, and from there the guest's `ip address add -foo/<len>` once restorePinnedAddress reads it back",
+      "file": "internal/core/machine/incus.go",
+      "find": "\t\tif att.Address != \"\" {\n\t\t\tif addr, _ := netip.ParseAddr(att.Address); !addr.Is4() {",
+      "replace": "\t\tif att.Address != \"\" {\n\t\t\tif addr, _ := netip.ParseAddr(att.Address); !addr.Is4() && len(name) < 0 {",
+      "test": "TestAPinnedAddressThatIsNotAnAddressReachesNoCommand/Start_primary_-foo"
+    },
+    {
+      "label": "the same removal, judged on an extra NIC: `config device add … ipv4.address=-foo` on a running instance",
+      "file": "internal/core/machine/incus.go",
+      "find": "\t\tif att.Address != \"\" {\n\t\t\tif addr, _ := netip.ParseAddr(att.Address); !addr.Is4() {",
+      "replace": "\t\tif att.Address != \"\" {\n\t\t\tif addr, _ := netip.ParseAddr(att.Address); !addr.Is4() && len(name) < 0 {",
+      "test": "TestAPinnedAddressThatIsNotAnAddressReachesNoCommand/Start_extra_-foo"
+    },
+    {
+      "label": "the same removal, judged on the hot door: Attach hands `-foo/24` straight to `exec … -- ip address add`, a bare argv element of the guest's `ip`",
+      "file": "internal/core/machine/incus.go",
+      "find": "\t\tif att.Address != \"\" {\n\t\t\tif addr, _ := netip.ParseAddr(att.Address); !addr.Is4() {",
+      "replace": "\t\tif att.Address != \"\" {\n\t\t\tif addr, _ := netip.ParseAddr(att.Address); !addr.Is4() && len(name) < 0 {",
+      "test": "TestAPinnedAddressThatIsNotAnAddressReachesNoCommand/Attach_-foo"
+    },
+    {
+      "label": "the question narrows to \"does it parse\", which accepts `fe80::1%--force`: an address, not IPv4, under a key named ipv4.address, whose zone is text a client chose. Only that row of the table isolates this half; every other row fails to parse too",
+      "file": "internal/core/machine/incus.go",
+      "find": "\t\tif att.Address != \"\" {\n\t\t\tif addr, _ := netip.ParseAddr(att.Address); !addr.Is4() {",
+      "replace": "\t\tif att.Address != \"\" {\n\t\t\tif addr, _ := netip.ParseAddr(att.Address); !addr.IsValid() {",
+      "test": "TestAPinnedAddressThatIsNotAnAddressReachesNoCommand"
+    },
+    {
+      "label": "the address question refuses every pin, which passes every attack row above and leaves every private NIC to DHCP, which some images never complete on OVN",
+      "file": "internal/core/machine/incus.go",
+      "find": "\t\tif att.Address != \"\" {\n\t\t\tif addr, _ := netip.ParseAddr(att.Address); !addr.Is4() {",
+      "replace": "\t\tif att.Address != \"\" {\n\t\t\tif addr, _ := netip.ParseAddr(att.Address); !addr.Is4() || len(name) > 0 {",
+      "test": "TestAPinnedAddressStillReachesTheDeviceAndTheGuest"
+    },
+    {
+      "label": "the secondary-address question is removed, judged on the hot door: Attach hands `-foo/24` to the guest's `ip address add` through reconcileSecondary",
+      "file": "internal/core/machine/incus.go",
+      "find": "\t\tfor _, address := range att.Secondary {\n\t\t\tif addr, _ := netip.ParseAddr(address); !addr.Is4() {",
+      "replace": "\t\tfor _, address := range att.Secondary {\n\t\t\tif addr, _ := netip.ParseAddr(address); !addr.Is4() && len(name) < 0 {",
+      "test": "TestASecondaryAddressThatIsNotAnAddressReachesNoCommand/Attach_-foo"
+    },
+    {
+      "label": "the same removal, judged on Start's entry: a boot whose plan carries a secondary the driver cannot trust is no longer refused before anything is sent",
+      "file": "internal/core/machine/incus.go",
+      "find": "\t\tfor _, address := range att.Secondary {\n\t\t\tif addr, _ := netip.ParseAddr(address); !addr.Is4() {",
+      "replace": "\t\tfor _, address := range att.Secondary {\n\t\t\tif addr, _ := netip.ParseAddr(address); !addr.Is4() && len(name) < 0 {",
+      "test": "TestASecondaryAddressThatIsNotAnAddressReachesNoCommand/Start_-foo"
+    },
+    {
+      "label": "the secondary question narrows to \"does it parse\", which accepts `fe80::1%--force`; only that row isolates the IPv4 half",
+      "file": "internal/core/machine/incus.go",
+      "find": "\t\tfor _, address := range att.Secondary {\n\t\t\tif addr, _ := netip.ParseAddr(address); !addr.Is4() {",
+      "replace": "\t\tfor _, address := range att.Secondary {\n\t\t\tif addr, _ := netip.ParseAddr(address); !addr.IsValid() {",
+      "test": "TestASecondaryAddressThatIsNotAnAddressReachesNoCommand"
+    },
+    {
+      "label": "the secondary question refuses every secondary address, which passes the attack rows and takes every Outscale secondary private IP off the guest",
+      "file": "internal/core/machine/incus.go",
+      "find": "\t\tfor _, address := range att.Secondary {\n\t\t\tif addr, _ := netip.ParseAddr(address); !addr.Is4() {",
+      "replace": "\t\tfor _, address := range att.Secondary {\n\t\t\tif addr, _ := netip.ParseAddr(address); !addr.Is4() || len(name) > 0 {",
+      "test": "TestASecondaryAddressStillReachesTheGuest"
+    },
+    {
+      "label": "restorePinnedAddress stops asking what it reads back off the device, so a pin the host holds reaches the guest's `ip address add <it>/<len>` as a bare argv element on every restart",
+      "file": "internal/core/machine/incus_ovn.go",
+      "find": "\tif err := ownedAttachments(machine, []Attachment{{Network: cfg[\"network\"], Address: address}}); err != nil {",
+      "replace": "\tif err := ownedAttachments(machine, []Attachment{{Network: cfg[\"network\"], Address: address}}); err != nil && len(machine) < 0 {",
+      "test": "TestAPinnedAddressReadBackOffTheDeviceIsAskedAgain"
+    },
+    {
+      "label": "the read-back question refuses every pin, which passes the attack rows and leaves a restarted machine without the address its device reserves",
+      "file": "internal/core/machine/incus_ovn.go",
+      "find": "\tif err := ownedAttachments(machine, []Attachment{{Network: cfg[\"network\"], Address: address}}); err != nil {",
+      "replace": "\tif err := ownedAttachments(machine, []Attachment{{Network: cfg[\"network\"], Address: address}}); err != nil || len(machine) > 0 {",
+      "test": "TestARestartedMachineGetsItsPinnedAddressBack"
+    },
+    {
+      "label": "guestAddresses keeps whatever follows `inet`, as it did before: a guest reporting `inet -foo/24` gets `ip address del -foo/24` run in it by the reconcile",
+      "file": "internal/core/machine/incus.go",
+      "find": "\t\t\tif addr, _ := netip.ParseAddr(address); found && addr.Is4() {",
+      "replace": "\t\t\tif addr, _ := netip.ParseAddr(address); found && (addr.Is4() || len(name) > 0) {",
+      "test": "TestAnAddressTheGuestReportsIsParsedBeforeItIsRemoved/-foo"
+    },
+    {
+      "label": "guestAddresses keeps nothing, which passes the crafted rows and leaves every stale address on the guest after a reconcile",
+      "file": "internal/core/machine/incus.go",
+      "find": "\t\t\tif addr, _ := netip.ParseAddr(address); found && addr.Is4() {",
+      "replace": "\t\t\tif addr, _ := netip.ParseAddr(address); found && addr.Is4() && len(name) < 0 {",
+      "test": "TestAnAddressTheGuestReportsIsParsedBeforeItIsRemoved"
+    },
+    {
+      "label": "repairGuestInterface stops asking what it reads off the device after a re-plug, so a pin the host holds becomes `<it>/<len>` in the guest's `ip address add`",
+      "file": "internal/core/machine/incus_ovn.go",
+      "find": "\tif err := ownedAttachments(machine, []Attachment{{Network: network, Address: address}}); err != nil {\n\t\treturn fmt.Errorf(\"repair the interface",
+      "replace": "\tif err := ownedAttachments(machine, []Attachment{{Network: network, Address: address}}); err != nil && len(device) < 0 {\n\t\treturn fmt.Errorf(\"repair the interface",
+      "test": "TestARepairAsksWhatItReadsOffTheDevice"
+    },
+    {
+      "label": "the repair's question refuses every pin, which passes the crafted rows and leaves a re-plugged interface bare",
+      "file": "internal/core/machine/incus_ovn.go",
+      "find": "\tif err := ownedAttachments(machine, []Attachment{{Network: network, Address: address}}); err != nil {\n\t\treturn fmt.Errorf(\"repair the interface",
+      "replace": "\tif err := ownedAttachments(machine, []Attachment{{Network: network, Address: address}}); err != nil || len(device) > 0 {\n\t\treturn fmt.Errorf(\"repair the interface",
+      "test": "TestARepairAsksWhatItReadsOffTheDevice/a_legitimate_pin_is_still_put_back"
+    },
+    {
+      "label": "restoreExternalAddresses stops parsing the entries of ipv4.routes.external, so each entry read off the device goes to the guest's `ip address add` as it stands",
+      "file": "internal/core/machine/incus_ovn.go",
+      "find": "\t\tif prefix, _ := netip.ParsePrefix(route); !prefix.Addr().Is4() {",
+      "replace": "\t\tif prefix, _ := netip.ParsePrefix(route); !prefix.Addr().Is4() && len(device) < 0 {",
+      "test": "TestARestoreOfExternalAddressesParsesEveryEntry/-foo"
+    },
+    {
+      "label": "the external-route check narrows to \"does it parse as a prefix\", which accepts `fe80::1/128`; only that row isolates the IPv4 half",
+      "file": "internal/core/machine/incus_ovn.go",
+      "find": "\t\tif prefix, _ := netip.ParsePrefix(route); !prefix.Addr().Is4() {",
+      "replace": "\t\tif prefix, _ := netip.ParsePrefix(route); !prefix.IsValid() {",
+      "test": "TestARestoreOfExternalAddressesParsesEveryEntry"
+    },
+    {
+      "label": "the external-route check refuses every entry, which passes the crafted rows and takes every public address off the guest at each re-plug",
+      "file": "internal/core/machine/incus_ovn.go",
+      "find": "\t\tif prefix, _ := netip.ParsePrefix(route); !prefix.Addr().Is4() {",
+      "replace": "\t\tif prefix, _ := netip.ParsePrefix(route); !prefix.Addr().Is4() || len(device) > 0 {",
+      "test": "TestARestoreOfExternalAddressesParsesEveryEntry/legitimate_entries_are_all_given_back"
+    },
+    {
+      "label": "repairRoutedInterface stops parsing ipv4.address, so each launch address read off the routed NIC becomes `<it>/32` in the guest's `ip address add` as it stands",
+      "file": "internal/core/machine/incus_address.go",
+      "find": "\t\tif addr, _ := netip.ParseAddr(address); !addr.Is4() {\n\t\t\treturn fmt.Errorf(\"refusing to repair %s/%s: ipv4.address",
+      "replace": "\t\tif addr, _ := netip.ParseAddr(address); !addr.Is4() && len(device) < 0 {\n\t\t\treturn fmt.Errorf(\"refusing to repair %s/%s: ipv4.address",
+      "test": "TestARoutedRepairParsesEveryKeyItReadsBack/ipv4.address_-foo"
+    },
+    {
+      "label": "repairRoutedInterface stops parsing ipv4.routes, so each extra route read off the routed NIC goes to the guest's `ip address add` as it stands",
+      "file": "internal/core/machine/incus_address.go",
+      "find": "\t\tif prefix, _ := netip.ParsePrefix(route); !prefix.Addr().Is4() {\n\t\t\treturn fmt.Errorf(\"refusing to repair %s/%s: ipv4.routes",
+      "replace": "\t\tif prefix, _ := netip.ParsePrefix(route); !prefix.Addr().Is4() && len(device) < 0 {\n\t\t\treturn fmt.Errorf(\"refusing to repair %s/%s: ipv4.routes",
+      "test": "TestARoutedRepairParsesEveryKeyItReadsBack/ipv4.routes_-foo"
+    },
+    {
+      "label": "repairRoutedInterface stops parsing ipv4.host_address, so the next hop read off the routed NIC goes to two `ip route add` commands as it stands",
+      "file": "internal/core/machine/incus_address.go",
+      "find": "\tif hop, _ := netip.ParseAddr(next); !hop.Is4() {",
+      "replace": "\tif hop, _ := netip.ParseAddr(next); !hop.Is4() && len(device) < 0 {",
+      "test": "TestARoutedRepairParsesEveryKeyItReadsBack/ipv4.host_address_-foo"
+    },
+    {
+      "label": "the next-hop check refuses every value, which passes the crafted rows and leaves every repaired routed NIC without its default route",
+      "file": "internal/core/machine/incus_address.go",
+      "find": "\tif hop, _ := netip.ParseAddr(next); !hop.Is4() {",
+      "replace": "\tif hop, _ := netip.ParseAddr(next); !hop.Is4() || len(device) > 0 {",
+      "test": "TestARoutedRepairParsesEveryKeyItReadsBack/legitimate_keys_are_all_restored"
+    }
+  ],
+  "note": "#944. Attachment.Address was the only address in Spec that reached a command unparsed, from the same restored Resource.Runtime as the network names of #909 and #932. At `ipv4.address=<it>` a dash cannot open a flag, but the value round-trips: restorePinnedAddress reads it back off the device, and Attach and that path both build `<it>/<len>` for the guest's `ip address add`, a bare argv element. The question is the third one of ownedAttachments, which Start, attachExtra and Attach all ask, so the cold and the hot plug share one rule. It is one condition, ParseAddr then Is4, because the zero Addr ParseAddr answers on failure is not Is4: a separate parse-error branch would be a term no mutation could redden, so there is none, and the two questions the table can tell apart are \"is it IPv4\" (every row) and \"does it parse\" (only the fe80 row passes it). Proven through the injectable runner, not against a running Incus. The same predicate is asked of Attachment.Secondary, which reaches the guest's `ip address add` through reconcileSecondary, and by restorePinnedAddress of the pin it reads back off the device: a device's config is state the host holds, so it is an untrusted input whoever wrote it, and a pin written before this lot comes back from there. The last two mutations hold the other end of the reconcile: guestAddresses reads what the guest says it carries, which the guest's root writes, and keeps only IPv4 addresses before reconcileSecondary and reconcileRoutedInterface turn them into `ip address del` arguments. The OVN re-plug repair reads two more values back off the device and is held the same way: repairGuestInterface asks ownedAttachments of the pin it puts back, and restoreExternalAddresses parses every entry of ipv4.routes.external as an IPv4 prefix before sending any. What the guest's `ip` would do with a crafted argument is not measured and not relied on: every check here refuses at the door, with a message naming the value. repairRoutedInterface reads three keys off a routed NIC, ipv4.address, ipv4.routes and ipv4.host_address, and parses all three before the first command; one mutation per key, each judged by the row that crafts that key alone."
+}

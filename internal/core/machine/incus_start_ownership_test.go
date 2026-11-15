@@ -233,3 +233,64 @@ func TestARestartIsRefusedWhenThePlanNamesAForeignNetwork(t *testing.T) {
 		t.Fatalf("the machine was restarted on a plan the driver cannot trust: %v", f.commands())
 	}
 }
+
+// TestAttachExtraRefusesAForeignNetworkOnItsOwnEntry measures the second call
+// site of ownedAttachments, the one inside attachExtra (#945).
+//
+// Every other test reaches attachExtra through Start, whose entry call refuses
+// the boot first, so neutralising this inner call left the whole package green
+// — measured twice, by the author of #932 and by a falsifier pass. The inner
+// call exists for a caller added later, which no mutation can create; what a
+// test can do is be that caller, and drive attachExtra with nothing in front.
+//
+// One row per question the predicate asks, each passing the other two: the
+// host's bridge (well formed, not ours), an owned prefix with a slash (ours,
+// ill-formed), and an owned network with a pin that is no address. The machine
+// name is not read by these questions, and is the plain `srv`.
+func TestAttachExtraRefusesAForeignNetworkOnItsOwnEntry(t *testing.T) {
+	owned := NetworkName(NetworkPrefix, "11112222-3333-4444-5555-666677778888")
+	second := NetworkName(NetworkPrefix, "99990000-aaaa-bbbb-cccc-ddddeeeeffff")
+	for _, c := range []struct {
+		name  string
+		extra Attachment
+		taint string
+	}{
+		{"the host's bridge", Attachment{Network: "incusbr0"}, "incusbr0"},
+		{"an owned prefix that is ill-formed", Attachment{Network: "fnt-a/b"}, "fnt-a/b"},
+		{"a pin that is no address", Attachment{Network: second, Address: "-foo"}, "-foo"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			f := &fakeRuntime{}
+			d := newFakeDriver(f)
+			spec := Spec{Name: "srv", Image: "alpine:3.21", Attachments: []Attachment{{Network: owned}, c.extra}}
+
+			if err := d.attachExtra(context.Background(), spec); err == nil {
+				t.Fatalf("attachExtra accepted an extra NIC carrying %q", c.taint)
+			}
+			if len(f.matching("config device add")) != 0 {
+				t.Fatalf("a device was added despite the refusal: %v", f.commands())
+			}
+			for _, call := range f.commands() {
+				if strings.Contains(call, c.taint) {
+					t.Fatalf("a command carried %q despite the refusal: %q", c.taint, call)
+				}
+			}
+		})
+	}
+
+	// The accepting half, on the same entry: an extra NIC on a network the
+	// emulator created, with a legitimate pin, is added.
+	t.Run("an owned network with a pinned address", func(t *testing.T) {
+		f := &fakeRuntime{}
+		d := newFakeDriver(f)
+		spec := Spec{Name: "srv", Image: "alpine:3.21", Attachments: []Attachment{
+			{Network: owned}, {Network: second, Address: "10.0.0.7"},
+		}}
+		if err := d.attachExtra(context.Background(), spec); err != nil {
+			t.Fatalf("attachExtra refused an extra NIC the emulator created: %v", err)
+		}
+		if got := f.matching("config device add srv eth1 nic network=" + second + " ipv4.address=10.0.0.7"); len(got) != 1 {
+			t.Fatalf("the extra NIC was not added with its pin: %v", f.commands())
+		}
+	})
+}

@@ -188,13 +188,25 @@ func TestRestoringRoutesIsIdempotent(t *testing.T) {
 // TestRestoringRoutesLeavesAForeignNICAlone: the name of the network comes off
 // the runtime, and a NIC an operator added by hand to one of our machines is
 // theirs. Nothing is read from it and nothing is written through it.
+//
+// Two checks sit on this path since #944 and they do not ask the same thing.
+// ownedManagedNICs skips a NIC that is not ours and carries on with the
+// others; the read-back check in restorePinnedAddress refuses a value it
+// cannot trust, and refusing ends the loop. Without the skip, the foreign NIC
+// would still reach no command — the read-back check stops it first — but
+// every NIC of ours sorted after it would go unrestored. So the fixture puts a
+// foreign NIC *before* one of ours, and the test requires ours restored: that
+// is what only the skip provides, and what a falsifier pass found unmeasured
+// once the read-back check existed.
 func TestRestoringRoutesLeavesAForeignNICAlone(t *testing.T) {
 	const foreign = `{
 	  "devices": {
-	    "eth1": {"type": "nic", "network": "incusbr0", "ipv4.address": "10.76.154.10"}
+	    "eth1": {"type": "nic", "network": "incusbr0", "ipv4.address": "10.76.154.10"},
+	    "eth2": {"type": "nic", "network": "fnt-368798629f8", "ipv4.address": "10.30.1.10"}
 	  },
 	  "expanded_devices": {
-	    "eth1": {"type": "nic", "network": "incusbr0", "ipv4.address": "10.76.154.10"}
+	    "eth1": {"type": "nic", "network": "incusbr0", "ipv4.address": "10.76.154.10"},
+	    "eth2": {"type": "nic", "network": "fnt-368798629f8", "ipv4.address": "10.30.1.10"}
 	  }
 	}`
 	f := &fakeRuntime{}
@@ -205,11 +217,17 @@ func TestRestoringRoutesLeavesAForeignNICAlone(t *testing.T) {
 		t.Fatalf("start: %v", err)
 	}
 
-	for _, forbidden := range []string{"network get incusbr0", "ip route add"} {
+	for _, forbidden := range []string{"network get incusbr0", "dev eth1", "10.76.154.10"} {
 		if got := f.matching(forbidden); len(got) != 0 {
 			t.Errorf("the repair reached a network the emulator did not create:\n%s",
 				strings.Join(got, "\n"))
 		}
+	}
+	// Ours, sorted after the foreign NIC, is still restored: the skip carries
+	// on past what is not ours rather than stopping there.
+	if len(f.matching("exec srv -- ip address add 10.30.1.10/24 dev eth2")) == 0 {
+		t.Errorf("a foreign NIC cost the emulator's own NIC its restore:\n%s",
+			strings.Join(f.commands(), "\n"))
 	}
 }
 

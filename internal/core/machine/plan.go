@@ -383,9 +383,11 @@ func (r Reconciler) ReplayEgress(ctx context.Context, res *resource.Resource) {
 	// reached `incus exec production-database -- ip route del default`, and a
 	// name starting with a dash reached the driver as a flag.
 	//
-	// Stop, Remove and Addresses already ask it here; this path did not, and it
+	// Stop, Remove and Addresses ask it in Binding; this path did not, and it
 	// is the one the hot doors walk on every poweron, join and address route.
-	// TestEgressRefusesAMachineTheEmulatorCouldNotHaveCreated fails without it.
+	// The address paths ask it too since #947, through addressHolder.
+	// TestEgressRefusesAMachineTheEmulatorCouldNotHaveCreated
+	// fails without it.
 	name = r.binding().ours(res.ID, name)
 	plan, declared := r.plan(res)
 	if !declared {
@@ -440,7 +442,7 @@ func (r Reconciler) route(ctx context.Context, res *resource.Resource, plan Plan
 	if router == nil {
 		return
 	}
-	name := res.Runtime[r.binding().RuntimeKey]
+	name := r.addressHolder(res)
 	if name == "" || address == "" {
 		return
 	}
@@ -469,15 +471,54 @@ func (r Reconciler) route(ctx context.Context, res *resource.Resource, plan Plan
 	}
 }
 
-// Unroute takes a route back. The machine may already be gone — the driver
-// treats that as nothing left to undo, and on OVN it still withdraws the
-// uplink route, which outlives the machine; that is why this takes the machine
-// name rather than a resource.
-func (r Reconciler) Unroute(ctx context.Context, machine, address string) {
+// addressHolder is the machine a resource's public addresses are routed to,
+// and the one they are taken back from: the stored name, asked whether the
+// emulator could have written it (#947).
+//
+// Runtime is restored verbatim by `PUT /_feint/state` and `feint snapshot
+// load`, so the name is an untrusted input. Binding.ours keeps a name with
+// this binding's prefix and falls back to the derived one otherwise, the same
+// question ReplayEgress asks.
+//
+// One predicate for both directions, because two copies are what broke: #947
+// first asked it in route alone, and Unroute, still handed the raw stored name
+// by every pack, took the address back from a machine that never held it
+// while the route on the derived name stayed — the machine kept answering on
+// an address the API said was released, measured by a contradicting review.
+//
+// The Incus driver asks its own, stronger question at RouteAddress's entry
+// (mustOwnInstance reads the label the emulator wrote, #933), so on that
+// driver the question here opens nothing that was open. It is here because
+// the shared layer answers for every driver behind the router interface.
+// TestAnAddressIsRoutedOnlyToAMachineTheEmulatorCouldHaveCreated and
+// TestAnUnrouteTakesBackTheRouteItsRouteLaid drive a driver that asks nothing,
+// and fail without it.
+//
+// A nil resource, or one with no machine recorded, answers "": the machine is
+// gone or never was, and the caller still withdraws the address.
+func (r Reconciler) addressHolder(res *resource.Resource) string {
+	if res == nil {
+		return ""
+	}
+	name := res.Runtime[r.binding().RuntimeKey]
+	if name == "" {
+		return ""
+	}
+	return r.binding().ours(res.ID, name)
+}
+
+// Unroute takes a route back from the resource it was routed to. The machine
+// may already be gone — the driver treats that as nothing left to undo, and on
+// OVN it still withdraws the uplink route, which outlives the machine — so a
+// nil resource, when the pack no longer holds one, still withdraws the
+// address. It takes the resource rather than a machine name so that it asks
+// the question route asks, of the same name (addressHolder).
+func (r Reconciler) Unroute(ctx context.Context, res *resource.Resource, address string) {
 	router := r.router()
 	if router == nil || !r.emulated(address) {
 		return
 	}
+	machine := r.addressHolder(res)
 	if err := r.binding().UnrouteAddress(ctx, router, machine, address); err != nil {
 		r.binding().logger().Error("could not stop routing the public address",
 			"provider", r.binding().Provider, "address", logline.Sanitise(address), "error", logline.Sanitise(err.Error()))

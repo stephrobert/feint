@@ -441,9 +441,10 @@ func (d *Incus) publicRouteKey() string {
 // whole of Spec.Attachments before anything is sent to the runtime. One
 // predicate rather than a condition written at each attachment site: what
 // drifted before was the *rule*, not the call — the two per-site checks asked
-// safeName and neither asked ownership — and a predicate called twice has no
-// second copy to drift. It covers the primary interface and the extra NICs
-// attachExtra adds, which asks it again at its own entry.
+// safeName and neither asked ownership — and a predicate called at each door
+// has no second copy to drift. It covers the primary interface and the extra
+// NICs attachExtra adds, which asks it again at its own entry, and the pinned
+// address of each (#944); Attach asks the same predicate for the hot plug.
 // TestStartRefusesANetworkOutsideThePrefix and
 // TestStartRefusesAForeignNetworkOnAnExtraNIC fail without the call made here,
 // and TestStartStillBootsOnTheNetworksTheEmulatorCreated fails if it refuses
@@ -725,28 +726,75 @@ func (d *Incus) abandonStart(ctx context.Context, name string, cause error) erro
 	return cause
 }
 
-// ownedAttachments asks both questions of every network a boot names (#932).
+// ownedAttachments asks every question of every attachment a NIC is about to
+// be plugged with: the networks a boot names (#932), and the one a hot Attach
+// names (#909, #944).
 //
-//   - well formed: safeName, which rules out a leading `-` that incus would
-//     read as a flag, and anything carrying a path separator;
-//   - ours: ownedNetwork, against the prefix this package derives.
+//   - the network is well formed: safeName, which rules out a leading `-` that
+//     incus would read as a flag, and anything carrying a path separator;
+//   - the network is ours: ownedNetwork, against the prefix this package
+//     derives;
+//   - the pinned address, when there is one, is an IPv4 address (#944);
+//   - so is every secondary address. Attachment.Secondary reaches the guest's
+//     `ip address add <it>/<len>` through reconcileSecondary on the hot
+//     Attach, a bare argv element, and it is restored with the rest of the
+//     state without passing through the API that may or may not have parsed
+//     it, so the driver asks rather than trusting the pack.
 //
-// One predicate, called by Start at its entry and by attachExtra at its own,
-// because the names come from a stored resource that PUT /_feint/state and
-// `feint snapshot load` restore verbatim: `incusbr0` is well formed, and
-// before this the boot path asked nothing else.
+// One predicate, called by Start at its entry, by attachExtra at its own and
+// by Attach at its own, because every one of these values comes from a stored
+// resource that PUT /_feint/state and `feint snapshot load` restore verbatim:
+// `incusbr0` is well formed, and before #932 the boot path asked nothing else.
+// Attach used to carry its own copy of the network condition, and its copy
+// had no row isolating the shape half; there is no copy now to drift.
 //
-// Both halves are measured, and separately: neutralising safeName while
-// keeping ownedNetwork reddens TestStartRefusesANetworkOutsideThePrefix on its
-// `fnt-a/b` and `fnt-a b` rows, and narrowing ownedNetwork to the derived shape
-// reddens the `fnt-default` subtest of
-// TestStartStillBootsOnTheNetworksTheEmulatorCreated. Before those two rows
-// existed the first of those mutations left every test in this package green,
-// which is what a falsifier pass measured.
+// The address is the third question because it reaches argv bare. At
+// `ipv4.address=<it>` a leading dash is harmless, but the value round-trips:
+// restorePinnedAddress reads it back off the device, and both it and Attach
+// hand `<it>/<len>` to `exec … -- ip address add` as an argument of its own.
+// What the guest's `ip` would make of `-foo/24` there has not been measured,
+// and this code does not need to know: what is sure is that it is not an
+// address, and the check refuses it at the door, before anything is sent,
+// with a message naming the value. The public half of
+// the same Spec was already parsed (routedDevice, routedNetworkConfig); this
+// was the only address in it that was not, and the only thing standing between
+// a crafted pin and the guest was the daemon's own validator.
+//
+// One condition, not two: netip.ParseAddr answers the zero Addr on failure,
+// which is not Is4, so a string that is no address and an address that is not
+// IPv4 are refused by the same test, and a separate parse-error branch would
+// be a term no mutation could redden. IPv4 because the key is `ipv4.address`:
+// `fe80::1%--force` parses as an address, and is not one this key can hold.
+//
+// Each question is measured on its own row, a value that passes every other
+// question and fails only this one: neutralising safeName reddens the `fnt-a/b`
+// and `fnt-a b` rows of TestStartRefusesANetworkOutsideThePrefix and
+// TestAttachRefusesANetworkOutsideThePrefix; narrowing ownedNetwork to the
+// derived shape reddens the `fnt-default` subtest of
+// TestStartStillBootsOnTheNetworksTheEmulatorCreated; removing the address
+// question reddens TestAPinnedAddressThatIsNotAnAddressReachesNoCommand on
+// both doors, and accepting any parseable address reddens its
+// `fe80::1%--force` row. TestAPinnedAddressStillReachesTheDeviceAndTheGuest
+// fails if the address question refuses a legitimate pin. The secondary
+// question is held the same way, by
+// TestASecondaryAddressThatIsNotAnAddressReachesNoCommand and its accepting
+// half TestASecondaryAddressStillReachesTheGuest.
 func ownedAttachments(name string, atts []Attachment) error {
 	for _, att := range atts {
 		if !safeName.MatchString(att.Network) || !ownedNetwork(att.Network) {
-			return fmt.Errorf("refusing to boot %s on network %q: not one the emulator created", name, att.Network)
+			return fmt.Errorf("refusing to plug %s into network %q: not one the emulator created", name, att.Network)
+		}
+		if att.Address != "" {
+			if addr, _ := netip.ParseAddr(att.Address); !addr.Is4() {
+				return fmt.Errorf("refusing to plug %s into network %q: the pinned address %q is not an IPv4 address",
+					name, att.Network, att.Address)
+			}
+		}
+		for _, address := range att.Secondary {
+			if addr, _ := netip.ParseAddr(address); !addr.Is4() {
+				return fmt.Errorf("refusing to plug %s into network %q: the secondary address %q is not an IPv4 address",
+					name, att.Network, address)
+			}
 		}
 	}
 	return nil
@@ -758,13 +806,13 @@ func ownedAttachments(name string, atts []Attachment) error {
 //
 // It asks ownedAttachments again, of the slice it is about to turn into argv.
 // Start, its only caller today, already asked it of the whole of
-// Spec.Attachments, and that call is the one the tests measure: it is what
-// makes a refused boot send nothing at all. This call cannot be measured the
-// same way — no mutation can add a second caller — and deleting it leaves
-// TestStartRefusesAForeignNetworkOnAnExtraNIC green, which was measured rather
-// than assumed. So it is defence in depth, not the guard: it is here so that a
-// caller added later is safe by construction instead of inheriting an
-// obligation written in a comment.
+// Spec.Attachments: that call is what makes a refused boot send nothing at
+// all, and TestStartRefusesAForeignNetworkOnAnExtraNIC measures it. This one
+// is what keeps a caller added later safe by construction instead of
+// inheriting an obligation written in a comment, and it is measured on its own
+// (#945): TestAttachExtraRefusesAForeignNetworkOnItsOwnEntry drives
+// attachExtra directly, with no Start in front of it, and fails without this
+// call.
 func (d *Incus) attachExtra(ctx context.Context, spec Spec) error {
 	if len(spec.Attachments) < 2 {
 		return nil
@@ -812,13 +860,27 @@ func (d *Incus) attachExtra(ctx context.Context, spec Spec) error {
 // verbatim (#909): a crafted snapshot naming an instance of the host reached
 // `incus config device add <that instance> ethN nic network=...`.
 //
-//   - well formed: safeName on the machine and on the network;
-//   - ours: ownedNetwork on the network, mustOwnInstance on the machine, and the
-//     latter is asked before anything is sent to the instance, the agent probe
-//     included. TestAttachRefusesAnInstanceItDoesNotOwn and
-//     TestAttachRefusesANetworkOutsideThePrefix fail without them, and
+//   - well formed: safeName on the machine; the network and the pinned address
+//     through ownedAttachments, the predicate Start asks of a boot, so the hot
+//     and the cold plug share one rule rather than two copies of it (#944);
+//   - ours: ownedNetwork on the network, inside the same predicate, and
+//     mustOwnInstance on the machine, asked before anything is sent to the
+//     instance, the agent probe included. TestAttachRefusesAnInstanceItDoesNotOwn
+//     and TestAttachRefusesANetworkOutsideThePrefix fail without them, and
 //     TestAttachStillReachesAnInstanceTheEmulatorCreated fails if the guard
 //     refuses what it should accept.
+//
+// The instance question is asked under the per-machine lock, after it is
+// taken, and that placement is a property rather than an accident of line
+// order (#934). The answer is a reading of a label, and everything below acts
+// on it: the agent probe, the device add, the `exec` into the guest. Asked
+// before the lock, the answer would be one taken while another attach on the
+// same machine still held it, and acted on after that attach had finished.
+// Nothing in this product relabels an existing instance today, so the window
+// opens nothing now; what this placement guarantees is that the answer used is
+// the answer taken under the exclusion the action runs in, whatever a later
+// path learns to do. TestAttachAsksWhoseInstanceItIsUnderTheLockItActsUnder
+// fails when the question moves above the lock.
 //
 // Not found is an error here, unlike in Detach: a detach of a machine that is
 // gone has nothing left to undo, but an attach that answered nil would let the
@@ -827,8 +889,8 @@ func (d *Incus) Attach(ctx context.Context, name string, att Attachment) error {
 	if !safeName.MatchString(name) {
 		return fmt.Errorf("invalid machine name %q", name)
 	}
-	if !safeName.MatchString(att.Network) || !ownedNetwork(att.Network) {
-		return fmt.Errorf("refusing to attach to network %q: not one the emulator created", att.Network)
+	if err := ownedAttachments(name, []Attachment{att}); err != nil {
+		return err
 	}
 
 	release := serialise.Lock("incus.attach." + name)
@@ -966,6 +1028,12 @@ func (d *Incus) Attach(ctx context.Context, name string, att Attachment) error {
 //     an instance carrying our label. TestDetachRefusesAnInstanceItDoesNotOwn
 //     and TestDetachRefusesANetworkOutsideThePrefix fail without them.
 //
+// The instance question is asked under the per-machine lock, for Attach's
+// reason (#934): the device removal acts on that answer, so the answer must be
+// the one taken under the exclusion the removal runs in.
+// TestDetachAsksWhoseInstanceItIsUnderTheLockItActsUnder fails when the
+// question moves above the lock.
+//
 // Only devices.own, never the expanded set: a NIC inherited from a profile
 // belongs to the profile, and removing it from the instance would reconfigure
 // something this emulator did not create.
@@ -1083,6 +1151,17 @@ func (d *Incus) reconcileSecondary(ctx context.Context, name, device string, att
 // Read from the guest rather than from the device's config, because the config
 // holds what the driver asked for and this needs what the machine has. The two
 // disagreeing is exactly the case a reconcile is for.
+//
+// Only what parses as an IPv4 address is kept. The output is written by the
+// guest, whose root is whoever was given the machine, and both reconcilers
+// that read it (reconcileSecondary, reconcileRoutedInterface) hand what they
+// find to `ip address del <it>/<len>` as an argument of its own. How that `ip`
+// would read a line such as `inet -foo/24` has not been measured; what is
+// sure is that `-foo` is no address, and it is dropped here rather than sent.
+// The
+// same predicate a pin is asked on its way in, on state from outside the
+// process. TestAnAddressTheGuestReportsIsParsedBeforeItIsRemoved fails
+// without it.
 func (d *Incus) guestAddresses(ctx context.Context, name, iface string) (map[string]bool, error) {
 	out, err := d.run(ctx, "exec", name, "--", "ip", "-4", "-o", "addr", "show", "dev", iface)
 	if err != nil {
@@ -1096,7 +1175,7 @@ func (d *Incus) guestAddresses(ctx context.Context, name, iface string) (map[str
 				continue
 			}
 			address, _, found := strings.Cut(fields[i+1], "/")
-			if found && address != "" {
+			if addr, _ := netip.ParseAddr(address); found && addr.Is4() {
 				carried[address] = true
 			}
 		}

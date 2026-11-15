@@ -195,8 +195,8 @@ func TestNoClientValueForgesALineInTheAddressLog(t *testing.T) {
 	})
 
 	t.Run("the error an unroute failure carries", func(t *testing.T) {
-		r, attrs, _ := bench(&forgingDriver{unrouteErr: errors.New("incus: " + forgedLine)})
-		r.Unroute(ctx, "feint-acme-srv-1", "203.0.113.9")
+		r, attrs, res := bench(&forgingDriver{unrouteErr: errors.New("incus: " + forgedLine)})
+		r.Unroute(ctx, res, "203.0.113.9")
 		assertOneLine(t, attrs(), "evil")
 	})
 
