@@ -121,12 +121,16 @@ func armFaultCampaign(target string, rules []faultRule) error {
 // render, which says the state could not be read rather than printing an empty
 // one — an empty receipt and an unread receipt are different facts, and "no
 // fault fired" is the one a reader would act on.
-func readFaultState(target string) (armed int, fired []firedFault, dropped int, ok bool) {
+//
+// schema is the document's schema_version, handed on rather than dropped
+// (#928): below schema 2 the lab publishes no receipt, and renderFaultReceipt
+// states it rather than read an absent receipt as an empty one.
+func readFaultState(target string) (armed int, fired []firedFault, dropped, schema int, ok bool) {
 	document, err := callFaults(http.MethodGet, faultsEndpoint(target), nil)
 	if err != nil {
-		return 0, nil, 0, false
+		return 0, nil, 0, 0, false
 	}
-	return len(document.Faults), document.Fired, document.FiredDropped, true
+	return len(document.Faults), document.Fired, document.FiredDropped, document.SchemaVersion, true
 }
 
 // disarmFaultCampaign clears what this run armed.
@@ -172,6 +176,28 @@ func renderFaultReceipt(w interface{ Write([]byte) (int, error) }, r runReceipt)
 		if r.FaultsCampaign {
 			who = "armed"
 		}
+		// "None fired" is drawn from an empty receipt, and only a lab that
+		// publishes a receipt can make it mean anything (#928). Below
+		// faultsSchemaReceipt, which is every release up to v0.16.0, `fired` is
+		// absent, so its emptiness says nothing about whether a rule fired.
+		// Schema 1's per-rule hit counts could answer it, and are not used
+		// here: this says what the lab does not publish rather than add a
+		// second rendering path in the last correction cycle of #928.
+		//
+		// TestARunReceiptAgainstALabWithoutAReceiptClaimsNothing fails without
+		// this branch, TestARunReceiptThatNamesNoSchemaClaimsNothing if a
+		// missing schema_version is read as a receipt, and
+		// TestARunReceiptWithAnEmptyReceiptStillSaysNoneFired if the branch
+		// reaches a lab that does publish one.
+		if r.FaultsSchema < faultsSchemaReceipt {
+			which := fmt.Sprintf("schema_version %d", r.FaultsSchema)
+			if r.FaultsSchema <= 0 {
+				which = "it does not name its schema_version"
+			}
+			fmt.Fprintf(w, "  faults         %s, but this lab publishes no per-call receipt (%s), "+
+				"so whether a fault fired cannot be told from it\n", who, which)
+			return
+		}
 		fmt.Fprintf(w, "  faults         %s, and none fired: no call reached the operations named\n", who)
 		return
 	}
@@ -187,6 +213,22 @@ func renderFaultReceipt(w interface{ Write([]byte) (int, error) }, r runReceipt)
 		whose = " (armed on this lab before the run, not by it)"
 	}
 	fmt.Fprintf(w, "  faults         %d fired%s%s\n", len(r.Faults), whose, dropped)
+	// The same sentence `feint fault list` prints, from the same function
+	// (#928), above the lines it qualifies and on the receipt's own stream.
+	// The lines themselves already went through deriveInFlight in callFaults,
+	// so a firing still held when the child exited reads as in flight from
+	// schema 2 on, and the rendering is exact there. What is left is a lab
+	// whose document does not name its schema. The run's exit code is the
+	// child's and does not move.
+	//
+	// TestARunReceiptSaysWhenTheLabNamesNoSchema fails without this print;
+	// TestARunReceiptAgainstASchema2LabCarriesNoNote and
+	// TestARunReceiptAgainstACurrentLabCarriesNoNote fail if it is printed
+	// against a lab whose receipt is exact. Both are mutated in
+	// tools/falsify/specs/an-older-emulator-is-named.json.
+	if note := faultsSchemaNote(r.FaultsSchema); note != "" {
+		fmt.Fprintf(w, "    %s\n", note)
+	}
 	for _, line := range r.Faults {
 		fmt.Fprintf(w, "    %s call %d: %s\n", line.Operation, line.Rank, describeFiredLine(line))
 	}

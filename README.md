@@ -758,6 +758,16 @@ reproduces under a client that does not parallelise and nowhere else —
 [docs/limits.md](docs/limits.md#a-fault-schedule-counts-arrivals-and-no-client-sends-an-identity-to-replay-851)
 measures why no client sends anything better.
 
+The CLI reads the receipt's `schema_version`. From schema 2 on, a request the
+emulator is still holding is shown as in flight, never as `answered 0`. When
+the receipt does not name its schema, `feint fault list`, `feint fault add`
+and the `feint run` receipt print a `note:` line above the fired lines. For
+`run` it goes to stderr with the rest of the receipt; no exit code changes,
+and the `--json` receipt does not carry it yet (#964). Every release up to
+v0.16.0 serves schema 1, which has no receipt at all; against one, `feint run`
+says the lab publishes no per-call receipt instead of claiming that none
+fired.
+
 Four properties, and each is a refusal somewhere in the code rather than a
 promise here. **Off by default** — a fresh emulator arms nothing.
 **Deterministic under one client** — "the first N calls of this operation" or

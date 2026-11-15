@@ -245,7 +245,7 @@ func runCommand(args []string, stdout io.Writer, stderr io.Writer) int {
 	// lab can carry rules this run never asked for, and a receipt reporting
 	// what this invocation asked for would deny the injected answers its own
 	// child met.
-	faultsArmed, fired, firedDropped, firedRead := readFaultState(target)
+	faultsArmed, fired, firedDropped, faultsSchema, firedRead := readFaultState(target)
 	if len(campaign) != 0 {
 		// Cleared after the state is read, and only what this run armed. An
 		// attached lab outlives the run, so a campaign left behind becomes the
@@ -307,7 +307,7 @@ func runCommand(args []string, stdout io.Writer, stderr io.Writer) int {
 		RealCloud:   "no known escape observed",
 		FaultsArmed: faultsArmed != 0 || len(fired) != 0, FaultsCampaign: len(campaign) != 0,
 		FaultsRead: firedRead,
-		Faults:     fired, FaultsDropped: firedDropped,
+		Faults:     fired, FaultsDropped: firedDropped, FaultsSchema: faultsSchema,
 	}
 	// stdout belongs to the CHILD, and to nothing else. Measured rather than
 	// reasoned: the first version wrote the JSON receipt there, and replaying

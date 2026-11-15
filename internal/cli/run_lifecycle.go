@@ -335,6 +335,11 @@ type runReceipt struct {
 	FaultsRead     bool         `json:"faults_read"`
 	Faults         []firedFault `json:"faults,omitempty"`
 	FaultsDropped  int          `json:"faults_dropped,omitempty"`
+	// FaultsSchema is the lab's /_feint/faults schema_version, read with the
+	// lines so the prose can say when they are inexact (#928). It is not in
+	// the JSON yet: carrying it there changes this receipt's schema, and #964
+	// carries that change.
+	FaultsSchema int `json:"-"`
 }
 
 // runReceiptSchemaVersion is versioned from the first release, because a suite
