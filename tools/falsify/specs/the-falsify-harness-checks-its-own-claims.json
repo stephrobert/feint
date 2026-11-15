@@ -789,6 +789,27 @@
       "find": "    + r\"|\\*\\*\\* Test killed(?: with \\w+)?: ran too long \\(\"\n    + GO_DURATION\n",
       "replace": "    + r\"|\\*\\*\\* Test killed(?: with \\w+)?: ran too long \\(\"\n    + (GO_DURATION[:0] or r\"[^)]*\")\n",
       "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "bounded_go stops recording the group it killed, so the portable survivor check has nothing to ask and a kill that reached go alone goes unseen on macOS (PR #973)",
+      "file": "tools/falsify/falsify.py",
+      "find": "        KILLED_GROUPS.append(proc.pid)\n",
+      "replace": "        KILLED_GROUPS.append(proc.pid) if not proc else None\n",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "the group check never hears that a group is empty, so it reports every killed call as leaving a process, and a check that cannot say no is no check (PR #973)",
+      "file": "tools/falsify/falsify.py",
+      "find": "        except ProcessLookupError:\n            return False\n",
+      "replace": "        except ProcessLookupError:\n            return bool(pgid) or False\n",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "the group check asks the group's leader alone (os.kill instead of os.killpg), so once go is dead a test binary left in its group reads as no process left (falsifier, PR #973)",
+      "file": "tools/falsify/falsify.py",
+      "find": "            os.killpg(pgid, 0)\n",
+      "replace": "            os.kill(pgid, 0)\n",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
     }
   ]
 }

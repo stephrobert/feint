@@ -2393,6 +2393,31 @@ def _hang_cases():
     return failures
 
 
+# Where _survivors() reads the process table. A constant so that the macOS
+# path, which has none, can be exercised on Linux by pointing it elsewhere.
+PROC_ROOT = "/proc"
+
+
+def _group_left(pgid):
+    """Whether any process of the group `pgid` is still there after the kill.
+
+    `os.killpg(pgid, 0)` sends nothing and asks the kernel whether the group
+    has a member: ProcessLookupError means none, on Linux and macOS alike. A
+    member we may not signal (PermissionError) is still a member. Asked over
+    two seconds at most: a process killed by SIGKILL may still be on its way
+    out, and a zombie counts until its parent reaps it.
+    """
+    for _ in range(20):
+        try:
+            os.killpg(pgid, 0)
+        except ProcessLookupError:
+            return False
+        except PermissionError:
+            pass
+        time.sleep(0.1)
+    return True
+
+
 def _survivors(mark):
     """The pids still carrying FALSIFY_SELFTEST_MARK=mark, other than this one,
     or None when /proc cannot be read (an unknown, never an empty answer).
@@ -2400,17 +2425,17 @@ def _survivors(mark):
     Read twice over two seconds at most: a process killed by SIGKILL may still
     be on its way out when the first look happens.
     """
-    if not os.path.isdir("/proc"):
+    if not os.path.isdir(PROC_ROOT):
         return None
     needle = f"FALSIFY_SELFTEST_MARK={mark}\0".encode()
     left = []
     for _ in range(20):
         left = []
-        for pid in (p for p in os.listdir("/proc") if p.isdigit()):
+        for pid in (p for p in os.listdir(PROC_ROOT) if p.isdigit()):
             if int(pid) == os.getpid():
                 continue
             try:
-                with open(f"/proc/{pid}/environ", "rb") as fh:
+                with open(os.path.join(PROC_ROOT, pid, "environ"), "rb") as fh:
                     if needle in fh.read():
                         left.append(int(pid))
             except OSError:
@@ -2439,6 +2464,35 @@ def _lint_bound_cases():
     default bounds and must stay green.
     """
     failures = 0
+    if not hasattr(os, "killpg"):
+        # Not a pass: said, and counted as nothing. bounded_go() kills with
+        # os.killpg, so on such a platform the lint has no kill path to test
+        # at all. CI runs this selftest on Linux and macOS only (go.yml).
+        print("skip the lint bound cases: no os.killpg here, so bounded_go() cannot kill at all")
+        return 0
+
+    # The group check's witness, both halves, because a check for absence
+    # that never finds anything reads exactly like one that cannot: a live
+    # group of our own must be reported present, and gone once killed.
+    #
+    # A group whose LEADER has exited and whose MEMBER stays, which is the
+    # shape bounded_go() leaves when it kills: `go` dies, the test binary under
+    # it is what may survive. With a one-process group, os.kill(pgid, 0) asks
+    # the leader alone and answers exactly like os.killpg(pgid, 0), so that
+    # mutation kept the selftest green (falsifier, PR #973).
+    witness = subprocess.Popen(["sh", "-c", "sleep 30 & exit 0"], start_new_session=True)
+    witness.wait()
+    try:
+        present = _group_left(witness.pid)
+    finally:
+        with contextlib.suppress(ProcessLookupError):
+            os.killpg(witness.pid, signal.SIGKILL)
+    gone = not _group_left(witness.pid)
+    if present and gone:
+        print("ok  the group check sees a group whose leader exited, and no longer once killed")
+    else:
+        print(f"!! the group check answers present={present}, gone={gone} on a group of its own")
+        failures += 1
     sleeping_main = (
         'package s\n\nimport (\n\t"os"\n\t"testing"\n\t"time"\n)\n\n'
         "func TestMain(m *testing.M) {\n\ttime.Sleep(20 * time.Second)\n\tos.Exit(m.Run())\n}\n\n"
@@ -2485,6 +2539,7 @@ def _lint_bound_cases():
             globals()[bound] = 1
             mark = f"{os.getpid()}-{bound}"
             os.environ["FALSIFY_SELFTEST_MARK"] = mark
+            KILLED_GROUPS.clear()
             start = time.monotonic()
             try:
                 got, said = _linted(directory, tmp)
@@ -2492,17 +2547,32 @@ def _lint_bound_cases():
                 globals()[bound] = saved
                 del os.environ["FALSIFY_SELFTEST_MARK"]
             took = time.monotonic() - start
+            # Two survivor checks, and the first is the one every POSIX system
+            # answers: the group bounded_go() killed has no member left. It was
+            # the /proc scan alone until CI ran this selftest on macos-15,
+            # which has no /proc, and failed both cases there as "unknown"
+            # (PR #973). The scan stays where /proc is readable, because it
+            # also catches a process that left the group.
+            if not KILLED_GROUPS:
+                print(f"!! {why}: no process group was killed, so the bound never fired")
+                failures += 1
+            for pgid in KILLED_GROUPS:
+                if _group_left(pgid):
+                    print(f"!! {why}: the killed group {pgid} still has a process running")
+                    failures += 1
+                else:
+                    print(f"ok  {why}: the killed group {pgid} has no process left")
             left = _survivors(mark)
             if left is None:
                 print(
-                    f"!! {why}: /proc cannot be read, so whether the call left a process is unknown"
+                    f"ok  {why}: no /proc here: a process that left the killed group (setsid) "
+                    "is not seen; the group check above is the only one"
                 )
-                failures += 1
             elif left:
                 print(f"!! {why}: the killed call left {len(left)} process(es) running: {left}")
                 failures += 1
             else:
-                print(f"ok  {why}: no process of the killed call survives it")
+                print(f"ok  {why}: no process of the killed call survives it, by /proc")
             failures += _report(got, 2, why, said, "did not finish within 1 s, the lint's bound")
             # Killed, not waited out: a kill that reaches `go` but not the
             # test binary under it leaves the pipes open for the full sleep.
@@ -3007,6 +3077,12 @@ def passed_leaves(pattern, stdout):
 LIST_BOUND = 180
 PARENT_BOUND = 60
 
+# The process groups bounded_go() killed, in order: with start_new_session the
+# group id is the child's pid. _lint_bound_cases() asks each one afterwards
+# whether any member is left, the one survivor check every POSIX system can
+# answer (macOS has no /proc, and CI runs this selftest on macos-15).
+KILLED_GROUPS = []
+
 
 def bounded_go(cmd, root, env, seconds):
     """(CompletedProcess, why it was killed or "") of `cmd`, killed after `seconds`.
@@ -3033,6 +3109,7 @@ def bounded_go(cmd, root, env, seconds):
         return subprocess.CompletedProcess(cmd, proc.returncode, out, err), ""
     except subprocess.TimeoutExpired:
         os.killpg(proc.pid, signal.SIGKILL)
+        KILLED_GROUPS.append(proc.pid)
         out, err = proc.communicate()
         why = (
             f"`{' '.join(cmd)}` did not finish within {seconds} s, the lint's bound, and was "
