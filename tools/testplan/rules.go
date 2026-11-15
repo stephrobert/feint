@@ -379,6 +379,13 @@ var rules = []rule{
 		}},
 	},
 	{
+		Path: "internal/hermetic/",
+		Why:  "what every test binary of the repository drops from its environment before any test runs",
+		Runs: nil,
+		Unproven: "TestATestBinaryDropsTheGitDirAHookExports plays the hook with a decoy repository; " +
+			"a real pre-push hook exporting GIT_DIR is only met when somebody pushes",
+	},
+	{
 		Path:     "internal/core/logline/",
 		Why:      "how a value a client controls is spelled into the emulator's log",
 		Runs:     nil,

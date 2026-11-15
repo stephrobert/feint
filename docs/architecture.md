@@ -43,6 +43,7 @@ internal/compat/            classifies a consumer's expression across two releas
 internal/release/           what a release owes its consumers: whether the note names what
                             changed hands (release:surface), and the Homebrew formula
                             derived from the checksums it signed (release:formula)
+internal/hermetic/          tests only: a test binary drops the GIT_* a git hook exported
 internal/providers/<name>/  one pack per emulated cloud
 tools/conformance/<name>/   that provider's real clients: CLI, Terraform, OpenTofu
 coverage/, contracts/       versioned artefacts the gates read
