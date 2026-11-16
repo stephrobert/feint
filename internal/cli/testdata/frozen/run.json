@@ -1,0 +1,338 @@
+{
+  "history": [
+    {
+      "schema_version": 3,
+      "content": {
+        "fields": [
+          {
+            "path": "calls",
+            "type": "number"
+          },
+          {
+            "path": "calls_truncated",
+            "type": "bool"
+          },
+          {
+            "path": "capabilities",
+            "type": "array"
+          },
+          {
+            "path": "capabilities[]",
+            "type": "string"
+          },
+          {
+            "path": "cleanup",
+            "type": "string"
+          },
+          {
+            "path": "command",
+            "type": "array"
+          },
+          {
+            "path": "command[]",
+            "type": "string"
+          },
+          {
+            "path": "endpoint",
+            "type": "string"
+          },
+          {
+            "path": "exit",
+            "type": "number"
+          },
+          {
+            "path": "faults",
+            "type": "array"
+          },
+          {
+            "path": "faults[]",
+            "type": "object"
+          },
+          {
+            "path": "faults[].abandoned",
+            "type": "bool"
+          },
+          {
+            "path": "faults[].in_flight",
+            "type": "bool"
+          },
+          {
+            "path": "faults[].operation",
+            "type": "string"
+          },
+          {
+            "path": "faults[].rank",
+            "type": "number"
+          },
+          {
+            "path": "faults[].status",
+            "type": "number"
+          },
+          {
+            "path": "faults[].transport",
+            "type": "string"
+          },
+          {
+            "path": "faults_armed",
+            "type": "bool"
+          },
+          {
+            "path": "faults_campaign",
+            "type": "bool"
+          },
+          {
+            "path": "faults_dropped",
+            "type": "number"
+          },
+          {
+            "path": "faults_read",
+            "type": "bool"
+          },
+          {
+            "path": "intercepted",
+            "type": "array"
+          },
+          {
+            "path": "intercepted[]",
+            "type": "string"
+          },
+          {
+            "path": "lab",
+            "type": "string"
+          },
+          {
+            "path": "providers",
+            "type": "array"
+          },
+          {
+            "path": "providers[]",
+            "type": "string"
+          },
+          {
+            "path": "real_cloud",
+            "type": "string"
+          },
+          {
+            "path": "reset",
+            "type": "string"
+          },
+          {
+            "path": "runtime",
+            "type": "string"
+          },
+          {
+            "path": "runtime_proof",
+            "type": "array"
+          },
+          {
+            "path": "runtime_proof[]",
+            "type": "string"
+          },
+          {
+            "path": "schema_version",
+            "type": "number"
+          },
+          {
+            "path": "session",
+            "type": "string"
+          },
+          {
+            "path": "stripped",
+            "type": "array"
+          },
+          {
+            "path": "stripped[]",
+            "type": "string"
+          },
+          {
+            "path": "unreconciled",
+            "type": "array"
+          },
+          {
+            "path": "unreconciled[]",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "schema_version": 4,
+      "content": {
+        "fields": [
+          {
+            "path": "calls",
+            "type": "number"
+          },
+          {
+            "path": "calls_truncated",
+            "type": "bool"
+          },
+          {
+            "path": "capabilities",
+            "type": "array"
+          },
+          {
+            "path": "capabilities[]",
+            "type": "string"
+          },
+          {
+            "path": "cleanup",
+            "type": "string"
+          },
+          {
+            "path": "command",
+            "type": "array"
+          },
+          {
+            "path": "command[]",
+            "type": "string"
+          },
+          {
+            "path": "endpoint",
+            "type": "string"
+          },
+          {
+            "path": "exit",
+            "type": "number"
+          },
+          {
+            "path": "fault_rules",
+            "type": "array"
+          },
+          {
+            "path": "fault_rules[]",
+            "type": "object"
+          },
+          {
+            "path": "fault_rules[].hits",
+            "type": "number"
+          },
+          {
+            "path": "fault_rules[].operation",
+            "type": "string"
+          },
+          {
+            "path": "fault_rules[].spent",
+            "type": "bool"
+          },
+          {
+            "path": "faults",
+            "type": "array"
+          },
+          {
+            "path": "faults[]",
+            "type": "object"
+          },
+          {
+            "path": "faults[].abandoned",
+            "type": "bool"
+          },
+          {
+            "path": "faults[].in_flight",
+            "type": "bool"
+          },
+          {
+            "path": "faults[].operation",
+            "type": "string"
+          },
+          {
+            "path": "faults[].rank",
+            "type": "number"
+          },
+          {
+            "path": "faults[].status",
+            "type": "number"
+          },
+          {
+            "path": "faults[].transport",
+            "type": "string"
+          },
+          {
+            "path": "faults_armed",
+            "type": "bool"
+          },
+          {
+            "path": "faults_campaign",
+            "type": "bool"
+          },
+          {
+            "path": "faults_dropped",
+            "type": "number"
+          },
+          {
+            "path": "faults_read",
+            "type": "bool"
+          },
+          {
+            "path": "faults_schema_version",
+            "type": "number"
+          },
+          {
+            "path": "intercepted",
+            "type": "array"
+          },
+          {
+            "path": "intercepted[]",
+            "type": "string"
+          },
+          {
+            "path": "lab",
+            "type": "string"
+          },
+          {
+            "path": "providers",
+            "type": "array"
+          },
+          {
+            "path": "providers[]",
+            "type": "string"
+          },
+          {
+            "path": "real_cloud",
+            "type": "string"
+          },
+          {
+            "path": "reset",
+            "type": "string"
+          },
+          {
+            "path": "runtime",
+            "type": "string"
+          },
+          {
+            "path": "runtime_proof",
+            "type": "array"
+          },
+          {
+            "path": "runtime_proof[]",
+            "type": "string"
+          },
+          {
+            "path": "schema_version",
+            "type": "number"
+          },
+          {
+            "path": "session",
+            "type": "string"
+          },
+          {
+            "path": "stripped",
+            "type": "array"
+          },
+          {
+            "path": "stripped[]",
+            "type": "string"
+          },
+          {
+            "path": "unreconciled",
+            "type": "array"
+          },
+          {
+            "path": "unreconciled[]",
+            "type": "string"
+          }
+        ]
+      }
+    }
+  ]
+}

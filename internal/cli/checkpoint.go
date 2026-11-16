@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -409,6 +410,23 @@ func takeSessionCheckpoint(endpoint, session, addr string) error {
 		SchemaVersion: checkpointStateVersion, Name: session,
 		Taken: time.Now().UTC().Format(time.RFC3339), Runtime: runtimeName, State: state,
 	})
+}
+
+// dropSessionCheckpoint removes the session checkpoint this run took, on the
+// lab and on disk, when the run stops before its command: there is nothing
+// to reset to. Failures are said and do not change the run's verdict, which
+// is already a refusal.
+func dropSessionCheckpoint(endpoint, session, addr string, stderr io.Writer) {
+	if _, err := callCheckpoint(http.MethodDelete, endpoint+"/_feint/checkpoint/"+session); err != nil {
+		fmt.Fprintf(stderr, "feint run: the session checkpoint %s could not be removed from the lab: %v\n", session, err)
+	}
+	path, err := checkpointPath(addr, session)
+	if err == nil {
+		err = os.Remove(path)
+	}
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		fmt.Fprintf(stderr, "feint run: the recorded session checkpoint could not be removed: %v\n", err)
+	}
 }
 
 // resetToSession returns the lab to its session checkpoint and answers a

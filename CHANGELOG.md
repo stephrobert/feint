@@ -17,6 +17,26 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Fixed
 
+- **`feint run --fault` against a released emulator armed a different
+  campaign than the file said** (#968). Measured on 2026-11-16 against the
+  published v0.16.0 binary (faults schema 1): a rule with `"nth": 2` was
+  accepted with a 200 and armed without `nth`, so the child met the 503 on
+  every call. The run now compares each rule the lab echoes with the rule
+  it sent, clears the campaign and refuses before the command starts when
+  a knob was not kept. A `transport` rule against a lab below faults
+  schema 3 is refused before arming, in words that name the schema, where
+  v0.16.0 itself answered "asks for nothing". Against such a lab the receipt also reports each
+  rule's hit count (`fault_rules`), the answer schema 1 does publish, in
+  place of "whether a fault fired cannot be told".
+- **The JSON receipt of `feint run` did not say which faults schema the lab
+  served** (#964), so a reader could not tell an `in_flight` the CLI derived
+  (schema 2 and 3) from one the lab published, nor a schema 1 lab's empty
+  receipt from "none fired". It now carries `faults_schema_version`
+  (`run_receipt` schema 4, additive).
+- **The `feint run` receipt was versioned and nothing froze it** (#918). It
+  is now the eighth frozen surface (`internal/cli/testdata/frozen/run.json`,
+  from version 3), read from a real run whose population holds a value for
+  every key, and listed in the support window of `RELEASING.md`.
 - **A fault receipt line still in flight was published as a finished one**
   (#925). `GET /_feint/faults` reserves a line when a rule fires and fills
   it when the handler ends; in between it answered `status: 0,

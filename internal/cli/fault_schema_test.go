@@ -367,8 +367,8 @@ func TestARunReceiptAgainstALabWithoutAReceiptClaimsNothing(t *testing.T) {
 		t.Errorf("a schema %d lab, which publishes no receipt, is reported as one where nothing fired:\n%s",
 			faultsSchemaReceipt-1, receipt)
 	}
-	want := fmt.Sprintf("this lab publishes no per-call receipt (schema_version %d), so whether a fault fired "+
-		"cannot be told from it", faultsSchemaReceipt-1)
+	want := fmt.Sprintf("this lab publishes no per-call receipt (schema_version %d), only a count per rule",
+		faultsSchemaReceipt-1)
 	if !strings.Contains(receipt, want) {
 		t.Errorf("the receipt does not say what the lab does not publish; want %q in:\n%s", want, receipt)
 	}
@@ -424,8 +424,13 @@ func TestARunWhoseOwnCampaignMeetsALabWithoutAReceiptClaimsNothing(t *testing.T)
 		`","status":503}]}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	// The lab echoes the rule it was sent, as v0.16.0 does for a status rule
+	// (measured 2026-11-16): a stub echoing another rule would be refused at
+	// arming since #968, and this case would never reach the receipt.
+	armed := `{"schema_version":1,"faults":[{"operation":"` + faultOpListServers +
+		`","status":503,"delay":"","times":0,"truncate_bytes":null,"hits":2,"spent":false}]}`
 	var stdout, stderr bytes.Buffer
-	code := runCommand([]string{"--endpoint", labStub(t, schema1Body(faultsSchemaReceipt-1)),
+	code := runCommand([]string{"--endpoint", labStub(t, armed),
 		"--fault", campaign, "--", "sh", "-c", "exit 3"}, &stdout, &stderr)
 	if code != 3 {
 		t.Fatalf("the run answered %d where the child answered 3\nstderr:\n%s", code, stderr.String())

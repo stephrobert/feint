@@ -232,6 +232,12 @@ func runCommand(args []string, stdout io.Writer, stderr io.Writer) int {
 	// the same number; the attached case is where a total would lie.
 	if len(campaign) != 0 {
 		if err := armFaultCampaign(target, campaign); err != nil {
+			// The session checkpoint this run just took would outlive a run
+			// that never started, on the lab and on disk.
+			// TestARefusedCampaignDropsTheSessionCheckpoint fails without this.
+			if *resetAfter {
+				dropSessionCheckpoint(target, session, *addr, stderr)
+			}
 			return fail(err)
 		}
 	}
@@ -245,7 +251,7 @@ func runCommand(args []string, stdout io.Writer, stderr io.Writer) int {
 	// lab can carry rules this run never asked for, and a receipt reporting
 	// what this invocation asked for would deny the injected answers its own
 	// child met.
-	faultsArmed, fired, firedDropped, faultsSchema, firedRead := readFaultState(target)
+	faultRules, fired, firedDropped, faultsSchema, firedRead := readFaultState(target)
 	if len(campaign) != 0 {
 		// Cleared after the state is read, and only what this run armed. An
 		// attached lab outlives the run, so a campaign left behind becomes the
@@ -305,9 +311,10 @@ func runCommand(args []string, stdout io.Writer, stderr io.Writer) int {
 		Exit: code, Cleanup: cleanup,
 		Reset: resetVerdict, Unreconciled: unreconciled,
 		RealCloud:   "no known escape observed",
-		FaultsArmed: faultsArmed != 0 || len(fired) != 0, FaultsCampaign: len(campaign) != 0,
+		FaultsArmed: len(faultRules) != 0 || len(fired) != 0, FaultsCampaign: len(campaign) != 0,
 		FaultsRead: firedRead,
 		Faults:     fired, FaultsDropped: firedDropped, FaultsSchema: faultsSchema,
+		FaultRules: faultRules,
 	}
 	// stdout belongs to the CHILD, and to nothing else. Measured rather than
 	// reasoned: the first version wrote the JSON receipt there, and replaying

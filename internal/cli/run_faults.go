@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 )
 
@@ -85,8 +86,25 @@ func loadFaultCampaign(path string) ([]faultRule, error) {
 // everywhere else: a refusal four minutes in has already cost what it exists
 // to save.
 func armFaultCampaign(target string, rules []faultRule) error {
-	document, err := callFaults(http.MethodPut, faultsEndpoint(target), rules)
-	if err != nil {
+	if err := refuseTransportBelowItsSchema(target, rules); err != nil {
+		return err
+	}
+	document, status, err := callFaultsStatus(http.MethodPut, faultsEndpoint(target), rules)
+	switch {
+	case err == nil:
+	case status == http.StatusOK:
+		// Applied, then answered with something that is not a fault document
+		// (a proxy's HTML page, a truncated body). The lab holds the rules.
+		// TestARunClearsACampaignWhoseAnswerDoesNotDecode fails without this.
+		return fmt.Errorf("arming the campaign: %w; refused before the command started, %s",
+			err, clearArmed(target))
+	case status == 0:
+		// Nothing answered, which includes a PUT that timed out after the lab
+		// applied it: this command cannot know, so it says so.
+		return fmt.Errorf("arming the campaign: %w; it may be armed there: `feint fault clear --addr %s` clears it",
+			err, strings.TrimPrefix(strings.TrimPrefix(target, "http://"), "https://"))
+	default:
+		// Refused: the lab armed nothing.
 		return fmt.Errorf("arming the campaign: %w", err)
 	}
 	if len(document.Faults) != len(rules) {
@@ -94,10 +112,140 @@ func armFaultCampaign(target string, rules []faultRule) error {
 		// what it was sent. Said rather than assumed: a run whose campaign was
 		// partly armed would report failures nobody asked for, or miss the one
 		// the suite is asserting on.
-		return fmt.Errorf("arming the campaign: %d rule(s) were sent and %d are armed",
-			len(rules), len(document.Faults))
+		// TestARunClearsACampaignArmedWithAnotherRuleCount fails without the clear.
+		return fmt.Errorf("arming the campaign: %d rule(s) were sent and %d are armed; "+
+			"refused before the command started, %s", len(rules), len(document.Faults), clearArmed(target))
+	}
+	// The lab answers the rules it armed, and a lab of another build can arm
+	// a different rule than the one sent while answering 200 (#968). Measured
+	// on 2026-11-16 against the released v0.16.0 binary, which serves faults
+	// schema 1: a rule with `"nth": 2` was accepted and echoed without `nth`,
+	// and the child met the 503 on calls 1, 2 and 3. A campaign that fires on
+	// every call where it asked for the second is a run that tests something
+	// else, and its receipt would say so to nobody.
+	//
+	// So each rule the lab echoes is compared with the rule sent, and a knob
+	// the lab did not keep stops the run before the child starts. The rules
+	// it did arm are cleared first: on an attached lab they would otherwise
+	// meet the next client.
+	//
+	// TestARunRefusesACampaignTheLabArmedDifferently fails without this, and
+	// TestARunArmsEveryKnobOnTheEmulatorItShipsWith if it refuses a lab that
+	// kept every knob.
+	for i, sent := range rules {
+		echoed := document.Faults[i]
+		lost := knobsNotKept(sent, echoed)
+		if len(lost) == 0 {
+			continue
+		}
+		what := fmt.Sprintf("armed rule %d (%s) without %s", i+1, sent.Operation, strings.Join(lost, " and "))
+		if sent.Operation != echoed.Operation {
+			what = fmt.Sprintf("answered rule %d (%s) as %s", i+1, sent.Operation, echoed.Operation)
+		}
+		older := ""
+		if document.SchemaVersion < faultsSchemaTransport {
+			older = " Every release up to v0.16.0 serves schema 1, which has no nth and no transport."
+		}
+		return fmt.Errorf("arming the campaign: the lab %s, so it would not do what the campaign says; "+
+			"refused before the command started, %s.\n  This lab %s on /_feint/faults.%s "+
+			"Use an emulator from the same release as this feint CLI",
+			what, clearArmed(target), labSchemaWords(document.SchemaVersion), older)
 	}
 	return nil
+}
+
+// clearArmed clears what a refused campaign left armed, and answers the words
+// the refusal ends with. A failed clear is said, never reported as done.
+// TestARefusalWhoseClearFailsSaysSo fails if the failure reads as a success.
+func clearArmed(target string) string {
+	if _, err := callFaults(http.MethodDelete, faultsEndpoint(target), nil); err != nil {
+		return fmt.Sprintf("and what it armed could NOT be cleared (%v): it is still armed there", err)
+	}
+	return "and cleared what it had armed"
+}
+
+// labSchemaWords names the lab's faults schema the way every refusal here
+// does, and never as `schema_version 0`: a document without the key did not
+// say what it is.
+func labSchemaWords(schema int) string {
+	if schema <= 0 {
+		return "does not name its schema_version"
+	}
+	return fmt.Sprintf("serves schema_version %d", schema)
+}
+
+// refuseTransportBelowItsSchema says, before anything is armed, that a rule
+// asking for a transport failure needs a lab at faultsSchemaTransport or later.
+//
+// The lab's own answer misleads: measured on 2026-11-16, the released v0.16.0
+// binary (schema 1) refuses `{"transport":"close"}` with `rule "…" asks for
+// nothing: set a status, a truncation or a delay`, which sends a reader to
+// look for a typo in a rule that is correct for this CLI. So the schema is read
+// first, and only when a rule carries a transport: a campaign without one
+// costs no extra round trip. A document that does not name its schema is
+// below 3 too, because it promises nothing.
+//
+// TestARunSaysTransportNeedsSchema3BeforeArming fails without this, and
+// TestARunArmsTransportOnASchema3Lab if the bound is off by one.
+func refuseTransportBelowItsSchema(target string, rules []faultRule) error {
+	index := slices.IndexFunc(rules, func(r faultRule) bool { return r.Transport != "" })
+	if index < 0 {
+		return nil
+	}
+	current, err := callFaults(http.MethodGet, faultsEndpoint(target), nil)
+	if err != nil {
+		return fmt.Errorf("arming the campaign: reading the lab's faults schema first: %w", err)
+	}
+	if current.SchemaVersion < faultsSchemaTransport {
+		which := labSchemaWords(current.SchemaVersion)
+		return fmt.Errorf("arming the campaign: rule %d (%s) asks for transport %q, which needs /_feint/faults "+
+			"schema_version %d or later, and this lab %s; nothing was armed.\n"+
+			"  Every release up to v0.16.0 serves schema 1 and answers such a rule with \"asks for nothing\". "+
+			"Use an emulator from the same release as this feint CLI",
+			index+1, rules[index].Operation, rules[index].Transport, faultsSchemaTransport, which)
+	}
+	return nil
+}
+
+// knobsNotKept names the knobs a rule was sent with that the lab's echo does
+// not carry with the same value. Status, delay, times and nth are compared
+// even when the campaign left them at zero: a lab that arms a knob nobody
+// asked for (a default 503 on a transport-only rule) does not do what the
+// campaign says either. The delay is compared as text: the
+// emulator of this tree echoes it verbatim (faultView.Delay is the string
+// it was sent), so a duration parse would be tolerance no lab needs.
+func knobsNotKept(sent, armed faultRule) []string {
+	var lost []string
+	if sent.Operation != armed.Operation {
+		lost = append(lost, "its operation")
+	}
+	if sent.Status != armed.Status {
+		lost = append(lost, "status")
+	}
+	if sent.Delay != armed.Delay {
+		lost = append(lost, "delay")
+	}
+	if sent.Times != armed.Times {
+		lost = append(lost, "times")
+	}
+	if sent.Nth != armed.Nth {
+		lost = append(lost, "nth")
+	}
+	if sent.Truncate != nil && (armed.Truncate == nil || *armed.Truncate != *sent.Truncate) {
+		lost = append(lost, "truncate_bytes")
+	}
+	if sent.Transport != "" && sent.Transport != armed.Transport {
+		lost = append(lost, "transport")
+	}
+	return lost
+}
+
+// ruleHits is one armed rule as the run receipt reports it: what the rule
+// answered, which every schema publishes, schema 1 included (#968).
+type ruleHits struct {
+	Operation string `json:"operation"`
+	Hits      int    `json:"hits"`
+	Spent     bool   `json:"spent"`
 }
 
 // readFaultState reads what the LAB had armed and what it did, before the
@@ -125,12 +273,19 @@ func armFaultCampaign(target string, rules []faultRule) error {
 // schema is the document's schema_version, handed on rather than dropped
 // (#928): below schema 2 the lab publishes no receipt, and renderFaultReceipt
 // states it rather than read an absent receipt as an empty one.
-func readFaultState(target string) (armed int, fired []firedFault, dropped, schema int, ok bool) {
+//
+// rules are the armed rules with their hit counts (#968): the one positive
+// answer a schema 1 lab gives, and published at every schema so the JSON has
+// one shape whatever the lab.
+func readFaultState(target string) (rules []ruleHits, fired []firedFault, dropped, schema int, ok bool) {
 	document, err := callFaults(http.MethodGet, faultsEndpoint(target), nil)
 	if err != nil {
-		return 0, nil, 0, 0, false
+		return nil, nil, 0, 0, false
 	}
-	return len(document.Faults), document.Fired, document.FiredDropped, document.SchemaVersion, true
+	for _, rule := range document.Faults {
+		rules = append(rules, ruleHits{Operation: rule.Operation, Hits: rule.Hits, Spent: rule.Spent})
+	}
+	return rules, document.Fired, document.FiredDropped, document.SchemaVersion, true
 }
 
 // disarmFaultCampaign clears what this run armed.
@@ -180,9 +335,12 @@ func renderFaultReceipt(w interface{ Write([]byte) (int, error) }, r runReceipt)
 		// publishes a receipt can make it mean anything (#928). Below
 		// faultsSchemaReceipt, which is every release up to v0.16.0, `fired` is
 		// absent, so its emptiness says nothing about whether a rule fired.
-		// Schema 1's per-rule hit counts could answer it, and are not used
-		// here: this says what the lab does not publish rather than add a
-		// second rendering path in the last correction cycle of #928.
+		// What schema 1 does publish is a hit count per rule, and since #968
+		// that is what is printed: "0 hit(s)" is a rule that answered nothing,
+		// read from the lab rather than from an absence.
+		//
+		// TestARunReceiptAgainstASchema1LabCountsEachRule fails without the
+		// per-rule lines.
 		//
 		// TestARunReceiptAgainstALabWithoutAReceiptClaimsNothing fails without
 		// this branch, TestARunReceiptThatNamesNoSchemaClaimsNothing if a
@@ -195,7 +353,14 @@ func renderFaultReceipt(w interface{ Write([]byte) (int, error) }, r runReceipt)
 				which = "it does not name its schema_version"
 			}
 			fmt.Fprintf(w, "  faults         %s, but this lab publishes no per-call receipt (%s), "+
-				"so whether a fault fired cannot be told from it\n", who, which)
+				"only a count per rule\n", who, which)
+			for _, rule := range r.FaultRules {
+				spent := ""
+				if rule.Spent {
+					spent = ", spent"
+				}
+				fmt.Fprintf(w, "    %s: %d hit(s)%s\n", rule.Operation, rule.Hits, spent)
+			}
 			return
 		}
 		fmt.Fprintf(w, "  faults         %s, and none fired: no call reached the operations named\n", who)

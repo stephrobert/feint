@@ -183,7 +183,9 @@ promettrait tout son comportement promettrait une copie mouvante de trois clouds
 | `/_feint/conformance` | `schema_version` | `internal/cli/testdata/frozen/conformance.json` |
 | `/_feint/trace` | `schema_version` | `internal/cli/testdata/frozen/trace.json` |
 | `/_feint/faults` | `schema_version` | `internal/cli/testdata/frozen/faults.json` |
+| `/_feint/s3` | `schema_version` indépendant | `internal/cli/testdata/frozen/s3.json` |
 | les verbes, drapeaux et codes de sortie du CLI | `cliSurfaceVersion` | `internal/cli/testdata/frozen/cli.json` |
+| le reçu JSON de `feint run --json` | son `schema_version` (`runReceiptSchemaVersion`) | `internal/cli/testdata/frozen/run.json` |
 | les formats d'état et de snapshot | la version du document | `internal/cli/snapshot.go` |
 
 **Servir davantage de l'API d'un provider n'est jamais cassant**, quelle que soit

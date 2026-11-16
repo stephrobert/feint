@@ -19,6 +19,29 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Corrigé
 
+- **`feint run --fault` face à un émulateur publié armait une autre
+  campagne que celle du fichier** (#968). Mesuré le 2026-11-16 sur le
+  binaire v0.16.0 publié (schéma de pannes 1) : une règle `"nth": 2` était
+  acceptée avec un 200 et armée sans `nth`, et l'enfant recevait le 503 à
+  chaque appel. La commande compare maintenant chaque règle que le lab
+  renvoie avec celle qu'elle a envoyée, efface la campagne et refuse avant
+  de lancer la commande quand un réglage n'a pas été gardé. Une règle
+  `transport` face à un lab sous le schéma de pannes 3 est refusée avant
+  d'armer, avec un message qui nomme le schéma, là où v0.16.0 répondait
+  « asks for nothing ». Face à un tel
+  lab, le reçu donne aussi le nombre de déclenchements de chaque règle
+  (`fault_rules`), la réponse que le schéma 1 publie, au lieu de « on ne
+  peut pas savoir si une panne s'est déclenchée ».
+- **Le reçu JSON de `feint run` ne disait pas quel schéma de pannes le lab
+  servait** (#964) : un lecteur ne pouvait distinguer un `in_flight` déduit
+  par le CLI (schémas 2 et 3) d'un `in_flight` publié par le lab, ni le reçu
+  vide d'un lab au schéma 1 d'un « aucune ne s'est déclenchée ». Il porte
+  maintenant `faults_schema_version` (`run_receipt` schéma 4, additif).
+- **Le reçu de `feint run` était versionné et rien ne le figeait** (#918).
+  C'est maintenant la huitième surface figée
+  (`internal/cli/testdata/frozen/run.json`, depuis la version 3), lue sur une
+  vraie exécution dont la population donne une valeur à chaque clé, et
+  listée dans la fenêtre de support de `RELEASING.md`.
 - **Une ligne de reçu de panne encore en vol était publiée comme une ligne
   terminée** (#925). `GET /_feint/faults` réserve une ligne quand une règle
   se déclenche et la remplit quand le traitement finit ; entre les deux, elle
