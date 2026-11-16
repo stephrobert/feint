@@ -70,8 +70,8 @@ func TestDoctorNamesTheDHCPServiceThatOutlivedItsInterface(t *testing.T) {
 			t.Errorf("the detail does not carry %q: %s", fact, c.detail)
 		}
 	}
-	if !strings.Contains(c.fix, "feint clean") {
-		t.Errorf("the fix does not name the remedy: %s", c.fix)
+	if !strings.Contains(strings.Join(c.commands, "\n"), "feint clean") {
+		t.Errorf("the remedy does not name the command: %q", c.commands)
 	}
 }
 

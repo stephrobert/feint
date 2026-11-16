@@ -277,40 +277,52 @@ func TestDoctorTellsALeftoverAuthorityFromARunInFlight(t *testing.T) {
 	}
 
 	if c := checkLeftoverRunAuthorities(); c.state != verdictOK ||
-		!strings.Contains(c.title, "no interception authority") {
+		!strings.Contains(c.title, "No leftover `feint run` directory") {
 		t.Fatalf("an empty directory did not read as clean: %+v", c)
 	}
 
 	// A run in flight: this test's own process owns it, and it must NOT be
 	// reported as something to remove.
-	writeRunDir(t, root, runDirPrefix+"live", os.Getpid())
+	writeRunDir(t, root, runDirPrefix+"1010101", os.Getpid())
 	live := checkLeftoverRunAuthorities()
-	if live.state != verdictOK || !strings.Contains(live.title, "in flight") {
+	if live.state != verdictOK || !strings.Contains(live.title, "running") {
 		t.Fatalf("a live run was reported as a leftover: %+v", live)
 	}
-	if live.fix != "" {
-		t.Fatalf("a live run was given something to fix: %q", live.fix)
+	if live.fix != "" || len(live.commands) != 0 || len(live.paths) != 0 {
+		t.Fatalf("a live run was given something to fix: %+v", live)
 	}
 
 	// A leftover: an owner that has exited.
-	writeRunDir(t, root, runDirPrefix+"dead", deadPID(t))
+	writeRunDir(t, root, runDirPrefix+"2020202", deadPID(t))
 	stale := checkLeftoverRunAuthorities()
 	if stale.state != verdictWarn {
 		t.Fatalf("a leftover was not reported as a warning: %+v", stale)
 	}
-	if !strings.Contains(stale.detail, runDirPrefix+"dead") {
-		t.Fatalf("the leftover is not named: %+v", stale)
+	// The remedy names the exact directory, never a glob a run starting in
+	// between would match (#974), and never the live one.
+	want := "rm -rf " + filepath.Join(root, runDirPrefix+"2020202")
+	if len(stale.commands) != 1 || stale.commands[0] != want {
+		t.Fatalf("the remedy is %q, want exactly %q", stale.commands, want)
 	}
-	if strings.Contains(stale.detail, runDirPrefix+"live") &&
-		!strings.Contains(stale.detail, "left alone") {
-		t.Fatalf("the live run was listed among the leftovers: %+v", stale)
+	if !strings.Contains(stale.detail, "left alone") {
+		t.Fatalf("the live run is not said to be left alone: %+v", stale)
 	}
 
-	// An owner file an older version never wrote counts as dead, which is the
-	// direction that gets a leftover removed rather than hidden.
-	writeRunDir(t, root, runDirPrefix+"ownerless", 0)
-	if c := checkLeftoverRunAuthorities(); !strings.Contains(c.detail, runDirPrefix+"ownerless") {
-		t.Fatalf("a directory with no owner file was not reported: %+v", c)
+	// An owner file an older version never wrote is "unknown", not dead: on
+	// 2026-11-15 such a run was in flight (#974). It is reported, and never
+	// put in the remove command of the dead ones.
+	writeRunDir(t, root, runDirPrefix+"3030303", 0)
+	c := checkLeftoverRunAuthorities()
+	if strings.Contains(strings.Join(c.commands, " "), runDirPrefix+"3030303") || strings.Contains(strings.Join(c.paths, " "), runDirPrefix+"3030303") {
+		t.Fatalf("a directory with no owner record is offered for removal beside the dead: %+v", c)
+	}
+	if !strings.Contains(c.detail, "no owner record") {
+		t.Fatalf("a directory with no owner record is not reported: %+v", c)
+	}
+	_ = os.RemoveAll(filepath.Join(root, runDirPrefix+"2020202"))
+	alone := checkLeftoverRunAuthorities()
+	if alone.state != verdictWarn || len(alone.commands) != 2 || alone.commands[0] != "pgrep -af 'feint run'" {
+		t.Fatalf("an ownerless directory alone is not reported with a way to tell: %+v", alone)
 	}
 }
 
@@ -354,7 +366,7 @@ func TestDoctorSeesARunInFlightAsItsOwner(t *testing.T) {
 	deadline := time.Now().Add(10 * time.Second)
 	for {
 		c := checkLeftoverRunAuthorities()
-		if strings.Contains(c.title, "in flight") {
+		if strings.Contains(c.title, "running") {
 			if c.state != verdictOK {
 				t.Fatalf("a run in flight was not reported as healthy: %+v", c)
 			}

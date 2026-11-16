@@ -48,20 +48,20 @@ func TestDoctorNamesTheMissingImagesAndHowToBuildThem(t *testing.T) {
 
 	// One built, the rest missing: the ordinary state of a station where
 	// somebody ran `feint images` before the table grew.
-	got := checkImages(context.Background(), machine.Use(hostWith(all[0].Alias())))
+	got := imagesOn(t, machine.Use(hostWith(all[0].Alias())))
 	if got.state != verdictWarn {
 		t.Errorf("missing images reported as %v, want a warning", got.state)
 	}
 	for _, spec := range all[1:] {
-		if !strings.Contains(got.detail, spec.Name) {
-			t.Errorf("the diagnostic does not name %s: %q", spec.Name, got.detail)
+		if !strings.Contains(got.title, spec.Name) {
+			t.Errorf("the diagnostic does not name %s: %q", spec.Name, got.title)
 		}
 	}
-	if strings.Contains(got.detail, all[0].Name) {
-		t.Errorf("the diagnostic names an image the host holds: %q", got.detail)
+	if strings.Contains(got.title, all[0].Name+",") || strings.HasSuffix(got.title, all[0].Name+".") {
+		t.Errorf("the diagnostic names an image the host holds: %q", got.title)
 	}
-	if !strings.Contains(got.fix, "feint images") {
-		t.Errorf("the fix does not name the command that builds them: %q", got.fix)
+	if strings.Join(got.commands, "\n") != "feint images" {
+		t.Errorf("the remedy is %q, want exactly the command that builds them", got.commands)
 	}
 
 	// And the accepting half. A complete set says so rather than staying
@@ -71,7 +71,7 @@ func TestDoctorNamesTheMissingImagesAndHowToBuildThem(t *testing.T) {
 	for _, spec := range all {
 		every = append(every, spec.Alias())
 	}
-	got = checkImages(context.Background(), machine.Use(hostWith(every...)))
+	got = imagesOn(t, machine.Use(hostWith(every...)))
 	if got.state != verdictOK {
 		t.Errorf("a complete image set reported as %v, want ok (detail %q)", got.state, got.detail)
 	}
@@ -83,8 +83,22 @@ func TestDoctorNamesTheMissingImagesAndHowToBuildThem(t *testing.T) {
 // "every image is present" because nobody could look is the shape of claim this
 // project exists to remove.
 func TestDoctorDoesNotReadSilenceAsACompleteImageSet(t *testing.T) {
-	got := checkImages(context.Background(), machine.Use(machine.Noop{}))
+	got := imagesOn(t, machine.Use(machine.Noop{}))
 	if got.state == verdictOK {
 		t.Errorf("a driver that lists nothing reported an ok: %q / %q", got.title, got.detail)
 	}
+}
+
+// imagesOn runs the images check against a driver, through the same seam the
+// real probe uses.
+func imagesOn(t *testing.T, rt machine.Runtime) check {
+	t.Helper()
+	s := station{incusInstalled: true, incusAnswers: true}
+	missing, err := missingImageNames(context.Background(), rt)
+	if err == nil {
+		s.imagesRead, s.missingImages = true, missing
+	} else {
+		s.imagesErr = err.Error()
+	}
+	return imagesCheck(s)
 }

@@ -1,0 +1,350 @@
+{
+  "package": "./internal/cli/",
+  "note": "#974: feint doctor's remedies are commands, every missing setup step is listed in one run in the order of the work, and --fix applies only what needs no root, re-checking each step. One mutation per question; each case in doctor_setup_test.go passes every other question and fails only its own. NOT HERE: the stdout-is-a-terminal half of the --fix question and the 10 s bound of runQuiet (doctor() reads os.Stdin and the real binaries, no seam); the wording of a driver that refuses (machineDriver builds the real Incus driver, no seam), and the real downloads of --fix --clients (network; covered by a fake download in TestInstallClientRefusesABadChecksum).",
+  "mutations": [
+    {
+      "label": "one pass: the setup checks stop at the first missing step, so a station missing OVN hears nothing about its wiring, its Incus initialisation or its images until it reruns doctor, which is the journey of 2026-11-15",
+      "file": "internal/cli/doctor_setup.go",
+      "find": "\t\t\tout = append(out, c)\n\t\tdefault:\n\t\t\tout = append(out, check{id: stepOVN,",
+      "replace": "\t\t\tout = append(out, c)\n\t\t\treturn out\n\t\tdefault:\n\t\t\tout = append(out, check{id: stepOVN,",
+      "test": "TestDoctorListsEveryMissingStepInOnePass"
+    },
+    {
+      "label": "the br-int fallback answers connected whatever it saw, so a station whose Open vSwitch settings are unreadable and whose br-int is absent reads as wired, the third outcome folded into the green one",
+      "file": "internal/cli/doctor_setup.go",
+      "find": "\tcase s.brInt:\n",
+      "replace": "\tcase s.brInt || s.nbSocket:\n",
+      "test": "TestTheWiringCheckTellsUnknownFromAbsent"
+    },
+    {
+      "label": "a readable Open vSwitch missing ovn-encap-ip passes as wired, and `incus network create --type=ovn` then fails with an error naming neither key",
+      "file": "internal/cli/doctor_setup.go",
+      "find": "s.ovsIDs[\"ovn-encap-type\"] != \"\" && s.ovsIDs[\"ovn-encap-ip\"] != \"\"",
+      "replace": "s.ovsIDs[\"ovn-encap-type\"] != \"\"",
+      "test": "TestTheWiringCheckTellsUnknownFromAbsent"
+    },
+    {
+      "label": "an unrecognised distribution gets Debian's commands, so an Arch reader is told to run apt-get",
+      "file": "internal/cli/doctor_setup.go",
+      "find": "\treturn d\n}\n\n// setupBlocks",
+      "replace": "\tif d.family == \"\" {\n\t\td.family = \"debian\"\n\t}\n\treturn d\n}\n\n// setupBlocks",
+      "test": "TestParseOSReleaseNamesTheFamilyFromIDLike"
+    },
+    {
+      "label": "--fix runs a root step itself instead of printing it: a privileged command reaches the runner without the user having typed it",
+      "file": "internal/cli/doctor_fix.go",
+      "find": "\t\t\tplan.root = append(plan.root, c.commands...)\n",
+      "replace": "\t\t\tplan.root = append(plan.root, c.commands...)\n\t\t\tplan.steps = append(plan.steps, fixStep{title: c.title, shows: c.commands, run: func(ctx context.Context) error { return deps.run(ctx, \"sudo\", \"true\") }, verify: func(context.Context) (bool, string) { return true, \"\" }})\n",
+      "test": "TestFixNeverRunsARootStep"
+    },
+    {
+      "label": "--fix skips a step's command and still goes on to its re-check: the step is announced, nothing runs",
+      "file": "internal/cli/doctor_fix.go",
+      "find": "\t\terr := s.run(ctx)\n",
+      "replace": "\t\terr := error(nil)\n\t\t_, _ = s.run, ctx\n",
+      "test": "TestFixNeverRunsARootStep"
+    },
+    {
+      "label": "--fix trusts a command's exit code and skips the re-check, so a step that changed nothing reads 'done, checked'",
+      "file": "internal/cli/doctor_fix.go",
+      "find": "} else if ok, reason := s.verify(ctx); !ok {",
+      "replace": "} else if ok, reason := s.verify != nil || ctx == nil, \"\"; !ok {",
+      "test": "TestFixDoesNotTrustAStepWithoutItsRecheck"
+    },
+    {
+      "label": "--fix goes on after a failed step instead of stopping, so the next step runs on a station the previous one left half done",
+      "file": "internal/cli/doctor_fix.go",
+      "find": "\t\t\tfmt.Fprintln(w, \"Run `feint doctor` to see where the station stands.\")\n\t\t\treturn exitError\n",
+      "replace": "\t\t\tfmt.Fprintln(w, \"Run `feint doctor` to see where the station stands.\")\n\t\t\tif i < 0 {\n\t\t\t\treturn exitError\n\t\t\t}\n\t\t\tcontinue\n",
+      "test": "TestFixStopsAtTheFirstFailure"
+    },
+    {
+      "label": "--fix without a terminal and without --yes asks anyway and reads whatever stdin holds, so a script changes a host by accident",
+      "file": "internal/cli/doctor_fix.go",
+      "find": "\t\tif !tty {\n",
+      "replace": "\t\tif !tty && yes {\n",
+      "test": "TestFixRunsNothingWithoutATerminal"
+    },
+    {
+      "label": "the summary offers the playbook whether or not the file is there, so a reader with a released binary is told to run a file that does not exist",
+      "file": "internal/cli/doctor_render.go",
+      "find": "\t\tif v.playbook {\n",
+      "replace": "\t\tif v.playbook || steps > 0 {\n",
+      "test": "TestTheSummaryNamesThePlaybookOnlyWhenItIsThere"
+    },
+    {
+      "label": "a feint-run directory without an owner record counts as dead again, so the remedy offers to delete the directory of a run an older feint has in flight",
+      "file": "internal/cli/doctor.go",
+      "find": "\tif err != nil {\n\t\treturn false, false\n\t}\n\tpid, err := strconv.Atoi",
+      "replace": "\tif err != nil {\n\t\treturn false, true\n\t}\n\tpid, err := strconv.Atoi",
+      "test": "TestDoctorTellsALeftoverAuthorityFromARunInFlight"
+    },
+    {
+      "label": "a client whose checksum does not match is installed anyway",
+      "file": "internal/cli/doctor_tools.go",
+      "find": "got != want {\n\t\treturn fmt.Errorf(\"sha256 mismatch",
+      "replace": "got != want && got == \"\" {\n\t\treturn fmt.Errorf(\"sha256 mismatch",
+      "test": "TestInstallClientRefusesABadChecksum"
+    },
+    {
+      "label": "doctor's table drifts from the page: a command changes in the table and the committed install page keeps the old one, the drift #974 exists to end",
+      "file": "internal/cli/doctor_setup.go",
+      "find": "{\"while [ ! -S /run/ovn/ovnnb_db.sock ]; do sleep 1; done\"},",
+      "replace": "{\"until [ -S /run/ovn/ovnnb_db.sock ]; do sleep 1; done\"},",
+      "test": "TestTheInstallPageIsGeneratedFromDoctorsCommands"
+    },
+    {
+      "label": "BLOCKER: any name under the prefix enters the report again, so /tmp/feint-run-1;touch${IFS}PWNED;# becomes an `rm -rf` line a reader pastes",
+      "file": "internal/cli/doctor.go",
+      "find": "\tif !runDirName.MatchString(filepath.Base(path)) {",
+      "replace": "\tif !runDirName.MatchString(filepath.Base(path)) && false {",
+      "test": "TestDoctorIgnoresARunDirectoryItDidNotMake"
+    },
+    {
+      "label": "BLOCKER: the run directory is followed through a link, so a planted feint-run-N pointing at a directory that passes is reported and removed",
+      "file": "internal/cli/doctor.go",
+      "find": "\tinfo, err := os.Lstat(path)\n\tif err != nil {\n\t\treturn err\n\t}\n\tif !info.IsDir() {",
+      "replace": "\tinfo, err := os.Stat(path)\n\tif err != nil {\n\t\treturn err\n\t}\n\tif !info.IsDir() {",
+      "test": "TestDoctorIgnoresARunDirectoryItDidNotMake"
+    },
+    {
+      "label": "BLOCKER: a run directory others can enter passes, though feint run always makes 0700",
+      "file": "internal/cli/doctor.go",
+      "find": "\tif info.Mode().Perm() != 0o700 {",
+      "replace": "\tif info.Mode().Perm()&0o700 != 0o700 {",
+      "test": "TestDoctorIgnoresARunDirectoryItDidNotMake"
+    },
+    {
+      "label": "BLOCKER: another user's run directory passes the owner question",
+      "file": "internal/cli/doctor.go",
+      "find": "\tif !ok || int(st.Uid) != uid {",
+      "replace": "\tif !ok || (int(st.Uid) != uid && false) {",
+      "test": "TestRunDirIsOursSaysWhyItRefuses"
+    },
+    {
+      "label": "BLOCKER: --fix removes what the report listed without asking again, so a directory swapped for a link or another user's between the report and the yes is removed",
+      "file": "internal/cli/doctor_fix.go",
+      "find": "\t\t\t\t\t\tif err := runDirIsOurs(p, deps.uid); err != nil {",
+      "replace": "\t\t\t\t\t\tif err := runDirIsOurs(p, deps.uid); err != nil && deps.uid < 0 {",
+      "test": "TestFixRemovesOnlyARunDirectoryThatIsStillOurs"
+    },
+    {
+      "label": "BLOCKER, second line: a path reaches the printed command unquoted, so a TMPDIR with a quote in it splits the rm -rf line",
+      "file": "internal/cli/doctor.go",
+      "find": "\tif value != \"\" && strings.Trim(",
+      "replace": "\tif value != \"\" || strings.Trim(",
+      "test": "TestThePrintedRemoveCommandIsQuoted"
+    },
+    {
+      "label": "a station without Incus hears nothing about the incus-admin group, and learns of it only after the next run of doctor",
+      "file": "internal/cli/doctor_setup.go",
+      "find": "\tcase !s.incusInstalled:\n\t\tout = append(out, check{id: stepGroup,",
+      "replace": "\tcase !s.incusInstalled && s.incusAnswers:\n\t\tout = append(out, check{id: stepGroup,",
+      "test": "TestABareStationHearsEveryStepInOnePass"
+    },
+    {
+      "label": "a station without Incus hears nothing about the machine images as a step",
+      "file": "internal/cli/doctor_setup.go",
+      "find": "\tcase !s.incusInstalled || !s.incusAnswers:\n\t\treturn check{id: stepImages,",
+      "replace": "\tcase s.incusInstalled && !s.incusAnswers:\n\t\treturn check{id: stepImages,",
+      "test": "TestABareStationHearsEveryStepInOnePass"
+    },
+    {
+      "label": "the Zabbly sources block depends on its indentation again: pasted as doctor prints it, the pipe line stands alone and the file is never written",
+      "file": "internal/cli/doctor_setup.go",
+      "find": "'Signed-By: /etc/apt/keyrings/zabbly.asc' \\`,",
+      "replace": "'Signed-By: /etc/apt/keyrings/zabbly.asc'`,",
+      "test": "TestNoPrintedCommandDependsOnItsIndentation"
+    },
+    {
+      "label": "a Fedora reader is told the commands use the Zabbly packages",
+      "file": "internal/cli/doctor_setup.go",
+      "find": "\tcase \"fedora\":\n\t\treturn \"Fedora's own packages are recent enough.\"",
+      "replace": "\tcase \"fedora\":\n\t\treturn \"Debian and Ubuntu ship older versions, so this uses the Zabbly packages.\"",
+      "test": "TestTheIncusRemedySaysWhyForEachFamily"
+    },
+    {
+      "label": "the manual uv install untars into ~/.local/bin without making it, which fails on a fresh account",
+      "file": "internal/cli/doctor_tools.go",
+      "find": "\t\t\"mkdir -p ~/.local/bin\",\n",
+      "replace": "\t\t\"true\",\n",
+      "test": "TestClientsAndToolsNameTheirPinnedVersion"
+    },
+    {
+      "label": "Ansible is installed unpinned, so 'pinned' in the changelog is false again",
+      "file": "internal/cli/doctor_tools.go",
+      "find": "ansibleCmd := []string{\"uv tool install --force ansible-core==\" + ansiblePin}",
+      "replace": "ansibleCmd := []string{\"uv tool install --force ansible-core\" + ansiblePin[:0]}",
+      "test": "TestClientsAndToolsNameTheirPinnedVersion"
+    },
+    {
+      "label": "any Ansible version reads as the pinned one",
+      "file": "internal/cli/doctor_tools.go",
+      "find": "\t\tswitch got {\n\t\tcase ansiblePin:",
+      "replace": "\t\tswitch got {\n\t\tcase ansiblePin, got:",
+      "test": "TestClientsAndToolsNameTheirPinnedVersion"
+    },
+    {
+      "label": "a client whose digest differs from the pin is installed when the sums file served beside it agrees",
+      "file": "internal/cli/doctor_tools.go",
+      "find": "if c.sha256 == \"\" || got != c.sha256 {",
+      "replace": "if c.sha256 == \"\" && got != c.sha256 {",
+      "test": "TestInstallClientRefusesABadChecksum"
+    },
+    {
+      "label": "a downloaded binary takes the name before it is asked its version, so a broken one replaces a working one",
+      "file": "internal/cli/doctor_tools.go",
+      "find": "if out := versionOf(tmp.Name()); !strings.Contains(",
+      "replace": "if out := versionOf(tmp.Name()); out == \"\\x00\" && !strings.Contains(",
+      "test": "TestInstallClientRefusesABadChecksum"
+    },
+    {
+      "label": "a linux/amd64 download is offered on any Linux, arm64 included",
+      "file": "internal/cli/doctor_tools.go",
+      "find": "{ return p.goos+\"/\"+p.goarch == clientPlatform }",
+      "replace": "{ return p.goos+\"/\"+p.goarch == clientPlatform || p.goos == \"linux\" }",
+      "test": "TestNoClientDownloadIsOfferedOffItsPlatform"
+    },
+    {
+      "label": "the download client fetches plain http",
+      "file": "internal/cli/doctor_tools.go",
+      "find": "\tif req.URL.Scheme != \"https\" {",
+      "replace": "\tif req.URL.Scheme == \"ftp\" {",
+      "test": "TestTheDownloadRefusesPlainHTTP"
+    },
+    {
+      "label": "an installed client that PATH does not reach is reported with the wrong reason",
+      "file": "internal/cli/doctor_fix.go",
+      "find": "\tswitch {\n\tcase err != nil:\n\t\treturn false, target",
+      "replace": "\tswitch {\n\tcase err != nil && found == \"x\":\n\t\treturn false, target",
+      "test": "TestFixSaysWhyAnInstalledClientIsNotSeen"
+    },
+    {
+      "label": "without a home directory, clients are planned into a relative .local/bin",
+      "file": "internal/cli/doctor_fix.go",
+      "find": "withClients && deps.clientDir == \"\":",
+      "replace": "withClients && deps.clientDir == \"\\x00\":",
+      "test": "TestFixInstallsNoClientWithoutAHome"
+    },
+    {
+      "label": "feint's own uplink is read as the bridge init makes, so a station never initialised reads as initialised",
+      "file": "internal/cli/doctor_setup.go",
+      "find": "n.Managed && n.Type == \"bridge\" && n.Config[\"user.\"+machine.LabelKey] == \"\"",
+      "replace": "n.Managed && n.Type == \"bridge\" && (n.Config[\"user.\"+machine.LabelKey] == \"\" || true)",
+      "test": "TestTheProbeDoesNotTakeFeintsUplinkForInit"
+    },
+    {
+      "label": "the playbook is offered from any directory holding a file of that name, outside a feint checkout",
+      "file": "internal/cli/doctor_render.go",
+      "find": "\treturn err == nil && firstLine(string(mod)) == \"module \"+feintModule",
+      "replace": "\treturn err == nil || firstLine(string(mod)) == \"module \"+feintModule",
+      "test": "TestThePlaybookIsOfferedOnlyFromAFeintCheckout"
+    },
+    {
+      "label": "the client install hint is printed after jq's command, where it reads as jq's remedy",
+      "file": "internal/cli/doctor_render.go",
+      "find": "\t\t\tif i == lastClient {",
+      "replace": "\t\t\tif i == len(members)-1+0*lastClient {",
+      "test": "TestTheClientHintIsNotUnderJq"
+    },
+    {
+      "label": "the summary sends the reader to feint images without saying the new group needs a new login",
+      "file": "internal/cli/doctor_render.go",
+      "find": "\t\t\tout = append(out, wrapIndent(groupNeedsNewLogin, 2)...)",
+      "replace": "\t\t\tout = append(out, wrapIndent(groupNeedsNewLogin, 2)[:0]...)",
+      "test": "TestTheSummarySaysTheGroupNeedsANewLogin"
+    },
+    {
+      "label": "the summary offers a bare feint images beside the playbook, which runs without the new group and is refused",
+      "file": "internal/cli/doctor_render.go",
+      "find": "\t\t\t\tout = append(out, \"    \"+imagesInNewGroup)",
+      "replace": "\t\t\t\tout = append(out, \"    feint images\"+imagesInNewGroup[:0])",
+      "test": "TestTheSummarySaysTheGroupNeedsANewLogin"
+    },
+    {
+      "label": "the note about the new group follows the two commands it governs, so a reader pastes them before reading it",
+      "file": "internal/cli/doctor_render.go",
+      "find": "\t\t\tout = append(out, wrapIndent(groupNeedsNewLogin, 2)...)\n\t\t\tout = append(out, \"    \"+playbookCmd)\n\t\t\tif imagesMissing {\n\t\t\t\tout = append(out, \"    \"+imagesInNewGroup)\n\t\t\t}\n",
+      "replace": "\t\t\tout = append(out, \"    \"+playbookCmd)\n\t\t\tif imagesMissing {\n\t\t\t\tout = append(out, \"    \"+imagesInNewGroup)\n\t\t\t}\n\t\t\tout = append(out, wrapIndent(groupNeedsNewLogin, 2)...)\n",
+      "test": "TestTheSummarySaysTheGroupNeedsANewLogin"
+    },
+    {
+      "label": "the Ansible line sends the reader to log out, though the uv block already sets PATH",
+      "file": "internal/cli/doctor_render.go",
+      "find": "install uv, then Ansible (see Repository tools).\", 2)",
+      "replace": "install uv, then Ansible (see Repository tools), then log out and back in.\", 2)",
+      "test": "TestTheSummarySaysTheGroupNeedsANewLogin"
+    },
+    {
+      "label": "the repository's uv pin is judged outside a clone, where its remedy cannot meet it",
+      "file": "internal/cli/doctor_tools.go",
+      "find": "\t\tcase !p.inCheckout:",
+      "replace": "\t\tcase !p.inCheckout && got == \"never\":",
+      "test": "TestTheUVPinIsJudgedOnlyInAClone"
+    },
+    {
+      "label": "under auto the summary counts the optional OVN steps as missing",
+      "file": "internal/cli/doctor_render.go",
+      "find": "\t\t\tif c.optional {",
+      "replace": "\t\t\tif c.optional && c.id == \"never\" {",
+      "test": "TestAutoCountsTheOVNStepsAsOptional"
+    },
+    {
+      "label": "under auto the OVN install is a required step again",
+      "file": "internal/cli/doctor_setup.go",
+      "find": "step: true, optional: auto,",
+      "replace": "step: true, optional: auto && s.distro.family == \"never\",",
+      "test": "TestAutoCountsTheOVNStepsAsOptional"
+    },
+    {
+      "label": "building the --fix plan runs the binary it would replace, before the [y/N]",
+      "file": "internal/cli/doctor_fix.go",
+      "find": "\t\t\t\t\tline := \"replaces \" + target\n",
+      "replace": "\t\t\t\t\tline := \"replaces \" + target + firstLine(runQuiet(target, clientVersionArgs(pc.binary)...))[:0]\n",
+      "test": "TestTheFixPlanRunsNothingBeforeTheQuestion"
+    },
+    {
+      "label": "the --fix plan prints the report's version for a binary PATH did not lead the report to",
+      "file": "internal/cli/doctor_fix.go",
+      "find": "\t\t\t\t\tif c.foundAt == target && c.answered != \"\" {",
+      "replace": "\t\t\t\t\tif (c.foundAt == target || c.foundAt != \"\") && c.answered != \"\" {",
+      "test": "TestTheFixPlanRunsNothingBeforeTheQuestion"
+    },
+    {
+      "label": "another user who recreates a removed leftover's name makes --fix report a failure",
+      "file": "internal/cli/doctor_fix.go",
+      "find": "err == nil && runDirIsOurs(p, deps.uid) == nil {",
+      "replace": "err == nil && (runDirIsOurs(p, deps.uid) == nil || err == nil) {",
+      "test": "TestFixCountsARecreatedNameAsRemoved"
+    },
+    {
+      "label": "the --fix plan names the checkout unquoted, so a path with a quote splits the command",
+      "file": "internal/cli/doctor_fix.go",
+      "find": "\"    cd \"+shellQuote(v.checkout)+\" && \"+playbookCmd",
+      "replace": "\"    cd \"+v.checkout+shellQuote(v.checkout)[:0]+\" && \"+playbookCmd",
+      "test": "TestTheFixPlanNamesThePlaybookByItsAbsolutePath"
+    },
+    {
+      "label": "the notes about other leftovers sit between 'removing them is safe:' and its command",
+      "file": "internal/cli/doctor.go",
+      "find": "\t\tdetail := \"They hold only a public certificate, so they leak nothing.\"\n",
+      "replace": "\t\tdetail := \"They hold only a public certificate, so they leak nothing. The process that made each one has exited, so removing them is safe:\"\n",
+      "test": "TestTheLeftoverNotesComeBeforeTheCommandSentence"
+    },
+    {
+      "label": "a single leftover note reads '1 more belong': the notes stop agreeing in number",
+      "file": "internal/cli/doctor.go",
+      "find": "\tif n == 1 {\n\t\treturn \"1 more \" + one\n",
+      "replace": "\tif n == 1 && one == \"never\" {\n\t\treturn \"1 more \" + one\n",
+      "test": "TestTheLeftoverNotesComeBeforeTheCommandSentence"
+    },
+    {
+      "label": "doctor rewords its no-leftover title and the conformance step that greps for it dies on the night instead of in a unit test (PR #980)",
+      "file": "internal/cli/doctor.go",
+      "find": "\t\treturn check{title: \"No leftover `feint run` directory in \" + os.TempDir() + \".\", state: verdictOK,",
+      "replace": "\t\treturn check{title: \"No stale `feint run` directory in \" + os.TempDir() + \".\", state: verdictOK,",
+      "test": "TestTheLeftoverStepGrepsForDoctorsOwnTitles",
+      "package": "./tools/ci/"
+    }
+  ]
+}
