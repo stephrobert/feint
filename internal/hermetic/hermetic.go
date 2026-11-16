@@ -16,8 +16,13 @@
 //
 // TestATestBinaryDropsTheGitDirAHookExports (tools/ci) fails without the body
 // of DropInheritedGit, and TestEveryTestBinaryThatStartsAProcessDropsInheritedGit
-// refuses a test binary whose TestMain does not call it first, and a package
-// that reads the environment while it initialises, before TestMain can.
+// refuses, in the default build and in every build-tag set the repository
+// uses (#958), a test binary whose TestMain does not call it first, a package
+// that reads the environment while it initialises, before TestMain can, and a
+// test that sets a GIT_* variable to a value not taken from t.TempDir().
+// TestNoLinkedStandardPackageCopiesTheEnvironmentAtInit measures that no
+// standard package these binaries link keeps a copy of the environment from
+// before TestMain.
 package hermetic
 
 import (
@@ -27,7 +32,8 @@ import (
 
 // DropInheritedGit removes every GIT_* variable from the environment of the
 // running process. Call it as the first statement of TestMain, before m.Run:
-// a test that sets one of them afterwards (t.Setenv) does so on purpose.
+// a test that sets one of them afterwards (t.Setenv) does so on purpose, to a
+// decoy under t.TempDir(), and the walk above refuses any other value.
 //
 // It panics if a variable cannot be removed: a test binary that carries on
 // with a hook's GIT_DIR is the defect this exists to stop, and a panic in

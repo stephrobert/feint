@@ -810,6 +810,685 @@
       "find": "            os.killpg(pgid, 0)\n",
       "replace": "            os.kill(pgid, 0)\n",
       "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "every build judged is the default one whatever the tags, so a TestMain or a Setenv only -tags conformance changes is never seen (#958)",
+      "file": "tools/ci/hermetic_test.go",
+      "find": "\tctx.BuildTags = slices.Clone(tags)\n",
+      "replace": "\tctx.BuildTags = slices.Clone(tags[:0])\n",
+      "test": "TestTheWalkJudgesEveryBuildTheRepositoryUses"
+    },
+    {
+      "label": "the walk judges the default build in every round, so the tag sets are counted and never applied (#958)",
+      "file": "tools/ci/hermetic_test.go",
+      "find": "\t\t\tisTest, refusal, err := hermeticFindings(dir, dirs[dir], set)\n",
+      "replace": "\t\t\tisTest, refusal, err := hermeticFindings(dir, dirs[dir], set[:0])\n",
+      "test": "TestTheWalkJudgesEveryBuildTheRepositoryUses"
+    },
+    {
+      "label": "the tag sets stop holding each tag, so the walk judges the default build alone (#958)",
+      "file": "tools/ci/hermetic_test.go",
+      "find": "\t\tsets = append(sets, []string{tag})\n",
+      "replace": "\t\tsets = append(sets, []string{tag}[:0])\n",
+      "test": "TestTheWalkJudgesEveryBuildTheRepositoryUses"
+    },
+    {
+      "label": "the tag discovery keeps platform tags, so a //go:build linux reads as a build the repository chooses (#958)",
+      "file": "tools/ci/hermetic_test.go",
+      "find": "if !platformTags[tag] && !strings.HasPrefix(tag, \"go1.\") {",
+      "replace": "if (!platformTags[tag] || len(platformTags) > 0) && !strings.HasPrefix(tag, \"go1.\") {",
+      "test": "TestTheWalkJudgesEveryBuildTheRepositoryUses"
+    },
+    {
+      "label": "the walk stops refusing a pin whose function is gone, so a pin outlives its function and silences the question for whatever comes to bear that name (#958)",
+      "file": "tools/ci/hermetic_test.go",
+      "find": "\t\tif !declared.Match(body) {\n",
+      "replace": "\t\tif !declared.Match(body) && len(pins) < 0 {\n",
+      "test": "TestAPinWhoseFunctionIsGoneIsRefused"
+    },
+    {
+      "label": "the Setenv guard stops asking whether the key is GIT_*, so t.Setenv(\"GIT_DIR\", <a real tree>) passes (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "\t\tcase known && !strings.HasPrefix(key, \"GIT_\"):\n",
+      "replace": "\t\tcase known && (!strings.HasPrefix(key, \"GIT_\") || len(s.lits) >= 0):\n",
+      "test": "TestTheSetenvGuardAsksEachQuestion"
+    },
+    {
+      "label": "the Setenv guard stops asking where a GIT_* value comes from (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "\t\tcase known && !s.derived(call.Args[1], 0):\n",
+      "replace": "\t\tcase known && !s.derived(call.Args[1], 0) && len(s.lits) < 0:\n",
+      "test": "TestTheSetenvGuardAsksEachQuestion"
+    },
+    {
+      "label": "the Setenv guard stops reading the constants of other files, so a GIT_* key named by one is refused for the wrong reason (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "\t\t\t\t\t\tconsts[pkg][n.Name] = v\n",
+      "replace": "\t\t\t\t\t\tconsts[pkg][n.Name+\"_\"] = v\n",
+      "test": "TestTheSetenvGuardAsksEachQuestion"
+    },
+    {
+      "label": "the Setenv guard reads every package of a directory as one, so x_test's GIT_* constant is shadowed by x's harmless one (cycle 1) (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "\t\t\ts := newScope(decl, dir, alias, consts[pkg])\n",
+      "replace": "\t\t\ts := newScope(decl, dir, alias, consts[strings.TrimSuffix(pkg, \"_test\")])\n",
+      "test": "TestTheSetenvGuardAsksEachQuestion"
+    },
+    {
+      "label": "the Setenv guard stops reading a constant declared in the function (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "\t\tif n.Name == id.Name {\n\t\t\treturn stringLiteral(spec.Values[i])\n",
+      "replace": "\t\tif n.Name == id.Name && len(spec.Values) < 0 {\n\t\t\treturn stringLiteral(spec.Values[i])\n",
+      "test": "TestTheSetenvGuardAsksEachQuestion"
+    },
+    {
+      "label": "the Setenv guard takes the first assignment of a name and ignores the next (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "\tbs := s.bindings[id.Obj]\n\tif len(bs) != 1 {\n",
+      "replace": "\tbs := s.bindings[id.Obj]\n\tif len(bs) < 1 {\n",
+      "test": "TestTheSetenvGuardAsksEachQuestion"
+    },
+    {
+      "label": "the Setenv guard stops counting a taken address as a binding (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "if id, ok := x.X.(*ast.Ident); ok && id.Obj != nil && x.Op == token.AND {",
+      "replace": "if id, ok := x.X.(*ast.Ident); ok && id.Obj != nil && x.Op == token.AND && len(s.lits) < 0 {",
+      "test": "TestTheSetenvGuardAsksEachQuestion"
+    },
+    {
+      "label": "the Setenv guard accepts a package-level variable another function reassigns (cycle 1) (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "\tif id.Obj == nil || !s.declaredIn(id.Obj) {\n",
+      "replace": "\tif id.Obj == nil || (!s.declaredIn(id.Obj) && len(s.lits) < 0) {\n",
+      "test": "TestTheSetenvGuardAsksEachQuestion"
+    },
+    {
+      "label": "the Setenv guard accepts a join that climbs with \"..\" (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "if !ok || slices.Contains(strings.Split(filepath.ToSlash(v), \"/\"), \"..\") {",
+      "replace": "if !ok || (slices.Contains(strings.Split(filepath.ToSlash(v), \"/\"), \"..\") && len(s.lits) < 0) {",
+      "test": "TestTheSetenvGuardAsksEachQuestion"
+    },
+    {
+      "label": "the Setenv guard accepts a join part that is not a literal (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "if !ok || slices.Contains(strings.Split(filepath.ToSlash(v), \"/\"), \"..\") {",
+      "replace": "if (!ok && len(s.lits) < 0) || slices.Contains(strings.Split(filepath.ToSlash(v), \"/\"), \"..\") {",
+      "test": "TestTheSetenvGuardAsksEachQuestion"
+    },
+    {
+      "label": "the Setenv guard accepts TempDir() on any receiver (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "\t\t\treturn recv.Obj != nil && s.tempDirs[recv.Obj]\n",
+      "replace": "\t\t\treturn recv.Obj != nil && (s.tempDirs[recv.Obj] || len(s.lits) >= 0)\n",
+      "test": "TestTheSetenvGuardAsksEachQuestion"
+    },
+    {
+      "label": "the Setenv guard accepts TempDir() on a testing.TB, which any type can implement (cycle 1) (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "\t\t\t\t\tif kind == \"star\" {\n",
+      "replace": "\t\t\t\t\tif kind == \"star\" || kind == \"tb\" {\n",
+      "test": "TestTheSetenvGuardAsksEachQuestion"
+    },
+    {
+      "label": "a local name shadowing an import passes for the package: filepath := j{} has a Join, conformancetest := reg{} a FakeCredentials (cycle 1) (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "\treturn ok && x.Obj == nil && s.alias[path] != \"\" && x.Name == s.alias[path]\n",
+      "replace": "\treturn ok && (x.Obj == nil || len(s.lits) >= 0) && s.alias[path] != \"\" && x.Name == s.alias[path]\n",
+      "test": "TestTheSetenvGuardAsksEachQuestion"
+    },
+    {
+      "label": "the import alias is not matched, so any unresolved receiver with a Join method passes for filepath (cycle 1) (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "\treturn ok && x.Obj == nil && s.alias[path] != \"\" && x.Name == s.alias[path]\n",
+      "replace": "\treturn ok && x.Obj == nil && s.alias[path] != \"\" && (x.Name == s.alias[path] || len(s.lits) >= 0)\n",
+      "test": "TestTheSetenvGuardAsksEachQuestion"
+    },
+    {
+      "label": "the Setenv guard stops refusing a key that is not a constant (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "\t\t\tif !readable {\n",
+      "replace": "\t\t\tif !readable && len(s.lits) < 0 {\n",
+      "test": "TestTheSetenvGuardAsksEachQuestion"
+    },
+    {
+      "label": "the Setenv guard reads a map's literal keys even when the map is filled later (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "if !ok || b.value == nil || s.u.escapes(x.Obj) {",
+      "replace": "if !ok || b.value == nil || (s.u.escapes(x.Obj) && len(s.lits) < 0) {",
+      "test": "TestTheSetenvGuardAsksEachQuestion"
+    },
+    {
+      "label": "the Setenv guard reads a table's literal keys even when the row or its map is handed to a function (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "if !ok || b.rangeOver == nil || s.u.fieldEscapes(row.Obj, sel.Sel.Name) {",
+      "replace": "if !ok || b.rangeOver == nil || (s.u.fieldEscapes(row.Obj, sel.Sel.Name) && len(s.lits) < 0) {",
+      "test": "TestTheSetenvGuardAsksEachQuestion"
+    },
+    {
+      "label": "the Setenv guard accepts any call's map as known keys, not FakeCredentials' alone (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "\t\tif s.isPkg(x.Fun, conformancetestImport, \"FakeCredentials\") {\n",
+      "replace": "\t\tif s.isPkg(x.Fun, conformancetestImport, \"FakeCredentials\") || len(s.lits) >= 0 {\n",
+      "test": "TestTheSetenvGuardAsksEachQuestion"
+    },
+    {
+      "label": "an unqualified FakeCredentials is accepted in any package, not in internal/conformancetest alone (cycle 1) (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "f.Obj == nil && s.dir == conformancetestDir {",
+      "replace": "f.Obj == nil && (s.dir == conformancetestDir || len(s.lits) >= 0) {",
+      "test": "TestTheSetenvGuardAsksEachQuestion"
+    },
+    {
+      "label": "the Setenv guard accepts a literal map that holds a GIT_* key (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "return strings.HasPrefix(k, \"GIT_\") }); i >= 0 {",
+      "replace": "return strings.HasPrefix(k, \"GIT_\") }); i >= 0 && len(s.lits) < 0 {",
+      "test": "TestTheSetenvGuardAsksEachQuestion"
+    },
+    {
+      "label": "the Setenv guard reads a map's value as one of its keys (cycle 1, falsifier M7) (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "if k, ok := b.rangeOver.Key.(*ast.Ident); !ok || k.Name != id.Name {",
+      "replace": "if k, ok := b.rangeOver.Key.(*ast.Ident); !ok || (k.Name != id.Name && len(s.lits) < 0) {",
+      "test": "TestTheSetenvGuardAsksEachQuestion"
+    },
+    {
+      "label": "the Setenv guard stops refusing Setenv taken as a value (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "\t\t\tout = append(out, refusal{pos: sel.Pos(), why: \"Setenv is used as a value, so what it is called with cannot be read; call it directly\"})\n",
+      "replace": "\t\t\tif len(s.lits) < 0 {\n\t\t\t\tout = append(out, refusal{pos: sel.Pos(), why: \"Setenv is used as a value, so what it is called with cannot be read; call it directly\"})\n\t\t\t}\n",
+      "test": "TestTheSetenvGuardAsksEachQuestion"
+    },
+    {
+      "label": "the guard reads functions only, so a package-level function literal or value passes (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "\t\tfor _, decl := range p.file.Decls {\n\t\t\tsite := dir + \"/\" + p.name\n",
+      "replace": "\t\tfor _, decl := range p.file.Decls {\n\t\t\tif _, fn := decl.(*ast.FuncDecl); !fn {\n\t\t\t\tcontinue\n\t\t\t}\n\t\t\tsite := dir + \"/\" + p.name\n",
+      "test": "TestTheSetenvGuardAsksEachQuestion"
+    },
+    {
+      "label": "a non-test file's t.Setenv on a testing parameter is not judged (cycle 1) (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "\t\t\t\tfound = s.setenv(true)\n",
+      "replace": "\t\t\t\tfound = s.setenv(true)[:0]\n",
+      "test": "TestTheSetenvGuardAsksEachQuestion"
+    },
+    {
+      "label": "a non-test file of an ordinary package is judged whatever the receiver, so the product's os.Setenv is refused (cycle 1) (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "\t\t\tif !ok || recv.Obj == nil || !s.tests[recv.Obj] {\n",
+      "replace": "\t\t\tif (!ok || recv.Obj == nil || !s.tests[recv.Obj]) && len(s.lits) < 0 {\n",
+      "test": "TestTheSetenvGuardAsksEachQuestion"
+    },
+    {
+      "label": "a package whose name ends in test is not judged in its non-test files, so internal/conformancetest's environments escape (cycle 1) (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "\t\tfull := strings.HasSuffix(name, \"_test.go\") || strings.HasSuffix(pkg, \"test\")\n",
+      "replace": "\t\tfull := strings.HasSuffix(name, \"_test.go\") || (strings.HasSuffix(pkg, \"test\") && len(name) < 0)\n",
+      "test": "TestTheEnvironmentEntryGuardAsksEachQuestion/a_package_whose_name_ends_in_test_is_judged_in_its_non-test_files"
+    },
+    {
+      "label": "a GIT_* constant used elsewhere than as a Setenv key is accepted as one (cycle 1) (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "\t\tif !otherUse[name] {\n",
+      "replace": "\t\tif !otherUse[name] || len(name) > 0 {\n",
+      "test": "TestTheSetenvGuardAsksEachQuestion"
+    },
+    {
+      "label": "every GIT_* key reads as harmless, so any literal entry passes (cycle 1) (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "\t\tif gitHarmlessKeys[key] || s.isRead(lit) ||",
+      "replace": "\t\tif (gitHarmlessKeys[key] || strings.HasPrefix(key, \"GIT_\")) || s.isRead(lit) ||",
+      "test": "TestTheEnvironmentEntryGuardAsksEachQuestion"
+    },
+    {
+      "label": "the harmless keys are refused, so hermeticGitEnv stops the project (cycle 1) (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "\t\tif gitHarmlessKeys[key] || s.isRead(lit) ||",
+      "replace": "\t\tif (gitHarmlessKeys[key] && len(s.lits) < 0) || s.isRead(lit) ||",
+      "test": "TestTheEnvironmentEntryGuardAsksEachQuestion"
+    },
+    {
+      "label": "a Setenv key literal is refused by the literal question, so the decoy uses stop the project (cycle 1) (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": " || s.isSetenvKey(lit) || ",
+      "replace": " || (s.isSetenvKey(lit) && len(s.lits) < 0) || ",
+      "test": "TestTheSetenvGuardAsksEachQuestion"
+    },
+    {
+      "label": "a constant used only as a Setenv key is refused by the literal question (cycle 1) (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": " || s.isKeyConst(lit, keyConsts) {",
+      "replace": " || (s.isKeyConst(lit, keyConsts) && len(s.lits) < 0) {",
+      "test": "TestTheSetenvGuardAsksEachQuestion"
+    },
+    {
+      "label": "a GIT_* literal outside every known shape passes: a helper, a map, fmt.Sprintf, a concatenation (cycle 1) (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "\t\tif !isEntry {\n",
+      "replace": "\t\tif !isEntry && len(s.lits) < 0 {\n",
+      "test": "TestTheEnvironmentEntryGuardAsksEachQuestion"
+    },
+    {
+      "label": "the literal question stops refusing a whole literal GIT_* entry (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "\t\tcase !isConcat && rest != \"\":\n",
+      "replace": "\t\tcase !isConcat && rest != \"\" && len(s.lits) < 0:\n",
+      "test": "TestTheEnvironmentEntryGuardAsksEachQuestion"
+    },
+    {
+      "label": "the literal question stops refusing a GIT_* entry in a shape it cannot read (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "\t\tcase !isConcat || rest != \"\":\n",
+      "replace": "\t\tcase (!isConcat || rest != \"\") && len(s.lits) < 0:\n",
+      "test": "TestTheEnvironmentEntryGuardAsksEachQuestion"
+    },
+    {
+      "label": "the literal question stops seeing a chained concatenation (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "chained && outer.X == bin {",
+      "replace": "chained && outer.X == bin && len(s.lits) < 0 {",
+      "test": "TestTheEnvironmentEntryGuardAsksEachQuestion"
+    },
+    {
+      "label": "GIT_CONFIG_GLOBAL takes any value, not os.DevNull alone (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "case key == \"GIT_CONFIG_GLOBAL\" && s.isPkg(bin.Y, \"os\", \"DevNull\"):",
+      "replace": "case key == \"GIT_CONFIG_GLOBAL\" && (s.isPkg(bin.Y, \"os\", \"DevNull\") || len(s.lits) >= 0):",
+      "test": "TestTheEnvironmentEntryGuardAsksEachQuestion"
+    },
+    {
+      "label": "the literal question stops asking where a GIT_* entry's value comes from (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "\t\tcase !s.derived(bin.Y, 0):\n",
+      "replace": "\t\tcase !s.derived(bin.Y, 0) && len(s.lits) < 0:\n",
+      "test": "TestTheEnvironmentEntryGuardAsksEachQuestion"
+    },
+    {
+      "label": "a comparison with a GIT_* name is refused, so a read stops the project (cycle 1) (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "\t\treturn p.Op == token.EQL || p.Op == token.NEQ\n",
+      "replace": "\t\treturn (p.Op == token.EQL || p.Op == token.NEQ) && len(s.lits) < 0\n",
+      "test": "TestTheEnvironmentEntryGuardAsksEachQuestion"
+    },
+    {
+      "label": "any operator reads a GIT_* name, so \"GIT_\"+\"DIR=\" passes as a read (cycle 1) (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "\t\treturn p.Op == token.EQL || p.Op == token.NEQ\n",
+      "replace": "\t\treturn p.Op == token.EQL || p.Op == token.NEQ || p.Op == token.ADD\n",
+      "test": "TestTheEnvironmentEntryGuardAsksEachQuestion"
+    },
+    {
+      "label": "a GIT_* prefix given to strings.HasPrefix is refused, so a filter stops the project (cycle 1) (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "\t\t\tif s.isPkg(p.Fun, \"strings\", name) && len(p.Args) == 2 && p.Args[1] == lit {\n",
+      "replace": "\t\t\tif s.isPkg(p.Fun, \"strings\", name) && len(p.Args) == 2 && p.Args[1] == lit && len(s.lits) < 0 {\n",
+      "test": "TestTheEnvironmentEntryGuardAsksEachQuestion"
+    },
+    {
+      "label": "a GIT_* name given to Getenv is refused, so a read stops the project (cycle 1) (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "&& len(p.Args) == 1 && p.Args[0] == lit {",
+      "replace": "&& len(p.Args) == 1 && p.Args[0] == lit && len(s.lits) < 0 {",
+      "test": "TestTheEnvironmentEntryGuardAsksEachQuestion"
+    },
+    {
+      "label": "the entry question stops asking whether a key can be read (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "if why := s.entryKeyProblem(e); why != \"\" {",
+      "replace": "if why := s.entryKeyProblem(e); why != \"\" && len(s.lits) < 0 {",
+      "test": "TestTheEnvironmentEntryGuardAsksEachQuestion"
+    },
+    {
+      "label": "the entry question stops refusing a local list spread in (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "} else if !isIdent || id.Obj == nil || !s.params[id.Obj] {",
+      "replace": "} else if (!isIdent || id.Obj == nil || !s.params[id.Obj]) && len(s.lits) < 0 {",
+      "test": "TestTheEnvironmentEntryGuardAsksEachQuestion"
+    },
+    {
+      "label": "the entry question refuses a list the callers pass, so two live tests stop the project (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "} else if !isIdent || id.Obj == nil || !s.params[id.Obj] {",
+      "replace": "} else if !isIdent || id.Obj == nil || !s.params[id.Obj] || len(s.lits) >= 0 {",
+      "test": "TestTheEnvironmentEntryGuardAsksEachQuestion"
+    },
+    {
+      "label": "a slice literal spread in is not read entry by entry (cycle 1, falsifier M20) (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "\t\tentries = append(entries, lit.Elts...)\n",
+      "replace": "\t\tentries = append(entries, lit.Elts[:0]...)\n",
+      "test": "TestTheEnvironmentEntryGuardAsksEachQuestion"
+    },
+    {
+      "label": "any literal's Env field reads as a child's environment, so a container spec is refused (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "ok && s.isEnvHolder(lit.Type) {",
+      "replace": "ok && (s.isEnvHolder(lit.Type) || len(stack) > 0) {",
+      "test": "TestTheEnvironmentEntryGuardAsksEachQuestion"
+    },
+    {
+      "label": "an exec.Cmd literal's Env field is not read (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "return s.isPkg(typ, \"os/exec\", \"Cmd\") || ",
+      "replace": "return (s.isPkg(typ, \"os/exec\", \"Cmd\") && len(s.lits) < 0) || ",
+      "test": "TestTheEnvironmentEntryGuardAsksEachQuestion"
+    },
+    {
+      "label": "an os.ProcAttr literal's Env field is not read (cycle 1) (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": " || s.isPkg(typ, \"os\", \"ProcAttr\") || ",
+      "replace": " || (s.isPkg(typ, \"os\", \"ProcAttr\") && len(s.lits) < 0) || ",
+      "test": "TestTheEnvironmentEntryGuardAsksEachQuestion"
+    },
+    {
+      "label": "a GIT_* constant followed by \"=value\" in one literal reads as a harmless key (cycle 1, falsifier M5) (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "if _, isSep := entrySeparator(e, head); isSep && !strings.HasPrefix(v, \"GIT_\") {",
+      "replace": "if _, isSep := entrySeparator(e, head); isSep && (!strings.HasPrefix(v, \"GIT_\") || len(s.lits) >= 0) {",
+      "test": "TestTheEnvironmentEntryGuardAsksEachQuestion"
+    },
+    {
+      "label": "a GIT_* constant joined with \"=\" reads as a harmless key (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "if sep, isSep := stringLiteral(inner.Y); isSep && sep == \"=\" && !strings.HasPrefix(v, \"GIT_\") {",
+      "replace": "if sep, isSep := stringLiteral(inner.Y); isSep && sep == \"=\" && (!strings.HasPrefix(v, \"GIT_\") || len(s.lits) >= 0) {",
+      "test": "TestTheEnvironmentEntryGuardAsksEachQuestion"
+    },
+    {
+      "label": "the entry question accepts an entry ranging over keys that hold GIT_* (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "if readable && !slices.ContainsFunc(keys, func(k string) bool { return strings.HasPrefix(k, \"GIT_\") }) {",
+      "replace": "if readable && (!slices.ContainsFunc(keys, func(k string) bool { return strings.HasPrefix(k, \"GIT_\") }) || len(s.lits) >= 0) {",
+      "test": "TestTheEnvironmentEntryGuardAsksEachQuestion"
+    },
+    {
+      "label": "a pin silences every question in its function (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "if _, pinned := envEntryPins[site]; pinned && r.entry {",
+      "replace": "if _, pinned := envEntryPins[site]; pinned && (r.entry || len(site) > 0) {",
+      "test": "TestAnEnvironmentPinSilencesOneQuestionInOneFunction"
+    },
+    {
+      "label": "a pin covers every function, not the one it names (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "\t\t\t\tsite += \" \" + fn.Name.Name\n",
+      "replace": "\t\t\t\tsite += \" \" + fn.Name.Name[:0] + \"TestMountedS3OfficialAWSCLIBytes\"\n",
+      "test": "TestAnEnvironmentPinSilencesOneQuestionInOneFunction"
+    },
+    {
+      "label": "a refusal loses its line, so two on two lines read as one place (cycle 1) (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "fset.Position(r.pos).Line, r.why))",
+      "replace": "fset.Position(r.pos).Line*0, r.why))",
+      "test": "TestARefusalNamesItsLine"
+    },
+    {
+      "label": "FakeCredentials is vouched for with a map write outside the filter (cycle 1) (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "\t\t\tif writes > 0 && guarded == writes {\n",
+      "replace": "\t\t\tif writes > 0 && (guarded == writes || guarded >= 0) {\n",
+      "test": "TestFakeCredentialsIsVouchedForOnlyWhileItFilters"
+    },
+    {
+      "label": "FakeCredentials is vouched for when it filters one key and writes another (cycle 1) (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "isIdent && arg.Name == key && isLit && v == \"SCW_\" {",
+      "replace": "isIdent && (arg.Name == key || len(key) > 0) && isLit && v == \"SCW_\" {",
+      "test": "TestFakeCredentialsIsVouchedForOnlyWhileItFilters"
+    },
+    {
+      "label": "FakeCredentials is vouched for whatever it filters on (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "isLit && v == \"SCW_\" {",
+      "replace": "isLit && (v == \"SCW_\" || v == \"\") {",
+      "test": "TestFakeCredentialsIsVouchedForOnlyWhileItFilters"
+    },
+    {
+      "label": "the standard-library scan reads a literal as written, so \"GI\\x54_DIR\" passes (cycle 1) (#958)",
+      "file": "tools/ci/hermetic_stdlib_test.go",
+      "find": "err == nil && strings.Contains(v, \"GIT_\") {",
+      "replace": "err == nil && strings.Contains(lit.Value, \"GIT_\") && len(v) >= 0 {",
+      "test": "TestTheStandardLibraryScanAsksEachQuestion"
+    },
+    {
+      "label": "the standard-library scan stops looking for GIT_* names (#958)",
+      "file": "tools/ci/hermetic_stdlib_test.go",
+      "find": "err == nil && strings.Contains(v, \"GIT_\") {",
+      "replace": "err == nil && strings.Contains(v, \"GIT_\") && len(s.found) < 0 {",
+      "test": "TestTheStandardLibraryScanAsksEachQuestion"
+    },
+    {
+      "label": "the standard-library scan stops seeing references to the environment, called or not (cycle 1) (#958)",
+      "file": "tools/ci/hermetic_stdlib_test.go",
+      "find": "ok && id != declName && s.envNames[id.Name] {",
+      "replace": "ok && id != declName && s.envNames[id.Name] && len(s.found) < 0 {",
+      "test": "TestTheStandardLibraryScanAsksEachQuestion"
+    },
+    {
+      "label": "the standard-library scan counts a function's own name as a reference to it (cycle 1) (#958)",
+      "file": "tools/ci/hermetic_stdlib_test.go",
+      "find": "ok && id != declName && s.envNames[id.Name] {",
+      "replace": "ok && (id != declName || len(s.found) >= 0) && s.envNames[id.Name] {",
+      "test": "TestTheStandardLibraryScanAsksEachQuestion"
+    },
+    {
+      "label": "the standard-library scan ignores //go:linkname, so the environment read under a local name passes (cycle 1) (#958)",
+      "file": "tools/ci/hermetic_stdlib_test.go",
+      "find": "last == \"runtime_envs\" || last == \"Environ\" {",
+      "replace": "(last == \"runtime_envs\" || last == \"Environ\") && len(fields) < 0 {",
+      "test": "TestTheStandardLibraryScanAsksEachQuestion"
+    },
+    {
+      "label": "the standard-library scan stops refusing a package-level copy of the environment (#958)",
+      "file": "tools/ci/hermetic_stdlib_test.go",
+      "find": "\t\tcase (c.fn == \"a package-level value\" || c.fn == \"an init function\") && c.pkg != \"syscall\":\n",
+      "replace": "\t\tcase c.fn == \"an init function\" && c.pkg != \"syscall\":\n",
+      "test": "TestTheStandardLibraryScanAsksEachQuestion"
+    },
+    {
+      "label": "the standard-library scan stops naming init functions (#958)",
+      "file": "tools/ci/hermetic_stdlib_test.go",
+      "find": "\t\t\tif early {\n\t\t\t\twhere = \"an init function\"\n\t\t\t}\n",
+      "replace": "\t\t\tif early && len(s.found) < 0 {\n\t\t\t\twhere = \"an init function\"\n\t\t\t}\n",
+      "test": "TestTheStandardLibraryScanAsksEachQuestion"
+    },
+    {
+      "label": "the standard-library scan accepts an environment read nobody has pinned (#958)",
+      "file": "tools/ci/hermetic_stdlib_test.go",
+      "find": "\t\tcase !pinned:\n",
+      "replace": "\t\tcase !pinned && len(pins) < 0:\n",
+      "test": "TestTheStandardLibraryScanAsksEachQuestion"
+    },
+    {
+      "label": "the standard-library scan stops asking what runs while a package initialises (#958)",
+      "file": "tools/ci/hermetic_stdlib_test.go",
+      "find": "if name := calledName(call); slices.Contains(stdEntryPoints, name) {",
+      "replace": "if name := calledName(call); slices.Contains(stdEntryPoints, name) && len(s.found) < 0 {",
+      "test": "TestTheStandardLibraryScanAsksEachQuestion"
+    },
+    {
+      "label": "the standard-library scan keeps a pin nothing calls any more (#958)",
+      "file": "tools/ci/hermetic_stdlib_test.go",
+      "find": "\t\tif !s.found[c] {\n",
+      "replace": "\t\tif !s.found[c] && len(pins) < 0 {\n",
+      "test": "TestTheStandardLibraryScanAsksEachQuestion"
+    },
+    {
+      "label": "the standard-library scan reads a function literal's body as run at initialisation (#958)",
+      "file": "tools/ci/hermetic_stdlib_test.go",
+      "find": "\t\tcase *ast.FuncLit:\n\t\t\treturn false\n",
+      "replace": "\t\tcase *ast.FuncLit:\n\t\t\treturn true\n",
+      "test": "TestTheStandardLibraryScanAsksEachQuestion"
+    },
+    {
+      "label": "a package-level variable reads as a constant, so a key init() turns into GIT_DIR passes (cycle 1, falsifier M31) (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "\t\t\tif !ok || gen.Tok != token.CONST {\n\t\t\t\tcontinue\n",
+      "replace": "\t\t\tif !ok || (gen.Tok != token.CONST && gen.Tok != token.VAR) {\n\t\t\t\tcontinue\n",
+      "test": "TestTheSetenvGuardAsksEachQuestion"
+    },
+    {
+      "label": "the toolchain check always passes, so a listing by another go release is judged as this one (cycle 1) (#958)",
+      "file": "tools/ci/hermetic_stdlib_test.go",
+      "find": "\tif got := strings.TrimSpace(listed); got != built {\n",
+      "replace": "\tif got := strings.TrimSpace(listed); got != built && len(goTool) < 0 {\n",
+      "test": "TestTheToolchainCheckRefusesAnotherRelease"
+    },
+    {
+      "label": "a GIT_* entry given first to strings.TrimPrefix and its kin counts as a read (cycle 2, falsifier N2) (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "\t\t\tif s.isPkg(p.Fun, \"strings\", name) && len(p.Args) == 2 && p.Args[1] == lit {\n",
+      "replace": "\t\t\tif s.isPkg(p.Fun, \"strings\", name) && len(p.Args) == 2 && (p.Args[1] == lit || p.Args[0] == lit) {\n",
+      "test": "TestTheEnvironmentEntryGuardAsksEachQuestion"
+    },
+    {
+      "label": "an environment taken from a call, a field or a parameter passes unread (cycle 2) (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "source: true, src: src}}\n}\n",
+      "replace": "source: true, src: src}}[:0]\n}\n",
+      "test": "TestTheEnvironmentEntryGuardAsksEachQuestion"
+    },
+    {
+      "label": "an environment held in a local variable is refused instead of read, so a live test stops the project (cycle 2) (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "if local && x.Obj != nil && s.declaredIn(x.Obj) && !s.params[x.Obj] {",
+      "replace": "if local && x.Obj != nil && s.declaredIn(x.Obj) && !s.params[x.Obj] && len(s.lits) < 0 {",
+      "test": "TestTheEnvironmentEntryGuardAsksEachQuestion"
+    },
+    {
+      "label": "a parameter handed over whole is read as a local variable (cycle 2) (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "if local && x.Obj != nil && s.declaredIn(x.Obj) && !s.params[x.Obj] {",
+      "replace": "if local && x.Obj != nil && s.declaredIn(x.Obj) && (!s.params[x.Obj] || len(s.lits) >= 0) {",
+      "test": "TestTheEnvironmentEntryGuardAsksEachQuestion"
+    },
+    {
+      "label": "a variable assigned from another variable is followed, so an alias of a list changed elsewhere passes (cycle 2) (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "\t\t\te, r := s.envBuiltBy(b.value, false, id)\n",
+      "replace": "\t\t\te, r := s.envBuiltBy(b.value, len(s.lits) >= 0, id)\n",
+      "test": "TestTheEnvironmentEntryGuardAsksEachQuestion"
+    },
+    {
+      "label": "an environment variable whose address is taken is read as if nothing could change it (cycle 2) (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "\t\tcase b.addressed:\n",
+      "replace": "\t\tcase b.addressed && len(s.lits) < 0:\n",
+      "test": "TestTheEnvironmentEntryGuardAsksEachQuestion"
+    },
+    {
+      "label": "an environment variable bound by a range clause is read as if it were built here (cycle 2) (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "\t\tcase b.rangeOver != nil:\n",
+      "replace": "\t\tcase b.rangeOver != nil && len(s.lits) < 0:\n",
+      "test": "TestTheEnvironmentEntryGuardAsksEachQuestion"
+    },
+    {
+      "label": "an environment variable assigned from a call that returns several values passes unread (cycle 2) (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "\t\tcase b.value == nil && !b.zero:\n",
+      "replace": "\t\tcase b.value == nil && !b.zero && len(s.lits) < 0:\n",
+      "test": "TestTheEnvironmentEntryGuardAsksEachQuestion"
+    },
+    {
+      "label": "a variable declared with no value reads as unknown, so `var env []string` then appends is refused (cycle 2) (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "\t\t\tb := binding{zero: zero && len(rhs) == 0}\n",
+      "replace": "\t\t\tb := binding{zero: zero && len(rhs) < 0}\n",
+      "test": "TestTheEnvironmentEntryGuardAsksEachQuestion"
+    },
+    {
+      "label": "an environment variable changed by index after it was built passes (cycle 2) (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "\t\tif !s.envUseAllowed(use) {\n",
+      "replace": "\t\tif !s.envUseAllowed(use) && len(s.lits) < 0 {\n",
+      "test": "TestTheEnvironmentEntryGuardAsksEachQuestion"
+    },
+    {
+      "label": "handing an environment variable to X.Env reads as a use that may change it, so every built variable is refused (cycle 2) (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "\t\t\t\treturn ok && sel.Sel.Name == \"Env\"\n",
+      "replace": "\t\t\t\treturn ok && sel.Sel.Name == \"Env\" && len(s.lits) < 0\n",
+      "test": "TestTheEnvironmentEntryGuardAsksEachQuestion"
+    },
+    {
+      "label": "a source pin silences every source of its function, so one added later passes (cycle 3) (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "\t\tif fn == site && text == src {\n",
+      "replace": "\t\tif fn == site && (text == src || len(src) > 0) {\n",
+      "test": "TestASourcePinVouchesForOneFunction"
+    },
+    {
+      "label": "a source pin vouches for nothing, so the eleven sites it sorts stop the project (cycle 2) (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "\t\t\t\tif r.source && sourceVouched(site, r.src) {\n",
+      "replace": "\t\t\t\tif r.source && sourceVouched(site, r.src) && len(site) < 0 {\n",
+      "test": "TestASourcePinVouchesForOneFunction"
+    },
+    {
+      "label": "a pin naming a method reads as stale, so a vouched Client.Run is refused (cycle 2) (#958)",
+      "file": "tools/ci/hermetic_test.go",
+      "find": "declared := regexp.MustCompile(`\\nfunc (\\([^)]*\\) )?` + regexp.QuoteMeta(fn) + `\\(`)",
+      "replace": "declared := regexp.MustCompile(`\\nfunc ` + regexp.QuoteMeta(fn) + `\\(`)",
+      "test": "TestAPinWhoseFunctionIsGoneIsRefused"
+    },
+    {
+      "label": "an append's base is never read, so a file's lines extended by one entry reach a child (cycle 3) (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "\tentries, refusals := s.envBuiltBy(x.Args[0], local, self)\n",
+      "replace": "\tentries, refusals := s.envBuiltBy(x.Args[0], local, self)\n\trefusals = refusals[:0]\n",
+      "test": "TestTheEnvironmentEntryGuardAsksEachQuestion"
+    },
+    {
+      "label": "an environment extending itself is refused, so cmd.Env = append(cmd.Env, ...) stops the project (cycle 3) (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "\tif self != nil && sameExpr(env, self) {\n",
+      "replace": "\tif self != nil && sameExpr(env, self) && len(s.lits) < 0 {\n",
+      "test": "TestTheEnvironmentEntryGuardAsksEachQuestion"
+    },
+    {
+      "label": "the process's environment is refused, so append(os.Environ(), ...) stops the project (cycle 3) (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "\t\tif s.isPkg(x.Fun, \"os\", \"Environ\") && len(x.Args) == 0 {\n",
+      "replace": "\t\tif s.isPkg(x.Fun, \"os\", \"Environ\") && len(x.Args) == 0 && len(s.lits) < 0 {\n",
+      "test": "TestTheEnvironmentEntryGuardAsksEachQuestion"
+    },
+    {
+      "label": "nil is refused as an environment's base (cycle 3) (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "\t\tif x.Name == \"nil\" && x.Obj == nil {\n",
+      "replace": "\t\tif x.Name == \"nil\" && x.Obj == nil && len(s.lits) < 0 {\n",
+      "test": "TestTheEnvironmentEntryGuardAsksEachQuestion"
+    },
+    {
+      "label": "two different local names read as the same, so append(lines, ...) assigned to env extends itself (cycle 3) (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "\t\treturn ai.Obj == bi.Obj\n",
+      "replace": "\t\treturn ai.Obj == bi.Obj || len(ai.Name) > 0\n",
+      "test": "TestTheEnvironmentEntryGuardAsksEachQuestion"
+    },
+    {
+      "label": "an index write into X.Env is not judged (cycle 3) (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "\t\t\t\t\tif sel, ok := ix.X.(*ast.SelectorExpr); ok && sel.Sel.Name == \"Env\" {\n",
+      "replace": "\t\t\t\t\tif sel, ok := ix.X.(*ast.SelectorExpr); ok && sel.Sel.Name == \"Env\" && len(s.lits) < 0 {\n",
+      "test": "TestTheEnvironmentEntryGuardAsksEachQuestion"
+    },
+    {
+      "label": "X.Env given to copy is not judged (cycle 3) (#958)",
+      "file": "tools/ci/hermetic_setenv_test.go",
+      "find": "if f, ok := x.Fun.(*ast.Ident); ok && f.Name == \"copy\" && f.Obj == nil && len(x.Args) == 2 {",
+      "replace": "if f, ok := x.Fun.(*ast.Ident); ok && f.Name == \"copy\" && f.Obj == nil && len(x.Args) == 2 && len(s.lits) < 0 {",
+      "test": "TestTheEnvironmentEntryGuardAsksEachQuestion"
+    },
+    {
+      "label": "a pin whose source text is gone from its file is not refused (cycle 3) (#958)",
+      "file": "tools/ci/hermetic_test.go",
+      "find": "\t\t} else if keyed && !bytes.Contains(body, []byte(src)) {\n",
+      "replace": "\t\t} else if keyed && !bytes.Contains(body, []byte(src)) && len(pins) < 0 {\n",
+      "test": "TestAPinWhoseFunctionIsGoneIsRefused"
     }
   ]
 }

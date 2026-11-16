@@ -165,8 +165,8 @@ func TestAPoolMemberAndAStandaloneInstanceNeverShareAnAddress(t *testing.T) {
 	}
 
 	close(driver.gate)
-	<-done
-	<-poolDone
+	awaitSubject(t, done, "the standalone create never returned once the gate opened")
+	awaitSubject(t, poolDone, "the pool create never returned once the gate opened")
 
 	byAddress, total := publicIPs(p)
 	if total != 3 {
@@ -358,4 +358,30 @@ func TestAScaleDownReleasesTheMembersLeases(t *testing.T) {
 			t.Fatalf("lease %v walked past the freed address", m)
 		}
 	}
+}
+
+// subjectDeadline bounds this file's waits on something the code under test
+// must do: reach the fake runtime, or return once released. The fakes answer
+// in microseconds, so five seconds is reached only when the event is not
+// coming (#963).
+const subjectDeadline = 5 * time.Second
+
+// awaitSubject receives one value from ch, or fails the test once
+// subjectDeadline has passed, naming what did not happen (#963). A bare receive
+// there turns a subject that refused early or deadlocked into a hang until the
+// package timeout, without the test's name. It is a copy of the shape of awaitEvent (internal/core/machine, await_test.go), kept here because a test helper cannot be imported across packages.
+//
+// Call it from the test's own goroutine.
+func awaitSubject[T any](t *testing.T, ch <-chan T, what string) T {
+	t.Helper()
+	timer := time.NewTimer(subjectDeadline)
+	defer timer.Stop()
+	select {
+	case v := <-ch:
+		return v
+	case <-timer.C:
+	}
+	t.Fatalf("waited %v and %s", subjectDeadline, what)
+	var zero T
+	return zero
 }

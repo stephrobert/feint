@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func limitedStore(t *testing.T, limit int64) (*Store, string) {
@@ -102,13 +103,15 @@ func TestBudgetReservesConcurrentUploadsBeforeReading(t *testing.T) {
 	case <-reader.entered:
 	case err := <-done:
 		t.Fatal("first upload did not reach its accepting case", err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("first upload neither reached its controlled read nor returned within 5 s (#963)")
 	}
 	probe := &countingBudgetReader{}
 	_, err := s.PutObject(t.Context(), "bucket", "second", probe, PutOptions{Size: 3})
 	// Always release the first upload before asserting so a failing mutation
 	// cannot leave Close waiting on a test-owned blocked reader.
 	close(reader.release)
-	firstErr := <-done
+	firstErr := waitFor(t, done)
 	if firstErr != nil || !errors.Is(err, ErrQuota) || probe.calls != 0 {
 		t.Fatal("reservation did not protect the aggregate limit before input reads", firstErr, err, probe.calls)
 	}
@@ -247,10 +250,12 @@ func TestBudgetChargesBlobWithoutMetadataPublication(t *testing.T) {
 	case <-reader.entered:
 	case err := <-done:
 		t.Fatal("upload did not reach its accepting case", err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("upload neither reached its controlled read nor returned within 5 s (#963)")
 	}
 	deleteErr := s.DeleteBucket(t.Context(), "bucket")
 	close(reader.release)
-	err := <-done
+	err := waitFor(t, done)
 	if deleteErr != nil || !errors.Is(err, ErrBucketNotFound) {
 		t.Fatal(deleteErr, err)
 	}

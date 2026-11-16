@@ -2,8 +2,10 @@ package ci
 
 import (
 	"bytes"
+	"fmt"
 	"go/ast"
 	"go/build"
+	"go/build/constraint"
 	"go/parser"
 	"go/token"
 	"io"
@@ -12,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -82,13 +85,16 @@ func TestATestBinaryDropsTheGitDirAHookExports(t *testing.T) {
 		t.Skip("this is the child run")
 	}
 	decoy := func() (*throwawayRepo, []string, func() ([]byte, string)) {
-		d := newThrowawayRepo(t, t.TempDir())
+		// The git directory is joined from t.TempDir() directly, not read
+		// back from d.Dir: the shape the environment-entry guard accepts (#958).
+		dir := t.TempDir()
+		d := newThrowawayRepo(t, dir)
 		if err := os.WriteFile(filepath.Join(d.Dir, "DECOY.md"), []byte("decoy\n"), 0o600); err != nil {
 			t.Fatal(err)
 		}
 		d.Git("add", "DECOY.md")
 		d.Git("commit", "--quiet", "-m", "decoy")
-		gitDir := filepath.Join(d.Dir, ".git")
+		gitDir := filepath.Join(dir, ".git")
 		env := append(os.Environ(), "GIT_DIR="+gitDir, "GIT_INDEX_FILE="+filepath.Join(gitDir, "index"))
 		state := func() ([]byte, string) {
 			index, err := os.ReadFile(filepath.Join(gitDir, "index"))
@@ -148,10 +154,13 @@ func TestATestBinaryDropsTheGitDirAHookExports(t *testing.T) {
 const hermeticImport = "github.com/stephrobert/feint/internal/hermetic"
 
 // hermeticFindings judges one directory from every .go file in it, test or
-// not, keyed by base name. Only the files the default build compiles are read
+// not, keyed by base name, as the build named by tags compiles them (nil: the
+// default build). Only the files that build compiles are read
 // (build.Context.MatchFile): a TestMain behind `//go:build x` is not in the
 // binary `go test` builds, and reading it anyway would accept a package whose
-// default test binary has no TestMain at all.
+// default test binary has no TestMain at all. The converse is why the walk
+// judges every tag set the repository uses (#958): `go test -tags x` can
+// leave out the file that holds the TestMain the default build has.
 //
 // judged is false when no compiled file is a test file: the directory builds no
 // test binary. Its other files are still read for the last question, because
@@ -169,15 +178,8 @@ const hermeticImport = "github.com/stephrobert/feint/internal/hermetic"
 // syscall.Exec, which the import rule could not see.
 //
 // refusal says which question failed.
-func hermeticFindings(dir string, files map[string][]byte) (judged bool, refusal string, err error) {
-	ctx := build.Default
-	ctx.OpenFile = func(path string) (io.ReadCloser, error) {
-		src, ok := files[filepath.Base(path)]
-		if !ok {
-			return nil, fs.ErrNotExist
-		}
-		return io.NopCloser(bytes.NewReader(src)), nil
-	}
+func hermeticFindings(dir string, files map[string][]byte, tags []string) (judged bool, refusal string, err error) {
+	ctx := buildContext(files, tags)
 	var main *ast.FuncDecl
 	mainAlias, early := "", ""
 	for _, name := range slices.Sorted(maps.Keys(files)) {
@@ -208,7 +210,7 @@ func hermeticFindings(dir string, files map[string][]byte) (judged bool, refusal
 	}
 	if judged {
 		if main == nil {
-			return true, dir + ": its test binary has no TestMain in the default build (a TestMain behind a build constraint is not in it), so every git its tests start, directly or through any function they call, obeys a hook's GIT_DIR; add a TestMain whose first statement is hermetic.DropInheritedGit()", nil
+			return true, dir + ": its test binary has no TestMain in the " + buildName(tags) + " (a TestMain behind a build constraint is not in it), so every git its tests start, directly or through any function they call, obeys a hook's GIT_DIR; add a TestMain whose first statement is hermetic.DropInheritedGit()", nil
 		}
 		var call *ast.CallExpr
 		if main.Body != nil && len(main.Body.List) > 0 {
@@ -240,6 +242,31 @@ func hermeticFindings(dir string, files map[string][]byte) (judged bool, refusal
 		return judged, dir + ": " + early + " while the package initialises, before any TestMain runs, so the copy keeps a hook's GIT_DIR whatever TestMain drops afterwards; read the environment inside a function", nil
 	}
 	return judged, "", nil
+}
+
+// buildName names the build a refusal is about, so that one reported under
+// -tags conformance is not read as one about the default build.
+func buildName(tags []string) string {
+	if len(tags) == 0 {
+		return "default build"
+	}
+	return "build with -tags " + strings.Join(tags, ",")
+}
+
+// buildContext is the default build of this platform with tags added, reading
+// files from memory: what `go test -tags <tags>` would compile in one
+// directory. A nil tags is the default build.
+func buildContext(files map[string][]byte, tags []string) build.Context {
+	ctx := build.Default
+	ctx.BuildTags = slices.Clone(tags)
+	ctx.OpenFile = func(path string) (io.ReadCloser, error) {
+		src, ok := files[filepath.Base(path)]
+		if !ok {
+			return nil, fs.ErrNotExist
+		}
+		return io.NopCloser(bytes.NewReader(src)), nil
+	}
+	return ctx
 }
 
 // importNames maps each import path of file to the name it is used under,
@@ -348,19 +375,173 @@ func environmentRead(call *ast.CallExpr, alias map[string]string) string {
 // one is judged: that is what makes the hermetic default hold for a test
 // written tomorrow, in a package that runs no git today.
 //
-// What this does not see, said rather than implied:
-//   - a test that sets GIT_DIR itself after TestMain. Two do, on purpose:
-//     tools/testplan/tracked_hook_test.go and tools/ci/throwaway_git_test.go
-//     play a hook with t.Setenv. What protects them is not this guard: the
-//     values name a decoy repository each test creates under t.TempDir(),
-//     t.Setenv refuses a parallel test so no other test of the binary runs
-//     while they are set, the testing package restores them when the test
-//     ends, and each test asserts the decoy came out unchanged. Nothing
-//     static refuses a t.Setenv("GIT_DIR", ...) aimed at a real tree.
-//   - a read of the environment while a standard-library package initialises;
-//   - a test binary built with a build tag (`go test -tags x`), which can
-//     hold a different TestMain: the default build is the one judged.
+// It judges once per build-tag set the repository uses (#958): the default
+// build, and every tag a `//go:build` line of the tree names, so a binary
+// built with `go test -tags conformance` is judged as it is compiled. The
+// same walk refuses a test that sets a GIT_* variable to a value not taken
+// from t.TempDir() (gitSetenvRefusals). What the standard library does while
+// it initialises is measured, not assumed:
+// TestNoLinkedStandardPackageCopiesTheEnvironmentAtInit.
 func TestEveryTestBinaryThatStartsAProcessDropsInheritedGit(t *testing.T) {
+	dirs := repositoryGoFiles(t)
+	tags, err := repositoryBuildTags(dirs)
+	if err != nil {
+		t.Fatalf("a //go:build line does not parse, so the tag sets are unknown and nothing was judged: %v", err)
+	}
+	// The witness for the tag discovery: eleven files of this tree carry
+	// `//go:build conformance` on 2026-11-15, and mise.toml builds tests
+	// with -tags=conformance. A discovery that finds nothing would judge the
+	// default build alone and look green.
+	if !slices.Contains(tags, "conformance") {
+		t.Fatalf("the //go:build lines of the tree name the tags %v and not conformance, which this tree uses: the discovery cannot see the tag sets", tags)
+	}
+	refusals, judged, err := judgeTree(dirs, buildTagSets(tags))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range refusals {
+		t.Error(r)
+	}
+	for _, set := range buildTagSets(tags) {
+		// A scan that judged nothing cannot tell a clean tree from a scan that
+		// looked nowhere: this package has tests, so it is the witness.
+		if got := judged[buildName(set)]; !slices.Contains(got, "tools/ci") {
+			t.Fatalf("in the %s, the scan judged %d test binaries (%v) and not tools/ci, which has tests: it cannot judge this tree", buildName(set), len(got), got)
+		}
+		t.Logf("%s: %d directories read, %d of them build a test binary and were judged: %v", buildName(set), len(dirs), len(judged[buildName(set)]), judged[buildName(set)])
+	}
+	// FakeCredentials is the one source of non-constant Setenv keys that
+	// gitSetenvRefusals accepts, and only because it keeps SCW_* keys alone.
+	if why := fakeCredentialsKeepsScalewayKeys(dirs[conformancetestDir]); why != "" {
+		t.Error(why)
+	}
+	for _, why := range append(stalePins(dirs, envEntryPins), stalePins(dirs, envSourcePins)...) {
+		t.Error(why)
+	}
+}
+
+// judgeTree asks both questions (hermeticFindings, gitSetenvRefusals) of every
+// directory, once per build-tag set, and returns the refusals and, per build
+// name, the directories that build a test binary.
+func judgeTree(dirs map[string]map[string][]byte, sets [][]string) (refusals []string, judged map[string][]string, err error) {
+	judged = map[string][]string{}
+	for _, set := range sets {
+		for _, dir := range slices.Sorted(maps.Keys(dirs)) {
+			isTest, refusal, err := hermeticFindings(dir, dirs[dir], set)
+			if err != nil {
+				return nil, nil, fmt.Errorf("%s does not parse in the %s, so it was not judged: %w", dir, buildName(set), err)
+			}
+			if isTest {
+				judged[buildName(set)] = append(judged[buildName(set)], dir)
+			}
+			if refusal != "" {
+				refusals = append(refusals, refusal)
+			}
+			setenv, err := gitSetenvRefusals(dir, dirs[dir], set)
+			if err != nil {
+				return nil, nil, fmt.Errorf("%s does not parse in the %s, so its Setenv calls were not judged: %w", dir, buildName(set), err)
+			}
+			// A file every build compiles is refused once, not once per build.
+			for _, r := range setenv {
+				if !slices.Contains(refusals, r) {
+					refusals = append(refusals, r)
+				}
+			}
+		}
+	}
+	return refusals, judged, nil
+}
+
+// TestTheWalkJudgesEveryBuildTheRepositoryUses drives the walk on a fixture
+// tree: a TestMain the tagged build leaves out, and a Setenv only the tagged
+// build compiles, are each refused in that build and only there; the
+// discovery names a tag the tree uses and leaves out platform and release
+// tags, and a constraint written after the package clause, which is no
+// constraint.
+func TestTheWalkJudgesEveryBuildTheRepositoryUses(t *testing.T) {
+	good := "package x\n\nimport (\n\t\"os\"\n\t\"testing\"\n\n\t\"" + hermeticImport + "\"\n)\n\nfunc TestMain(m *testing.M) {\n\thermetic.DropInheritedGit()\n\tos.Exit(m.Run())\n}\n"
+	dirs := map[string]map[string][]byte{
+		"a": {
+			"a_test.go": []byte("package x\n\nimport \"testing\"\n\nfunc TestA(t *testing.T) {}\n"),
+			"m_test.go": []byte("//go:build !feintfixture\n\n" + good),
+		},
+		"b": {
+			"m_test.go": []byte(good),
+			"s_test.go": []byte("//go:build feintfixture && !plan9 && go1.22\n\npackage x\n\nimport \"testing\"\n\nfunc TestS(t *testing.T) { t.Setenv(\"GIT_DIR\", \"/home/someone/project/.git\") }\n"),
+			"late.go":   []byte("package x\n\n//go:build notatag\n"),
+		},
+	}
+	tags, err := repositoryBuildTags(dirs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(tags, []string{"feintfixture"}) {
+		t.Fatalf("the discovery names %v, want [feintfixture] alone: no platform tag, no release tag, nothing after the package clause", tags)
+	}
+	if got := buildTagSets([]string{"p", "q"}); len(got) != 4 || got[0] != nil || !slices.Equal(got[1], []string{"p"}) || !slices.Equal(got[2], []string{"q"}) || !slices.Equal(got[3], []string{"p", "q"}) {
+		t.Errorf("buildTagSets([p q]) = %v, want [[] [p] [q] [p q]]", got)
+	}
+	refusals, judged, err := judgeTree(dirs, buildTagSets(tags))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refusals) != 2 || !strings.Contains(refusals[0], "a: its test binary has no TestMain in the build with -tags feintfixture") || !strings.Contains(refusals[1], "b/s_test.go:") || !strings.Contains(refusals[1], "Setenv(\"GIT_DIR\", ...) takes a value not derived") {
+		t.Errorf("refusals = %q, want two, both in the build with -tags feintfixture: a's missing TestMain, then b's Setenv", refusals)
+	}
+	if got := judged["default build"]; !slices.Equal(got, []string{"a", "b"}) {
+		t.Errorf("the default build judged %v, want [a b]", got)
+	}
+}
+
+// stalePins names every pin of envEntryPins whose function is no longer
+// declared in its file: a pin outliving its function would silence the
+// question for whatever comes to bear that name.
+func stalePins(dirs map[string]map[string][]byte, pins map[string]string) []string {
+	var out []string
+	for _, site := range slices.Sorted(maps.Keys(pins)) {
+		file, fn, _ := strings.Cut(site, " ")
+		fn, src, keyed := strings.Cut(fn, ": ")
+		body := dirs[filepath.ToSlash(filepath.Dir(file))][filepath.Base(file)]
+		declared := regexp.MustCompile(`\nfunc (\([^)]*\) )?` + regexp.QuoteMeta(fn) + `\(`)
+		if !declared.Match(body) {
+			out = append(out, "envEntryPins names "+site+", which no longer exists: the pin is stale, remove it")
+		} else if keyed && !bytes.Contains(body, []byte(src)) {
+			out = append(out, "envSourcePins names "+site+", whose source no longer appears in its file: the pin is stale, remove it")
+		}
+	}
+	return out
+}
+
+// TestAPinWhoseFunctionIsGoneIsRefused: a pin naming a function its file still
+// declares is accepted; one naming a function the file no longer declares, or
+// a file that is gone, is refused with its reason.
+func TestAPinWhoseFunctionIsGoneIsRefused(t *testing.T) {
+	dirs := map[string]map[string][]byte{"internal/cli": {"a_test.go": []byte("package cli\n\nimport \"testing\"\n\ntype c struct{}\n\nfunc (c) Run() {}\n\nfunc TestKept(t *testing.T) { _ = y.Env() }\n")}}
+	pins := map[string]string{
+		"internal/cli/a_test.go TestKept":          "still there",
+		"internal/cli/a_test.go Run":               "a method, still there",
+		"internal/cli/a_test.go TestKept: y.Env()": "a source still written there",
+		"internal/cli/a_test.go TestKept: cmd.Env": "a source no longer written there",
+		"internal/cli/a_test.go TestRenamed":       "gone",
+		"internal/cli/gone_test.go TestKept":       "file gone",
+	}
+	got := stalePins(dirs, pins)
+	want := []string{
+		"envSourcePins names internal/cli/a_test.go TestKept: cmd.Env, whose source no longer appears in its file: the pin is stale, remove it",
+		"envEntryPins names internal/cli/a_test.go TestRenamed, which no longer exists: the pin is stale, remove it",
+		"envEntryPins names internal/cli/gone_test.go TestKept, which no longer exists: the pin is stale, remove it",
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("stalePins = %q, want %q", got, want)
+	}
+}
+
+// repositoryGoFiles reads every .go file of the repository, keyed by its
+// directory relative to the root (slash-separated) and then by base name.
+// Hidden directories, testdata, node_modules and vendor are not packages of
+// this module.
+func repositoryGoFiles(t *testing.T) map[string]map[string][]byte {
+	t.Helper()
 	root, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {
 		t.Fatal(err)
@@ -397,25 +578,71 @@ func TestEveryTestBinaryThatStartsAProcessDropsInheritedGit(t *testing.T) {
 	if walkErr != nil {
 		t.Fatalf("the walk of the repository failed, so nothing was judged: %v", walkErr)
 	}
-	var judged []string
-	for _, dir := range slices.Sorted(maps.Keys(dirs)) {
-		isTest, refusal, err := hermeticFindings(dir, dirs[dir])
-		if err != nil {
-			t.Fatalf("%s does not parse, so it was not judged: %v", dir, err)
-		}
-		if isTest {
-			judged = append(judged, dir)
-		}
-		if refusal != "" {
-			t.Error(refusal)
+	return dirs
+}
+
+// platformTags are the build tags `go test` sets on its own, from the
+// platform and the toolchain: a //go:build line naming one of them does not
+// name a build the repository chooses with -tags.
+var platformTags = map[string]bool{
+	"aix": true, "android": true, "darwin": true, "dragonfly": true, "freebsd": true, "hurd": true,
+	"illumos": true, "ios": true, "js": true, "linux": true, "nacl": true, "netbsd": true,
+	"openbsd": true, "plan9": true, "solaris": true, "wasip1": true, "windows": true, "zos": true,
+	"386": true, "amd64": true, "arm": true, "arm64": true, "loong64": true, "mips": true,
+	"mipsle": true, "mips64": true, "mips64le": true, "ppc64": true, "ppc64le": true,
+	"riscv64": true, "s390x": true, "wasm": true,
+	"cgo": true, "gc": true, "gccgo": true, "unix": true, "ignore": true,
+}
+
+// repositoryBuildTags names, sorted, every tag a `//go:build` line of the tree
+// mentions that is not a platform or release tag: the tags a `go test -tags`
+// of this repository can choose.
+func repositoryBuildTags(dirs map[string]map[string][]byte) ([]string, error) {
+	seen := map[string]bool{}
+	for dir, files := range dirs {
+		for name, src := range files {
+			fset := token.NewFileSet()
+			file, err := parser.ParseFile(fset, dir+"/"+name, src, parser.PackageClauseOnly|parser.ParseComments)
+			if err != nil {
+				return nil, err
+			}
+			for _, group := range file.Comments {
+				if group.Pos() > file.Package {
+					break
+				}
+				for _, c := range group.List {
+					if !constraint.IsGoBuild(c.Text) {
+						continue
+					}
+					expr, err := constraint.Parse(c.Text)
+					if err != nil {
+						return nil, fmt.Errorf("%s/%s: %w", dir, name, err)
+					}
+					expr.Eval(func(tag string) bool {
+						if !platformTags[tag] && !strings.HasPrefix(tag, "go1.") {
+							seen[tag] = true
+						}
+						return false
+					})
+				}
+			}
 		}
 	}
-	// A scan that judged nothing cannot tell a clean tree from a scan that
-	// looked nowhere: this package has tests, so it is the witness.
-	if !slices.Contains(judged, "tools/ci") {
-		t.Fatalf("the scan judged %d test binaries (%v) and not tools/ci, which has tests: it cannot judge this tree", len(judged), judged)
+	return slices.Sorted(maps.Keys(seen)), nil
+}
+
+// buildTagSets is the default build, then each tag alone, then all of them
+// together when there are several: a binary can differ from the default one
+// under any of them.
+func buildTagSets(tags []string) [][]string {
+	sets := [][]string{nil}
+	for _, tag := range tags {
+		sets = append(sets, []string{tag})
 	}
-	t.Logf("%d directories read, %d of them build a test binary and were judged: %v", len(dirs), len(judged), judged)
+	if len(tags) > 1 {
+		sets = append(sets, slices.Clone(tags))
+	}
+	return sets
 }
 
 // TestTheHermeticGuardAsksEachQuestion: one case per question, each passing
@@ -434,6 +661,7 @@ func TestTheHermeticGuardAsksEachQuestion(t *testing.T) {
 	const noExec = "func TestX(t *testing.T) { runGit() }\n"
 	library := []byte("package x\n\nimport \"os/exec\"\n\nfunc runGit() { _ = exec.Command(\"git\", \"commit\").Run() }\n")
 	const noTestMain = "has no TestMain in the default build"
+	const noTaggedTestMain = "has no TestMain in the build with -tags hermeticselftest"
 	const notFirst = "as its first statement"
 	const notOurs = "is not \"" + hermeticImport + "\"'s"
 	const early = "while the package initialises"
@@ -441,38 +669,53 @@ func TestTheHermeticGuardAsksEachQuestion(t *testing.T) {
 		name   string
 		files  map[string][]byte
 		judged bool
-		reason string // empty: no refusal expected
+		reason string   // empty: no refusal expected
+		tags   []string // the build judged; nil is the default build
 	}{
-		{"a test binary that drops GIT_* first is accepted", map[string][]byte{"a_test.go": file(execImport+hermeticImp, usesExec+good)}, true, ""},
+		{"a test binary that drops GIT_* first is accepted", map[string][]byte{"a_test.go": file(execImport+hermeticImp, usesExec+good)}, true, "", nil},
 		{"the TestMain may live in a sibling file of the same binary", map[string][]byte{
 			"a_test.go": file(execImport, usesExec),
 			"m_test.go": file(hermeticImp, good),
-		}, true, ""},
-		{"an aliased import of the package is accepted", map[string][]byte{"a_test.go": file(execImport+"\th \""+hermeticImport+"\"\n", usesExec+strings.Replace(good, "hermetic.", "h.", 1))}, true, ""},
-		{"a directory with no test file builds no test binary", map[string][]byte{"lib.go": library}, false, ""},
+		}, true, "", nil},
+		{"an aliased import of the package is accepted", map[string][]byte{"a_test.go": file(execImport+"\th \""+hermeticImport+"\"\n", usesExec+strings.Replace(good, "hermetic.", "h.", 1))}, true, "", nil},
+		{"a directory with no test file builds no test binary", map[string][]byte{"lib.go": library}, false, "", nil},
 		{"a test that starts git only through a function outside its test files is refused", map[string][]byte{
 			"lib.go":    library,
 			"a_test.go": file("", noExec),
-		}, true, noTestMain},
-		{"a test binary without a TestMain is refused", map[string][]byte{"a_test.go": file(execImport, usesExec)}, true, noTestMain},
+		}, true, noTestMain, nil},
+		{"a test binary without a TestMain is refused", map[string][]byte{"a_test.go": file(execImport, usesExec)}, true, noTestMain, nil},
 		{"a TestMain behind a build constraint is not in the default binary", map[string][]byte{
 			"a_test.go": file(execImport, usesExec),
 			"m_test.go": append([]byte("//go:build hermeticselftest\n\n"), file(hermeticImp, good)...),
-		}, true, noTestMain},
-		{"a TestMain that runs the tests before dropping is refused", map[string][]byte{"a_test.go": file(execImport+hermeticImp, usesExec+"func TestMain(m *testing.M) {\n\tcode := m.Run()\n\thermetic.DropInheritedGit()\n\tos.Exit(code)\n}\n")}, true, notFirst},
-		{"a TestMain that drops nothing is refused", map[string][]byte{"a_test.go": file(execImport, usesExec+"func TestMain(m *testing.M) {\n\tos.Exit(m.Run())\n}\n")}, true, notFirst},
-		{"a local function of the same name is not the package's", map[string][]byte{"a_test.go": file(execImport, usesExec+"func DropInheritedGit() {}\n\nfunc TestMain(m *testing.M) {\n\tDropInheritedGit()\n\tos.Exit(m.Run())\n}\n")}, true, notOurs},
-		{"a local function of the same name is not the package's even when the package is imported", map[string][]byte{"a_test.go": file(execImport+hermeticImp, usesExec+"var _ = hermetic.DropInheritedGit\n\nfunc DropInheritedGit() {}\n\nfunc TestMain(m *testing.M) {\n\tDropInheritedGit()\n\tos.Exit(m.Run())\n}\n")}, true, notOurs},
-		{"another package's function of the same name is not the package's", map[string][]byte{"a_test.go": file(execImport+"\thermetic \"example.invalid/hermetic\"\n", usesExec+good)}, true, notOurs},
-		{"the environment copied at package level, before TestMain, is refused", map[string][]byte{"a_test.go": file(execImport+hermeticImp, usesExec+"var inherited = os.Environ()\n\n"+good)}, true, early},
+		}, true, noTestMain, nil},
+		{"a TestMain that runs the tests before dropping is refused", map[string][]byte{"a_test.go": file(execImport+hermeticImp, usesExec+"func TestMain(m *testing.M) {\n\tcode := m.Run()\n\thermetic.DropInheritedGit()\n\tos.Exit(code)\n}\n")}, true, notFirst, nil},
+		{"a TestMain that drops nothing is refused", map[string][]byte{"a_test.go": file(execImport, usesExec+"func TestMain(m *testing.M) {\n\tos.Exit(m.Run())\n}\n")}, true, notFirst, nil},
+		{"a local function of the same name is not the package's", map[string][]byte{"a_test.go": file(execImport, usesExec+"func DropInheritedGit() {}\n\nfunc TestMain(m *testing.M) {\n\tDropInheritedGit()\n\tos.Exit(m.Run())\n}\n")}, true, notOurs, nil},
+		{"a local function of the same name is not the package's even when the package is imported", map[string][]byte{"a_test.go": file(execImport+hermeticImp, usesExec+"var _ = hermetic.DropInheritedGit\n\nfunc DropInheritedGit() {}\n\nfunc TestMain(m *testing.M) {\n\tDropInheritedGit()\n\tos.Exit(m.Run())\n}\n")}, true, notOurs, nil},
+		{"another package's function of the same name is not the package's", map[string][]byte{"a_test.go": file(execImport+"\thermetic \"example.invalid/hermetic\"\n", usesExec+good)}, true, notOurs, nil},
+		{"the environment copied at package level, before TestMain, is refused", map[string][]byte{"a_test.go": file(execImport+hermeticImp, usesExec+"var inherited = os.Environ()\n\n"+good)}, true, early, nil},
 		{"a GIT_* variable read by an init function outside the test files is refused", map[string][]byte{
 			"lib.go":    []byte("package x\n\nimport \"os\"\n\nvar gitDir string\n\nfunc init() { gitDir = os.Getenv(\"GIT_DIR\") }\n"),
 			"a_test.go": file(execImport+hermeticImp, usesExec+good),
-		}, true, early},
-		{"a read that runs only when called, or of another variable, is accepted", map[string][]byte{"a_test.go": file(execImport+hermeticImp, usesExec+"var environ = func() []string { return os.Environ() }\n\nvar home = os.Getenv(\"HOME\")\n\n"+good)}, true, ""},
+		}, true, early, nil},
+		{"a read that runs only when called, or of another variable, is accepted", map[string][]byte{"a_test.go": file(execImport+hermeticImp, usesExec+"var environ = func() []string { return os.Environ() }\n\nvar home = os.Getenv(\"HOME\")\n\n"+good)}, true, "", nil},
+		// #958: the same directory judged in another build. The TestMain
+		// lives in a file the tagged build leaves out, so that build has none.
+		{"a TestMain the tagged build leaves out is refused in that build", map[string][]byte{
+			"a_test.go": file(execImport, usesExec),
+			"m_test.go": append([]byte("//go:build !hermeticselftest\n\n"), file(hermeticImp, good)...),
+		}, true, noTaggedTestMain, []string{"hermeticselftest"}},
+		{"the same directory is accepted in the default build", map[string][]byte{
+			"a_test.go": file(execImport, usesExec),
+			"m_test.go": append([]byte("//go:build !hermeticselftest\n\n"), file(hermeticImp, good)...),
+		}, true, "", nil},
+		{"a TestMain only the tagged build compiles is accepted in that build", map[string][]byte{
+			"a_test.go": file(execImport, usesExec),
+			"m_test.go": append([]byte("//go:build hermeticselftest\n\n"), file(hermeticImp, good)...),
+		}, true, "", []string{"hermeticselftest"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			judged, refusal, err := hermeticFindings("tools/x", tc.files)
+			judged, refusal, err := hermeticFindings("tools/x", tc.files, tc.tags)
 			if err != nil {
 				t.Fatalf("the case does not parse, so it measures nothing: %v", err)
 			}

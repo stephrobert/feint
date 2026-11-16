@@ -135,6 +135,10 @@ func TestAnAddressLinkDoesNotHoldTheAddressLockAcrossTheRuntime(t *testing.T) {
 		t.Fatalf("LinkNic answered %d: %v", status, doc)
 	}
 
+	// Read before anything is held: netOf reports on t, so it must not run in
+	// the goroutine below, which a bounded wait can leave behind (#963).
+	netID := netOf(t, ts, subnet)
+
 	// One link that will reach the runtime and stay there.
 	blocked := make(chan int, 1)
 	go func() {
@@ -155,7 +159,7 @@ func TestAnAddressLinkDoesNotHoldTheAddressLockAcrossTheRuntime(t *testing.T) {
 	done := make(chan int, 1)
 	go func() {
 		status, _ := postRaw(ts, "CreateSubnet",
-			`{"NetId":"`+netOf(t, ts, subnet)+`","IpRange":"10.41.2.0/24"}`)
+			`{"NetId":"`+netID+`","IpRange":"10.41.2.0/24"}`)
 		done <- status
 	}()
 
@@ -170,7 +174,7 @@ func TestAnAddressLinkDoesNotHoldTheAddressLockAcrossTheRuntime(t *testing.T) {
 	}
 
 	close(rt.release)
-	if status := <-blocked; status != http.StatusOK {
+	if status := awaitSubject(t, blocked, "the link never answered once the runtime was released"); status != http.StatusOK {
 		t.Errorf("the link itself answered %d", status)
 	}
 }

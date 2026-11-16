@@ -90,7 +90,7 @@ func TestCheckpointResetAndCollectionWaitForActiveMutations(t *testing.T) {
 				}
 				done <- err
 			}()
-			<-entered
+			waitReady(t, entered)
 			// Lock assertions, not scheduling delays, prove both sides of the
 			// lifecycle boundary while each operation has bytes reserved.
 			exclusive := s.life.TryLock()
@@ -109,7 +109,7 @@ func TestCheckpointResetAndCollectionWaitForActiveMutations(t *testing.T) {
 			go func() { gcDone <- s.CollectGarbage(t.Context()) }()
 			close(release)
 			for _, result := range []<-chan error{done, resetDone, gcDone} {
-				if err := <-result; err != nil {
+				if err := waitFor(t, result); err != nil {
 					t.Fatal(err)
 				}
 			}

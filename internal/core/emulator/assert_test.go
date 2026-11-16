@@ -2,10 +2,12 @@ package emulator_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stephrobert/feint/internal/core/emulator"
 	"github.com/stephrobert/feint/internal/core/resource"
@@ -71,23 +73,63 @@ func assertServer(t *testing.T) (*httptest.Server, *emulator.Env) {
 }
 
 // call issues one request and returns the decoded body and status.
+//
+// Call it from the test's own goroutine; a goroutine of the test's uses
+// callFrom.
 func call(t *testing.T, ts *httptest.Server, method, path, body string, probe bool) (map[string]any, int) {
 	t.Helper()
-	req, err := http.NewRequest(method, ts.URL+path, strings.NewReader(body)) //nolint:noctx // a local test server
+	decoded, status, err := callFrom(ts, method, path, body, probe)
 	if err != nil {
 		t.Fatal(err)
+	}
+	return decoded, status
+}
+
+// callFrom is call for a goroutine other than the test's own: it returns its
+// failure instead of reporting it on t (#963). Such a goroutine is awaited with
+// a bound and can outlive the wait; a t.Fatal it then makes panics the whole
+// test binary ("Fail in goroutine after TestX has completed"), and every later
+// test of the package goes unrun.
+//
+// The request is bounded by subjectDeadline: ts.Client() has no timeout, so a
+// handler that never answered held a call made from the test's own goroutine,
+// where no awaitSubject reaches, until the package timeout.
+func callFrom(ts *httptest.Server, method, path, body string, probe bool) (map[string]any, int, error) {
+	return callWith(callClient(ts), ts, method, path, body, probe)
+}
+
+// callClient is the client callFrom sends with: ts's own, bounded by
+// subjectDeadline. TestARequestToAHandlerThatNeverAnswersGivesUp asserts the
+// bound, and plays the give-up on a client of 50 ms built by boundedClient.
+func callClient(ts *httptest.Server) *http.Client {
+	return boundedClient(ts, subjectDeadline)
+}
+
+// boundedClient is a copy of ts's client whose every request gives up after
+// timeout.
+func boundedClient(ts *httptest.Server, timeout time.Duration) *http.Client {
+	client := *ts.Client()
+	client.Timeout = timeout
+	return &client
+}
+
+// callWith is callFrom on a client of the caller's choosing.
+func callWith(client *http.Client, ts *httptest.Server, method, path, body string, probe bool) (map[string]any, int, error) {
+	req, err := http.NewRequest(method, ts.URL+path, strings.NewReader(body)) //nolint:noctx // a local test server, bounded by the client's timeout
+	if err != nil {
+		return nil, 0, err
 	}
 	if probe {
 		req.Header.Set(emulator.ProbeHeader, "1")
 	}
-	resp, err := ts.Client().Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
-		t.Fatal(err)
+		return nil, 0, fmt.Errorf("%s %s: %w", method, path, err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 	var decoded map[string]any
 	_ = json.NewDecoder(resp.Body).Decode(&decoded)
-	return decoded, resp.StatusCode
+	return decoded, resp.StatusCode, nil
 }
 
 func openSpan(t *testing.T, ts *httptest.Server, proves string) string {

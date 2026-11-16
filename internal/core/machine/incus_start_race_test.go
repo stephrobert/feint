@@ -361,8 +361,10 @@ func TestAStartAndAnIsolationDetachTakeTurns(t *testing.T) {
 	// this event fails here at once with the subject's own error, instead of
 	// hanging the package (#935).
 	awaitEventBefore(t, f.plugBegun, returned, eventDeadline, "the plug never began, so the first boot refused or stalled before `incus start` plugged eth0")
-	detachErr = d.IsolateNetwork(context.Background(), racedStartNet, nil)
-	wg.Wait()
+	detachErr = awaitReturn(t, eventDeadline, "the isolation detach never returned, so it deadlocked against the subject", func() error {
+		return d.IsolateNetwork(context.Background(), racedStartNet, nil)
+	})
+	awaitWaitGroup(t, &wg, eventDeadline, "the first boot never returned after the detach, so Start deadlocked")
 
 	if failures := f.plugFailures(); len(failures) != 0 {
 		t.Fatalf("the isolation detach landed inside the start:\n%s\nstart: %v\ndetach: %v",
@@ -413,8 +415,10 @@ func TestARestartAndAnIsolationDetachTakeTurns(t *testing.T) {
 	// this event fails here at once with the subject's own error, instead of
 	// hanging the package (#935).
 	awaitEventBefore(t, f.plugBegun, returned, eventDeadline, "the plug never began, so the restart refused or stalled before `incus start` re-plugged its ports")
-	detachErr = d.IsolateNetwork(context.Background(), racedStartNet, nil)
-	wg.Wait()
+	detachErr = awaitReturn(t, eventDeadline, "the isolation detach never returned, so it deadlocked against the subject", func() error {
+		return d.IsolateNetwork(context.Background(), racedStartNet, nil)
+	})
+	awaitWaitGroup(t, &wg, eventDeadline, "the restart never returned after the detach, so Start deadlocked")
 
 	if failures := f.plugFailures(); len(failures) != 0 {
 		t.Fatalf("the isolation detach landed inside the restart:\n%s\nstart: %v\ndetach: %v",
@@ -467,8 +471,10 @@ func TestAnExtraInterfaceAndAnIsolationDetachTakeTurns(t *testing.T) {
 	// this event fails here at once with the subject's own error, instead of
 	// hanging the package (#935).
 	awaitEventBefore(t, f.plugBegun, returned, eventDeadline, "the plug never began, so the start refused or stalled before the second interface was added")
-	detachErr = d.IsolateNetwork(context.Background(), racedStartNet2, nil)
-	wg.Wait()
+	detachErr = awaitReturn(t, eventDeadline, "the isolation detach never returned, so it deadlocked against the subject", func() error {
+		return d.IsolateNetwork(context.Background(), racedStartNet2, nil)
+	})
+	awaitWaitGroup(t, &wg, eventDeadline, "the start never returned after the detach of its second network, so Start deadlocked")
 
 	if failures := f.plugFailures(); len(failures) != 0 {
 		t.Fatalf("the isolation detach landed inside the interface add:\n%s\nstart: %v\ndetach: %v",
@@ -514,8 +520,10 @@ func TestAHotAttachAndAnIsolationDetachTakeTurns(t *testing.T) {
 	// this event fails here at once with the subject's own error, instead of
 	// hanging the package (#935).
 	awaitEventBefore(t, f.plugBegun, returned, eventDeadline, "the plug never began, so Attach refused before the device add")
-	detachErr = d.IsolateNetwork(context.Background(), racedStartNet2, nil)
-	wg.Wait()
+	detachErr = awaitReturn(t, eventDeadline, "the isolation detach never returned, so it deadlocked against the subject", func() error {
+		return d.IsolateNetwork(context.Background(), racedStartNet2, nil)
+	})
+	awaitWaitGroup(t, &wg, eventDeadline, "Attach never returned after the detach, so the hot attach deadlocked")
 
 	if failures := f.plugFailures(); len(failures) != 0 {
 		t.Fatalf("the isolation detach landed inside the hot attach:\n%s\nattach: %v\ndetach: %v",
@@ -561,8 +569,10 @@ func TestAnAddressMoveAndAnIsolationDetachTakeTurns(t *testing.T) {
 	// this event fails here at once with the subject's own error, instead of
 	// hanging the package (#935).
 	awaitEventBefore(t, f.plugBegun, returned, eventDeadline, "the plug never began, so Attach refused before the address move re-plugged the device")
-	detachErr = d.IsolateNetwork(context.Background(), racedStartNet2, nil)
-	wg.Wait()
+	detachErr = awaitReturn(t, eventDeadline, "the isolation detach never returned, so it deadlocked against the subject", func() error {
+		return d.IsolateNetwork(context.Background(), racedStartNet2, nil)
+	})
+	awaitWaitGroup(t, &wg, eventDeadline, "Attach never returned after the detach, so the address move deadlocked")
 
 	if failures := f.plugFailures(); len(failures) != 0 {
 		t.Fatalf("the isolation detach landed inside the address move:\n%s\nattach: %v\ndetach: %v",

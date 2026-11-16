@@ -115,20 +115,23 @@ func (r *throwawayRepo) Env() []string {
 // The decoy is itself a throwaway repository under t.TempDir(): this test
 // never points those variables at a tree anybody works in.
 func TestAThrowawayRepoIgnoresTheGitDirAHookExports(t *testing.T) {
-	decoy := newThrowawayRepo(t, t.TempDir())
+	// The decoy's directory is joined from t.TempDir() directly, not read back
+	// from decoy.Dir: that is the shape the Setenv guard accepts (#958).
+	decoyDir := t.TempDir()
+	decoy := newThrowawayRepo(t, decoyDir)
 	if err := os.WriteFile(filepath.Join(decoy.Dir, "DECOY.md"), []byte("decoy\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	decoy.Git("add", "DECOY.md")
 	decoy.Git("commit", "--quiet", "-m", "decoy")
-	index := filepath.Join(decoy.Dir, ".git", "index")
+	index := filepath.Join(decoyDir, ".git", "index")
 	indexBefore, err := os.ReadFile(index)
 	if err != nil {
 		t.Fatal(err)
 	}
 	headBefore := strings.TrimSpace(decoy.Git("rev-parse", "HEAD"))
 
-	t.Setenv("GIT_DIR", filepath.Join(decoy.Dir, ".git"))
+	t.Setenv("GIT_DIR", filepath.Join(decoyDir, ".git"))
 	t.Setenv("GIT_INDEX_FILE", index)
 
 	repo := newThrowawayRepo(t, t.TempDir())

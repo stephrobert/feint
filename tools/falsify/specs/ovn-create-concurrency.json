@@ -40,6 +40,31 @@
       "replace": "\treturn 60 * time.Second",
       "test": "TestTheWriteDeadlineFollowsTheRuntime",
       "package": "./internal/cli/"
+    },
+    {
+      "label": "the coalescer stops counting the callers it parks: Waiting stays at 0 while a caller sleeps on the running pass, so TestALateCallerNeedsAPassOfItsOwn's poll for a parked caller never ends; it now fails on awaitParked within testWait (10 s) instead of spinning until the package timeout (#963). The 40 s timeout makes a hang read HUNG, so a bite means red inside 40 s. Measured by hand on 2026-11-15 in a copy (go test -overlay, -race, -timeout 40s): with the bounded waits, FAIL TestALateCallerNeedsAPassOfItsOwn (10.00s) naming `the in-time caller never parked on pass 1: Waiting is 0, want 1`; with main 3a45c83's bare waits, `panic: test timed out after 40s`",
+      "file": "internal/core/serialise/coalesce.go",
+      "find": "\t\t\tc.waiting++\n",
+      "replace": "\t\t\tc.waiting += 0\n",
+      "test": "TestALateCallerNeedsAPassOfItsOwn",
+      "timeout": "40s"
+    },
+    {
+      "label": "a pass that ends wakes nobody: the Broadcast is dropped, so the caller parked on pass 1 sleeps forever and pass 2 never begins, a deadlock in the subject; the test now fails on awaitClosed within testWait (10 s) naming the pass that never began, instead of hanging on a bare receive (#963). The 40 s timeout makes a hang read HUNG, so a bite means red inside 40 s. Measured by hand on 2026-11-15 in a copy (go test -overlay, -race, -timeout 40s): with the bounded waits, FAIL TestALateCallerNeedsAPassOfItsOwn (10.01s) naming `pass 2 never began once pass 1 ended, so the parked caller was never woken`; with main 3a45c83's bare waits, `panic: test timed out after 40s`",
+      "file": "internal/core/serialise/coalesce.go",
+      "find": "\t\tc.cond.Broadcast()\n",
+      "replace": "\t\t_ = c.cond.Broadcast\n",
+      "test": "TestALateCallerNeedsAPassOfItsOwn",
+      "timeout": "40s"
+    },
+    {
+      "label": "the pack's side of the same deadlock: a coalescer pass that ends wakes nobody, so the five subnet creates parked on the held isolation pass never return; the pack's test now fails on awaitSubject within five seconds naming the burst callers, instead of hanging on a bare receive (#963). The 30 s timeout makes a hang read HUNG, so a bite means red inside 30 s. Measured by hand on 2026-11-15 in a copy (go test -overlay, -race, -timeout 30s): with the bounded waits, FAIL TestConcurrentSubnetCreatesShareTheirIsolationPasses (5.01s), `the burst callers never all returned once the held pass ended`; with main 3a45c83's bare receives, `panic: test timed out after 30s`",
+      "file": "internal/core/serialise/coalesce.go",
+      "find": "\t\tc.cond.Broadcast()\n",
+      "replace": "\t\t_ = c.cond.Broadcast\n",
+      "test": "TestConcurrentSubnetCreatesShareTheirIsolationPasses",
+      "package": "./internal/providers/outscale/",
+      "timeout": "30s"
     }
   ]
 }

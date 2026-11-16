@@ -3,6 +3,7 @@ package outscale_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -29,16 +30,51 @@ import (
 // post is a raw call, without the contract check the other file's helper does:
 // these tests assert on refusals and on state, and several of them expect a
 // non-200.
+//
+// Call it from the test's own goroutine; a goroutine of the test's uses
+// postFrom.
 func post(t *testing.T, ts *httptest.Server, action, body string) (int, map[string]any) {
 	t.Helper()
-	res, err := http.Post(ts.URL+"/api/v1/"+action, "application/json", strings.NewReader(body)) //nolint:noctx // test client
+	status, decoded, err := postFrom(ts, action, body)
 	if err != nil {
-		t.Fatalf("%s: %v", action, err)
+		t.Fatal(err)
+	}
+	return status, decoded
+}
+
+// requestClient sends every request of this file, and its timeout bounds them
+// (#963): http.Post used the default client, which has none, so a handler that
+// never answered held the test on a call it made from its own goroutine, where
+// no awaitSubject could reach it, until the package timeout.
+var requestClient = newRequestClient(subjectDeadline)
+
+// newRequestClient builds a client whose every request gives up after timeout.
+// TestARequestToAHandlerThatNeverAnswersGivesUp proves the give-up on a client
+// built here with 50 ms, and that requestClient carries subjectDeadline.
+func newRequestClient(timeout time.Duration) *http.Client {
+	return &http.Client{Timeout: timeout}
+}
+
+// postFrom is post for a goroutine other than the test's own: it returns its
+// failure instead of reporting it on t (#963). That goroutine is awaited with a
+// bound, so it can outlive the wait; a t.Fatalf or t.Errorf it then makes
+// panics the whole test binary ("Fail in goroutine after TestX has completed")
+// and every later test of the package goes unrun. The goroutine hands the
+// error to a goroutineErrors, which the test reports once its wait returned.
+func postFrom(ts *httptest.Server, action, body string) (int, map[string]any, error) {
+	return postWith(requestClient, ts, action, body)
+}
+
+// postWith is postFrom on a client of the caller's choosing.
+func postWith(client *http.Client, ts *httptest.Server, action, body string) (int, map[string]any, error) {
+	res, err := client.Post(ts.URL+"/api/v1/"+action, "application/json", strings.NewReader(body)) //nolint:noctx // test client, bounded by its timeout
+	if err != nil {
+		return 0, nil, fmt.Errorf("%s: %w", action, err)
 	}
 	defer func() { _ = res.Body.Close() }()
 	var decoded map[string]any
 	_ = json.NewDecoder(res.Body).Decode(&decoded)
-	return res.StatusCode, decoded
+	return res.StatusCode, decoded, nil
 }
 
 func netAndSubnet(t *testing.T, ts *httptest.Server, cidr, subnet string) (netID, subnetID string) {
@@ -66,13 +102,15 @@ func TestConcurrentCreatesDoNotShareAnAddress(t *testing.T) {
 
 	const creates = 12
 	var wg sync.WaitGroup
+	var errs goroutineErrors
 	addresses := make([]string, creates)
 	for i := range creates {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, out := post(t, ts, "CreateVms",
+			_, out, err := postFrom(ts, "CreateVms",
 				`{"ImageId":"ami-fe1a7001","SubnetId":"`+subnetID+`","BootOnCreation":false}`)
+			errs.add(err)
 			vms, _ := out["Vms"].([]any)
 			if len(vms) == 0 {
 				return
@@ -81,7 +119,8 @@ func TestConcurrentCreatesDoNotShareAnAddress(t *testing.T) {
 			addresses[i], _ = vm["PrivateIp"].(string)
 		}()
 	}
-	wg.Wait()
+	awaitGroup(t, &wg, "the twelve concurrent CreateVms never all returned")
+	errs.report(t)
 
 	seen := map[string]int{}
 	for _, a := range addresses {
@@ -306,20 +345,24 @@ func TestASubnetDoesNotDeleteUnderARace(t *testing.T) {
 		_, subnetID := netAndSubnet(t, ts, "10.49.0.0/16", "10.49.1.0/24")
 
 		var wg sync.WaitGroup
+		var errs goroutineErrors
 		wg.Add(2)
 		go func() {
 			defer wg.Done()
 			// Eight per batch: the widest window this test can open between a Vm's
 			// placement and its Put. Still not wide enough to catch the missing
 			// lock, which is why the comment above says so.
-			post(t, ts, "CreateVms",
+			_, _, err := postFrom(ts, "CreateVms",
 				`{"ImageId":"ami-fe1a7001","SubnetId":"`+subnetID+`","MaxVmsCount":8,"BootOnCreation":false}`)
+			errs.add(err)
 		}()
 		go func() {
 			defer wg.Done()
-			post(t, ts, "DeleteSubnet", `{"SubnetId":"`+subnetID+`"}`)
+			_, _, err := postFrom(ts, "DeleteSubnet", `{"SubnetId":"`+subnetID+`"}`)
+			errs.add(err)
 		}()
-		wg.Wait()
+		awaitGroup(t, &wg, fmt.Sprintf("round %d: the racing CreateVms and DeleteSubnet never both returned", round))
+		errs.report(t)
 
 		// The invariant, whichever of the two won: no machine names a Subnet the
 		// pack no longer serves.
@@ -363,27 +406,30 @@ func TestASubnetDoesNotDeleteUnderARace(t *testing.T) {
 func TestACreateWhoseResourceVanishesLeavesNoMachineBehind(t *testing.T) {
 	runtime := newBlockingRuntime()
 	ts := newRuntimeServer(t, machine.Use(runtime))
+	release := releaseAtCleanup(t, runtime.release)
 	_, subnetID := netAndSubnet(t, ts, "10.51.0.0/16", "10.51.1.0/24")
 
+	var errs goroutineErrors
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		post(t, ts, "CreateVms", `{"ImageId":"ami-fe1a7001","SubnetId":"`+subnetID+`"}`)
+		_, _, err := postFrom(ts, "CreateVms", `{"ImageId":"ami-fe1a7001","SubnetId":"`+subnetID+`"}`)
+		errs.add(err)
 	}()
 
 	// The machine is starting; empty the store under it.
-	<-runtime.entered
+	awaitSubject(t, runtime.entered, "the create never reached the runtime's Start")
 	// The snapshot envelope, not a bare array: a file with no format header is
 	// refused since #133, and this fixture was one.
 	empty := `{"format":"feint-snapshot","version":1,"resources":[]}`
 	req, err := http.NewRequest(http.MethodPut, ts.URL+"/_feint/state", strings.NewReader(empty))
 	if err != nil {
-		close(runtime.release)
+		release()
 		t.Fatalf("build the restore: %v", err)
 	}
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
-		close(runtime.release)
+		release()
 		t.Fatalf("restore an empty state: %v", err)
 	}
 	_ = res.Body.Close()
@@ -395,13 +441,16 @@ func TestACreateWhoseResourceVanishesLeavesNoMachineBehind(t *testing.T) {
 	// inside Start, and httptest's Close waits for requests in flight. So a
 	// refused restore used to hang the whole package until the test binary's
 	// timeout — ten minutes of silence instead of one red line, met exactly
-	// once, when #133 made this very restore start failing.
+	// once, when #133 made this very restore start failing. releaseAtCleanup
+	// now covers the paths that release nothing themselves, a failed
+	// awaitSubject among them.
 	if res.StatusCode != http.StatusOK {
-		close(runtime.release)
+		release()
 		t.Fatalf("the restore answered %d; the store was not emptied", res.StatusCode)
 	}
-	close(runtime.release)
-	<-done
+	release()
+	awaitSubject(t, done, "the create never returned once the runtime was released")
+	errs.report(t)
 
 	if left := runtime.running(); len(left) != 0 {
 		t.Errorf("the API describes no machine and %v is still running on the host", left)
@@ -503,6 +552,7 @@ func TestTwoConcurrentStartsReachTheRuntimeOnce(t *testing.T) {
 	runtime := newCountingRuntime()
 	runtime.blockStarts = make(chan struct{})
 	ts := newRuntimeServer(t, machine.Use(runtime))
+	release := releaseAtCleanup(t, runtime.blockStarts)
 	_, subnetID := netAndSubnet(t, ts, "10.52.0.0/16", "10.52.1.0/24")
 
 	_, out := post(t, ts, "CreateVms",
@@ -512,11 +562,13 @@ func TestTwoConcurrentStartsReachTheRuntimeOnce(t *testing.T) {
 	vmID, _ := vm["VmId"].(string)
 
 	var wg sync.WaitGroup
+	var errs goroutineErrors
 	for range 2 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			post(t, ts, "StartVms", `{"VmIds":["`+vmID+`"]}`)
+			_, _, err := postFrom(ts, "StartVms", `{"VmIds":["`+vmID+`"]}`)
+			errs.add(err)
 		}()
 	}
 	// The first start is inside the runtime. The pause is for the second to
@@ -525,10 +577,11 @@ func TestTwoConcurrentStartsReachTheRuntimeOnce(t *testing.T) {
 	// second arrive after the first has committed, where the "already running"
 	// short-circuit hides the missing lock. Measured: without the pause this
 	// test passes with both Serialise calls removed.
-	<-runtime.startEntered
+	awaitSubject(t, runtime.startEntered, "neither StartVms reached the runtime's Start")
 	time.Sleep(50 * time.Millisecond)
-	close(runtime.blockStarts)
-	wg.Wait()
+	release()
+	awaitGroup(t, &wg, "the two StartVms never both returned once the runtime was released")
+	errs.report(t)
 
 	if n := runtime.starts(vmID); n > 1 {
 		t.Errorf("the runtime was asked to start %s %d times", vmID, n)
@@ -591,21 +644,25 @@ func TestANetDoesNotDeleteUnderASubnetBeingCreated(t *testing.T) {
 	runtime := newCountingRuntime()
 	runtime.blockNetworks = make(chan struct{})
 	ts := newRuntimeServer(t, machine.Use(runtime))
+	release := releaseAtCleanup(t, runtime.blockNetworks)
 
 	_, out := post(t, ts, "CreateNet", `{"IpRange":"10.54.0.0/16"}`)
 	n, _ := out["Net"].(map[string]any)
 	netID, _ := n["NetId"].(string)
 
+	var errs goroutineErrors
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		post(t, ts, "CreateSubnet", `{"NetId":"`+netID+`","IpRange":"10.54.1.0/24"}`)
+		_, _, err := postFrom(ts, "CreateSubnet", `{"NetId":"`+netID+`","IpRange":"10.54.1.0/24"}`)
+		errs.add(err)
 	}()
 
-	<-runtime.networkEntered
+	awaitSubject(t, runtime.networkEntered, "CreateSubnet never reached the runtime's EnsureNetwork")
 	post(t, ts, "DeleteNet", `{"NetId":"`+netID+`"}`)
-	close(runtime.blockNetworks)
-	<-done
+	release()
+	awaitSubject(t, done, "CreateSubnet never returned once the runtime was released")
+	errs.report(t)
 
 	// Whoever won, no Subnet may name a Net the pack no longer serves.
 	_, out = post(t, ts, "ReadNets", `{}`)
@@ -636,23 +693,27 @@ func TestSubnetCreateDoesNotHoldTheAddressingLockAcrossTheRuntime(t *testing.T) 
 	runtime := newCountingRuntime()
 	runtime.blockNetworks = make(chan struct{})
 	ts := newRuntimeServer(t, machine.Use(runtime))
+	release := releaseAtCleanup(t, runtime.blockNetworks)
 
 	_, out := post(t, ts, "CreateNet", `{"IpRange":"10.55.0.0/16"}`)
 	n, _ := out["Net"].(map[string]any)
 	netID, _ := n["NetId"].(string)
 
+	var errs goroutineErrors
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		post(t, ts, "CreateSubnet", `{"NetId":"`+netID+`","IpRange":"10.55.1.0/24"}`)
+		_, _, err := postFrom(ts, "CreateSubnet", `{"NetId":"`+netID+`","IpRange":"10.55.1.0/24"}`)
+		errs.add(err)
 	}()
-	<-runtime.networkEntered
+	awaitSubject(t, runtime.networkEntered, "CreateSubnet never reached the runtime's EnsureNetwork")
 
 	// An unrelated create, while the runtime call is in flight. It must answer
 	// rather than wait for it.
 	answered := make(chan int, 1)
 	go func() {
-		status, _ := post(t, ts, "CreateNet", `{"IpRange":"10.56.0.0/16"}`)
+		status, _, err := postFrom(ts, "CreateNet", `{"IpRange":"10.56.0.0/16"}`)
+		errs.add(err)
 		answered <- status
 	}()
 	select {
@@ -663,8 +724,11 @@ func TestSubnetCreateDoesNotHoldTheAddressingLockAcrossTheRuntime(t *testing.T) 
 	case <-time.After(2 * time.Second):
 		t.Error("an unrelated CreateNet waited on a runtime network call: the addressing lock is held across it")
 	}
-	close(runtime.blockNetworks)
-	<-done
+	release()
+	awaitSubject(t, done, "CreateSubnet never returned once the runtime was released")
+	// The unrelated create is not waited on when it lost the race: its
+	// failure, if it comes later, lands here unread, on a test already red.
+	errs.report(t)
 }
 
 // countingRuntime records how often each machine was started, and can hold the
@@ -761,6 +825,7 @@ func TestUpdateVmAndStartVmsDoNotOverwriteEachOther(t *testing.T) {
 	runtime := newCountingRuntime()
 	runtime.blockStarts = make(chan struct{})
 	ts := newRuntimeServer(t, machine.Use(runtime))
+	release := releaseAtCleanup(t, runtime.blockStarts)
 	_, subnetID := netAndSubnet(t, ts, "10.57.0.0/16", "10.57.1.0/24")
 
 	_, out := post(t, ts, "CreateVms",
@@ -769,23 +834,28 @@ func TestUpdateVmAndStartVmsDoNotOverwriteEachOther(t *testing.T) {
 	vm, _ := vms[0].(map[string]any)
 	vmID, _ := vm["VmId"].(string)
 
+	var errs goroutineErrors
 	started := make(chan struct{})
 	go func() {
 		defer close(started)
-		post(t, ts, "StartVms", `{"VmIds":["`+vmID+`"]}`)
+		_, _, err := postFrom(ts, "StartVms", `{"VmIds":["`+vmID+`"]}`)
+		errs.add(err)
 	}()
-	<-runtime.startEntered // the start is in the runtime, holding what it holds
+	// The start is in the runtime, holding what it holds.
+	awaitSubject(t, runtime.startEntered, "StartVms never reached the runtime's Start")
 
 	updated := make(chan int, 1)
 	go func() {
-		status, _ := post(t, ts, "UpdateVm", `{"VmId":"`+vmID+`","UserData":"aGVsbG8gd29ybGQ="}`)
+		status, _, err := postFrom(ts, "UpdateVm", `{"VmId":"`+vmID+`","UserData":"aGVsbG8gd29ybGQ="}`)
+		errs.add(err)
 		updated <- status
 	}()
 	// Give the update time to land in the middle if it can.
 	time.Sleep(50 * time.Millisecond)
-	close(runtime.blockStarts)
-	<-started
-	status := <-updated
+	release()
+	awaitSubject(t, started, "StartVms never returned once the runtime was released")
+	status := awaitSubject(t, updated, "UpdateVm never answered once the start was released")
+	errs.report(t)
 
 	if status != http.StatusOK {
 		t.Fatalf("UpdateVm answered %d", status)
@@ -1458,3 +1528,184 @@ func (f *blockingRuntime) Detach(context.Context, string, string) error { return
 
 // Detach completes the machine package's driver contract; *countingRuntime needs no behaviour here.
 func (f *countingRuntime) Detach(context.Context, string, string) error { return nil }
+
+// subjectDeadline bounds this file's waits on something the code under test
+// must do: reach the fake runtime, or return once released. The fakes answer
+// in microseconds, so five seconds is reached only when the event is not
+// coming (#963).
+const subjectDeadline = 5 * time.Second
+
+// awaitSubject receives one value from ch, or fails the test once
+// subjectDeadline has passed, naming what did not happen (#963). A bare receive
+// there turns a subject that refused early or deadlocked into a hang until the
+// package timeout, without the test's name. It is a copy of the shape of awaitEvent (internal/core/machine, await_test.go), kept here because a test helper cannot be imported across packages.
+// Its limit, measured on 2026-11-15 with Go 1.26.11: when a handler never returns,
+// the httptest server's Close, run at cleanup, waits for it and the failure message
+// is lost under the package timeout. It names the early refusal, which returns
+// its request, not a handler that deadlocks.
+//
+// Call it from the test's own goroutine.
+func awaitSubject[T any](t *testing.T, ch <-chan T, what string) T {
+	t.Helper()
+	timer := time.NewTimer(subjectDeadline)
+	defer timer.Stop()
+	select {
+	case v := <-ch:
+		return v
+	case <-timer.C:
+	}
+	t.Fatalf("waited %v and %s", subjectDeadline, what)
+	var zero T
+	return zero
+}
+
+// goroutineErrors is where a goroutine running the subject puts its failure, in
+// place of t, and the test reports it once its bounded wait has returned
+// (#963). A copy of the collector of internal/core/machine (await_test.go), for
+// the reason awaitSubject is a copy.
+//
+// Call report from the test's own goroutine, after the wait returned: only
+// then is every goroutine done writing. A goroutine that outlived a failed
+// wait writes here for nobody, instead of panicking the binary through t.
+//
+// TestGoroutineErrorsReportsEveryFailure fails if report drops what was added.
+type goroutineErrors struct {
+	mu   sync.Mutex
+	errs []error
+}
+
+// add records err, if any; it is safe from any goroutine, at any time.
+func (g *goroutineErrors) add(err error) {
+	if err == nil {
+		return
+	}
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.errs = append(g.errs, err)
+}
+
+// report fails t once per error added so far.
+func (g *goroutineErrors) report(t errorReporter) {
+	t.Helper()
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	for _, err := range g.errs {
+		t.Errorf("%v", err)
+	}
+}
+
+// errorReporter is what report needs of a test; *testing.T satisfies it.
+type errorReporter interface {
+	Helper()
+	Errorf(format string, args ...any)
+}
+
+// releaseAtCleanup returns a release that closes ch once, however many times it
+// is called, and registers it as a cleanup. Called right after newRuntimeServer,
+// that cleanup runs before the server's Close, since cleanups run last
+// registered first: a test that fails while a request is parked on ch frees
+// that request, and Close, which waits for every request in flight, no longer
+// waits forever on it.
+func releaseAtCleanup(t *testing.T, ch chan struct{}) func() {
+	t.Helper()
+	var once sync.Once
+	release := func() { once.Do(func() { close(ch) }) }
+	t.Cleanup(release)
+	return release
+}
+
+// awaitGroup is wg.Wait() bounded by awaitSubject: the goroutines counted on wg
+// run the subject.
+func awaitGroup(t *testing.T, wg *sync.WaitGroup, what string) {
+	t.Helper()
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+	awaitSubject(t, done, what)
+}
+
+// errorRecorder stands in for *testing.T in goroutineErrors' own test.
+type errorRecorder struct {
+	mu      sync.Mutex
+	reports []string
+}
+
+func (r *errorRecorder) Helper() {}
+
+func (r *errorRecorder) Errorf(format string, args ...any) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.reports = append(r.reports, fmt.Sprintf(format, args...))
+}
+
+// The collector loses nothing: every error goroutines added reaches the test
+// once report runs, each once, and a nil error is no failure. A collector that
+// dropped what it was given would turn every site of this file green on a
+// request that failed.
+func TestGoroutineErrorsReportsEveryFailure(t *testing.T) {
+	var errs goroutineErrors
+	var wg sync.WaitGroup
+	for i := range 3 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			errs.add(fmt.Errorf("StartVms %d: refused", i))
+			errs.add(nil)
+		}()
+	}
+	awaitGroup(t, &wg, "the three recording goroutines never returned")
+
+	rec := &errorRecorder{}
+	errs.report(rec)
+	if len(rec.reports) != 3 {
+		t.Fatalf("report failed the test %d times for three errors and three nils, want 3: %q", len(rec.reports), rec.reports)
+	}
+	for i := range 3 {
+		want := fmt.Sprintf("StartVms %d: refused", i)
+		found := 0
+		for _, r := range rec.reports {
+			if r == want {
+				found++
+			}
+		}
+		if found != 1 {
+			t.Errorf("%q was reported %d times, want once: %q", want, found, rec.reports)
+		}
+	}
+}
+
+// A request to a handler that never answers gives up, with the action named,
+// instead of holding its caller: post runs on the test's own goroutine, where
+// no awaitSubject reaches, so the client's timeout is the only bound it has
+// (#963). The give-up is played on a client built with 50 ms, so the test does
+// not sit out the real five seconds on every run; that requestClient is built
+// with subjectDeadline is asserted apart.
+func TestARequestToAHandlerThatNeverAnswersGivesUp(t *testing.T) {
+	t.Parallel()
+	if requestClient.Timeout != subjectDeadline {
+		t.Errorf("requestClient gives up after %v, want subjectDeadline (%v): a post from the test's own goroutine is unbounded", requestClient.Timeout, subjectDeadline)
+	}
+	never := make(chan struct{})
+	ts := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { <-never }))
+	t.Cleanup(ts.Close)
+	t.Cleanup(func() { close(never) }) // registered last, so it frees the handler before Close waits for it
+
+	failed := make(chan error, 1)
+	go func() {
+		_, _, err := postWith(newRequestClient(50*time.Millisecond), ts, "ReadVms", `{}`)
+		failed <- err
+	}()
+	select {
+	case err := <-failed:
+		if err == nil {
+			t.Fatal("a handler that never answered produced no error")
+		}
+		if !strings.Contains(err.Error(), "ReadVms") {
+			t.Errorf("the failure does not name the action: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("the request was still waiting 2 s on a handler that never answers, past its 50 ms timeout: the client does not give up")
+	}
+}

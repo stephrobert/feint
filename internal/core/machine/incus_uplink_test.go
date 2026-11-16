@@ -72,6 +72,7 @@ func TestConcurrentSubnetAndMachineNetworkCreatesSerialiseOnTheUplink(t *testing
 
 	start := make(chan struct{})
 	var wg sync.WaitGroup
+	var errs goroutineErrors
 	for _, spec := range []NetworkSpec{
 		{Name: "fnt-subnet00001", CIDR: "10.70.1.0/24"},
 		{Name: "fnt-default", CIDR: "10.209.84.0/24"},
@@ -81,12 +82,13 @@ func TestConcurrentSubnetAndMachineNetworkCreatesSerialiseOnTheUplink(t *testing
 			defer wg.Done()
 			<-start
 			if err := d.EnsureNetwork(context.Background(), s); err != nil {
-				t.Errorf("create %s: %v", s.Name, err)
+				errs.Errorf("create %s: %v", s.Name, err)
 			}
 		}(spec)
 	}
 	close(start)
-	wg.Wait()
+	awaitWaitGroup(t, &wg, eventDeadline, "the two EnsureNetwork calls never both returned, so the uplink rebuild deadlocked")
+	errs.report(t)
 
 	if overlapped.Load() {
 		t.Fatal("two uplink rebuilds were in flight at once; the loser of that race dies on 'Failed deleting nftables chain' (#341)")

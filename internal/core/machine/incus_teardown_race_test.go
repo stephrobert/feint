@@ -199,8 +199,10 @@ func TestAnIsolationDetachDoesNotOrphanTheNetworkBeingDeleted(t *testing.T) {
 	// this event fails here at once with the subject's own error, instead of
 	// hanging the package (#935).
 	awaitEventBefore(t, f.touched, returned, eventDeadline, "the detach never issued a command, so IsolateNetwork refused before reaching the runtime")
-	deleteErr = d.RemoveNetwork(context.Background(), network)
-	wg.Wait()
+	deleteErr = awaitReturn(t, eventDeadline, "RemoveNetwork never returned, so the delete deadlocked behind the detach", func() error {
+		return d.RemoveNetwork(context.Background(), network)
+	})
+	awaitWaitGroup(t, &wg, eventDeadline, "IsolateNetwork never returned after the delete, so the detach deadlocked")
 
 	if orphans := f.orphans(); len(orphans) != 0 {
 		t.Fatalf("a DHCP service outlived its network: %v\ncommands:\n%s\ndetach: %v\ndelete: %v",
