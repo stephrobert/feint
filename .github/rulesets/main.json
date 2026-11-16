@@ -66,6 +66,9 @@
             "context": "Review dependency changes"
           },
           {
+            "context": "Sensitive paths"
+          },
+          {
             "context": "The published action matches the source"
           },
           {
