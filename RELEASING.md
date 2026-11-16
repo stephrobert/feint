@@ -175,6 +175,7 @@ its whole behaviour would be promising a moving copy of three clouds.
 | `/_feint/faults` | `schema_version` | `internal/cli/testdata/frozen/faults.json` |
 | `/_feint/s3` | independent `schema_version` | `internal/cli/testdata/frozen/s3.json` |
 | the CLI's verbs, flags and exit codes | `cliSurfaceVersion` | `internal/cli/testdata/frozen/cli.json` |
+| the JSON receipt of `feint run --json` | its `schema_version` (`runReceiptSchemaVersion`) | `internal/cli/testdata/frozen/run.json` |
 | the state and snapshot formats | the document's own version | `internal/cli/snapshot.go` |
 
 **Serving more of a provider's API is never breaking**, however much it changes.

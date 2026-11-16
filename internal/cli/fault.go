@@ -530,11 +530,19 @@ func describeFault(rule faultRule) string {
 // crossed, and what to use instead. Printing the JSON document would hand the
 // operator the envelope and keep the letter.
 func callFaults(method, url string, rules []faultRule) (faultsDocument, error) {
+	document, _, err := callFaultsStatus(method, url, rules)
+	return document, err
+}
+
+// callFaultsStatus is callFaults with the HTTP status it got, 0 when nothing
+// answered. armFaultCampaign needs it: a PUT answered 200 has been applied by
+// the lab, whatever the body says next, so a refusal after it owes a DELETE.
+func callFaultsStatus(method, url string, rules []faultRule) (faultsDocument, int, error) {
 	var body io.Reader
 	if rules != nil {
 		encoded, err := json.Marshal(map[string]any{"faults": rules})
 		if err != nil {
-			return faultsDocument{}, err
+			return faultsDocument{}, 0, err
 		}
 		body = bytes.NewReader(encoded)
 	}
@@ -542,34 +550,34 @@ func callFaults(method, url string, rules []faultRule) (faultsDocument, error) {
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, method, url, body)
 	if err != nil {
-		return faultsDocument{}, err
+		return faultsDocument{}, 0, err
 	}
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return faultsDocument{}, fmt.Errorf("the emulator did not answer: %w", err)
+		return faultsDocument{}, 0, fmt.Errorf("the emulator did not answer: %w", err)
 	}
 	defer func() { _ = res.Body.Close() }()
 
 	raw, err := io.ReadAll(io.LimitReader(res.Body, maxStateBody))
 	if err != nil {
-		return faultsDocument{}, fmt.Errorf("the emulator's answer could not be read: %w", err)
+		return faultsDocument{}, res.StatusCode, fmt.Errorf("the emulator's answer could not be read: %w", err)
 	}
 	if res.StatusCode != http.StatusOK {
 		var refusal struct {
 			Error string `json:"error"`
 		}
 		if json.Unmarshal(raw, &refusal) == nil && refusal.Error != "" {
-			return faultsDocument{}, fmt.Errorf("%s", refusal.Error)
+			return faultsDocument{}, res.StatusCode, fmt.Errorf("%s", refusal.Error)
 		}
-		return faultsDocument{}, fmt.Errorf("the emulator answered %d", res.StatusCode)
+		return faultsDocument{}, res.StatusCode, fmt.Errorf("the emulator answered %d", res.StatusCode)
 	}
 	var document faultsDocument
 	if err := json.Unmarshal(raw, &document); err != nil {
-		return faultsDocument{}, fmt.Errorf("the emulator's answer is not a fault document: %w", err)
+		return faultsDocument{}, res.StatusCode, fmt.Errorf("the emulator's answer is not a fault document: %w", err)
 	}
 	deriveInFlight(&document)
-	return document, nil
+	return document, res.StatusCode, nil
 }

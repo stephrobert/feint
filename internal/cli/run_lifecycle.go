@@ -336,21 +336,43 @@ type runReceipt struct {
 	Faults         []firedFault `json:"faults,omitempty"`
 	FaultsDropped  int          `json:"faults_dropped,omitempty"`
 	// FaultsSchema is the lab's /_feint/faults schema_version, read with the
-	// lines so the prose can say when they are inexact (#928). It is not in
-	// the JSON yet: carrying it there changes this receipt's schema, and #964
-	// carries that change.
-	FaultsSchema int `json:"-"`
+	// lines (#928), and published since receipt version 4 (#964). The JSON is
+	// written once and cannot be re-polled, so without it a reader cannot tell
+	// an `in_flight: true` the CLI derived (schema 2 and 3) from one the lab
+	// published (4 on), nor a lab with no per-call receipt (schema 1, every
+	// release up to v0.16.0) from one where nothing fired.
+	//
+	// The number rather than the note faultsSchemaNote prints: the note is
+	// prose, and #848 asked for this receipt so that nobody parses prose.
+	// Absent when the state was not read (faults_read says which) and when
+	// the lab's document named no schema, which is what it then said.
+	//
+	// TestTheJSONReceiptCarriesTheLabsFaultsSchema fails without it.
+	FaultsSchema int `json:"faults_schema_version,omitempty"`
+	// FaultRules are the rules the lab had armed, each with what it answered
+	// (#968). Schema 1, which every release up to v0.16.0 serves, publishes
+	// no line per call but does publish this, so it is the receipt's only
+	// positive answer against a released lab; it is published at every
+	// schema so the JSON has one shape. Absent when nothing was armed.
+	//
+	// TestARunReceiptAgainstASchema1LabCountsEachRule fails without it.
+	FaultRules []ruleHits `json:"fault_rules,omitempty"`
 }
 
 // runReceiptSchemaVersion is versioned from the first release, because a suite
 // reading this in CI is a consumer on day one.
 //
-// It is NOT frozen, and this note used to say it was. There is no fixture for
-// the run receipt in testdata/frozen/, so TestASurfaceChangeDemandsItsVersionBump
-// never judges it and the only tests that touch this constant compare it with
-// itself. The bump below is therefore voluntary, and the mechanism that makes
-// the other schema versions unable to lie does not cover this one. #918 carries
-// the fixture that would.
+// Frozen since version 3 (#918), by testdata/frozen/run.json: the shape of a
+// real `feint run` receipt, read in frozen_run_test.go, is compared with the
+// fixture's last entry by TestTheFrozenSurfacesStillMatchTheirFixture, and this
+// constant with that entry's version by TestASurfaceChangeDemandsItsVersionBump.
+// Measured by renaming `in_flight` and `unreconciled`: both gates go red. The
+// freeze covers the keys and their JSON types, not the values; and versions 1
+// and 2 were never frozen, so the history starts at 3.
+// TestTheRunReceiptPopulationHoldsEveryKey keeps the run that feeds it holding
+// a value for every key this struct can emit, because a key the population
+// leaves out is a key whose rename both gates miss (#851).
+//
 // 2 adds the fault campaign (#851): faults_armed, faults_read, faults and
 // faults_dropped. A version 1 consumer reads a run that injected failures as
 // one that simply failed.
@@ -361,7 +383,15 @@ type runReceipt struct {
 // emulator is still holding, or a run against a shared lab through --endpoint
 // — was persisted as `status: 0, abandoned: false`, the one pair that belongs
 // to no finished line. Unlike the HTTP surface, nobody can go back and look.
-const runReceiptSchemaVersion = 3
+//
+// 4 adds `faults_schema_version` (#964), the lab's /_feint/faults schema. A
+// version 3 reader of a run against a schema 2 or 3 lab gets an `in_flight`
+// the CLI derived and cannot know it, and reads a schema 1 lab's empty
+// `faults` as "none fired". Additive and omitempty: a version 3 reader that
+// ignores unknown keys reads a version 4 receipt unchanged. 4 also adds
+// `fault_rules` (#968), each armed rule with its hit count, which is what a
+// schema 1 lab publishes in place of a per-call receipt.
+const runReceiptSchemaVersion = 4
 
 // callsSoFar reads the emulator's own trace counter.
 //

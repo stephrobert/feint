@@ -1,0 +1,230 @@
+{
+  "package": "./internal/cli/",
+  "note": "The subject is the `feint run` receipt: #918 freezes it, #964 adds the lab's faults schema to its JSON, #968 makes `--fault` honest against a released emulator.\n\n#918 is held by two things, and only one is here. The freeze itself (TestTheFrozenSurfacesStillMatchTheirFixture and TestASurfaceChangeDemandsItsVersionBump on testdata/frozen/run.json) was made red by hand, renaming `in_flight` and then `unreconciled` in a copy: both gates went red. What a mutation can reach is the population: a key the run leaves without a value is a key whose rename both gates miss (#851), so the mutations below remove a value from the population, or blind the walk that demands one.\n\n#968 was measured on 2026-11-16 against the published v0.16.0 binary (faults schema 1): a status rule is armed as sent and counts hits; an nth rule is armed with a 200 and WITHOUT nth; a transport rule is refused with a 400. The stubs answer exactly those bodies.\n\nSecond pass (coordinator, same lot): orphan fixtures, one refusing case per knob of knobsNotKept (the nth branch is mutated once above, judged by the end-to-end refusal), transport refused before arming below schema 3, and the support window read in both languages. The last is proven by hand, not here: removing the `run` row from RELEASING.fr.md reddens TestTheSupportWindowNamesEveryFrozenSurface/RELEASING.fr.md.",
+  "mutations": [
+    {
+      "label": "#918: the population loses its only non-converging reset, so `unreconciled` leaves the frozen run receipt and a rename of it would stay green in both freeze gates",
+      "file": "internal/cli/frozen_run_test.go",
+      "find": "ts := httptest.NewServer(unreconcilable(doors))",
+      "replace": "ts := httptest.NewServer(map[bool]http.Handler{true: doors, false: unreconcilable(doors)}[true])",
+      "test": "TestTheRunReceiptPopulationHoldsEveryKey"
+    },
+    {
+      "label": "#918: the completeness walk stops at slices, so an element key the population never fills (faults[].in_flight, unreconciled[]) is not demanded",
+      "file": "internal/cli/frozen_run_test.go",
+      "find": "\t\treturn jsonLeaves(typ.Elem(), prefix+\"[]\")",
+      "replace": "\t\treturn jsonLeaves(typ.Elem(), prefix+\"[]\")[:0]",
+      "test": "TestTheRunReceiptPopulationHoldsEveryKey"
+    },
+    {
+      "label": "#964: the lab's faults schema stays out of the JSON, the defect: a derived in_flight reads as a published one",
+      "file": "internal/cli/run_lifecycle.go",
+      "find": "FaultsSchema int `json:\"faults_schema_version,omitempty\"`",
+      "replace": "FaultsSchema int `json:\"-\" was:\"faults_schema_version,omitempty\"`",
+      "test": "TestTheJSONReceiptCarriesTheLabsFaultsSchema/schema_3,_a_derived_in_flight"
+    },
+    {
+      "label": "#964: the key loses omitempty, so a lab that named no schema is published as schema 0, a number the CLI made up",
+      "file": "internal/cli/run_lifecycle.go",
+      "find": "FaultsSchema int `json:\"faults_schema_version,omitempty\"`",
+      "replace": "FaultsSchema int `json:\"faults_schema_version\" was:\"omitempty\"`",
+      "test": "TestTheJSONReceiptCarriesTheLabsFaultsSchema/no_schema_version"
+    },
+    {
+      "label": "#964: the receipt carries the CLI's own faults schema instead of the lab's, so a schema 1 lab reads as current",
+      "file": "internal/cli/run.go",
+      "find": "FaultsSchema: faultsSchema,",
+      "replace": "FaultsSchema: emulator.FaultsSchemaVersion + 0*faultsSchema,",
+      "test": "TestTheJSONReceiptCarriesTheLabsFaultsSchema/schema_1,_no_per-call_receipt"
+    },
+    {
+      "label": "#968: nth is not compared, so a v0.16.0 lab that armed the rule without it (measured) fires on every call and the run goes on",
+      "file": "internal/cli/run_faults.go",
+      "find": "\tif sent.Nth != armed.Nth {",
+      "replace": "\tif sent.Nth != armed.Nth && false {",
+      "test": "TestARunRefusesACampaignTheLabArmedDifferently"
+    },
+    {
+      "label": "#968: the refusal does not clear what the lab armed, so on an attached lab the wrong rule meets the next client",
+      "file": "internal/cli/run_faults.go",
+      "find": "\tif _, err := callFaults(http.MethodDelete, faultsEndpoint(target), nil); err != nil {\n\t\treturn fmt.Sprintf(",
+      "replace": "\tif _, err := callFaults(map[bool]string{true: http.MethodGet, false: http.MethodDelete}[true], faultsEndpoint(target), nil); err != nil {\n\t\treturn fmt.Sprintf(",
+      "test": "TestARunRefusesACampaignTheLabArmedDifferently"
+    },
+    {
+      "label": "#968: the per-rule hit counts are read and never printed, so a schema 1 lab's receipt says nothing about what fired",
+      "file": "internal/cli/run_faults.go",
+      "find": "\t\t\tfor _, rule := range r.FaultRules {",
+      "replace": "\t\t\tfor _, rule := range r.FaultRules[:0] {",
+      "test": "TestARunReceiptAgainstASchema1LabCountsEachRule"
+    },
+    {
+      "label": "#968: the hit count is dropped on the way from the lab, so every rule reads as one that answered nothing",
+      "file": "internal/cli/run_faults.go",
+      "find": "ruleHits{Operation: rule.Operation, Hits: rule.Hits, Spent: rule.Spent}",
+      "replace": "ruleHits{Operation: rule.Operation, Hits: 0 * rule.Hits, Spent: rule.Spent}",
+      "test": "TestARunReceiptAgainstASchema1LabCountsEachRule"
+    },
+    {
+      "label": "orphan fixtures: the run surface leaves observedSurfaces, so testdata/frozen/run.json stays on disk judged by nothing and every freeze gate stays green",
+      "file": "internal/cli/frozen_test.go",
+      "find": "\tif os.Getenv(\"FEINT_UPDATE_FROZEN\") != \"\" {\n\t\tfor _, s := range surfaces {",
+      "replace": "\tkept := surfaces[:0]\n\tfor _, s := range surfaces {\n\t\tif s.name != \"run\" {\n\t\t\tkept = append(kept, s)\n\t\t}\n\t}\n\tsurfaces = kept\n\tif os.Getenv(\"FEINT_UPDATE_FROZEN\") != \"\" {\n\t\tfor _, s := range surfaces {",
+      "test": "TestEveryFrozenFixtureHasItsSurface"
+    },
+    {
+      "label": "knobsNotKept: the operation is not compared, so a lab that armed another operation at that rank passes",
+      "file": "internal/cli/run_faults.go",
+      "find": "\tif sent.Operation != armed.Operation {",
+      "replace": "\tif sent.Operation != armed.Operation && false {",
+      "test": "TestEveryKnobTheLabDidNotKeepIsNamed/0_its_operation"
+    },
+    {
+      "label": "knobsNotKept: the status is not compared, so a 502 armed for a 503 passes",
+      "file": "internal/cli/run_faults.go",
+      "find": "\tif sent.Status != armed.Status {",
+      "replace": "\tif sent.Status != armed.Status && false {",
+      "test": "TestEveryKnobTheLabDidNotKeepIsNamed/1_status"
+    },
+    {
+      "label": "knobsNotKept: the delay is not compared, so a slow rule armed as a fast one passes",
+      "file": "internal/cli/run_faults.go",
+      "find": "\tif sent.Delay != armed.Delay {",
+      "replace": "\tif sent.Delay != armed.Delay && false {",
+      "test": "TestEveryKnobTheLabDidNotKeepIsNamed/2_delay"
+    },
+    {
+      "label": "knobsNotKept: times is not compared, so a bounded rule armed unbounded passes",
+      "file": "internal/cli/run_faults.go",
+      "find": "\tif sent.Times != armed.Times {",
+      "replace": "\tif sent.Times != armed.Times && false {",
+      "test": "TestEveryKnobTheLabDidNotKeepIsNamed/3_times"
+    },
+    {
+      "label": "knobsNotKept: a truncation the lab dropped (nil) is not seen",
+      "file": "internal/cli/run_faults.go",
+      "find": "\tif sent.Truncate != nil && (armed.Truncate == nil || *armed.Truncate != *sent.Truncate) {",
+      "replace": "\tif sent.Truncate != nil && ((armed.Truncate == nil && false) || (armed.Truncate != nil && *armed.Truncate != *sent.Truncate)) {",
+      "test": "TestEveryKnobTheLabDidNotKeepIsNamed/5_truncate_bytes"
+    },
+    {
+      "label": "knobsNotKept: a truncation armed at another length is not seen",
+      "file": "internal/cli/run_faults.go",
+      "find": "\tif sent.Truncate != nil && (armed.Truncate == nil || *armed.Truncate != *sent.Truncate) {",
+      "replace": "\tif sent.Truncate != nil && (armed.Truncate == nil || (*armed.Truncate != *sent.Truncate && false)) {",
+      "test": "TestEveryKnobTheLabDidNotKeepIsNamed/6_truncate_bytes"
+    },
+    {
+      "label": "knobsNotKept: the transport is not compared, so a close rule armed as nothing passes",
+      "file": "internal/cli/run_faults.go",
+      "find": "\tif sent.Transport != \"\" && sent.Transport != armed.Transport {",
+      "replace": "\tif sent.Transport != \"\" && sent.Transport != armed.Transport && false {",
+      "test": "TestEveryKnobTheLabDidNotKeepIsNamed/7_transport"
+    },
+    {
+      "label": "transport below schema 3: the CLI arms anyway, and the reader gets v0.16.0's misleading \"asks for nothing\"",
+      "file": "internal/cli/run_faults.go",
+      "find": "\tif current.SchemaVersion < faultsSchemaTransport {",
+      "replace": "\tif current.SchemaVersion < faultsSchemaTransport && false {",
+      "test": "TestARunSaysTransportNeedsSchema3BeforeArming"
+    },
+    {
+      "label": "transport below schema 3: the bound is off by one, so a schema 3 lab, which has transport, is refused",
+      "file": "internal/cli/run_faults.go",
+      "find": "\tif current.SchemaVersion < faultsSchemaTransport {",
+      "replace": "\tif current.SchemaVersion <= faultsSchemaTransport {",
+      "test": "TestARunArmsTransportOnASchema3Lab"
+    },
+    {
+      "label": "a 200 whose body is not a fault document is read as a refusal, so what the lab applied is never cleared",
+      "file": "internal/cli/run_faults.go",
+      "find": "\tcase status == http.StatusOK:",
+      "replace": "\tcase status == http.StatusOK && false:",
+      "test": "TestARunClearsACampaignWhoseAnswerDoesNotDecode"
+    },
+    {
+      "label": "a 200 echoing another rule count is refused without a clear, measured by the go-reviewer: 2 sent, 1 echoed, 0 deletes",
+      "file": "internal/cli/run_faults.go",
+      "find": "\"refused before the command started, %s\", len(rules), len(document.Faults), clearArmed(target))",
+      "replace": "\"refused before the command started, %s\", len(rules), len(document.Faults), map[bool]func() string{true: func() string { return \"\" }, false: func() string { return clearArmed(target) }}[true]())",
+      "test": "TestARunClearsACampaignArmedWithAnotherRuleCount"
+    },
+    {
+      "label": "a clear that failed is reported as done: the refusal says `cleared what it had armed` over a 500",
+      "file": "internal/cli/run_faults.go",
+      "find": "\tif _, err := callFaults(http.MethodDelete, faultsEndpoint(target), nil); err != nil {\n\t\treturn fmt.Sprintf(",
+      "replace": "\tif _, err := callFaults(http.MethodDelete, faultsEndpoint(target), nil); err != nil && false {\n\t\treturn fmt.Sprintf(",
+      "test": "TestARefusalWhoseClearFailsSaysSo"
+    },
+    {
+      "label": "the transport check reads only the first rule, so a campaign whose second rule asks for transport reaches a schema 1 lab",
+      "file": "internal/cli/run_faults.go",
+      "find": "\tindex := slices.IndexFunc(rules, func(r faultRule) bool { return r.Transport != \"\" })",
+      "replace": "\tindex := slices.IndexFunc(rules[:1], func(r faultRule) bool { return r.Transport != \"\" })",
+      "test": "TestTheTransportCheckNamesTheRuleThatAsks"
+    },
+    {
+      "label": "a lab that names no schema is described as `serves schema_version 0`, a number it never said",
+      "file": "internal/cli/run_faults.go",
+      "find": "\tif schema <= 0 {",
+      "replace": "\tif schema <= 0 && false {",
+      "test": "TestTheTransportCheckSaysWhenTheLabNamesNoSchema"
+    },
+    {
+      "label": "`spent` is dropped on the way from the lab, so a used-up rule reads as still armed",
+      "file": "internal/cli/run_faults.go",
+      "find": "Spent: rule.Spent}",
+      "replace": "Spent: rule.Spent && false}",
+      "test": "TestARunReceiptSaysARuleIsSpent"
+    },
+    {
+      "label": "an unread fault state carries a schema anyway, so `faults_schema_version` claims a lab nobody read",
+      "file": "internal/cli/run_faults.go",
+      "find": "\t\treturn nil, nil, 0, 0, false",
+      "replace": "\t\treturn nil, nil, 0, faultsSchemaReceipt, false",
+      "test": "TestAnUnreadFaultStatePublishesNoSchema"
+    },
+    {
+      "label": "the zero-value guard comes back on status, so a lab that adds a 503 to a transport-only rule passes (delay, times and nth are the same line shape and are not mutated separately)",
+      "file": "internal/cli/run_faults.go",
+      "find": "\tif sent.Status != armed.Status {",
+      "replace": "\tif sent.Status != 0 && sent.Status != armed.Status {",
+      "test": "TestARunRefusesAKnobTheCampaignDidNotAskFor"
+    },
+    {
+      "label": "an operation mismatch is worded as a lost knob instead of what the lab armed instead",
+      "file": "internal/cli/run_faults.go",
+      "find": "\t\tif sent.Operation != echoed.Operation {",
+      "replace": "\t\tif sent.Operation != echoed.Operation && false {",
+      "test": "TestARefusalNamesTheOperationTheLabArmedInstead"
+    },
+    {
+      "label": "the v0.16.0 sentence is printed to every lab, a schema 3 one included",
+      "file": "internal/cli/run_faults.go",
+      "find": "\t\tif document.SchemaVersion < faultsSchemaTransport {",
+      "replace": "\t\tif document.SchemaVersion < faultsSchemaTransport || true {",
+      "test": "TestARunRefusesAKnobTheCampaignDidNotAskFor"
+    },
+    {
+      "label": "the first-frozen table is not what the history is checked against, so a run fixture regenerated from scratch would pass",
+      "file": "internal/cli/frozen_test.go",
+      "find": "var firstFrozen = map[string]int{\"run\": 3}",
+      "replace": "var firstFrozen = map[string]int{\"run\": 3 + 1}",
+      "test": "TestFrozenHistoryOnlyGrows"
+    },
+    {
+      "label": "a refused campaign leaves the session checkpoint on the lab",
+      "file": "internal/cli/run.go",
+      "find": "\t\t\t\tdropSessionCheckpoint(target, session, *addr, stderr)",
+      "replace": "\t\t\t\t_ = map[bool]func(){false: func() { dropSessionCheckpoint(target, session, *addr, stderr) }}",
+      "test": "TestARefusedCampaignDropsTheSessionCheckpoint"
+    },
+    {
+      "label": "a refused campaign leaves the recorded session checkpoint on disk",
+      "file": "internal/cli/checkpoint.go",
+      "find": "\t\terr = os.Remove(path)",
+      "replace": "\t\terr = map[bool]func() error{true: func() error { return nil }, false: func() error { return os.Remove(path) }}[true]()",
+      "test": "TestARefusedCampaignDropsTheSessionCheckpoint"
+    }
+  ]
+}

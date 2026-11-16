@@ -21,41 +21,54 @@ import (
 func TestTheSupportWindowNamesEveryFrozenSurface(t *testing.T) {
 	root := repoRoot(t)
 
+	// Refused rather than skipped: a gate that skips when it cannot read its
+	// subject is a gate somebody disarms by moving a directory.
 	entries, err := os.ReadDir(filepath.Join(root, "internal", "cli", "testdata", "frozen"))
 	if err != nil {
-		t.Skipf("no frozen fixtures to compare against: %v", err)
-	}
-	policy, err := os.ReadFile(filepath.Join(root, "RELEASING.md"))
-	if err != nil {
-		t.Fatalf("read the policy: %v", err)
-	}
-	section := between(string(policy), "## What you may depend on, and for how long", "\n## ")
-	if section == "" {
-		t.Fatal("RELEASING.md carries no support window")
+		t.Fatalf("no frozen fixtures to compare against: %v", err)
 	}
 
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
-			continue
-		}
-		if !strings.Contains(section, entry.Name()) {
-			t.Errorf("%s is frozen and the support window does not name it: a user cannot tell "+
-				"whether it is covered", entry.Name())
-		}
-	}
+	// Both languages, because a reader of the French policy depends on it as
+	// much as a reader of the English one. Until #918's lot only RELEASING.md
+	// was read, and RELEASING.fr.md had silently lost `/_feint/s3`.
+	for _, policyDoc := range []struct{ file, heading string }{
+		{"RELEASING.md", "## What you may depend on, and for how long"},
+		{"RELEASING.fr.md", "## Ce sur quoi vous pouvez compter, et pour combien de temps"},
+	} {
+		t.Run(policyDoc.file, func(t *testing.T) {
+			policy, err := os.ReadFile(filepath.Join(root, policyDoc.file))
+			if err != nil {
+				t.Fatalf("read the policy: %v", err)
+			}
+			section := between(string(policy), policyDoc.heading, "\n## ")
+			if section == "" {
+				t.Fatalf("%s carries no support window under %q", policyDoc.file, policyDoc.heading)
+			}
 
-	// And the other direction: a surface the policy promises must exist, or the
-	// promise is about a file nobody ships.
-	for _, line := range strings.Split(section, "\n") {
-		for _, field := range strings.Fields(line) {
-			name := strings.Trim(field, "`|")
-			if !strings.HasSuffix(name, ".json") || !strings.Contains(name, "frozen/") {
-				continue
+			for _, entry := range entries {
+				if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
+					continue
+				}
+				if !strings.Contains(section, entry.Name()) {
+					t.Errorf("%s is frozen and the support window of %s does not name it: a user cannot tell "+
+						"whether it is covered", entry.Name(), policyDoc.file)
+				}
 			}
-			if _, err := os.Stat(filepath.Join(root, name)); err != nil {
-				t.Errorf("the support window promises %s and it does not exist", name)
+
+			// And the other direction: a surface the policy promises must
+			// exist, or the promise is about a file nobody ships.
+			for _, line := range strings.Split(section, "\n") {
+				for _, field := range strings.Fields(line) {
+					name := strings.Trim(field, "`|")
+					if !strings.HasSuffix(name, ".json") || !strings.Contains(name, "frozen/") {
+						continue
+					}
+					if _, err := os.Stat(filepath.Join(root, name)); err != nil {
+						t.Errorf("the support window of %s promises %s and it does not exist", policyDoc.file, name)
+					}
+				}
 			}
-		}
+		})
 	}
 }
 

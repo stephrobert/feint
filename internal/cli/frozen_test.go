@@ -119,12 +119,66 @@ func TestASurfaceChangeDemandsItsVersionBump(t *testing.T) {
 	}
 }
 
+// TestEveryFrozenFixtureHasItsSurface refuses a fixture that no surface reads,
+// and a surface with no fixture. Dropping an entry from observedSurfaces
+// otherwise leaves its fixture on disk, judged by nothing, and every gate in
+// this file green: the freeze would end without a red line anywhere.
+func TestEveryFrozenFixtureHasItsSurface(t *testing.T) {
+	surfaces := map[string]bool{}
+	for _, s := range observedSurfaces(t) {
+		surfaces[s.name] = true
+	}
+	entries, err := os.ReadDir(frozenDir)
+	if err != nil {
+		t.Fatalf("read %s: %v", frozenDir, err)
+	}
+	fixtures := map[string]bool{}
+	for _, entry := range entries {
+		name, isJSON := strings.CutSuffix(entry.Name(), ".json")
+		if entry.IsDir() || !isJSON {
+			continue
+		}
+		fixtures[name] = true
+		if !surfaces[name] {
+			t.Errorf("%s/%s has no surface in observedSurfaces: nothing compares it, so the shape it "+
+				"freezes can move with every gate green", frozenDir, entry.Name())
+		}
+	}
+	if len(fixtures) == 0 {
+		t.Fatalf("no fixture in %s: this test would judge nothing", frozenDir)
+	}
+	for name := range surfaces {
+		if !fixtures[name] {
+			t.Errorf("surface %q has no fixture in %s", name, frozenDir)
+		}
+	}
+}
+
+// firstFrozen is the version each surface's history starts at, when it is
+// not 1. The run receipt was at version 3 when #918 froze it, and an entry 1
+// would hold a shape versions 1 and 2 never had.
+var firstFrozen = map[string]int{"run": 3}
+
+func firstFrozenAt(name string) int {
+	if v, ok := firstFrozen[name]; ok {
+		return v
+	}
+	return 1
+}
+
 // TestFrozenHistoryOnlyGrows refuses a fixture whose entries were reordered or
 // whose versions repeat: the history is the audit trail that makes an in-place
 // edit visible, so it must stay strictly increasing.
 func TestFrozenHistoryOnlyGrows(t *testing.T) {
 	for _, s := range observedSurfaces(t) {
 		fixture := loadFrozen(t, s.name)
+		// The first entry is where the surface was first frozen. A fixture
+		// deleted and regenerated would start at today's version instead, its
+		// history gone and the two gates above still green.
+		if first := fixture.History[0].SchemaVersion; first != firstFrozenAt(s.name) {
+			t.Errorf("surface %q: history starts at version %d, but the surface was first frozen at %d: "+
+				"a fixture is never regenerated from scratch", s.name, first, firstFrozenAt(s.name))
+		}
 		prev := 0
 		for i, e := range fixture.History {
 			if e.SchemaVersion <= prev {
@@ -207,6 +261,10 @@ func observedSurfaces(t *testing.T) []frozenSurface {
 		{name: "faults", version: emulator.FaultsSchemaVersion, content: observeShape(t, "/_feint/faults", nil)},
 		{name: "s3", version: s3.ReportVersion, content: observeShape(t, s3.ReportPath, []string{"http_requests"})},
 		{name: "cli", version: cliSurfaceVersion, content: cliSurfaceContent(t)},
+		// The JSON receipt of `feint run` (#918), read from a real run in
+		// frozen_run_test.go. A CI job parses it, so it is a published shape
+		// like the others; until this entry its version was a convention.
+		{name: "run", version: runReceiptSchemaVersion, content: runReceiptShape(t)},
 	}
 	if os.Getenv("FEINT_UPDATE_FROZEN") != "" {
 		for _, s := range surfaces {
@@ -599,7 +657,11 @@ func updateFrozen(t *testing.T, s frozenSurface) {
 			t.Fatalf("decode %s before updating it: %v", path, err)
 		}
 	}
-	next := 1
+	// A NEW fixture starts at the version its surface was first frozen at,
+	// from firstFrozen, and never at the version the code declares today:
+	// that was the first draft, and a deleted fixture was then rewritten with
+	// its history erased and every gate green (measured on faults.json).
+	next := firstFrozenAt(s.name)
 	if n := len(fixture.History); n > 0 {
 		last := fixture.History[n-1]
 		if sameJSON(t, last.Content, s.content) {

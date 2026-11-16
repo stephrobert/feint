@@ -5,8 +5,8 @@
   {
    "label": "the in-flight derivation never runs, so a schema 3 request the emulator is still holding reads `answered 0`, the line #925 removed",
    "file": "internal/cli/fault.go",
-   "find": "\tderiveInFlight(&document)\n\treturn document, nil",
-   "replace": "\tif false {\n\t\tderiveInFlight(&document)\n\t}\n\treturn document, nil",
+   "find": "\tderiveInFlight(&document)\n\treturn document, res.StatusCode, nil",
+   "replace": "\tif false {\n\t\tderiveInFlight(&document)\n\t}\n\treturn document, res.StatusCode, nil",
    "test": "TestAnOlderReceiptStillSaysWhatIsInFlight/schema_3"
   },
   {
@@ -103,8 +103,8 @@
   {
    "label": "the lab's schema_version is read and not carried to the receipt, the original defect one hop further: the run then names every lab as one that does not name its schema",
    "file": "internal/cli/run_faults.go",
-   "find": "\treturn len(document.Faults), document.Fired, document.FiredDropped, document.SchemaVersion, true",
-   "replace": "\treturn len(document.Faults), document.Fired, document.FiredDropped, 0 * document.SchemaVersion, true",
+   "find": "\treturn rules, document.Fired, document.FiredDropped, document.SchemaVersion, true",
+   "replace": "\treturn rules, document.Fired, document.FiredDropped, 0 * document.SchemaVersion, true",
    "test": "TestARunReceiptAgainstASchema2LabCarriesNoNote"
   },
   {
