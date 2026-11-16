@@ -41,7 +41,12 @@ The spec is JSON:
       ]
     }
 
-Per-mutation `package` is optional and falls back to the top-level one.
+Per-mutation `package` is optional and falls back to the top-level one. It is a
+relative Go package path (`./internal/cli/`, no `..` segment), and an optional
+`env` may only set a variable on SPEC_ENV_KEYS: both reach `go test`, so
+anything else is refused when the spec loads (#989). A mutation's `replace` is
+Go code that `go test` compiles and runs: a spec is reviewed like a `.go` file
+before it is replayed.
 
 `timeout` is optional too, on a mutation or on the spec, and the mutation's
 wins. It is a Go duration ("20s", "1m30s") handed to `go test -timeout`, so it
@@ -619,7 +624,7 @@ def _selftest_module(tmp, second_package=False, gated=False, panicking=False):
             fh.write(
                 'package p\n\nimport (\n\t"os"\n\t"testing"\n)\n\n'
                 "func TestGatedByEnv(t *testing.T) {\n"
-                '\tif os.Getenv("FEINT_SELFTEST_ARMED") == "" {\n'
+                '\tif os.Getenv("FEINT_TESTCONTAINER") == "" {\n'
                 '\t\tt.Skip("not armed")\n\t}\n'
                 '\tt.Run("armed-sub", func(t *testing.T) {\n'
                 '\t\tif !guard() {\n\t\t\tt.Fatal("the guard does not hold")\n\t\t}\n'
@@ -1036,7 +1041,7 @@ def _env_armed_case():
             file="p/subject.go",
             find="func guard() bool { return true }",
             test="TestGatedByEnv/armed-sub",
-            env={"FEINT_SELFTEST_ARMED": "1"},
+            env={"FEINT_TESTCONTAINER": "1"},
         )
         got, said = _linted(directory, tmp)
     return _report(
@@ -1290,6 +1295,8 @@ def lint_selftest():
     failures += _anchoring_cases()
     print()
     failures += _field_type_cases()
+    print()
+    failures += _spec_injection_cases()
     print()
     failures += _budget_cases()
     print()
@@ -1784,7 +1791,15 @@ def _field_type_cases():
             with open(os.path.join(specs, name), "w", encoding="utf-8") as fh:
                 json.dump(body, fh)
         with open(os.path.join(specs, "z-live.json"), "w", encoding="utf-8") as fh:
-            json.dump({"package": "./p/", "repeat": 2, "env": {"X": "1"}, "mutations": [live]}, fh)
+            json.dump(
+                {
+                    "package": "./p/",
+                    "repeat": 2,
+                    "env": {"FEINT_TESTCONTAINER": "1"},
+                    "mutations": [live],
+                },
+                fh,
+            )
         _, why = load_spec(os.path.join(specs, "z-live.json"))
         if why:
             print(f"!! a spec with a whole repeat and a text env is refused: {why}")
@@ -1811,6 +1826,129 @@ def _field_type_cases():
                 failures += 1
             else:
                 print("ok  the replay goes past four mistyped specs and still judges the fifth")
+        finally:
+            globals()["run"] = real_run
+            BASELINES.clear()
+            os.chdir(here)
+    return failures
+
+
+def _spec_injection_cases():
+    """A spec's `env` and `package` cannot make `go test` run another program (#989).
+
+    Only those two fields: a mutation's `replace` is Go code and can run
+    anything once compiled, which is why a spec is reviewed like a `.go` file.
+
+    Each trigger goes through main() with run() replaced by a recorder: the
+    answer must be 2 naming the field, and the recorder must have seen no
+    command at all, since the refusal has to come before anything is copied or
+    run. FEINT_BIN is refused like GOFLAGS: it is a FEINT_* variable that names
+    a program, which is why the list is exact and not a prefix. Two controls are
+    read: the one variable the repository's own spec sets, and a package path
+    with `...`, which must not be taken for `..`.
+    """
+    failures = 0
+    live = {
+        "label": "selftest injection",
+        "file": "p/subject.go",
+        "find": "func guard() bool { return true }",
+        "replace": "func guard() bool { return true && false }",
+        "test": "TestTheGuardHolds",
+    }
+    refused = (
+        (
+            {"package": "./p/", "env": {"GOFLAGS": "-toolexec=/bin/sh"}, "mutations": [live]},
+            'the spec: `env` sets "GOFLAGS"',
+            "an env that sets GOFLAGS",
+        ),
+        (
+            {"package": "./p/", "env": {"LD_PRELOAD": "./x.so"}, "mutations": [live]},
+            'the spec: `env` sets "LD_PRELOAD" to "./x.so"',
+            "an env that sets LD_PRELOAD",
+        ),
+        (
+            {"package": "./p/", "env": {"FEINT_BIN": "./x.sh"}, "mutations": [live]},
+            'the spec: `env` sets "FEINT_BIN"',
+            "a FEINT_* variable that names a program",
+        ),
+        (
+            {
+                "package": "./p/",
+                "env": {"FEINT_TESTCONTAINER": "1\nGOFLAGS=-exec=/bin/sh"},
+                "mutations": [live],
+            },
+            "the spec: `env` gives FEINT_TESTCONTAINER the value",
+            "an allowed variable whose value holds a line break",
+        ),
+        (
+            {"package": "-exec=/bin/sh", "mutations": [live]},
+            'the spec: `package` is "-exec=/bin/sh"',
+            "a package that is a go test flag",
+        ),
+        (
+            {"package": "./p/", "mutations": [{**live, "package": "-toolexec=/bin/sh"}]},
+            'mutation 1: `package` is "-toolexec=/bin/sh"',
+            "a mutation's package that is a flag",
+        ),
+        (
+            {"package": "./p/../../elsewhere/", "mutations": [live]},
+            'the spec: `package` is "./p/../../elsewhere/"',
+            "a package that climbs out with ..",
+        ),
+        (
+            {"package": "internal/cli", "mutations": [live]},
+            'the spec: `package` is "internal/cli"',
+            "a package without the leading ./",
+        ),
+        (
+            {"package": "./p/./", "mutations": [live]},
+            'the spec: `package` is "./p/./"',
+            "a package with a . segment after the leading one",
+        ),
+    )
+    accepted = (
+        (
+            {"package": "./p/", "env": {"FEINT_TESTCONTAINER": "1"}, "mutations": [live]},
+            "the one variable the repository's own spec sets",
+        ),
+        ({"package": "./...", "mutations": [live]}, "a package path ending in ..."),
+    )
+    seen = []
+
+    def recorder(dst, cmd, extra_env=None):
+        seen.append(cmd)
+        return _green_toolchain(dst, cmd, extra_env)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        _selftest_module(tmp)
+        here, real_run = os.getcwd(), globals()["run"]
+        try:
+            os.chdir(tmp)
+            globals()["run"] = recorder
+            for i, (body, reason, why) in enumerate(refused):
+                path = os.path.join(tmp, f"refused-{i}.json")
+                with open(path, "w", encoding="utf-8") as fh:
+                    json.dump(body, fh)
+                seen.clear()
+                got, _, said = _driven(main, [argv0, path])
+                if got != 2 or reason not in said or seen:
+                    print(
+                        f"!! answers {got} on {why} after {len(seen)} command(s), "
+                        f"want 2 before any, saying {reason!r}. It said: {said!r}"
+                    )
+                    failures += 1
+                else:
+                    print(f"ok  refuses {why} before running anything: {reason}")
+            for i, (body, why) in enumerate(accepted):
+                path = os.path.join(tmp, f"accepted-{i}.json")
+                with open(path, "w", encoding="utf-8") as fh:
+                    json.dump(body, fh)
+                _, problem = load_spec(path)
+                if problem:
+                    print(f"!! refuses {why}: {problem}")
+                    failures += 1
+                else:
+                    print(f"ok  reads {why}")
         finally:
             globals()["run"] = real_run
             BASELINES.clear()
@@ -2796,10 +2934,68 @@ def field_problem(holder):
         env = holder["env"]
         if not isinstance(env, dict) or not all(isinstance(v, str) for v in env.values()):
             return f"`env` is {json.dumps(env)}, not an object whose every value is a string"
+        why = env_problem(env)
+        if why:
+            return why
+    if "package" in holder:
+        why = package_problem(holder["package"])
+        if why:
+            return why
     if "timeout" in holder:
         why = timeout_problem(holder["timeout"])
         if why:
             return why
+    return None
+
+
+# Two fields of a spec reached `go test` while reading like harmless JSON
+# (#989): `env` its environment and `package` its argv, so `"env": {"GOFLAGS":
+# "-exec=<binary>"}` ran the binary (measured on 2026-11-16) and `"package":
+# "-exec=<binary>"` is the same door one field over. Both are closed at load,
+# before anything is copied: `env` may only set a variable on the exact list
+# below, and a package is a relative Go package path that cannot be read as a
+# flag. The list is exact rather than the FEINT_* prefix because several FEINT_*
+# variables name a program to run (FEINT_BIN, FEINT_TF, FEINT_TF_PLUGIN_DIR):
+# a key is added here in review, with the reason it is needed.
+#
+# What this does NOT close, and must not be read as closing: a mutation's
+# `replace` is Go code that `go test` compiles and runs, by design, so a spec
+# can still run anything through it. A spec is reviewed like a `.go` file
+# before it is replayed, a third party's above all; CONTRIBUTING says so.
+# _spec_injection_cases() asks each question with its own case.
+SPEC_ENV_KEYS = frozenset({"FEINT_TESTCONTAINER"})  # feinttest/: arms the published-image tests
+SPEC_PACKAGE = re.compile(r"\./[A-Za-z0-9_./-]*")
+
+
+def env_problem(env):
+    """Why a spec's `env` could change what `go test` runs, or None (#989)."""
+    for key, value in env.items():
+        if key not in SPEC_ENV_KEYS:
+            return (
+                f"`env` sets {json.dumps(key)} to {json.dumps(value)}, and a spec may only set "
+                f"{', '.join(sorted(SPEC_ENV_KEYS))}: any other variable (GOFLAGS, PATH, "
+                "LD_PRELOAD, FEINT_BIN...) can make `go test` run another program"
+            )
+        if any(ord(c) < 0x20 or ord(c) == 0x7F for c in value):
+            return (
+                f"`env` gives {key} the value {json.dumps(value)}, which holds a control character"
+            )
+    return None
+
+
+def package_problem(package):
+    """Why a spec's `package` is not a relative Go package path, or None (#989).
+
+    A `.` segment after the leading one is refused too: it cannot be read as a
+    flag, but `go test` then finds no test there and the refusal that follows
+    blames the test's name instead of the path.
+    """
+    segments = package.split("/")
+    if not SPEC_PACKAGE.fullmatch(package) or ".." in segments or "." in segments[1:]:
+        return (
+            f"`package` is {json.dumps(package)}, not a relative Go package path such as "
+            '"./internal/cli/": it reaches the argv of `go test`, where it could be read as a flag'
+        )
     return None
 
 

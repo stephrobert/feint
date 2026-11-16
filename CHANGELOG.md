@@ -15,6 +15,25 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ## [Unreleased]
 
+### Security
+
+- **A falsify spec's `env` and `package` can no longer make `go test` run
+  another program** (#989). A spec is a JSON file and reads like data in
+  review, but its `env` went into the environment of `go test` and its
+  `package` into its argv, unchecked. Measured on 2026-11-16: a spec carrying
+  `"env": {"GOFLAGS": "-exec=<script>"}` ran the script, on the station
+  replaying it and, had it been committed, at the next nightly `falsify.yml`. A
+  spec is now refused when it loads, before anything is copied or run, if an
+  `env` key is not on an exact list (today `FEINT_TESTCONTAINER` alone: several
+  `FEINT_*` variables name a program, such as `FEINT_BIN`) or a value holds a
+  control character, or if a `package` is not a relative Go package path
+  (`./…`, no `..`, never a flag). The refusal names the spec, the field and the
+  value, and `--lint` refuses the same way; the spec that ran the script on
+  `main` is refused and the script does not run. **What this does not close**:
+  a mutation's `replace` is Go code that `go test` compiles and runs, by
+  design. A spec is reviewed like a `.go` file before it is replayed, a third
+  party's above all, and `CONTRIBUTING.md` now says so.
+
 ### Fixed
 
 - **The Incus floor rises from 6.0.4 to 6.0.5** (#979). 6.0.4 still orders

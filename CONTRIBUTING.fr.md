@@ -68,7 +68,7 @@ un chemin non trié est une absence, pas une décision (#564).
 
 Il imprime aussi **les falsifications que le diff a méritées**, lues dans
 `tools/falsify/specs/` plutôt que retenues : 269 specs nomment 326 fichiers
-distincts en 2239 mutations, et une spec qui mute un fichier que vous avez
+distincts en 2244 mutations, et une spec qui mute un fichier que vous avez
 touché est le sous-ensemble de `falsify:all` que votre changement peut avoir
 empêché de mordre. Chaque lot d'ici a suivi cette discipline à la main et l'a
 écrit dans sa pull request, ce qui veut dire qu'il l'a aussi oubliée à la main :
@@ -235,6 +235,16 @@ n'importe lequel des trois verrous fait rougir le barrage, et trente exécutions
 sont ensuite restées vertes avec un verrou retiré. La mutation va donc dans
 `tools/falsify/specs/`, à côté de la garde, et `mise run falsify:all` les rejoue
 toutes chaque nuit (`.github/workflows/falsify.yml`).
+
+**Une spec est du code, et elle se relit comme du code.** Elle ressemble à du
+JSON, mais le `replace` d'une mutation est du Go que `go test` compile et
+exécute, sur la station qui la rejoue et à la nuit suivante. Une spec reçoit
+donc la relecture d'un fichier `.go`, et une spec venue de la branche de
+quelqu'un d'autre se lit avant que `mise run falsify` y touche. Les deux champs
+qui atteignaient `go test` sans ressembler à du code sont fermés au chargement
+(#989) : `env` ne peut poser qu'une variable de la liste exacte du harnais
+(`SPEC_ENV_KEYS`, aujourd'hui `FEINT_TESTCONTAINER`), et `package` est un chemin
+de paquet Go relatif, jamais un drapeau.
 
 Le premier rejeu complet a trouvé quatre specs sur huit qui ne tenaient plus, et
 rien de tout cela n'était une pourriture de l'émulateur : trois mutations étaient
