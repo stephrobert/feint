@@ -57,6 +57,7 @@ func (p *Pack) defaultDhcpOptions() *resource.Resource {
 type readDhcpOptionsRequest struct {
 	Filters        filterSet `json:"Filters"`
 	ResultsPerPage *int      `json:"ResultsPerPage"`
+	NextPageToken  *string   `json:"NextPageToken"`
 	DryRun         *bool     `json:"DryRun"`
 }
 
@@ -88,10 +89,7 @@ func (p *Pack) readDhcpOptions(w http.ResponseWriter, r *http.Request) {
 		}
 		out = append(out, dhcpOptionsView(res))
 	}
-	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"DhcpOptionsSets": page(out, pageSize(req.ResultsPerPage)),
-		"ResponseContext": p.context(),
-	})
+	writePaged(p, w, "DhcpOptionsSets", out, req.ResultsPerPage, req.NextPageToken)
 }
 
 // dhcpOptionsView is the wire shape of a set: the stored attributes plus the

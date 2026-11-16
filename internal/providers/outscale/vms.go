@@ -44,6 +44,10 @@ type readVmsRequest struct {
 	// field the client believed was honoured: a client asking for ten rows and
 	// getting a thousand pages nothing.
 	ResultsPerPage *int `json:"ResultsPerPage"`
+	// The continuation token, declared beside the page size by every Read*
+	// schema and read nowhere here until pagination was: a client that sent one
+	// was served the first page again, for ever.
+	NextPageToken *string `json:"NextPageToken"`
 }
 
 // vmFilters are the ones a Vm can answer from what this pack stores. Everything
@@ -220,10 +224,7 @@ func (p *Pack) readVms(w http.ResponseWriter, r *http.Request) {
 		vms = append(vms, p.vmView(fresh))
 	}
 
-	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"Vms":             page(vms, pageSize(req.ResultsPerPage)),
-		"ResponseContext": p.context(),
-	})
+	writePaged(p, w, "Vms", vms, req.ResultsPerPage, req.NextPageToken)
 }
 
 // vmMatches applies every filter this pack serves. A Vm has to pass all of

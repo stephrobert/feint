@@ -363,9 +363,8 @@ var loadBalancerFilters = stringFilters("LoadBalancerNames")
 // body before each DeleteSecurityGroup.
 func (p *Pack) readLoadBalancers(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Filters        filterSet `json:"Filters"`
-		ResultsPerPage int       `json:"ResultsPerPage"`
-		DryRun         *bool     `json:"DryRun"`
+		Filters filterSet `json:"Filters"`
+		DryRun  *bool     `json:"DryRun"`
 	}
 	if err := emulator.DecodeJSON(r, &req); err != nil {
 		p.badRequest(w, err.Error())
@@ -381,8 +380,13 @@ func (p *Pack) readLoadBalancers(w http.ResponseWriter, r *http.Request) {
 		}
 		out = append(out, p.loadBalancerView(res))
 	}
+	// ReadLoadBalancersRequest declares neither ResultsPerPage nor
+	// NextPageToken (api.yaml lists DryRun and Filters, additionalProperties
+	// false), so this handler reads no page size and returns the whole list:
+	// code, schema and comment say the same thing. Every other Read* of the pack
+	// pages through writePaged.
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"LoadBalancers":   page(out, req.ResultsPerPage),
+		"LoadBalancers":   out,
 		"ResponseContext": p.context(),
 	})
 }

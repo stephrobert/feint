@@ -128,6 +128,7 @@ func (p *Pack) readSnapshots(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Filters        filterSet `json:"Filters"`
 		ResultsPerPage *int      `json:"ResultsPerPage"`
+		NextPageToken  *string   `json:"NextPageToken"`
 		DryRun         *bool     `json:"DryRun"`
 	}
 	if err := emulator.DecodeJSON(r, &req); err != nil {
@@ -155,10 +156,7 @@ func (p *Pack) readSnapshots(w http.ResponseWriter, r *http.Request) {
 			out = append(out, view)
 		}
 	}
-	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"Snapshots":       page(out, pageSize(req.ResultsPerPage)),
-		"ResponseContext": p.context(),
-	})
+	writePaged(p, w, "Snapshots", out, req.ResultsPerPage, req.NextPageToken)
 }
 
 func (p *Pack) deleteSnapshot(w http.ResponseWriter, r *http.Request) {

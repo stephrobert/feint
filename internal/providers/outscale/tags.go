@@ -208,6 +208,7 @@ func (p *Pack) readTags(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Filters        filterSet `json:"Filters"`
 		ResultsPerPage *int      `json:"ResultsPerPage"`
+		NextPageToken  *string   `json:"NextPageToken"`
 	}
 	if err := emulator.DecodeJSON(r, &req); err != nil {
 		p.badRequest(w, err.Error())
@@ -250,10 +251,7 @@ func (p *Pack) readTags(w http.ResponseWriter, r *http.Request) {
 	// the pack that ignored ResultsPerPage — found the day the probe started
 	// holding paged answers to the size they asked (#156); the probe run of
 	// `mise run conformance` fails without it.
-	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"Tags":            page(out, pageSize(req.ResultsPerPage)),
-		"ResponseContext": p.context(),
-	})
+	writePaged(p, w, "Tags", out, req.ResultsPerPage, req.NextPageToken)
 }
 
 // tagsOf reads the tags a resource carries, as a map so a key can be replaced

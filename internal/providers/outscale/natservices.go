@@ -115,6 +115,7 @@ func (p *Pack) readNatServices(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Filters        filterSet `json:"Filters"`
 		ResultsPerPage *int      `json:"ResultsPerPage"`
+		NextPageToken  *string   `json:"NextPageToken"`
 		DryRun         *bool     `json:"DryRun"`
 	}
 	if err := emulator.DecodeJSON(r, &req); err != nil {
@@ -139,10 +140,7 @@ func (p *Pack) readNatServices(w http.ResponseWriter, r *http.Request) {
 		}
 		out = append(out, natServiceView(res))
 	}
-	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"NatServices":     page(out, pageSize(req.ResultsPerPage)),
-		"ResponseContext": p.context(),
-	})
+	writePaged(p, w, "NatServices", out, req.ResultsPerPage, req.NextPageToken)
 }
 
 func (p *Pack) deleteNatService(w http.ResponseWriter, r *http.Request) {

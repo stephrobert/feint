@@ -72,6 +72,7 @@ type readNetsRequest struct {
 	Filters        filterSet `json:"Filters"`
 	DryRun         *bool     `json:"DryRun"`
 	ResultsPerPage *int      `json:"ResultsPerPage"`
+	NextPageToken  *string   `json:"NextPageToken"`
 }
 
 // netFilters and subnetFilters are what these resources can answer from what is
@@ -105,6 +106,7 @@ type readSubnetsRequest struct {
 	Filters        filterSet `json:"Filters"`
 	DryRun         *bool     `json:"DryRun"`
 	ResultsPerPage *int      `json:"ResultsPerPage"`
+	NextPageToken  *string   `json:"NextPageToken"`
 }
 
 type deleteNetRequest struct {
@@ -197,10 +199,7 @@ func (p *Pack) readNets(w http.ResponseWriter, r *http.Request) {
 		nets = append(nets, netView(res))
 	}
 
-	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"Nets":            page(nets, pageSize(req.ResultsPerPage)),
-		"ResponseContext": p.context(),
-	})
+	writePaged(p, w, "Nets", nets, req.ResultsPerPage, req.NextPageToken)
 }
 
 func (p *Pack) deleteNet(w http.ResponseWriter, r *http.Request) {
@@ -435,10 +434,7 @@ func (p *Pack) readSubnets(w http.ResponseWriter, r *http.Request) {
 		subnets = append(subnets, p.subnetView(res))
 	}
 
-	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"Subnets":         page(subnets, pageSize(req.ResultsPerPage)),
-		"ResponseContext": p.context(),
-	})
+	writePaged(p, w, "Subnets", subnets, req.ResultsPerPage, req.NextPageToken)
 }
 
 func (p *Pack) deleteSubnet(w http.ResponseWriter, r *http.Request) {

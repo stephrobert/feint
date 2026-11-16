@@ -411,6 +411,7 @@ func (p *Pack) readVmTypes(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Filters        filterSet `json:"Filters"`
 		ResultsPerPage *int      `json:"ResultsPerPage"`
+		NextPageToken  *string   `json:"NextPageToken"`
 		DryRun         *bool     `json:"DryRun"`
 	}
 	if err := emulator.DecodeJSON(r, &req); err != nil {
@@ -432,10 +433,7 @@ func (p *Pack) readVmTypes(w http.ResponseWriter, r *http.Request) {
 			out = append(out, vmType)
 		}
 	}
-	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"VmTypes":         page(out, pageSize(req.ResultsPerPage)),
-		"ResponseContext": p.context(),
-	})
+	writePaged(p, w, "VmTypes", out, req.ResultsPerPage, req.NextPageToken)
 }
 
 // imageFilters are what an image can answer. ImageIds is the one a client
@@ -457,6 +455,7 @@ func (p *Pack) readImages(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Filters        filterSet `json:"Filters"`
 		ResultsPerPage *int      `json:"ResultsPerPage"`
+		NextPageToken  *string   `json:"NextPageToken"`
 		DryRun         *bool     `json:"DryRun"`
 	}
 	if err := emulator.DecodeJSON(r, &req); err != nil {
@@ -487,10 +486,7 @@ func (p *Pack) readImages(w http.ResponseWriter, r *http.Request) {
 			out = append(out, view)
 		}
 	}
-	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"Images":          page(out, pageSize(req.ResultsPerPage)),
-		"ResponseContext": p.context(),
-	})
+	writePaged(p, w, "Images", out, req.ResultsPerPage, req.NextPageToken)
 }
 
 // imageMatches filters a rendered image, so a catalogue entry and a registered
@@ -532,6 +528,7 @@ func (p *Pack) readSubregions(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Filters        filterSet `json:"Filters"`
 		ResultsPerPage *int      `json:"ResultsPerPage"`
+		NextPageToken  *string   `json:"NextPageToken"`
 		DryRun         *bool     `json:"DryRun"`
 	}
 	if err := emulator.DecodeJSON(r, &req); err != nil {
@@ -553,10 +550,7 @@ func (p *Pack) readSubregions(w http.ResponseWriter, r *http.Request) {
 		}
 		out = append(out, subregion)
 	}
-	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"Subregions":      page(out, pageSize(req.ResultsPerPage)),
-		"ResponseContext": p.context(),
-	})
+	writePaged(p, w, "Subregions", out, req.ResultsPerPage, req.NextPageToken)
 }
 
 // netAccessPointServices is the catalogue of services a Net access point can
@@ -590,6 +584,7 @@ func (p *Pack) readNetAccessPointServices(w http.ResponseWriter, r *http.Request
 	var req struct {
 		Filters        filterSet `json:"Filters"`
 		ResultsPerPage *int      `json:"ResultsPerPage"`
+		NextPageToken  *string   `json:"NextPageToken"`
 		DryRun         *bool     `json:"DryRun"`
 	}
 	if err := emulator.DecodeJSON(r, &req); err != nil {
@@ -611,10 +606,7 @@ func (p *Pack) readNetAccessPointServices(w http.ResponseWriter, r *http.Request
 		}
 		out = append(out, service)
 	}
-	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"Services":        page(out, pageSize(req.ResultsPerPage)),
-		"ResponseContext": p.context(),
-	})
+	writePaged(p, w, "Services", out, req.ResultsPerPage, req.NextPageToken)
 }
 
 // readPublicIpRanges publishes the block createPublicIP allocates from, and
@@ -623,8 +615,9 @@ func (p *Pack) readNetAccessPointServices(w http.ResponseWriter, r *http.Request
 // strings, not objects — measured, and easy to get wrong from the field name.
 func (p *Pack) readPublicIPRanges(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		ResultsPerPage *int  `json:"ResultsPerPage"`
-		DryRun         *bool `json:"DryRun"`
+		ResultsPerPage *int    `json:"ResultsPerPage"`
+		NextPageToken  *string `json:"NextPageToken"`
+		DryRun         *bool   `json:"DryRun"`
 	}
 	if err := emulator.DecodeJSON(r, &req); err != nil {
 		p.badRequest(w, err.Error())
@@ -633,10 +626,11 @@ func (p *Pack) readPublicIPRanges(w http.ResponseWriter, r *http.Request) {
 	if p.refusePageSize(w, req.ResultsPerPage) {
 		return
 	}
-	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"PublicIps":       []any{publicIPBlock},
-		"ResponseContext": p.context(),
-	})
+	// The emulated region publishes one block, so this list never has a second
+	// page. The token is still read and validated: a token this emulator did not
+	// issue is refused like every other Read* above, rather than answered with
+	// the first page as though the client had asked for it again.
+	writePaged(p, w, "PublicIps", []any{publicIPBlock}, req.ResultsPerPage, req.NextPageToken)
 }
 
 // Catalogue is what a client reads here before it can create anything, declared

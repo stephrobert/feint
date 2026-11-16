@@ -122,6 +122,7 @@ func (p *Pack) createVolume(w http.ResponseWriter, r *http.Request) {
 type readVolumesRequest struct {
 	Filters        filterSet `json:"Filters"`
 	ResultsPerPage *int      `json:"ResultsPerPage"`
+	NextPageToken  *string   `json:"NextPageToken"`
 	DryRun         *bool     `json:"DryRun"`
 }
 
@@ -163,10 +164,7 @@ func (p *Pack) readVolumes(w http.ResponseWriter, r *http.Request) {
 		}
 		out = append(out, p.volumeView(res))
 	}
-	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"Volumes":         page(out, pageSize(req.ResultsPerPage)),
-		"ResponseContext": p.context(),
-	})
+	writePaged(p, w, "Volumes", out, req.ResultsPerPage, req.NextPageToken)
 }
 
 type updateVolumeRequest struct {
@@ -465,6 +463,7 @@ func (p *Pack) readVmsState(w http.ResponseWriter, r *http.Request) {
 		Filters        filterSet `json:"Filters"`
 		AllVms         *bool     `json:"AllVms"`
 		ResultsPerPage *int      `json:"ResultsPerPage"`
+		NextPageToken  *string   `json:"NextPageToken"`
 		DryRun         *bool     `json:"DryRun"`
 	}
 	if err := emulator.DecodeJSON(r, &req); err != nil {
@@ -505,10 +504,7 @@ func (p *Pack) readVmsState(w http.ResponseWriter, r *http.Request) {
 			"MaintenanceEvents": []any{},
 		})
 	}
-	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"VmStates":        page(out, pageSize(req.ResultsPerPage)),
-		"ResponseContext": p.context(),
-	})
+	writePaged(p, w, "VmStates", out, req.ResultsPerPage, req.NextPageToken)
 }
 
 // releaseVolumesOf disposes of the volumes a terminated Vm held, each the way

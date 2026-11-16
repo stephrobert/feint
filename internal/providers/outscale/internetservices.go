@@ -58,6 +58,7 @@ func (p *Pack) readInternetServices(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Filters        filterSet `json:"Filters"`
 		ResultsPerPage *int      `json:"ResultsPerPage"`
+		NextPageToken  *string   `json:"NextPageToken"`
 		DryRun         *bool     `json:"DryRun"`
 	}
 	if err := emulator.DecodeJSON(r, &req); err != nil {
@@ -79,10 +80,7 @@ func (p *Pack) readInternetServices(w http.ResponseWriter, r *http.Request) {
 		}
 		out = append(out, internetServiceView(res))
 	}
-	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"InternetServices": page(out, pageSize(req.ResultsPerPage)),
-		"ResponseContext":  p.context(),
-	})
+	writePaged(p, w, "InternetServices", out, req.ResultsPerPage, req.NextPageToken)
 }
 
 func (p *Pack) linkInternetService(w http.ResponseWriter, r *http.Request) {

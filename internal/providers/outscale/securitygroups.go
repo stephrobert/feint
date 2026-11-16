@@ -81,6 +81,7 @@ func (p *Pack) defaultSecurityGroup(netID string) *resource.Resource {
 type readSecurityGroupsRequest struct {
 	Filters        filterSet `json:"Filters"`
 	ResultsPerPage *int      `json:"ResultsPerPage"`
+	NextPageToken  *string   `json:"NextPageToken"`
 	DryRun         *bool     `json:"DryRun"`
 }
 
@@ -114,10 +115,7 @@ func (p *Pack) readSecurityGroups(w http.ResponseWriter, r *http.Request) {
 		}
 		out = append(out, securityGroupView(res))
 	}
-	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"SecurityGroups":  page(out, pageSize(req.ResultsPerPage)),
-		"ResponseContext": p.context(),
-	})
+	writePaged(p, w, "SecurityGroups", out, req.ResultsPerPage, req.NextPageToken)
 }
 
 func securityGroupView(res *resource.Resource) map[string]any {

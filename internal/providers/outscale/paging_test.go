@@ -89,6 +89,104 @@ func TestAPageSizeInsideTheBoundStillTruncates(t *testing.T) {
 	}
 }
 
+// A truncated answer names the page after it, and following that token reaches
+// the rows the first page could not carry — once each, then stops.
+//
+// The defect this measures was two-sided. The pack truncated to
+// ResultsPerPage and answered no NextPageToken, so a client that asked for two
+// rows out of three was told two was the whole inventory: a silent subset, the
+// shape this repository refuses everywhere else. And the request schemas
+// declare NextPageToken on the same operations while the pack read it nowhere,
+// so a client that sent one was served the first page again — a pagination loop
+// that could never reach the second page.
+func TestATruncatedAnswerNamesThePageAfterIt(t *testing.T) {
+	ts := newServer(t)
+	_, all := post(t, ts, "ReadVmTypes", `{}`)
+	rows, _ := all["VmTypes"].([]any)
+	if len(rows) < 3 {
+		t.Fatalf("the type catalogue holds %d rows; following a token needs at least three", len(rows))
+	}
+
+	seen := make(map[string]bool, len(rows))
+	token := ""
+	for pages := 0; ; pages++ {
+		if pages > len(rows) {
+			t.Fatalf("the token loop did not terminate after %d pages", pages)
+		}
+		body := `{"ResultsPerPage":2}`
+		if token != "" {
+			body = fmt.Sprintf(`{"ResultsPerPage":2,"NextPageToken":%q}`, token)
+		}
+		status, doc := post(t, ts, "ReadVmTypes", body)
+		if status != http.StatusOK {
+			t.Fatalf("page %d answered %d: %v", pages, status, doc)
+		}
+		page, _ := doc["VmTypes"].([]any)
+		for _, row := range page {
+			entry, _ := row.(map[string]any)
+			name, _ := entry["VmTypeName"].(string)
+			if name == "" {
+				t.Fatalf("a paged row carries no VmTypeName: %v", row)
+			}
+			if seen[name] {
+				t.Fatalf("%s came back twice; the token is not moving the window", name)
+			}
+			seen[name] = true
+		}
+		next, present := doc["NextPageToken"]
+		if !present {
+			break
+		}
+		text, ok := next.(string)
+		if !ok || text == "" {
+			t.Fatalf("NextPageToken is %v; a client follows a non-empty string or stops at an absent key", next)
+		}
+		token = text
+	}
+	if len(seen) != len(rows) {
+		t.Fatalf("paging saw %d of the catalogue's %d rows", len(seen), len(rows))
+	}
+}
+
+// The last page carries no NextPageToken at all, rather than an empty one: the
+// Go SDK decodes the field into a pointer and a client pages until it is nil.
+func TestTheLastPageCarriesNoToken(t *testing.T) {
+	ts := newServer(t)
+	_, all := post(t, ts, "ReadVmTypes", `{}`)
+	rows, _ := all["VmTypes"].([]any)
+	if len(rows) == 0 {
+		t.Fatal("the type catalogue is empty")
+	}
+	status, doc := post(t, ts, "ReadVmTypes", fmt.Sprintf(`{"ResultsPerPage":%d}`, len(rows)))
+	if status != http.StatusOK {
+		t.Fatalf("ReadVmTypes answered %d: %v", status, doc)
+	}
+	if next, present := doc["NextPageToken"]; present {
+		t.Fatalf("a page holding every row still named a next one: %v", next)
+	}
+}
+
+// A token this emulator did not issue is refused on every action whose request
+// schema declares one, rather than answered with the first page.
+//
+// The population is the whole declared set, not one handler: a handler left
+// unwired would decode no token and answer 200 with page one — the loop this
+// fix removes, in the one place nobody tested.
+func TestATokenThisEmulatorDidNotIssueIsRefused(t *testing.T) {
+	ts := newServer(t)
+	for _, action := range pagedActions {
+		status, body := post(t, ts, action, `{"NextPageToken":"not-a-token-this-emulator-issued"}`)
+		if status != http.StatusBadRequest {
+			t.Errorf("%s answered %d to a token it never issued; want 400", action, status)
+			continue
+		}
+		errs, _ := body["Errors"].([]any)
+		if len(errs) == 0 {
+			t.Errorf("%s refused the token outside the Outscale envelope: %v", action, body)
+		}
+	}
+}
+
 // A filter ReadVmTypes cannot apply is refused by name, and the one it serves
 // selects.
 //

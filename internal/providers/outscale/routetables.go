@@ -73,6 +73,7 @@ func (p *Pack) mainRouteTable(netID, ipRange string) *resource.Resource {
 type readRouteTablesRequest struct {
 	Filters        filterSet `json:"Filters"`
 	ResultsPerPage *int      `json:"ResultsPerPage"`
+	NextPageToken  *string   `json:"NextPageToken"`
 	DryRun         *bool     `json:"DryRun"`
 }
 
@@ -112,10 +113,7 @@ func (p *Pack) readRouteTables(w http.ResponseWriter, r *http.Request) {
 		}
 		out = append(out, routeTableReadView(res))
 	}
-	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"RouteTables":     page(out, pageSize(req.ResultsPerPage)),
-		"ResponseContext": p.context(),
-	})
+	writePaged(p, w, "RouteTables", out, req.ResultsPerPage, req.NextPageToken)
 }
 
 // routeTableMatches applies every declared filter, the nested ones against the
