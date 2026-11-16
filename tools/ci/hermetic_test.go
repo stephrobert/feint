@@ -467,7 +467,7 @@ func TestTheWalkJudgesEveryBuildTheRepositoryUses(t *testing.T) {
 		},
 		"b": {
 			"m_test.go": []byte(good),
-			"s_test.go": []byte("//go:build feintfixture && linux && go1.22\n\npackage x\n\nimport \"testing\"\n\nfunc TestS(t *testing.T) { t.Setenv(\"GIT_DIR\", \"/home/someone/project/.git\") }\n"),
+			"s_test.go": []byte("//go:build feintfixture && !plan9 && go1.22\n\npackage x\n\nimport \"testing\"\n\nfunc TestS(t *testing.T) { t.Setenv(\"GIT_DIR\", \"/home/someone/project/.git\") }\n"),
 			"late.go":   []byte("package x\n\n//go:build notatag\n"),
 		},
 	}
@@ -485,7 +485,7 @@ func TestTheWalkJudgesEveryBuildTheRepositoryUses(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(refusals) != 2 || !strings.Contains(refusals[0], "a: its test binary has no TestMain in the build with -tags feintfixture") || !strings.Contains(refusals[1], "b/s_test.go:") && strings.Contains(refusals[1], "Setenv(\"GIT_DIR\", ...) takes a value not derived") {
+	if len(refusals) != 2 || !strings.Contains(refusals[0], "a: its test binary has no TestMain in the build with -tags feintfixture") || !strings.Contains(refusals[1], "b/s_test.go:") || !strings.Contains(refusals[1], "Setenv(\"GIT_DIR\", ...) takes a value not derived") {
 		t.Errorf("refusals = %q, want two, both in the build with -tags feintfixture: a's missing TestMain, then b's Setenv", refusals)
 	}
 	if got := judged["default build"]; !slices.Equal(got, []string{"a", "b"}) {
