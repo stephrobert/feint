@@ -10,13 +10,7 @@
       "exclude": []
     }
   },
-  "bypass_actors": [
-    {
-      "actor_id": 5,
-      "actor_type": "RepositoryRole",
-      "bypass_mode": "pull_request"
-    }
-  ],
+  "bypass_actors": [],
   "rules": [
     {
       "type": "deletion"
@@ -36,7 +30,9 @@
           "squash",
           "merge",
           "rebase"
-        ]
+        ],
+        "require_extra_approval_for_unattributed_changes": true,
+        "required_reviewers": []
       }
     },
     {
@@ -58,6 +54,9 @@
             "context": "Build, test, lint, vuln-scan"
           },
           {
+            "context": "Compare with the upstream SDK"
+          },
+          {
             "context": "Conventional Commits"
           },
           {
@@ -70,6 +69,9 @@
             "context": "The published action matches the source"
           },
           {
+            "context": "The release note names what changed"
+          },
+          {
             "context": "TruffleHog"
           },
           {
@@ -77,6 +79,9 @@
           },
           {
             "context": "exo-cli"
+          },
+          {
+            "context": "fields"
           },
           {
             "context": "octl"
