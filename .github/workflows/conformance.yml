@@ -670,9 +670,28 @@ jobs:
           # doctor's own exit code is not the verdict here: it fails on any
           # FAIL check, and this step asks one question only. So the report is
           # captured, printed, and then searched.
+          #
+          # Three outcomes, and an answer doctor no longer gives is a failure:
+          # the titles were reworded once (#974) and this step then died on a
+          # silent grep. The phrases below are doctor's own titles;
+          # TestTheLeftoverStepGrepsForDoctorsOwnTitles (tools/ci) fails when
+          # doctor stops printing one of them.
           go run ./cmd/feint doctor --vm off > doctor.txt 2>&1 || true
-          grep -A2 'interception authority' doctor.txt
-          if grep -q 'outlived their' doctor.txt; then
-            echo "this job left an interception authority behind" >&2
+          if grep -qF 'directories left in' doctor.txt || grep -qF 'have no owner record' doctor.txt; then
+            grep -F -A3 -e 'directories left in' -e 'have no owner record' doctor.txt >&2
+            echo "this job left a feint run directory behind" >&2
             exit 1
           fi
+          if grep -qF 'command(s) running; their directories go when they end' doctor.txt; then
+            grep -F -A1 'command(s) running; their directories go when they end' doctor.txt >&2
+            echo "a feint run of this job is still going after it" >&2
+            exit 1
+          fi
+          # shellcheck disable=SC2016 # the backticks are doctor's own text, not an expansion
+          if ! grep -qF 'No leftover `feint run` directory in' doctor.txt; then
+            cat doctor.txt >&2
+            echo "doctor no longer answers whether a run left a directory" >&2
+            exit 1
+          fi
+          # shellcheck disable=SC2016 # the same title, printed for the log
+          grep -F 'No leftover `feint run` directory in' doctor.txt

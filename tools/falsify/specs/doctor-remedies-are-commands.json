@@ -337,6 +337,14 @@
       "find": "\tif n == 1 {\n\t\treturn \"1 more \" + one\n",
       "replace": "\tif n == 1 && one == \"never\" {\n\t\treturn \"1 more \" + one\n",
       "test": "TestTheLeftoverNotesComeBeforeTheCommandSentence"
+    },
+    {
+      "label": "doctor rewords its no-leftover title and the conformance step that greps for it dies on the night instead of in a unit test (PR #980)",
+      "file": "internal/cli/doctor.go",
+      "find": "\t\treturn check{title: \"No leftover `feint run` directory in \" + os.TempDir() + \".\", state: verdictOK,",
+      "replace": "\t\treturn check{title: \"No stale `feint run` directory in \" + os.TempDir() + \".\", state: verdictOK,",
+      "test": "TestTheLeftoverStepGrepsForDoctorsOwnTitles",
+      "package": "./tools/ci/"
     }
   ]
 }
