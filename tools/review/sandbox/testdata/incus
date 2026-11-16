@@ -1,0 +1,111 @@
+#!/usr/bin/env bash
+# A stand-in for `incus`, for sandbox_test.go: it records every call and keeps
+# just enough state (does the instance exist, does it hold a NIC) to answer the
+# questions tools/review/sandbox.sh asks. It never starts anything.
+#
+# Every call is one line of $FAKE_DIR/calls.log, arguments joined by TAB.
+# Behaviour switches, all optional: FAKE_IMAGE_MISSING, FAKE_LABEL (the label
+# `config get` answers instead of the real one), FAKE_FORCE_NIC (the device
+# list shows a NIC whatever happened), FAKE_FORCE_IFACE (the box lists eth0),
+# FAKE_FORCE_CONNECT (the connection probe succeeds), FAKE_TEST_RC,
+# FAKE_TEST_OUTPUT (printf %b), FAKE_GO_VERSION_OUT, and per stage
+# FAKE_RC_<STAGE> / FAKE_SLEEP_<STAGE> (stage upper-cased, - becomes _).
+set -u
+d="${FAKE_DIR:?}"
+(
+  IFS=$'\t'
+  printf '%s\n' "$*"
+) >>"${d}/calls.log"
+
+case "${1:-}" in
+  image)
+    [[ -z ${FAKE_IMAGE_MISSING:-} ]] || exit 1
+    exit 0
+    ;;
+  launch)
+    cat >"${d}/launch.yaml"
+    touch "${d}/exists"
+    exit 0
+    ;;
+  info)
+    [[ -e ${d}/exists ]]
+    exit
+    ;;
+  stop)
+    rm -f "${d}/exists"
+    exit 0
+    ;;
+  config)
+    case "${2:-}" in
+      get)
+        [[ -e ${d}/exists ]] || exit 1
+        if [[ -n ${FAKE_LABEL:-} ]]; then
+          echo "${FAKE_LABEL}"
+        else
+          sed -n 's/.*user.review-sandbox: "\(.*\)"/\1/p' "${d}/launch.yaml"
+        fi
+        exit 0
+        ;;
+      device)
+        case "${3:-}" in
+          add) touch "${d}/nic" ;;
+          remove) rm -f "${d}/nic" ;;
+          show)
+            printf 'root:\n  type: disk\n'
+            if [[ -e ${d}/nic || -n ${FAKE_FORCE_NIC:-} ]]; then printf 'net0:\n  type: nic\n'; fi
+            ;;
+        esac
+        exit 0
+        ;;
+    esac
+    exit 0
+    ;;
+  file)
+    # file push [flags] SRC DEST: keep a copy of what was pushed.
+    src=''
+    prev=''
+    for a in "$@"; do
+      src="${prev}"
+      prev="${a}"
+    done
+    mkdir -p "${d}/pushed"
+    [[ -f ${src} ]] && cp "${src}" "${d}/pushed/$(basename "${prev}")"
+    exit 0
+    ;;
+  exec)
+    stage=''
+    for a in "$@"; do
+      case "${a}" in REVIEW_STAGE=*) stage="${a#REVIEW_STAGE=}" ;; esac
+    done
+    var="$(printf '%s' "${stage}" | tr 'a-z-' 'A-Z_')"
+    sleepvar="FAKE_SLEEP_${var}"
+    rcvar="FAKE_RC_${var}"
+    if [[ -n ${!sleepvar:-} ]]; then sleep "${!sleepvar}"; fi
+    case "${stage}" in
+      ifaces)
+        echo lo
+        if [[ -e ${d}/nic || -n ${FAKE_FORCE_IFACE:-} ]]; then echo eth0; fi
+        exit 0
+        ;;
+      netcheck)
+        if [[ -e ${d}/nic || -n ${FAKE_FORCE_CONNECT:-} ]]; then exit 1; fi
+        exit 0
+        ;;
+      disk)
+        printf '1B-blocks\n%s\n' "${FAKE_DISK_SIZE:-10737418240}"
+        exit 0
+        ;;
+      gocheck)
+        echo "${FAKE_GO_VERSION_OUT:-go version go1.26.11 linux/amd64}"
+        exit 0
+        ;;
+      test)
+        # shellcheck disable=SC2059 # the test hands over a printf format on purpose
+        printf "${FAKE_TEST_OUTPUT:-}"
+        exit "${FAKE_TEST_RC:-0}"
+        ;;
+    esac
+    exit "${!rcvar:-0}"
+    ;;
+esac
+exit 0

@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# A stand-in for `go`, for sandbox_test.go: the only question sandbox.sh asks
+# the host go is `go env GOROOT`, so the test decides where that is.
+if [[ ${1:-} == env && ${2:-} == GOROOT ]]; then
+  echo "${FAKE_GOROOT:?}"
+  exit 0
+fi
+echo "fake go: unexpected call: $*" >&2
+exit 3

@@ -67,6 +67,12 @@ permissions: {}
 # issue open while they differ.
 env:
   INCUS_VERSION: '7.6'
+  # Terraform asks checkpoint-api.hashicorp.com for a newer version on every
+  # command unless this is set: measured in 3 runs of 3 of every job that runs
+  # it, on 2026-11-16. HashiCorp documents the variable as the off switch
+  # (developer.hashicorp.com/terraform/cli/commands, "Upgrade and Security
+  # Bulletin Checks"). Held by tools/ci/egress_test.go (#988).
+  CHECKPOINT_DISABLE: '1'
 
 jobs:
   runtime:
@@ -516,7 +522,9 @@ jobs:
       # gate exists for would be buried under it. On the failure path the state
       # is printed by the step above instead.
       - name: What this leg left on the host
-        run: sudo tools/conformance/guard.sh leftovers-after "${{ matrix.mode }}"
+        env:
+          MODE: ${{ matrix.mode }}
+        run: sudo tools/conformance/guard.sh leftovers-after "$MODE"
 
       # The dataplane witness gate (#486) needs Terraform: it applies the
       # example stacks through `feint up`. Same pinned version and upstream
@@ -989,6 +997,9 @@ jobs:
     # person who asked for it is the shape #604 names.
     if: always()
     runs-on: ubuntu-24.04
+    # Measured: 18 s at most, 20 scheduled runs from 2026-10-28 to 2026-11-16.
+    # Three times the longest, rounded up to five minutes (#988).
+    timeout-minutes: 5
     permissions:
       actions: read
       contents: read
@@ -996,7 +1007,20 @@ jobs:
       - name: Harden the runner
         uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
-          egress-policy: audit
+          # Blocked to the hosts this job was measured reaching on 2026-11-16:
+          # every `domain resolved` line harden-runner logged in its last three
+          # green runs (43793288361, 43668523646, 43547218584).
+          # Variable hosts are one wildcard per family. Left out on purpose:
+          # harden-runner's own endpoint, which its agent allows, and
+          # api.snapcraft.io, snapd on the runner image, never called by a step.
+          # Block narrows what this job reaches; it does not stop a decided leak:
+          # docs/limits.md, "The CI's egress block narrows the surface" (#988).
+          egress-policy: block
+          allowed-endpoints: >
+            api.github.com:443
+            github.com:443
+            hosted-compute-*.githubapp.com:443
+            results-receiver.actions.githubusercontent.com:443
 
       - name: Read both legs and say which population moved
         env:
@@ -1059,6 +1083,9 @@ jobs:
     needs: [runtime, stacks]
     if: always() && github.event_name == 'schedule'
     runs-on: ubuntu-24.04
+    # Measured: 20 s at most, 20 scheduled runs from 2026-10-28 to 2026-11-16.
+    # Three times the longest, rounded up to five minutes (#988).
+    timeout-minutes: 5
     permissions:
       actions: read
       contents: read
@@ -1070,7 +1097,19 @@ jobs:
       - name: Harden the runner
         uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
-          egress-policy: audit
+          # Blocked to the hosts this job was measured reaching on 2026-11-16:
+          # every `domain resolved` line harden-runner logged in its last three
+          # green runs (43793288361, 43668523646, 43547218584).
+          # Variable hosts are one wildcard per family. Left out on purpose:
+          # harden-runner's own endpoint, which its agent allows, and
+          # api.snapcraft.io, snapd on the runner image, never called by a step.
+          # Block narrows what this job reaches; it does not stop a decided leak:
+          # docs/limits.md, "The CI's egress block narrows the surface" (#988).
+          egress-policy: block
+          allowed-endpoints: >
+            api.github.com:443
+            github.com:443
+            results-receiver.actions.githubusercontent.com:443
 
       # This job counted the streak from the Actions API and needed nothing from
       # the repository, so it checked nothing out — and then #795 added a step
@@ -1171,7 +1210,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           FEINT_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: tools/ci/streak-report.sh --apply "${{ steps.count.outputs.streak }}" 14 125
+          STREAK: ${{ steps.count.outputs.streak }}
+        run: tools/ci/streak-report.sh --apply "$STREAK" 14 125
 
   # A red night tells somebody (#502). Ten scheduled reds in twelve nights
   # (#501) left no trace outside job logs and the summary above — the two

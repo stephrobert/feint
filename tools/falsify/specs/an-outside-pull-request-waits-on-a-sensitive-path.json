@@ -1,0 +1,118 @@
+{
+ "package": "./tools/ci/",
+ "note": "The subject is the required check of #988: a pull request from outside the project that changes a sensitive path (tools/ci/sensitive-paths.txt) is red until a trusted reviewer (owner, member, collaborator) has approved it as a review on the head commit. The approval is bound to the commit GitHub recorded it against (the review's commit_id), so a push after it, or one second before it was submitted, leaves the head unapproved. The decision lives in tools/ci/sensitive-paths.sh, run by the `Sensitive paths` job of .github/workflows/sensitive-paths.yml from the base commit.\n\nCycle 1 of the review replaced the first mechanism, a label: the `labeled` event carries the head at the moment the label lands, so a push just before it was approved unread. The label's mutations went with it.\n\nEach mutation removes one refusal and names the test whose input fails that refusal only. Several refusals exit with the same code 2 (no approval, a stale approval, a reviewer blocking), so every test asserts the reason as well as the code: the mutation that ignores a blocking review on an approval-then-request sequence keeps exit 2 and loses the reason.\n\nCycle 2 added trust bound to who can push to the head (the head in this repository or in the author's own fork; a deleted fork is judged as outside) and made a review by a deleted account count for nothing instead of making the list unjudgeable.\\n\\nWhat this does not falsify: that GitHub runs this workflow at all, that the job name stays the required context once the maintainer adds it, how the review UI fills commit_id when the head moved under the reviewer (not observed on a real pull request), and anything a pull request achieves by rewriting the workflow itself, which the workflow's header says this check cannot stop.",
+ "mutations": [
+  {
+   "label": "every author is trusted whatever their association, so an outside pull request, Dependabot's included, passes on any path with no review as long as its head is in this repository or in its author's fork",
+   "file": "tools/ci/sensitive-paths.sh",
+   "find": "  | if ($t | index($p.author_association)) == null then \"outside\"",
+   "replace": "  | if ($t | index($p.author_association)) == null and false then \"outside\"",
+   "test": "TestAnyoneElseIsJudged"
+  },
+  {
+   "label": "a pattern holding `*` never matches: go.mod and mise.toml are still caught, but .github/, tools/ci, tools/review, tools/testplan, the scripts and the requirement files catch nothing",
+   "file": "tools/ci/sensitive-paths.sh",
+   "find": "    if [[ \"${path}\" == ${pattern} ]]; then",
+   "replace": "    if [[ \"${path}\" == ${pattern} && \"${pattern}\" != *\"*\"* ]]; then",
+   "test": "TestEveryListedPatternCatchesAPath"
+  },
+  {
+   "label": "a renamed file is judged on its new path only, so moving a workflow out of .github/ (a deletion of that workflow) passes",
+   "file": "tools/ci/sensitive-paths.sh",
+   "find": "jq -j '.[][] | (.filename, (.previous_filename // empty)) | (., \"\\u0000\")' \\",
+   "replace": "jq -j '.[][] | (.filename, (.previous_filename // empty | empty)) | (., \"\\u0000\")' \\",
+   "test": "TestARenameOutOfASensitivePathIsJudged"
+  },
+  {
+   "label": "the file list is judged however short it is, so a pull request past the API's 3000-file ceiling is passed on the files that happened to be listed",
+   "file": "tools/ci/sensitive-paths.sh",
+   "find": "((listed == changed)) ||",
+   "replace": "((listed == changed || listed >= 0)) ||",
+   "test": "TestAShortFileListIsNotJudged"
+  },
+  {
+   "label": "a head that moved during the run is judged anyway, so the check run of the event's commit carries a verdict drawn from another commit's files and reviews",
+   "file": "tools/ci/sensitive-paths.sh",
+   "find": "[[ \"${current_head}\" == \"${head_sha}\" ]] ||",
+   "replace": "[[ \"${current_head}\" == \"${head_sha}\" || -n \"${current_head}\" ]] ||",
+   "test": "TestAHeadThatMovedIsNotJudged"
+  },
+  {
+   "label": "an approval counts whatever commit it was given on, so commits pushed after it, or one second before it, merge unread",
+   "file": "tools/ci/sensitive-paths.sh",
+   "find": "    | (map(select(.state == \"APPROVED\" and .commit_id == $sha) | .user.login)) as $approved",
+   "replace": "    | (map(select(.state == \"APPROVED\" and (.commit_id == $sha or true)) | .user.login)) as $approved",
+   "test": "TestAPushJustBeforeTheApprovalIsRefused"
+  },
+  {
+   "label": "a reviewer from outside the project counts as trusted, so the contributor's friend approves the change",
+   "file": "tools/ci/sensitive-paths.sh",
+   "find": "     | select(.author_association as $a | $trusted | index($a) != null)\n",
+   "replace": "     | select(.author_association as $a | $trusted | index($a) != null or true)\n",
+   "test": "TestAnOutsideReviewerCannotApprove"
+  },
+  {
+   "label": "a trusted reviewer's request for changes blocks nothing while another trusted reviewer approves",
+   "file": "tools/ci/sensitive-paths.sh",
+   "find": "    | if ($blocking | length) > 0 then \"blocked\", $blocking[]",
+   "replace": "    | if ($blocking | length) > 0 and false then \"blocked\", $blocking[]",
+   "test": "TestAnotherTrustedReviewerCanBlock"
+  },
+  {
+   "label": "the earliest review of a reviewer decides instead of the latest, so an approval followed by a request for changes still approves",
+   "file": "tools/ci/sensitive-paths.sh",
+   "find": "    | group_by(.user.login) | map(max_by(.id))",
+   "replace": "    | group_by(.user.login) | map(max_by(-.id))",
+   "test": "TestALaterChangesRequestedWithdrawsTheApproval"
+  },
+  {
+   "label": "a dismissed review is not a decision, so an approval given before a review that was later dismissed comes back",
+   "file": "tools/ci/sensitive-paths.sh",
+   "find": "     | select(.state == \"APPROVED\" or .state == \"CHANGES_REQUESTED\" or .state == \"DISMISSED\")",
+   "replace": "     | select(.state == \"APPROVED\" or .state == \"CHANGES_REQUESTED\" or (.state == \"DISMISSED\" and false))",
+   "test": "TestADismissedReviewLeavesNoApproval"
+  },
+  {
+   "label": "paths are printed raw: a path holding a newline puts a line starting with `::` in the log, and only the stop-commands block would then stand between it and the runner's command parser; the test holds the stronger property that no such line is printed at all",
+   "file": "tools/ci/sensitive-paths.sh",
+   "find": "  printf '  %q\\n' \"$@\"",
+   "replace": "  printf '  %s\\n' \"$@\"",
+   "test": "TestAPathCannotForgeAWorkflowCommand"
+  },
+  {
+   "label": "the job is renamed, so its check run no longer carries the name the ruleset is to require: a renamed job stops being required in silence",
+   "file": ".github/workflows/sensitive-paths.yml",
+   "find": "    name: Sensitive paths\n",
+   "replace": "    name: Sensitive paths (renamed)\n",
+   "test": "TestTheWorkflowListensToReviewsUnderItsRequiredName"
+  },
+  {
+   "label": "the workflow no longer wakes when an approval is dismissed, so the green run of the approval stays the latest verdict on the head commit after the maintainer withdrew it",
+   "file": ".github/workflows/sensitive-paths.yml",
+   "find": "    types: [submitted, dismissed]\n",
+   "replace": "    types: [submitted] # dismissed\n",
+   "test": "TestTheWorkflowListensToReviewsUnderItsRequiredName"
+  },
+  {
+   "label": "the author's association alone decides trust again, so a collaborator's pull request from a branch of a stranger's fork passes every push the stranger makes, unread",
+   "file": "tools/ci/sensitive-paths.sh",
+   "find": "    elif $head == $base or $owner == $author then \"trusted\"",
+   "replace": "    elif $head == $base or $owner == $author or true then \"trusted\"",
+   "test": "TestACollaboratorOnAStrangersForkIsJudged"
+  },
+  {
+   "label": "a payload with no author login is compared anyway, and with no head repository either both sides of `owner == author` are null: a member's pull request is trusted on nothing",
+   "file": "tools/ci/sensitive-paths.sh",
+   "find": "    elif ($base | type) != \"string\" or ($author | type) != \"string\" then \"unknown\"",
+   "replace": "    elif (($base | type) != \"string\" or ($author | type) != \"string\") and false then \"unknown\"",
+   "test": "TestAPayloadWithNoAuthorIsNotTrusted"
+  },
+  {
+   "label": "a review by a deleted account (`user: null`) counts: its request for changes, grouped under a null login, blocks an approved head",
+   "file": "tools/ci/sensitive-paths.sh",
+   "find": "     | select(.user.login | type == \"string\")]",
+   "replace": "     | select((.user.login | type == \"string\") or true)]",
+   "test": "TestAReviewFromADeletedAccountIsIgnored"
+  }
+ ]
+}

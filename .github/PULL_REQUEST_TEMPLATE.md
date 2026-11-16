@@ -2,10 +2,11 @@
 Two things that surprise first-time contributors here, both worth thirty seconds
 before you push:
 
-1. **From a fork, no CI runs until a maintainer approves it.** GitHub holds every
-   workflow in `action_required` — its protection against a fork editing a
-   workflow to reach this repository's secrets — so `gh pr checks` answers "no
-   checks reported" and you get no feedback at all, not even a red one. That is
+1. **From a fork, no CI runs until a maintainer approves it, at every push.**
+   The repository requires approval for every contributor who is not a member
+   (`all_external_contributors`), so that code from outside does not run on its
+   runners before someone has read it. `gh pr checks` answers "no checks
+   reported" and you get no feedback at all, not even a red one. That is
    normal. It is not your pull request being ignored, and it means the first
    review is human. A pull request has already been merged here that broke a
    conformance suite with nothing on the page to say so.
@@ -54,6 +55,13 @@ conditional: if a block does not apply, write `N/A` rather than leaving it blank
       down**, never left blank: the reviewer cannot tell an omission that was
       considered from one that was forgotten, and only one of the two is a
       decision
+- [ ] If this touches a path listed in `tools/ci/sensitive-paths.txt`
+      (`.github/`, scripts under `tools/`, `tools/ci/`, `tools/review/`,
+      `tools/testplan/`, `go.mod`, `go.sum`, Python requirements, `mise.toml`,
+      hooks, the `Dockerfile`, falsify specs…), the issue where the change was agreed is linked
+      below; the "Sensitive paths" check stays red until the maintainer approves
+      the head commit. See "Who answers for a pull request" in
+      [CONTRIBUTING.md](../CONTRIBUTING.md)
 
 ### When a model wrote a substantive part of this — otherwise N/A
 
@@ -61,7 +69,8 @@ See the AI-assisted contributions section of
 [CONTRIBUTING.md](../CONTRIBUTING.md). The bar is the same as for everyone; what
 is added here is disclosure and one extra question.
 
-- [ ] An `Assisted-by:` trailer names the tool and the model version
+- [ ] An `Assisted-by:` trailer names the tool and the model version. A pull
+      request that needs one and does not carry it is closed
 - [ ] I ran `mise run conformance` myself — not "it should pass"
 - [ ] Every field name in the diff comes from the provider's SDK, their OpenAPI
       document, or a run of the real client, and I can say which. "The model

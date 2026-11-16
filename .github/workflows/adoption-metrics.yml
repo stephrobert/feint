@@ -25,8 +25,11 @@ on:
     - cron: '17 4 * * *'
   workflow_dispatch:
 
-permissions:
-  contents: read
+# Nothing at the top, everything per job, like every other workflow here: a job
+# added later starts with no right at all and has to name the one it needs.
+# tools/ci/job_bounds_test.go TestEveryWorkflowGrantsNothingAtTheTop fails
+# on the `contents: read` this file carried until #988.
+permissions: {}
 
 concurrency:
   group: adoption-metrics
@@ -34,7 +37,12 @@ concurrency:
 
 jobs:
   snapshot:
-    runs-on: ubuntu-latest
+    # A pinned image, never `-latest`, which moves under the job on GitHub's
+    # schedule rather than this repository's (#988).
+    runs-on: ubuntu-24.04
+    # Measured: 42 s at most, median 32 s, over the 20 scheduled runs from
+    # 2026-10-28 to 2026-11-16. Three times that, rounded up to five minutes.
+    timeout-minutes: 5
     permissions:
       # The only job that writes, and it writes to one branch that carries no
       # code. main is unreachable from here: its ruleset refuses a direct push.
@@ -43,7 +51,26 @@ jobs:
       - name: Harden runner
         uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
-          egress-policy: audit
+          # Blocked to the hosts this job was measured reaching on 2026-11-16:
+          # every `domain resolved` line harden-runner logged in its last three
+          # green runs (43803795413, 43676261850, 43556060129).
+          # Variable hosts are one wildcard per family. Left out on purpose:
+          # harden-runner's own endpoint, which its agent allows, and
+          # api.snapcraft.io, snapd on the runner image, never called by a step.
+          # Block narrows what this job reaches; it does not stop a decided leak:
+          # docs/limits.md, "The CI's egress block narrows the surface" (#988).
+          # api.github.com, raw.githubusercontent.com and
+          # release-assets.githubusercontent.com are what actions/setup-go
+          # v7.0.0 reaches on a toolcache miss (src/installer.ts), read and
+          # not measured: every measured run found the pin in the toolcache.
+          egress-policy: block
+          allowed-endpoints: >
+            api.github.com:443
+            github.com:443
+            hosted-compute-*.githubapp.com:443
+            raw.githubusercontent.com:443
+            release-assets.githubusercontent.com:443
+            results-receiver.actions.githubusercontent.com:443
 
       - name: Checkout the collector
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

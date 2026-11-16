@@ -1,0 +1,173 @@
+{
+  "package": "./tools/ci/",
+  "mutations": [
+    {
+      "label": "a step with no egress-policy is read as audit, though the action's own default is block",
+      "file": "tools/ci/egress_test.go",
+      "find": "case !step.hasPolicy:",
+      "replace": "case !step.hasPolicy && false:",
+      "test": "TestHardenStepProblemsAsksEachQuestion"
+    },
+    {
+      "label": "a policy spelled otherwise passes, the switch's default accepting what it does not recognise",
+      "file": "tools/ci/egress_test.go",
+      "find": "default:\n\t\tproblems = append(problems, fmt.Sprintf(\"egress-policy %q",
+      "replace": "case len(step.policy) < 0:\n\t\tproblems = append(problems, fmt.Sprintf(\"egress-policy %q",
+      "test": "TestHardenStepProblemsAsksEachQuestion"
+    },
+    {
+      "label": "an allowed-endpoints list under audit is accepted, a list that reads like a control and is ignored",
+      "file": "tools/ci/egress_test.go",
+      "find": "if step.hasList {",
+      "replace": "if step.hasList && false {",
+      "test": "TestHardenStepProblemsAsksEachQuestion"
+    },
+    {
+      "label": "block with no allowed-endpoints is accepted",
+      "file": "tools/ci/egress_test.go",
+      "find": "if len(step.endpoints) == 0 {",
+      "replace": "if len(step.endpoints) < 0 {",
+      "test": "TestHardenStepProblemsAsksEachQuestion"
+    },
+    {
+      "label": "an entry with no port is read as a host, and the agent gives it port 0",
+      "file": "tools/ci/egress_test.go",
+      "find": "regexp.MustCompile(`^([a-z0-9*.-]+):([0-9]+)$`)",
+      "replace": "regexp.MustCompile(`^([a-z0-9*.-]+):?([0-9]*)$`)",
+      "test": "TestHardenStepProblemsAsksEachQuestion"
+    },
+    {
+      "label": "a port above 65535 is accepted",
+      "file": "tools/ci/egress_test.go",
+      "find": "port < 1 || port > 65535",
+      "replace": "port < 1 || port > 6553500",
+      "test": "TestHardenStepProblemsAsksEachQuestion"
+    },
+    {
+      "label": "an entry with two wildcards is accepted, though the agent matches on the first only",
+      "file": "tools/ci/egress_test.go",
+      "find": "strings.Count(m[1], \"*\") > 1",
+      "replace": "strings.Count(m[1], \"*\") > 2",
+      "test": "TestHardenStepProblemsAsksEachQuestion"
+    },
+    {
+      "label": "a telemetry host in a block list is accepted: the state that would let sentry-par.scaleway.com back in",
+      "file": "tools/ci/egress_test.go",
+      "find": "if why, ok := telemetryHosts[m[1]]; ok {",
+      "replace": "if why, ok := telemetryHosts[m[1]]; ok && false {",
+      "test": "TestHardenStepProblemsAsksEachQuestion"
+    },
+    {
+      "label": "a comment line inside the list is read as entries",
+      "file": "tools/ci/egress_test.go",
+      "find": "if trimmed == \"\" || strings.HasPrefix(trimmed, \"#\") {",
+      "replace": "if trimmed == \"\" || (strings.HasPrefix(trimmed, \"#\") && false) {",
+      "test": "TestHardenStepProblemsAsksEachQuestion"
+    },
+    {
+      "label": "the reader sees only a step whose dash line is its uses: line, and the walk reads no step of this repository",
+      "file": "tools/ci/egress_test.go",
+      "find": "regexp.MustCompile(`^(\\s*)(?:- )?uses:\\s*step-security/harden-runner@`)",
+      "replace": "regexp.MustCompile(`^(\\s*)- uses:\\s*step-security/harden-runner@`)",
+      "test": "TestEveryHardenRunnerStepHolds"
+    },
+    {
+      "label": "CHECKPOINT_DISABLE set to another value than 1 passes",
+      "file": "tools/ci/egress_test.go",
+      "find": "v != \"1\" {\n\t\t\treturn fmt.Sprintf(\"CHECKPOINT_DISABLE is %q, not '1'\", v)",
+      "replace": "v == \"never\" {\n\t\t\treturn fmt.Sprintf(\"CHECKPOINT_DISABLE is %q, not '1'\", v)",
+      "test": "TestCheckpointProblemAsksEachQuestion"
+    },
+    {
+      "label": "a workflow with no workflow-level env is not named as such",
+      "file": "tools/ci/egress_test.go",
+      "find": "if !found {\n\t\treturn \"installs Terraform and has no workflow-level env",
+      "replace": "if !found && false {\n\t\treturn \"installs Terraform and has no workflow-level env",
+      "test": "TestCheckpointProblemAsksEachQuestion"
+    },
+    {
+      "label": "a CHECKPOINT_DISABLE set in one job answers for the whole workflow",
+      "file": "tools/ci/egress_test.go",
+      "find": "!strings.HasPrefix(line, \"#\") {\n\t\t\tbreak",
+      "replace": "!strings.HasPrefix(line, \"#\") && false {\n\t\t\tbreak",
+      "test": "TestCheckpointProblemAsksEachQuestion"
+    },
+    {
+      "label": "a workflow that installs Terraform from releases.hashicorp.com without a TERRAFORM_VERSION is not asked",
+      "file": "tools/ci/egress_test.go",
+      "find": "regexp.MustCompile(`releases\\.hashicorp\\.com/terraform|TERRAFORM_VERSION:`)",
+      "replace": "regexp.MustCompile(`TERRAFORM_VERSION:`)",
+      "test": "TestCheckpointProblemAsksEachQuestion"
+    },
+    {
+      "label": "CHECKPOINT_DISABLE set under one task of mise.toml answers for every task",
+      "file": "tools/ci/egress_test.go",
+      "find": "if table != \"[env]\" {",
+      "replace": "if table == \"[nothing]\" {",
+      "test": "TestMiseCheckpointProblemAsksEachQuestion"
+    },
+    {
+      "label": "CHECKPOINT_DISABLE set empty in mise.toml passes",
+      "file": "tools/ci/egress_test.go",
+      "find": "if v := strings.Trim(strings.TrimSpace(value), `\"'`); v != \"1\" {",
+      "replace": "if v := strings.Trim(strings.TrimSpace(value), `\"'`); v == \"never\" {",
+      "test": "TestMiseCheckpointProblemAsksEachQuestion"
+    },
+    {
+      "label": "the walk over the real workflows: conformance.yml loses CHECKPOINT_DISABLE, and its seven Terraform-running jobs ask HashiCorp again",
+      "file": ".github/workflows/conformance.yml",
+      "find": "  CHECKPOINT_DISABLE: '1'\n",
+      "replace": "  # CHECKPOINT_DISABLE: '1'\n",
+      "test": "TestEveryWorkflowThatInstallsTerraformSilencesItsCheckpoint"
+    },
+    {
+      "label": "the walk over the real workflows: the scw panic reporter is allowed back into the client legs",
+      "file": ".github/workflows/conformance.yml",
+      "find": "            registry.opentofu.org:443\n",
+      "replace": "            registry.opentofu.org:443\n            sentry-par.scaleway.com:443\n",
+      "test": "TestEveryHardenRunnerStepHolds"
+    },
+    {
+      "label": "the walk over mise.toml: a local suite asks HashiCorp for a newer version again",
+      "file": "mise.toml",
+      "find": "CHECKPOINT_DISABLE = \"1\"\n",
+      "replace": "# CHECKPOINT_DISABLE = \"1\"\n",
+      "test": "TestMiseSilencesTheCheckpointForEveryLocalTask"
+    },
+    {
+      "label": "lint-shell back to `git ls-files` alone: a script not yet added is never read, the state measured on 2026-11-16",
+      "file": "mise.toml",
+      "find": "git ls-files -z --cached --others --exclude-standard '*.sh'",
+      "replace": "git ls-files -z --cached ${NO:+--others --exclude-standard} '*.sh'",
+      "test": "TestLintShellReadsAScriptGitDoesNotTrackYet"
+    },
+    {
+      "label": "lint-shell without --exclude-standard: an ignored script is read as one of ours",
+      "file": "mise.toml",
+      "find": "git ls-files -z --cached --others --exclude-standard '*.sh'",
+      "replace": "git ls-files -z --cached --others ${NO:+--exclude-standard} '*.sh'",
+      "test": "TestLintShellReadsAScriptGitDoesNotTrackYet"
+    },
+    {
+      "label": "a wildcard over a zone anybody can register in passes: productionresultssa*.blob.core.windows.net, a name any Azure customer can start",
+      "file": "tools/ci/egress_test.go",
+      "find": "} else if strings.Contains(m[1], \"*\") && !wildcardOwned(m[1]) {",
+      "replace": "} else if strings.Contains(m[1], \"*\") && !wildcardOwned(m[1]) && false {",
+      "test": "TestHardenStepProblemsAsksEachQuestion"
+    },
+    {
+      "label": "Azure blob storage counted as a zone GitHub owns",
+      "file": "tools/ci/egress_test.go",
+      "find": "\".actions.githubusercontent.com\"}",
+      "replace": "\".actions.githubusercontent.com\", \".blob.core.windows.net\"}",
+      "test": "TestHardenStepProblemsAsksEachQuestion"
+    },
+    {
+      "label": "the walk over the real workflows: the Azure wildcard comes back into codeql.yml",
+      "file": ".github/workflows/codeql.yml",
+      "find": "            uploads.github.com:443\n",
+      "replace": "            uploads.github.com:443\n            productionresultssa*.blob.core.windows.net:443\n",
+      "test": "TestEveryHardenRunnerStepHolds"
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+# The paths a pull request from outside the project may not change without the
+# maintainer's review (#988). Read by tools/ci/sensitive-paths.sh, which the
+# "Sensitive paths" job of .github/workflows/sensitive-paths.yml runs, and by
+# tools/ci/sensitive_paths_test.go, and by tools/review (external-pr.sh), which
+# flags these paths in a review report. This file is the only place the list lives.
+#
+# One pattern per line, matched by bash `[[ path == pattern ]]` against the
+# file's path from the repository root, and against its previous path when the
+# file was renamed: moving a workflow out of .github/ deletes a workflow.
+#
+# In these patterns `*` also matches `/`, so `tools/*.sh` is every shell script
+# at any depth under tools/, which is what `tools/**/*.sh` means in the issue.
+# A line starting with `#` and a blank line are ignored.
+#
+# Why each one: these files run on a CI runner or on the contributor's and the
+# maintainer's machines (workflows, hooks, mise tasks, scripts), decide what
+# code is installed or built (go.mod and go.sum; the hash-locked Python
+# requirements CI installs, tools/ci/commitizen-requirements.txt in commits.yml
+# and tools/ci/uv-requirements.txt in drift.yml, which play go.sum's part;
+# pyproject.toml and uv.lock, which `uv run` in tools/contract/update.sh
+# resolves on the station; the Dockerfile), or decide what the gates accept
+# (linter and scanner configurations, falsify specs). And the code that judges
+# a pull request, whatever its extension: tools/ci (the CI's own decisions and
+# their tests), tools/review (the external review report) and tools/testplan
+# (the runs a change is told it needs). Otherwise one pull request weakens the
+# judge of the next.
+
+.github/*
+tools/*.sh
+tools/*.py
+tools/falsify/specs/*
+tools/ci/*
+tools/review/*
+tools/testplan/*
+tools/*requirements*.txt
+go.mod
+go.sum
+pyproject.toml
+uv.lock
+mise.toml
+.pre-commit-config.yaml
+Dockerfile
+.golangci.yml
+.plumber.yaml
+.poutine.yml

@@ -15,6 +15,9 @@ jobs:
   binaries:
     name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
     runs-on: ubuntu-24.04
+    # Measured: 55 s at most, median 38 s, 20 tag runs from 2026-08-03 to 2026-11-12.
+    # Three times the longest, rounded up to five minutes (#988).
+    timeout-minutes: 5
     permissions:
       contents: read
     strategy:
@@ -74,6 +77,9 @@ jobs:
   image:
     name: Publish the container image
     runs-on: ubuntu-24.04
+    # Measured: 128 s at most, median 60 s, 10 tag runs from 2026-08-03 to 2026-11-12.
+    # Three times the longest, rounded up to five minutes (#988).
+    timeout-minutes: 10
     needs: binaries
     permissions:
       contents: read
@@ -233,6 +239,9 @@ jobs:
   release:
     name: Create release
     runs-on: ubuntu-24.04
+    # Measured: 58 s at most, median 44 s, 20 tag runs from 2026-08-03 to 2026-11-12.
+    # Three times the longest, rounded up to five minutes (#988).
+    timeout-minutes: 5
     needs: binaries
     permissions:
       contents: write      # create the release

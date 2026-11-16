@@ -4,8 +4,8 @@
     {
       "label": "a met criterion goes back to a step summary alone, which is where it was said on 2026-09-21 and where nobody read it",
       "file": ".github/workflows/runtime-proof.yml",
-      "find": "        run: tools/ci/streak-report.sh --apply \"${{ steps.count.outputs.streak }}\" 14 125",
-      "replace": "        run: echo tools/ci/streak-report.sh --apply \"${{ steps.count.outputs.streak }}\" 14 125",
+      "find": "        run: tools/ci/streak-report.sh --apply \"$STREAK\" 14 125",
+      "replace": "        run: echo tools/ci/streak-report.sh --apply \"$STREAK\" 14 125",
       "test": "TestTheStreakJobAnnouncesOnTheIssue"
     },
     {

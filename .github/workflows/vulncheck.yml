@@ -49,7 +49,29 @@ jobs:
       - name: Harden the runner
         uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
-          egress-policy: audit
+          # Blocked to the hosts this job was measured reaching on 2026-11-16:
+          # every `domain resolved` line harden-runner logged in its last three
+          # green runs (43804414733, 43676495357, 43556322725).
+          # Variable hosts are one wildcard per family. Left out on purpose:
+          # harden-runner's own endpoint, which its agent allows, and
+          # api.snapcraft.io, snapd on the runner image, never called by a step.
+          # Block narrows what this job reaches; it does not stop a decided leak:
+          # docs/limits.md, "The CI's egress block narrows the surface" (#988).
+          # api.github.com, raw.githubusercontent.com and
+          # release-assets.githubusercontent.com are what actions/setup-go
+          # v7.0.0 reaches on a toolcache miss (src/installer.ts), read and
+          # not measured: every measured run found the pin in the toolcache.
+          egress-policy: block
+          allowed-endpoints: >
+            api.github.com:443
+            github.com:443
+            hosted-compute-*.githubapp.com:443
+            proxy.golang.org:443
+            raw.githubusercontent.com:443
+            release-assets.githubusercontent.com:443
+            results-receiver.actions.githubusercontent.com:443
+            sum.golang.org:443
+            vuln.go.dev:443
 
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -133,6 +155,10 @@ jobs:
       - name: Harden the runner
         uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
+        # Audit, not block (#988): this job had no green run to measure on
+        # 2026-11-16 (scheduled or conditional path), so a host list would be
+        # a guess, and a missing host cancels the whole block. See
+        # docs/limits.md, "The CI's egress block narrows the surface".
           egress-policy: audit
 
       - name: Checkout

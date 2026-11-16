@@ -1,0 +1,230 @@
+{
+ "package": "./tools/review/",
+ "note": "The subject is tools/review (#988, item 3): the command a maintainer runs on a pull request from outside the project before anything of it runs. It reads the pull request through `gh api` only and prints the diff's findings, facts about the account, and the identifiers it shares with other outside pull requests. Exit 0: nothing to read first; 2: something to read first; 1: cannot be judged.\n\nEach mutation removes one detection, one refusal to judge, or one accepting half, and names the test whose input fails that question only. The tests run the program against a stubbed gh that refuses any call it has no fixture for, so a mutation cannot pass through a missing fixture.\n\nWhat this does not falsify: that the rules catch a construction they do not name (a payload written to avoid them is not caught, the report says it is not a review), the real GitHub API's shapes beyond the two pull requests it was played on (#985 and #946 on 2026-11-16), and anything outside the 50 most recently created merged pull requests.",
+ "mutations": [
+  {
+   "label": "exec.Command is no longer a process execution: an added `exec.Command(name).Run()` reads as nothing to read",
+   "file": "tools/review/scan.go",
+   "find": "\\bos/exec\\b|\\bexec\\.Command(?:Context)?\\b|",
+   "replace": "\\bos/exec\\b|\\bexec\\.Command(?:Context)?\\b\\x00|",
+   "test": "TestAnExecCallIsFound"
+  },
+  {
+   "label": "http.Get and its siblings are no longer network access: a pull request that fetches a URL at run time shows nothing",
+   "file": "tools/review/scan.go",
+   "find": "\\bhttp\\.(?:Get|Post|Head|PostForm|NewRequest(?:WithContext)?)\\(|",
+   "replace": "\\bhttp\\.(?:Get|Post|Head|PostForm|NewRequest(?:WithContext)?)\\(\\x00|",
+   "test": "TestEveryRuleAsksOneQuestion/network"
+  },
+  {
+   "label": "no URL is ever found, so a new host in an added line goes unread",
+   "file": "tools/review/scan.go",
+   "find": "urlRe    = regexp.MustCompile(\"https?://",
+   "replace": "urlRe    = regexp.MustCompile(\"[\\\\x00]https?://",
+   "test": "TestANewURLIsFoundWithItsHost"
+  },
+  {
+   "label": "a URL counts as new even when the removed lines already held it (the accepting half: every edited line around a link becomes a finding)",
+   "file": "tools/review/scan.go",
+   "find": "if strings.Contains(removedText, u) {",
+   "replace": "if strings.Contains(removedText, u+\"\\x00\") {",
+   "test": "TestANewURLIsFoundWithItsHost"
+  },
+  {
+   "label": "a pattern holding `*` never matches: go.mod is still caught, but .github/, the scripts under tools/ and the falsify specs are not",
+   "file": "tools/review/scan.go",
+   "find": "\t\tif pt.re.MatchString(p) {",
+   "replace": "\t\tif pt.re.MatchString(p) && !strings.Contains(pt.text, \"*\") {",
+   "test": "TestASensitivePathIsFound"
+  },
+  {
+   "label": "a renamed file is judged on its new path only, so moving a workflow out of .github/ reads as nothing",
+   "file": "tools/review/scan.go",
+   "find": "for _, p := range []string{f.Filename, f.PreviousFilename} {",
+   "replace": "for _, p := range []string{f.Filename, f.PreviousFilename}[:1] {",
+   "test": "TestARenameOutOfASensitivePathIsFound"
+  },
+  {
+   "label": "a pattern with a bracket is translated as literal text instead of refused, so a list the CI check reads one way is read another way here",
+   "file": "tools/review/scan.go",
+   "find": "\t\tif !patternShape.MatchString(line) {",
+   "replace": "\t\tif !patternShape.MatchString(line) && strings.HasPrefix(line, \"!\") {",
+   "test": "TestAnUnknownPatternShapeCannotBeJudged"
+  },
+  {
+   "label": "a file that becomes executable is not reported",
+   "file": "tools/review/scan.go",
+   "find": "\"100755\": \"becomes an executable file\",",
+   "replace": "\"100755\" + \"x\": \"becomes an executable file\",",
+   "test": "TestAFileThatBecomesExecutableIsFound"
+  },
+  {
+   "label": "a file the API serves without a diff (a binary, a huge file) is skipped in silence instead of named as unread",
+   "file": "tools/review/scan.go",
+   "find": "if f.Status != \"removed\" && (f.Changes > 0",
+   "replace": "if f.Status != \"removed\" && false && (f.Changes > 0",
+   "test": "TestAFileWithoutADiffIsFound"
+  },
+  {
+   "label": "a falsify spec that sets `env` is not reported (the hole of #989)",
+   "file": "tools/review/scan.go",
+   "find": "match: re(`\"env\"\\s*:`)},",
+   "replace": "match: re(`\"env\"\\s*:\\x00`)},",
+   "test": "TestEveryRuleAsksOneQuestion/falsify-env"
+  },
+  {
+   "label": "t.Setenv is exempt whatever its value, so `t.Setenv(\"PATH\", dir)` reads as harmless",
+   "file": "tools/review/scan.go",
+   "find": "exempt := tSetenv.MatchString(l) && strings.Contains(l, \"TempDir()\")",
+   "replace": "exempt := tSetenv.MatchString(l) && (strings.Contains(l, \"TempDir()\") || true)",
+   "test": "TestEveryRuleAsksOneQuestion/env-setenv"
+  },
+  {
+   "label": "a long run of letters counts as encoded without a digit (the accepting half: every long test name becomes a finding)",
+   "file": "tools/review/scan.go",
+   "find": "if strings.ContainsAny(m, \"0123456789\") && strings.IndexFunc(m, unicode.IsLetter) >= 0 {",
+   "replace": "if (strings.ContainsAny(m, \"0123456789\") || true) && strings.IndexFunc(m, unicode.IsLetter) >= 0 {",
+   "test": "TestEveryRuleAsksOneQuestion/accept-long-name"
+  },
+  {
+   "label": "a path holding a control character is no longer a finding",
+   "file": "tools/review/scan.go",
+   "find": "if _, bad := hidden(p, false); bad {",
+   "replace": "if _, bad := hidden(p, false); bad && p == \"\" {",
+   "test": "TestAControlCharacterInAFileNameIsEscaped"
+  },
+  {
+   "label": "C0 control characters reach the terminal raw: a file name can carry an escape sequence into the reviewer's terminal",
+   "file": "tools/review/scan.go",
+   "find": "\t\tcase r == '\\\\':\n",
+   "replace": "\t\tcase r < 0x20:\n\t\t\tb.WriteRune(r)\n\t\tcase r == '\\\\':\n",
+   "test": "TestAControlCharacterInAFileNameIsEscaped"
+  },
+  {
+   "label": "category Cf is no longer invisible: format characters (the Trojan Source bidi marks, U+061C, tag characters, the soft hyphen) reach the report raw and no rule flags them",
+   "file": "tools/review/scan.go",
+   "find": "return unicode.In(r, escapedTables...)",
+   "replace": "return unicode.In(r, escapedTables...) && !unicode.Is(unicode.Cf, r)",
+   "test": "TestEveryInvisibleCharacterIsEscaped/u061C-arabic-letter-mark"
+  },
+  {
+   "label": "category Zl is no longer invisible: the line separator U+2028 reach the report raw and no rule flags them",
+   "file": "tools/review/scan.go",
+   "find": "return unicode.In(r, escapedTables...)",
+   "replace": "return unicode.In(r, escapedTables...) && !unicode.Is(unicode.Zl, r)",
+   "test": "TestEveryInvisibleCharacterIsEscaped/u2028-line-separator"
+  },
+  {
+   "label": "category Zp is no longer invisible: the paragraph separator U+2029 reach the report raw and no rule flags them",
+   "file": "tools/review/scan.go",
+   "find": "return unicode.In(r, escapedTables...)",
+   "replace": "return unicode.In(r, escapedTables...) && !unicode.Is(unicode.Zp, r)",
+   "test": "TestEveryInvisibleCharacterIsEscaped/u2029-paragraph-separator"
+  },
+  {
+   "label": "category Co is no longer invisible: private-use characters reach the report raw and no rule flags them",
+   "file": "tools/review/scan.go",
+   "find": "return unicode.In(r, escapedTables...)",
+   "replace": "return unicode.In(r, escapedTables...) && !unicode.Is(unicode.Co, r)",
+   "test": "TestEveryInvisibleCharacterIsEscaped/uE000-private-use"
+  },
+  {
+   "label": "category Cc is no longer invisible: control characters, C1 included reach the report raw and no rule flags them",
+   "file": "tools/review/scan.go",
+   "find": "return unicode.In(r, escapedTables...)",
+   "replace": "return unicode.In(r, escapedTables...) && !unicode.Is(unicode.Cc, r)",
+   "test": "TestEveryInvisibleCharacterIsEscaped/u0085-next-line"
+  },
+  {
+   "label": "the report escapes one category fewer than the sandbox's escape.py (Co dropped from the list), so the two outputs disagree on what they hide",
+   "file": "tools/review/scan.go",
+   "find": "var escapedCategories = []string{\"Cc\", \"Cf\", \"Zl\", \"Zp\", \"Cs\", \"Co\"}",
+   "replace": "var escapedCategories = []string{\"Cc\", \"Cf\", \"Zl\", \"Zp\", \"Cs\", \"Co\"}[:5]",
+   "test": "TestBothEscapersEscapeTheSameCategories"
+  },
+  {
+   "label": "a character beyond U+FFFF is spelled with \\u and five digits, which reads as \\uXXXX followed by a digit",
+   "file": "tools/review/scan.go",
+   "find": "case invisible(r) && r < 0x10000:",
+   "replace": "case invisible(r) && r < 0x110000:",
+   "test": "TestEveryInvisibleCharacterIsEscaped/uE0041-tag-character"
+  },
+  {
+   "label": "a failed gh call reads as an empty answer: a list endpoint that fails becomes an empty list and the report says clean",
+   "file": "tools/review/gh.go",
+   "find": "return nil, cannot(\"gh %s failed (%v): %s\", strings.Join(args, \" \"), err, lastLine(errb.String()))",
+   "replace": "_ = cannot(\"gh %s failed (%v): %s\", strings.Join(args, \" \"), err, lastLine(errb.String())); return []byte(\"[]\"), nil",
+   "test": "TestAFailedAPICannotBeJudged"
+  },
+  {
+   "label": "a file list shorter than the pull request announces is accepted, so the 3001st file, or the one a moving head dropped, is never scanned",
+   "file": "tools/review/gh.go",
+   "find": "if want != nil && len(fs) != *want {",
+   "replace": "if want != nil && len(fs) > *want {",
+   "test": "TestATruncatedAnswerCannotBeJudged/fewer-files"
+  },
+  {
+   "label": "a tree the API truncated is read as whole, so the mode of a missing file is never checked",
+   "file": "tools/review/gh.go",
+   "find": "\tif *t.Truncated {",
+   "replace": "\tif *t.Truncated && t.Tree == nil {",
+   "test": "TestATruncatedAnswerCannotBeJudged/tree-truncated"
+  },
+  {
+   "label": "a commit list shorter than announced is accepted, so a commit without the trailer can be the one not listed",
+   "file": "tools/review/account.go",
+   "find": "if len(commits) != *pr.Commits {",
+   "replace": "if len(commits) > *pr.Commits {",
+   "test": "TestATruncatedAnswerCannotBeJudged/fewer-commits"
+  },
+  {
+   "label": "an identifier declared here and used by another pull request is no longer linked",
+   "file": "tools/review/assembly.go",
+   "find": "\t\ta.Links = append(a.Links, crossUse(mine, theirs, pr.Number, o.Number)...)\n",
+   "replace": "\t\ta.Links = append(a.Links, crossUse(mine, theirs, pr.Number, o.Number)[:0]...)\n",
+   "test": "TestAnIdentifierUsedByAnotherPullRequestIsFound/declared-here-used-by-merged"
+  },
+  {
+   "label": "an identifier declared by a merged pull request and used here (stage one merged, stage two arriving) is no longer linked",
+   "file": "tools/review/assembly.go",
+   "find": "\t\ta.Links = append(a.Links, crossUse(theirs, mine, o.Number, pr.Number)...)\n",
+   "replace": "\t\ta.Links = append(a.Links, crossUse(theirs, mine, o.Number, pr.Number)[:0]...)\n",
+   "test": "TestAnIdentifierUsedByAnotherPullRequestIsFound/declared-by-merged-used-here"
+  },
+  {
+   "label": "an identifier link no longer sets exit 2, so a script that reads the code skips an assembled payload",
+   "file": "tools/review/report.go",
+   "find": "return len(r.Diff.Findings) + len(r.Assembly.Links) + len(r.Assembly.Unread)",
+   "replace": "return len(r.Diff.Findings) + 0*len(r.Assembly.Links) + len(r.Assembly.Unread)",
+   "test": "TestAnIdentifierUsedByAnotherPullRequestIsFound/declared-here-used-by-merged"
+  },
+  {
+   "label": "the owner's merged pull requests are compared as if they came from outside (the accepting half: the comparison set is no longer outside accounts)",
+   "file": "tools/review/assembly.go",
+   "find": "if p.Number == pr.Number || trusted(p.AuthorAssociation) || p.User.Type == \"Bot\" {",
+   "replace": "if p.Number == pr.Number || (trusted(p.AuthorAssociation) && false) || p.User.Type == \"Bot\" {",
+   "test": "TestAnIdentifierUsedByAnotherPullRequestIsFound/an-owners-merged-pull-is-not-compared"
+  },
+  {
+   "label": "a word in a comment counts as a use (the accepting half)",
+   "file": "tools/review/assembly.go",
+   "find": "code, _, _ := strings.Cut(l.text, \"//\") // a word in a comment is not a use",
+   "replace": "code, _, _ := strings.Cut(l.text, \"\\x00//\") // a word in a comment is not a use",
+   "test": "TestAnIdentifierUsedByAnotherPullRequestIsFound/a-word-in-a-comment-is-not-a-use"
+  },
+  {
+   "label": "a `var (` group stays open across hunks, so assignments in later hunks read as declarations (60 false links on #985, measured 2026-11-16)",
+   "file": "tools/review/assembly.go",
+   "find": "inGroup = inGroup && l.kind == '-'",
+   "replace": "inGroup = inGroup && (l.kind == '-' || true)",
+   "test": "TestAnIdentifierUsedByAnotherPullRequestIsFound/a-group-does-not-cross-a-hunk"
+  },
+  {
+   "label": "the wrapper goes back to `go run`, which exits 1 whatever the program returned, so every report with findings reads as cannot judge",
+   "file": "tools/review/external-pr.sh",
+   "find": "status=0\n\"${bin_dir}/external-pr\" --paths-file \"${root}/tools/ci/sensitive-paths.txt\" \"$@\" || status=$?\nexit \"${status}\"\n",
+   "replace": "status=0\ntrue \"${bin_dir}/external-pr\"\n(cd \"${root}\" && go run ./tools/review --paths-file \"${root}/tools/ci/sensitive-paths.txt\" \"$@\") || status=$?\nexit \"${status}\"\n",
+   "test": "TestTheWrapperKeepsTheProgramsExitCode"
+  }
+ ]
+}

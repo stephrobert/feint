@@ -26,6 +26,12 @@ permissions: {}
 env:
   SCW_VERSION: '2.56.3'
   TERRAFORM_VERSION: '1.13.3'
+  # Terraform asks checkpoint-api.hashicorp.com for a newer version on every
+  # command unless this is set: measured in 3 runs of 3 of every job that runs
+  # it, on 2026-11-16. HashiCorp documents the variable as the off switch
+  # (developer.hashicorp.com/terraform/cli/commands, "Upgrade and Security
+  # Bulletin Checks"). Held by tools/ci/egress_test.go (#988).
+  CHECKPOINT_DISABLE: '1'
 
 jobs:
   # The page, driven by the one client that can say whether it renders: a
@@ -40,13 +46,39 @@ jobs:
   page:
     name: page
     runs-on: ubuntu-24.04
+    # Measured: 65 s at most, median 54 s, 9 runs on 2026-11-16.
+    # Three times the longest, rounded up to five minutes (#988).
+    timeout-minutes: 5
     permissions:
       contents: read
     steps:
       - name: Harden runner
         uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
-          egress-policy: audit
+          # Blocked to the hosts this job was measured reaching on 2026-11-16:
+          # every `domain resolved` line harden-runner logged in its last three
+          # green runs (43924092514, 43923898336, 43922019567).
+          # Variable hosts are one wildcard per family. Left out on purpose:
+          # harden-runner's own endpoint, which its agent allows, and
+          # api.snapcraft.io, snapd on the runner image, never called by a step.
+          # Block narrows what this job reaches; it does not stop a decided leak:
+          # docs/limits.md, "The CI's egress block narrows the surface" (#988).
+          # api.github.com, raw.githubusercontent.com and
+          # release-assets.githubusercontent.com are what actions/setup-go
+          # v7.0.0 reaches on a toolcache miss (src/installer.ts), read and
+          # not measured: every measured run found the pin in the toolcache.
+          # Not allowed, so it is cut: clients2.google.com, headless Chrome's background services.
+          # Not allowed, so it is cut: content-autofill.googleapis.com, headless Chrome's background services.
+          # Not allowed, so it is cut: www.google.com, headless Chrome's background services.
+          # Held by tools/ci/egress_test.go (#988).
+          egress-policy: block
+          allowed-endpoints: >
+            api.github.com:443
+            github.com:443
+            hosted-compute-*.githubapp.com:443
+            raw.githubusercontent.com:443
+            release-assets.githubusercontent.com:443
+            results-receiver.actions.githubusercontent.com:443
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -85,7 +117,31 @@ jobs:
       - name: Harden runner
         uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
-          egress-policy: audit
+          # Blocked to the hosts this job was measured reaching on 2026-11-16:
+          # every `domain resolved` line harden-runner logged in its last three
+          # green runs (43924092514, 43923898336, 43922019567).
+          # Variable hosts are one wildcard per family. Left out on purpose:
+          # harden-runner's own endpoint, which its agent allows, and
+          # api.snapcraft.io, snapd on the runner image, never called by a step.
+          # Block narrows what this job reaches; it does not stop a decided leak:
+          # docs/limits.md, "The CI's egress block narrows the surface" (#988).
+          # api.github.com, raw.githubusercontent.com and
+          # release-assets.githubusercontent.com are what actions/setup-go
+          # v7.0.0 reaches on a toolcache miss (src/installer.ts), read and
+          # not measured: every measured run found the pin in the toolcache.
+          # Not allowed, so it is cut: checkpoint-api.hashicorp.com, Terraform's version check, off by CHECKPOINT_DISABLE.
+          # Not allowed, so it is cut: sentry-par.scaleway.com, the scw CLI's panic reporter.
+          # Held by tools/ci/egress_test.go (#988).
+          egress-policy: block
+          allowed-endpoints: >
+            api.github.com:443
+            github.com:443
+            hosted-compute-*.githubapp.com:443
+            raw.githubusercontent.com:443
+            registry.terraform.io:443
+            release-assets.githubusercontent.com:443
+            releases.hashicorp.com:443
+            results-receiver.actions.githubusercontent.com:443
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -181,6 +237,10 @@ jobs:
   clients:
     name: ${{ matrix.client }}
     runs-on: ubuntu-24.04
+    # Measured: 250 s at most (terraform), 247 s (fields), 242 s (opentofu), under
+    # 90 s for the four others; 9 runs per leg on 2026-11-16.
+    # Three times the longest, rounded up to five minutes (#988).
+    timeout-minutes: 15
     permissions:
       contents: read
     strategy:
@@ -199,7 +259,32 @@ jobs:
       - name: Harden runner
         uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
-          egress-policy: audit
+          # Blocked to the hosts this job was measured reaching on 2026-11-16:
+          # every `domain resolved` line harden-runner logged in its last three
+          # green runs (43924092514, 43923898336, 43922019567).
+          # Variable hosts are one wildcard per family. Left out on purpose:
+          # harden-runner's own endpoint, which its agent allows, and
+          # api.snapcraft.io, snapd on the runner image, never called by a step.
+          # Block narrows what this job reaches; it does not stop a decided leak:
+          # docs/limits.md, "The CI's egress block narrows the surface" (#988).
+          # api.github.com, raw.githubusercontent.com and
+          # release-assets.githubusercontent.com are what actions/setup-go
+          # v7.0.0 reaches on a toolcache miss (src/installer.ts), read and
+          # not measured: every measured run found the pin in the toolcache.
+          # Not allowed, so it is cut: checkpoint-api.hashicorp.com, Terraform's version check, off by CHECKPOINT_DISABLE.
+          # Not allowed, so it is cut: sentry-par.scaleway.com, the scw CLI's panic reporter.
+          # Held by tools/ci/egress_test.go (#988).
+          egress-policy: block
+          allowed-endpoints: >
+            api.github.com:443
+            github.com:443
+            hosted-compute-*.githubapp.com:443
+            raw.githubusercontent.com:443
+            registry.opentofu.org:443
+            registry.terraform.io:443
+            release-assets.githubusercontent.com:443
+            releases.hashicorp.com:443
+            results-receiver.actions.githubusercontent.com:443
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -602,7 +687,30 @@ jobs:
       - name: Harden runner
         uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
-          egress-policy: audit
+          # Blocked to the hosts this job was measured reaching on 2026-11-16:
+          # every `domain resolved` line harden-runner logged in its last three
+          # green runs (43924092514, 43923898336, 43922019567).
+          # Variable hosts are one wildcard per family. Left out on purpose:
+          # harden-runner's own endpoint, which its agent allows, and
+          # api.snapcraft.io, snapd on the runner image, never called by a step.
+          # Block narrows what this job reaches; it does not stop a decided leak:
+          # docs/limits.md, "The CI's egress block narrows the surface" (#988).
+          # api.github.com, raw.githubusercontent.com and
+          # release-assets.githubusercontent.com are what actions/setup-go
+          # v7.0.0 reaches on a toolcache miss (src/installer.ts), read and
+          # not measured: every measured run found the pin in the toolcache.
+          # Not allowed, so it is cut: checkpoint-api.hashicorp.com, Terraform's version check, off by CHECKPOINT_DISABLE.
+          # Held by tools/ci/egress_test.go (#988).
+          egress-policy: block
+          allowed-endpoints: >
+            api.github.com:443
+            github.com:443
+            hosted-compute-*.githubapp.com:443
+            raw.githubusercontent.com:443
+            registry.terraform.io:443
+            release-assets.githubusercontent.com:443
+            releases.hashicorp.com:443
+            results-receiver.actions.githubusercontent.com:443
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

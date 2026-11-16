@@ -62,8 +62,8 @@ run nothing" is the cheap default, and an un-triaged path is an absence, not a
 decision (#564).
 
 It also prints **the falsifications the diff has earned**, read off
-`tools/falsify/specs/` rather than remembered: 269 specs name 326 distinct files
-in 2244 mutations, and a spec that mutates a file you touched is the subset of
+`tools/falsify/specs/` rather than remembered: 274 specs name 341 distinct files
+in 2398 mutations, and a spec that mutates a file you touched is the subset of
 `falsify:all` your change can have stopped biting. Every batch here has followed
 that discipline by hand and said so in its pull request, which means it has also
 been forgotten by hand — `mise run check` cannot see a guard whose test still
@@ -249,11 +249,18 @@ skip is worse than no gate.
 
 ### If you are contributing from a fork
 
-Nothing will run on your pull request until a maintainer approves it. GitHub
-holds every workflow in `action_required` for contributions from forks, which is
-the right default — it is what stops a fork from editing a workflow to read this
-repository's secrets — but it means `gh pr checks` answers "no checks reported"
-and you see no feedback at all, not even a failing one.
+Nothing will run on your pull request until a maintainer approves it, and the
+approval is asked again at every push. GitHub holds each workflow run in
+`action_required` until then. The repository applies this to every contributor
+who is not a member, not only to a first one: the setting is
+`all_external_contributors` since 2026-11-16. Before that date it was
+`first_time_contributors`, so an account with one merged pull request ran CI
+with no approval at all.
+
+The approval keeps code from outside off this repository's runners until
+someone has read it. The cost falls on you: `gh pr checks` answers "no checks
+reported" and you see no feedback at all, not even a failing one. A pull request
+whose CI has not started is not ignored. It is waiting for a reader.
 
 So the local gates are not a nicety for you, they are the only ones you have
 until someone looks:
@@ -357,8 +364,8 @@ out of scope is a decline in the pack, with a reason.
 
 **Milestones** are themes, not versions, and they carry no due dates: an order,
 never a schedule. That sentence used to say "the six waves of the roadmap's
-sequence", which stopped being true at 0.9.0 and was still there two years of
-releases later — which is how two milestones came to be titled after published
+sequence", which stopped being true at 0.9.0 and was still there three
+months of releases later — which is how two milestones came to be titled after published
 tags, `0.14.0` and `0.15.0`, while holding 19 and 10 open issues between them.
 
 So the rule is now checkable rather than described, and it is narrower than it
@@ -412,6 +419,68 @@ cz check --rev-range origin/main..HEAD   # what CI will say
 cz bump --dry-run                        # the version your commits imply
 ```
 
+## Who answers for a pull request
+
+Three rules, decided on 2026-11-16. They apply to everybody, whatever wrote the
+code.
+
+### Someone identifiable answers for it
+
+**A contribution has an author who can be identified and who answers for it.**
+The section on AI-assisted contributions below already says that the human who
+submits is the author and takes responsibility for every line, licence
+included. This is what follows from it: a pull request that no identifiable
+person can carry is closed, even when its code is correct. The defect it
+addressed is then fixed in the repository, from the issue.
+
+You do not have to give your legal name. What counts is that a person stands
+behind the account: a profile that shows a history of human work, here or
+elsewhere. Issues you opened, reviews, discussions, contributions that read as
+yours. An account with no public trace cannot carry a change, and neither can an
+account run as an automated campaign.
+
+What happened, so the rule is read with its reason. On 2026-11-16, an account
+created in 2016, almost inactive until then, with no name and no bio, opened three pull
+requests here in three minutes (#985, #986, #987). By that evening it had opened
+more than 180 across GitHub, from more than 40 forks: an AI agent run as a
+campaign. Its commits carried no `Assisted-by:` trailer until it was asked. The code was read, reviewed, and correct. The three
+pull requests were closed anyway, and the work is being redone in the repository
+from the issues. Reading a diff tells whether code is correct. It does not tell
+who will answer for it later, or what the same account sends next (#988).
+
+### No campaigns
+
+Keep a few pull requests open at a time per account, not more. A series of
+changes is discussed in an issue first: say what you plan to send, and wait for
+an answer before you open the next one. Several pull requests opened in a few
+minutes, from an account nobody here knows, read as a campaign whatever their
+content.
+
+### A sensitive path goes through an issue first
+
+Some files run code on CI runners or on a maintainer's machine, or decide what
+the other checks run. A change there reads like configuration and acts like
+code. These paths need an issue, and an answer in it, before the pull request.
+The list lives in one file, [`tools/ci/sensitive-paths.txt`](tools/ci/sensitive-paths.txt):
+`.github/` (workflows, templates, `CODEOWNERS`, rulesets), the shell and Python
+scripts under `tools/`, the code that judges a pull request (`tools/ci/`,
+`tools/review/`, `tools/testplan/`), `go.mod`, `go.sum`, the hash-locked Python
+requirements under `tools/`, `pyproject.toml`, `uv.lock`, `mise.toml`,
+`.pre-commit-config.yaml`, the `Dockerfile`, the linter and scanner
+configurations, and `tools/falsify/specs/` (a falsify spec is code, for the
+reason given in [Falsifying a guard](#falsifying-a-guard)).
+
+Say in the issue what you want to change and why. The check
+"Sensitive paths" stays red on a pull request from outside the project that
+touches one of these paths until the maintainer has read the change and
+approved the pull request as a review. The approval counts on the commit it was
+given on: a push after it turns the check red again, until the new head is
+approved in turn. Until the maintainer adds it to the required checks, that red
+does not stop a merge on its own: the maintainer's review decides. The maintainer reads such a pull
+request with `tools/review/external-pr.sh` and runs its tests, if at all, in a
+throwaway container with `tools/review/sandbox.sh` (see
+[`tools/review/README.md`](tools/review/README.md)), never on a workstation.
+
 ## AI-assisted contributions
 
 **They are welcome, under one condition, and the condition is not about AI.**
@@ -454,6 +523,11 @@ Assisted-by: Claude Code (claude-opus-5)
 Disclose when a model wrote a substantive part of the change. Do not bother for
 spelling, formatting, or a completion that saved you three keystrokes.
 
+**The trailer is required, not requested.** A pull request where a model wrote a
+substantive part and whose commits do not carry it is closed. This page used to
+ask for it, and the three pull requests of 2026-11-16 described above came
+without it.
+
 `Co-Authored-By` for a tool stays forbidden, and so does `Signed-off-by` from
 anything that is not a person. Those trailers assert authorship and certify
 origin; a model cannot do either. The human submitting is the author, and takes
@@ -490,6 +564,10 @@ the documentation, and never invent a format.**
 
 ### What gets refused on sight
 
+- A pull request that no identifiable person answers for, or that is part of a
+  campaign. See [Who answers for a pull request](#who-answers-for-a-pull-request).
+- A pull request where a model wrote a substantive part and no `Assisted-by:`
+  trailer says so.
 - A pull request whose conformance suite was not run, and that says so or shows it.
 - A batch of changes across several packs with no single reviewable claim.
 - A change that adds a route without `Route.Operation` at the upstream name, or
@@ -498,7 +576,8 @@ the documentation, and never invent a format.**
 - Anything whose stated justification is that it improves a metric — coverage
   percentage, number of routes — rather than unblocking a client.
 
-None of this is aimed at AI. It is what the project already asked of everybody;
+None of this is aimed at AI. The trailer asks you to say that a model was used,
+not to avoid one. The rest is what the project already asked of everybody;
 writing it down is what makes the answer the same for both.
 
 ## Code
