@@ -3,8 +3,11 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 )
@@ -101,6 +104,42 @@ func TestAFailedResetAfterIsReportedAndNotRaised(t *testing.T) {
 		}
 	})
 
+	t.Run("the reset ran and the state could not be read back", func(t *testing.T) {
+		// The emulator accepts the reset and then answers nothing about what it
+		// left behind: /_feint/resources answers 404, and so does every other
+		// read the receipt takes. The receipt must say the reset could not be
+		// verified, not that it converged — the checkpoint holds nothing, so an
+		// empty state compares equal to it.
+		//
+		// TestAResetThatCannotBeReadBackDoesNotSayItConverged, in checkpoint_test.go,
+		// is what reddens when observe swallows the error again (#977).
+		t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+		silent := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodPost && strings.HasPrefix(r.URL.Path, "/_feint/reset/") {
+				_, _ = w.Write([]byte(`{}`))
+				return
+			}
+			http.NotFound(w, r)
+		}))
+		defer silent.Close()
+		if err := writeRecordedCheckpoint(addr, recordedCheckpoint{
+			SchemaVersion: checkpointStateVersion, Name: "feint-lab-1",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		var stderr bytes.Buffer
+		verdict, left := resetToSession(silent.URL, "feint-lab-1", addr, &stderr)
+		if verdict != "unverified" {
+			t.Errorf("verdict %q for a reset whose state could not be read back", verdict)
+		}
+		if len(left) != 0 {
+			t.Errorf("leftovers %v from a comparison that was never taken", left)
+		}
+		if !strings.Contains(stderr.String(), "could not be read back") {
+			t.Errorf("the unreadable state was not reported: %s", stderr.String())
+		}
+	})
+
 	t.Run("a session that is not this run's is not reset", func(t *testing.T) {
 		// Two runs against one shared emulator must not reset each other's
 		// state. Since the audit, records are indexed by name, so the
@@ -142,7 +181,7 @@ func TestASessionCheckpointIsNamedAfterItsRun(t *testing.T) {
 
 	var asked []string
 	lab := checkpointingLab(t, &asked)
-	if err := takeSessionCheckpoint(lab.URL, "feint-lab-4021", addr); err != nil {
+	if err := takeSessionCheckpoint(lab.URL, "feint-lab-4021", addr, io.Discard); err != nil {
 		t.Fatalf("take the session checkpoint: %v", err)
 	}
 	if len(asked) != 1 || asked[0] != "/_feint/checkpoint/feint-lab-4021" {
@@ -157,6 +196,39 @@ func TestASessionCheckpointIsNamedAfterItsRun(t *testing.T) {
 	}
 	if recorded.Taken == "" {
 		t.Error("the record carries no time, so two runs cannot be told apart in a log")
+	}
+}
+
+// TestASessionCheckpointThatCannotBeReadBackIsDropped is cited by
+// takeSessionCheckpoint's read-back branch, and it is #977's third edge: the
+// checkpoint POST succeeds, the reads fail, and the run refuses before its
+// child starts.
+//
+// The checkpoint the lab just took would outlive a run that never started: the
+// next run takes a fresh name, so the orphan is never reset to and never
+// removed. The DELETE is the half a "0 resource(s)" log would not show.
+func TestASessionCheckpointThatCannotBeReadBackIsDropped(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	endpoint, posts, deletes := refusingReadsLab(t)
+	addr := strings.TrimPrefix(endpoint, "http://")
+
+	var stderr bytes.Buffer
+	err := takeSessionCheckpoint(endpoint, "feint-lab-1", addr, &stderr)
+	if err == nil {
+		t.Fatal("a session checkpoint whose state could not be read back was accepted")
+	}
+	if !strings.Contains(err.Error(), "could not be read back") {
+		t.Errorf("the refusal does not say what failed: %v", err)
+	}
+	if posts.Load() != 1 || deletes.Load() != 1 {
+		t.Errorf("the lab saw %d POST(s) and %d DELETE(s); want 1 and 1", posts.Load(), deletes.Load())
+	}
+	path, pathErr := checkpointPath(addr, "feint-lab-1")
+	if pathErr != nil {
+		t.Fatal(pathErr)
+	}
+	if _, statErr := os.Stat(path); !errors.Is(statErr, os.ErrNotExist) {
+		t.Errorf("a record was written for a state nobody read: %v", statErr)
 	}
 }
 

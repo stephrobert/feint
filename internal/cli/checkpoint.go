@@ -126,13 +126,21 @@ func checkpointCommand(args []string, stdout, stderr io.Writer) int {
 	state, runtimeName, err := observeFor(endpoint)
 	if err != nil {
 		fmt.Fprintf(stderr, "feint checkpoint: the checkpoint was taken and could not be read back: %v\n", err)
+		// The lab holds a checkpoint this CLI has no record of, and a reset
+		// would find a name it cannot honour. Dropped before the refusal, so
+		// the next `feint checkpoint <name>` starts from nothing rather than
+		// from an orphan.
+		discardCheckpoint(endpoint, name, stderr)
 		return exitError
 	}
 	if err := writeRecordedCheckpoint(*addr, recordedCheckpoint{
 		SchemaVersion: checkpointStateVersion, Name: name,
 		Taken: time.Now().UTC().Format(time.RFC3339), Runtime: runtimeName, State: state,
 	}); err != nil {
+		// Same orphan, other cause: the observation exists and the record that
+		// names it does not.
 		fmt.Fprintf(stderr, "feint checkpoint: %v\n", err)
+		discardCheckpoint(endpoint, name, stderr)
 		return exitError
 	}
 
@@ -245,6 +253,13 @@ func stringsOf(value any) []string {
 // From /_feint/health rather than from a flag, for the reason the run receipt
 // does the same: a capability is declared by the driver, and asking the host
 // for a mode nobody is running would refuse on a station that has none.
+//
+// A read that could not be taken is returned as an error, never as an empty
+// state. Every caller already branches on that error — the two commands refuse,
+// the run receipt says unverified — and the branches were dead while observe
+// swallowed it: a reset that could not be re-read then compared the
+// checkpoint against nothing and printed "the lab converged", a verdict drawn
+// from an absence (#977).
 func observeFor(endpoint string) (observed, string, error) {
 	name, _, _ := labHealth(endpoint)
 	rt := machine.Runtime{}
@@ -255,24 +270,24 @@ func observeFor(endpoint string) (observed, string, error) {
 			// comparing fewer axes. Refusing here would make a reset
 			// impossible on a station whose runtime went away between the
 			// checkpoint and now, which is the moment a reset is most needed.
-			return mustObserve(endpoint, rt), name, nil
+			state, observeErr := observe(endpoint, rt)
+			return state, name, observeErr
 		}
 		rt = resolved
 	}
-	return mustObserve(endpoint, rt), name, nil
+	state, err := observe(endpoint, rt)
+	return state, name, err
 }
 
-func mustObserve(endpoint string, rt machine.Runtime) observed {
+// observe reads the lab and hands back the error it got. It used to fold
+// every failure onto an empty state, on the stated ground that the caller could
+// tell "could not re-read" from "did not converge" — which it cannot, because
+// an empty state diffed against a checkpoint's state is a difference, not a
+// failed read, and a checkpoint that was empty to begin with diffs as converged.
+func observe(endpoint string, rt machine.Runtime) (observed, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	state, err := observeLab(ctx, endpoint, rt)
-	if err != nil {
-		// Returned empty rather than propagated, because the caller already
-		// distinguishes "could not read it back" from "it did not converge"
-		// and an empty state would make every axis differ.
-		return observed{}
-	}
-	return state
+	return observeLab(ctx, endpoint, rt)
 }
 
 // callCheckpoint drives one of the emulator's checkpoint endpoints.
@@ -398,18 +413,44 @@ func readRecordedCheckpoint(addr, name string) (recordedCheckpoint, error) {
 // state, and a fixed name would let them.
 //
 // TestASessionCheckpointIsNamedAfterItsRun fails without this.
-func takeSessionCheckpoint(endpoint, session, addr string) error {
+func takeSessionCheckpoint(endpoint, session, addr string, stderr io.Writer) error {
 	if _, err := callCheckpoint(http.MethodPost, endpoint+"/_feint/checkpoint/"+session); err != nil {
 		return fmt.Errorf("the session checkpoint could not be taken: %w", err)
 	}
 	state, runtimeName, err := observeFor(endpoint)
 	if err != nil {
+		// The lab took the checkpoint and the CLI has no record of it, so
+		// nothing can ever reset to it. Dropped here rather than by the caller
+		// because only this function knows the POST above succeeded: a caller
+		// that dropped on any failure would send a DELETE for a checkpoint the
+		// lab refused to take.
+		dropSessionCheckpoint(endpoint, session, addr, stderr)
 		return fmt.Errorf("the session checkpoint could not be read back: %w", err)
 	}
-	return writeRecordedCheckpoint(addr, recordedCheckpoint{
+	if err := writeRecordedCheckpoint(addr, recordedCheckpoint{
 		SchemaVersion: checkpointStateVersion, Name: session,
 		Taken: time.Now().UTC().Format(time.RFC3339), Runtime: runtimeName, State: state,
-	})
+	}); err != nil {
+		// The record that names the lab's checkpoint could not be written, so
+		// nothing can ever reset to it. Same orphan, other cause.
+		discardCheckpoint(endpoint, session, stderr)
+		return err
+	}
+	return nil
+}
+
+// discardCheckpoint removes a named checkpoint from the lab, and says so when
+// the lab refuses. It leaves the local record alone: the caller owns that
+// decision.
+//
+// A checkpoint whose state could not be read back is a checkpoint nobody can
+// reset to, and left behind it outlives the refusal that created it: the next
+// `feint checkpoint <name>` would be answered by the orphan, and a `feint reset
+// <name>` would find the lab holding a name this CLI has no record of.
+func discardCheckpoint(endpoint, name string, stderr io.Writer) {
+	if _, err := callCheckpoint(http.MethodDelete, endpoint+"/_feint/checkpoint/"+name); err != nil {
+		fmt.Fprintf(stderr, "feint: the checkpoint %s could not be removed from the lab: %v\n", name, err)
+	}
 }
 
 // dropSessionCheckpoint removes the session checkpoint this run took, on the
@@ -417,9 +458,7 @@ func takeSessionCheckpoint(endpoint, session, addr string) error {
 // to reset to. Failures are said and do not change the run's verdict, which
 // is already a refusal.
 func dropSessionCheckpoint(endpoint, session, addr string, stderr io.Writer) {
-	if _, err := callCheckpoint(http.MethodDelete, endpoint+"/_feint/checkpoint/"+session); err != nil {
-		fmt.Fprintf(stderr, "feint run: the session checkpoint %s could not be removed from the lab: %v\n", session, err)
-	}
+	discardCheckpoint(endpoint, session, stderr)
 	path, err := checkpointPath(addr, session)
 	if err == nil {
 		err = os.Remove(path)

@@ -222,7 +222,7 @@ func runCommand(args []string, stdout io.Writer, stderr io.Writer) int {
 		session = "feint-run-session"
 	}
 	if *resetAfter {
-		if err := takeSessionCheckpoint(target, session, *addr); err != nil {
+		if err := takeSessionCheckpoint(target, session, *addr, stderr); err != nil {
 			return fail(err)
 		}
 	}

@@ -2,8 +2,16 @@ package cli
 
 import (
 	"bytes"
+	"errors"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
+
+	"github.com/stephrobert/feint/internal/core/machine"
 )
 
 // TestACheckpointNameIsTakenBeforeTheFlags is cited by checkpointArgName.
@@ -175,5 +183,151 @@ func TestARecordedCheckpointRefusesAVersionItCannotRead(t *testing.T) {
 	}
 	if back.Name != "baseline" || len(back.State.Machines) != 1 {
 		t.Errorf("the record did not survive the round trip: %+v", back)
+	}
+}
+
+// TestAnUnreadableObservationIsAnErrorRatherThanAnEmptyState is cited by
+// observe.
+//
+// The defect was a verdict drawn from an absence: a failed read returned an
+// empty observed state, so `feint reset` compared a checkpoint against nothing
+// and printed "the lab converged" — and a checkpoint that itself held nothing
+// compared equal to the failed read. Every caller already branches on the
+// error; before this test the branch could not be reached.
+func TestAnUnreadableObservationIsAnErrorRatherThanAnEmptyState(t *testing.T) {
+	silent := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.NotFound(w, r)
+	}))
+	defer silent.Close()
+
+	state, _, err := observeFor(silent.URL)
+	if err == nil {
+		t.Fatalf("an endpoint that answers nothing was read as %d resource(s), 0 error(s)", len(state.Resources))
+	}
+	if !strings.Contains(err.Error(), "reading the control plane") {
+		t.Errorf("the error does not say which read failed: %v", err)
+	}
+}
+
+// TestAnUnresolvableRuntimeStillReturnsTheReadError is cited by observeFor's
+// branch for a runtime this station no longer has.
+//
+// The comment there calls it "the moment a reset is most needed": the emulator
+// is up and answering, the driver that backed it is gone. The host half is
+// deliberately allowed to stay empty, but the control-plane read is not: an
+// error folded onto a nil here would make that station read "converged" again.
+func TestAnUnresolvableRuntimeStillReturnsTheReadError(t *testing.T) {
+	restore := resolveRuntime
+	resolveRuntime = func(string, io.Writer) (machine.Runtime, error) {
+		return machine.Runtime{}, errors.New("the runtime driver is gone")
+	}
+	t.Cleanup(func() { resolveRuntime = restore })
+
+	lab := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/_feint/health" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"machines":"incus"}`))
+	}))
+	defer lab.Close()
+
+	if _, _, err := observeFor(lab.URL); err == nil {
+		t.Fatal("a station whose runtime went away read an unreachable lab as an empty state")
+	}
+}
+
+// refusingReadsLab answers the checkpoint POST and DELETE, and refuses every
+// read the observation takes. It counts the two verbs: a checkpoint the lab
+// holds and the CLI never recorded is the orphan these tests are about.
+func refusingReadsLab(t *testing.T) (endpoint string, posts, deletes *atomic.Int32) {
+	t.Helper()
+	posts, deletes = &atomic.Int32{}, &atomic.Int32{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasPrefix(r.URL.Path, "/_feint/checkpoint/") {
+			http.NotFound(w, r)
+			return
+		}
+		if r.Method == http.MethodDelete {
+			deletes.Add(1)
+		} else {
+			posts.Add(1)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"schema_version":1,"name":"x","resources":0,"bytes":false}`))
+	}))
+	t.Cleanup(server.Close)
+	return server.URL, posts, deletes
+}
+
+// TestACheckpointThatCannotBeReadBackLeavesNothingBehind is cited by
+// checkpointCommand's read-back branch.
+//
+// The emulator takes the checkpoint and then refuses the read. The command
+// refuses too, and it must remove what it just took: a name the lab holds and
+// this CLI has no record of answers a later reset with "no checkpoint named",
+// and answers a later checkpoint by re-taking a name nobody can reset to.
+func TestACheckpointThatCannotBeReadBackLeavesNothingBehind(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	endpoint, posts, deletes := refusingReadsLab(t)
+	addr := strings.TrimPrefix(endpoint, "http://")
+
+	var stdout, stderr bytes.Buffer
+	if code := checkpointCommand([]string{"baseline", "--addr", addr}, &stdout, &stderr); code != exitError {
+		t.Fatalf("an unreadable checkpoint exited %d\nstdout: %s\nstderr: %s", code, stdout.String(), stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "could not be read back") {
+		t.Errorf("the refusal does not say what failed: %s", stderr.String())
+	}
+	if posts.Load() != 1 || deletes.Load() != 1 {
+		t.Errorf("the lab saw %d POST(s) and %d DELETE(s); want 1 and 1", posts.Load(), deletes.Load())
+	}
+	path, err := checkpointPath(addr, "baseline")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("a record was written for a state nobody read: %v", err)
+	}
+}
+
+// TestAResetThatCannotBeReadBackDoesNotSayItConverged is cited by
+// resetCommand, and it is the command-level half of the same defect.
+//
+// The emulator accepts the reset and then answers nothing about the state it
+// left behind. The command must refuse with the reason, never print the
+// convergence line: that line is what a CI parses.
+func TestAResetThatCannotBeReadBackDoesNotSayItConverged(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+
+	silent := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost && strings.HasPrefix(r.URL.Path, "/_feint/reset/") {
+			_, _ = w.Write([]byte(`{}`))
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer silent.Close()
+	addr := strings.TrimPrefix(silent.URL, "http://")
+
+	// The recorded state holds nothing, so the old code compared the failed
+	// read against it and found no difference at all.
+	if err := writeRecordedCheckpoint(addr, recordedCheckpoint{
+		SchemaVersion: checkpointStateVersion, Name: "baseline",
+	}); err != nil {
+		t.Fatalf("record a checkpoint: %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := resetCommand([]string{"baseline", "--addr", addr}, &stdout, &stderr)
+	if code != exitError {
+		t.Fatalf("a reset whose state could not be read back exited %d\nstdout: %s\nstderr: %s", code, stdout.String(), stderr.String())
+	}
+	if strings.Contains(stdout.String(), "converged") {
+		t.Fatalf("the command reported convergence it never observed: %s", stdout.String())
+	}
+	if !strings.Contains(stderr.String(), "could not be read back") {
+		t.Errorf("the refusal does not say what failed: %s", stderr.String())
 	}
 }

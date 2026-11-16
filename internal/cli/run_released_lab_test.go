@@ -63,6 +63,20 @@ func newReleasedLab(t *testing.T, echo, state string) *releasedLab {
 			_, _ = w.Write([]byte(`{"schema_version":1,"name":"x","resources":0,"bytes":false}`))
 			return
 		}
+		// A real emulator answers the inventory and, with a door mounted, an S3
+		// bucket listing in XML. The fake answered its report body on every
+		// other path, which was invisible while a failed observation was
+		// swallowed (#977); a checkpoint read that cannot be taken now refuses,
+		// so the fixture has to answer the reads it is asked.
+		if r.URL.Path == "/_feint/resources" {
+			_, _ = w.Write([]byte(`{"resources":[]}`))
+			return
+		}
+		if strings.HasPrefix(r.URL.Path, "/_feint/s3/") {
+			_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?>` +
+				`<ListAllMyBucketsResult><Buckets></Buckets></ListAllMyBucketsResult>`))
+			return
+		}
 		if r.URL.Path != "/_feint/faults" {
 			_ = json.NewEncoder(w).Encode(report)
 			return

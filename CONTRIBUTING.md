@@ -62,8 +62,8 @@ run nothing" is the cheap default, and an un-triaged path is an absence, not a
 decision (#564).
 
 It also prints **the falsifications the diff has earned**, read off
-`tools/falsify/specs/` rather than remembered: 269 specs name 326 distinct files
-in 2239 mutations, and a spec that mutates a file you touched is the subset of
+`tools/falsify/specs/` rather than remembered: 270 specs name 326 distinct files
+in 2244 mutations, and a spec that mutates a file you touched is the subset of
 `falsify:all` your change can have stopped biting. Every batch here has followed
 that discipline by hand and said so in its pull request, which means it has also
 been forgotten by hand — `mise run check` cannot see a guard whose test still

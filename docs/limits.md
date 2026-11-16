@@ -1728,6 +1728,37 @@ The refusal is of the work landing **here**, not of the work. A homelab that
 materialises durable resources is a legitimate product; it is a different one,
 and the line between them is this section.
 
+## Checkpoint, reset and `--reset-after` need a loopback emulator
+
+**`feint checkpoint`, `feint reset` and `feint run --reset-after` refuse
+against an emulator listening off loopback.** The refusal names the read that
+failed; it is not a timeout and not an empty result.
+
+Both halves of the observation are loopback-only by design:
+
+- the inventory the control-plane half reads is `GET /_feint/resources`, which
+  the emulator mounts only when it listens on a loopback address — off loopback
+  the route is absent, like everything else the browser page publishes
+  (`internal/core/emulator/ui.go`);
+- the byte half discovers doors at `GET /_feint/s3`, and the discovery client
+  refuses any endpoint that is not explicit loopback HTTP(S) with no
+  credentials, query or path (`internal/cli/object_storage.go`). It refuses
+  rather than follows a redirect or a proxy, because an inherited
+  `HTTP_PROXY` would send that request to a real cloud.
+
+So an emulator started with `--addr 0.0.0.0:4599` or `--expose-to-network` is
+reachable by clients and not by these three commands. That asymmetry is the
+price of publishing runtime attribution only to the local page.
+
+What changed, and why it is written here. Before #977 the read error was
+swallowed, an empty state was compared against the checkpoint, and the command
+printed `the lab converged`: a refusal dressed as success, which is why the
+limit was invisible. After #977 the same attempt refuses, and
+`feint run --reset-after` exits 1 **before** running the child, because the
+session checkpoint it just took cannot be read back and is dropped. A run that
+needs `--reset-after` must therefore point at a loopback emulator; one that does
+not can drop the flag and keep the off-loopback endpoint.
+
 ## What survives a dead emulator, in one table
 
 The store is memory: a dead process loses every emulated resource, and that is

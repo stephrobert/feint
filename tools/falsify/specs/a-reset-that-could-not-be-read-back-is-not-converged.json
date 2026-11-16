@@ -1,0 +1,41 @@
+{
+ "package": "./internal/cli/",
+ "note": "The subject is #977: a reset whose state could not be re-read was judged against an empty state, and a checkpoint that itself held nothing compared equal to it. `feint reset` then printed \"the lab converged\" and exited 0 — a verdict drawn from an absence, in the receipt a CI parses.\n\nThe mutations are the five folds that produced it or that a later reader would reintroduce, and they are separate because the repair has five layers: the observation itself, the runtime branch that keeps its error, the two commands that must refuse rather than write an empty record, and the session checkpoint `feint run --reset-after` takes before its child. Each is neutralised with its name still read, so the copy compiles and the named test is the only thing that can redden.\n\nThe tests are the witnesses the pull request added. The command-level ones are what a reader parses: with a fold restored, `feint checkpoint` prints `0 resource(s)` and exits 0, `feint reset` prints `reset \"baseline\": the lab converged`, and the run records a session checkpoint it never read. The last two also count the lab's DELETE: a checkpoint the lab holds and the CLI never recorded is an orphan the next reset cannot name.",
+ "mutations": [
+  {
+   "label": "observe swallows the read error and answers an empty state, so a reset that could not be re-read is compared against nothing. The caller's error branch is unreachable again, and a checkpoint holding no resources compares equal to the failed read",
+   "file": "internal/cli/checkpoint.go",
+   "find": "func observe(endpoint string, rt machine.Runtime) (observed, error) {\n\tctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)\n\tdefer cancel()\n\treturn observeLab(ctx, endpoint, rt)\n}",
+   "replace": "func observe(endpoint string, rt machine.Runtime) (observed, error) {\n\tctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)\n\tdefer cancel()\n\tstate, err := observeLab(ctx, endpoint, rt)\n\tif err != nil && false {\n\t\treturn observed{}, err\n\t}\n\treturn state, nil\n}",
+   "test": "TestAnUnreadableObservationIsAnErrorRatherThanAnEmptyState"
+  },
+  {
+   "label": "the branch for a runtime this station no longer has drops the read error and answers nil. An emulator that is up while its driver is gone reads as converged again, which is the case the comment calls the moment a reset is most needed",
+   "file": "internal/cli/checkpoint.go",
+   "find": "\t\t\tstate, observeErr := observe(endpoint, rt)\n\t\t\treturn state, name, observeErr",
+   "replace": "\t\t\tstate, observeErr := observe(endpoint, rt)\n\t\t\tif observeErr != nil && false {\n\t\t\t\treturn observed{}, name, observeErr\n\t\t\t}\n\t\t\treturn state, name, nil",
+   "test": "TestAnUnresolvableRuntimeStillReturnsTheReadError"
+  },
+  {
+   "label": "feint checkpoint ignores the read error, so it records an empty state for a lab it never read, prints 0 resource(s), exits 0, and leaves the lab holding a checkpoint no record can name",
+   "file": "internal/cli/checkpoint.go",
+   "find": "\tstate, runtimeName, err := observeFor(endpoint)\n\tif err != nil {\n\t\tfmt.Fprintf(stderr, \"feint checkpoint: the checkpoint was taken and could not be read back: %v\\n\", err)",
+   "replace": "\tstate, runtimeName, err := observeFor(endpoint)\n\tif err != nil && false {\n\t\tfmt.Fprintf(stderr, \"feint checkpoint: the checkpoint was taken and could not be read back: %v\\n\", err)",
+   "test": "TestACheckpointThatCannotBeReadBackLeavesNothingBehind"
+  },
+  {
+   "label": "the session checkpoint ignores the read error, so feint run --reset-after writes a record for a state it never observed and starts the child on a promise a later reset cannot honour",
+   "file": "internal/cli/checkpoint.go",
+   "find": "\tstate, runtimeName, err := observeFor(endpoint)\n\tif err != nil {\n\t\t// The lab took the checkpoint and the CLI has no record of it, so",
+   "replace": "\tstate, runtimeName, err := observeFor(endpoint)\n\tif err != nil && false {\n\t\t// The lab took the checkpoint and the CLI has no record of it, so",
+   "test": "TestASessionCheckpointThatCannotBeReadBackIsDropped"
+  },
+  {
+   "label": "observeFor drops the error observe hands it, so every caller's \"could not be read back\" branch is dead again. feint reset reports convergence it never observed, and feint run --reset-after cannot answer unverified",
+   "file": "internal/cli/checkpoint.go",
+   "find": "\tstate, err := observe(endpoint, rt)\n\treturn state, name, err\n}",
+   "replace": "\tstate, err := observe(endpoint, rt)\n\tif err != nil && false {\n\t\treturn observed{}, name, err\n\t}\n\treturn state, name, nil\n}",
+   "test": "TestAResetThatCannotBeReadBackDoesNotSayItConverged"
+  }
+ ]
+}
