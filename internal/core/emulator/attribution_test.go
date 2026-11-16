@@ -127,7 +127,7 @@ func TestConcurrentClientsKeepTheirAttribution(t *testing.T) {
 			}
 		}()
 	}
-	awaitGroup(t, &wg, "the two overlapping lifecycles never both returned, so the barrier deadlocked")
+	awaitAnswers(t, &wg, "the two overlapping lifecycles never both returned, so the barrier deadlocked")
 	close(failures)
 	for err := range failures {
 		t.Error(err)
@@ -209,7 +209,7 @@ func TestASpanReportsTheTouchesItCouldNotAttribute(t *testing.T) {
 	span := openSpan(t, ts, "behaviour")
 	call(t, ts, http.MethodPost, "/stub/quick", "", false)
 	releaseSlow()
-	awaitSubject(t, done, "the slow request never returned once released")
+	awaitAnswer(t, done, "the slow request never returned once released")
 	select {
 	case err := <-slowFailed:
 		t.Fatalf("the slow request: %v", err)
@@ -258,44 +258,131 @@ const subjectDeadline = 5 * time.Second
 // Call it from the test's own goroutine.
 func awaitSubject[T any](t *testing.T, ch <-chan T, what string) T {
 	t.Helper()
-	timer := time.NewTimer(subjectDeadline)
-	defer timer.Stop()
+	return awaitWithin(t, ch, subjectDeadline, what, time.After)
+}
+
+// awaitAnswer is awaitSubject for a channel fed once a request has had its
+// answer: what it waits on includes a round-trip, so it is bounded by
+// requestTimeout, not by subjectDeadline.
+func awaitAnswer[T any](t *testing.T, ch <-chan T, what string) T {
+	t.Helper()
+	return awaitAnswerOn(t, ch, what, time.After)
+}
+
+// awaitAnswerOn is awaitAnswer with its clock handed in, and it is where the
+// bound is chosen. TestAnAnswerIsAwaitedForRequestTimeout hands it a clock
+// that records the bound it is asked for, so the test sleeps on nothing.
+func awaitAnswerOn[T any](t fataler, ch <-chan T, what string, after func(time.Duration) <-chan time.Time) T {
+	t.Helper()
+	return awaitWithin(t, ch, requestTimeout, what, after)
+}
+
+// fataler is the part of *testing.T the bounded waits use, so their own test
+// can hand them a recorder instead.
+type fataler interface {
+	Helper()
+	Fatalf(format string, args ...any)
+}
+
+// awaitWithin receives one value from ch, or fails the test once after(within)
+// has fired, naming what did not happen.
+func awaitWithin[T any](t fataler, ch <-chan T, within time.Duration, what string, after func(time.Duration) <-chan time.Time) T {
+	t.Helper()
 	select {
 	case v := <-ch:
 		return v
-	case <-timer.C:
+	case <-after(within):
 	}
-	t.Fatalf("waited %v and %s", subjectDeadline, what)
+	t.Fatalf("waited %v and %s", within, what)
 	var zero T
 	return zero
 }
 
-// awaitGroup is wg.Wait() bounded by awaitSubject: the goroutines counted on wg
-// run the subject.
-func awaitGroup(t *testing.T, wg *sync.WaitGroup, what string) {
+// An answer is awaited for requestTimeout, not for subjectDeadline: what
+// awaitAnswer waits on includes a request round-trip, and a legitimate one
+// took 7.2 s on a slow -race runner (macos-15-intel, 2026-11-16), past the
+// five seconds of subjectDeadline. The clock is handed in, so nothing sleeps.
+func TestAnAnswerIsAwaitedForRequestTimeout(t *testing.T) {
+	t.Parallel()
+	var asked []time.Duration
+	clock := func(fires bool) func(time.Duration) <-chan time.Time {
+		return func(d time.Duration) <-chan time.Time {
+			asked = append(asked, d)
+			if !fires {
+				return nil
+			}
+			fired := make(chan time.Time, 1)
+			fired <- time.Time{}
+			return fired
+		}
+	}
+
+	// The accepting half: an answer that came is handed back, and nothing fails.
+	came := make(chan int, 1)
+	came <- 7
+	rec := &fatalRecorder{}
+	if got := awaitAnswerOn(rec, came, "the answer never came", clock(false)); got != 7 || len(rec.fatals) != 0 {
+		t.Errorf("an answer that came: got %d and %q, want 7 and no failure", got, rec.fatals)
+	}
+
+	// The refusing half: an answer that never comes fails, naming what did not
+	// happen, once the bound has passed.
+	rec = &fatalRecorder{}
+	awaitAnswerOn(rec, make(chan int), "the answer never came", clock(true))
+	if len(rec.fatals) != 1 || !strings.Contains(rec.fatals[0], "the answer never came") {
+		t.Errorf("an answer that never came: failures %q, want one naming it", rec.fatals)
+	}
+
+	if len(asked) != 2 {
+		t.Fatalf("the clock was asked %d times, want once per wait (2)", len(asked))
+	}
+	for _, d := range asked {
+		if d != requestTimeout {
+			t.Errorf("awaitAnswer waits %v, want requestTimeout (%v): a round-trip on a slow runner fails as a hang", d, requestTimeout)
+		}
+	}
+}
+
+// fatalRecorder stands in for *testing.T in the bounded waits' own test.
+type fatalRecorder struct{ fatals []string }
+
+func (r *fatalRecorder) Helper() {}
+
+func (r *fatalRecorder) Fatalf(format string, args ...any) {
+	r.fatals = append(r.fatals, fmt.Sprintf(format, args...))
+}
+
+// awaitAnswers is wg.Wait() for goroutines that each send a request, bounded
+// by requestTimeout like awaitAnswer.
+func awaitAnswers(t *testing.T, wg *sync.WaitGroup, what string) {
 	t.Helper()
+	awaitAnswer(t, groupDone(wg), what)
+}
+
+// groupDone is a channel closed once wg is done.
+func groupDone(wg *sync.WaitGroup) <-chan struct{} {
 	done := make(chan struct{})
 	go func() {
 		wg.Wait()
 		close(done)
 	}()
-	awaitSubject(t, done, what)
+	return done
 }
 
 // A request to a handler that never answers gives up, with the call named,
 // instead of holding its caller: call runs on the test's own goroutine, where
 // no awaitSubject reaches, so the client's timeout is the only bound it has
 // (#963). The give-up is played on a client of 50 ms, so the test does not sit
-// out the real five seconds on every run; that callClient is bounded by
-// subjectDeadline is asserted apart.
+// out the real requestTimeout on every run; that callClient is bounded by
+// requestTimeout is asserted apart.
 func TestARequestToAHandlerThatNeverAnswersGivesUp(t *testing.T) {
 	t.Parallel()
 	never := make(chan struct{})
 	ts := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { <-never }))
 	t.Cleanup(ts.Close)
 	t.Cleanup(func() { close(never) }) // registered last, so it frees the handler before Close waits for it
-	if got := callClient(ts).Timeout; got != subjectDeadline {
-		t.Errorf("callClient gives up after %v, want subjectDeadline (%v): a call from the test's own goroutine is unbounded", got, subjectDeadline)
+	if got := callClient(ts).Timeout; got != requestTimeout {
+		t.Errorf("callClient gives up after %v, want requestTimeout (%v): a call from the test's own goroutine is unbounded", got, requestTimeout)
 	}
 
 	failed := make(chan error, 1)

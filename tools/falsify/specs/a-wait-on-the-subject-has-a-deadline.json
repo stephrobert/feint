@@ -1,7 +1,7 @@
 {
   "package": "./internal/core/machine/",
   "subject": "awaitEvent (internal/core/machine/await_test.go), the bounded wait every test of the package uses for an event the code under test must produce (#935)",
-  "why": "A bare receive on such an event turns a guard that refuses early into a hang until the package timeout, and a falsify verdict cut short that way reads like a mutation with fewer catchers. awaitEvent asks three questions of a wait: did the event come, did it come before the deadline given, and if not, does the failure say what did not happen; one mutation per question, the first two both striking the deadline (unreachable, then early). awaitEventBefore adds three: did the subject return before the event, does the failure then carry the subject's error, and does an event that came win over a return that followed it; one mutation each, and a fourth for a nil return before the event. And one proving a race test does not lean on the helper alone: the subject produced the event, then returned nil without the step. And one on a call site, to show a real early refusal now fails at once with its cause instead of hanging. awaitWaitGroup (#963) asks two: does it give up at the deadline on a goroutine that never finishes, and does it wait for the goroutines that do finish; one mutation each. And one on a call site, a product deadlock, to show a subject that never releases now fails in about five seconds with a reason instead of hanging the package. Cycle 1 of #963 adds three helpers and two bounds. awaitReturn runs the second operation of a race test, which used to run unbounded on the test's own goroutine; it asks two questions, does it give up at the deadline and does it hand back the operation's error, one mutation each, and one on a call site, a lock the first operation never releases. goroutineErrors, in the machine package and in its copy in the Outscale pack, asks one, does report lose what was collected; one mutation per copy. And the request clients of the Outscale and emulator tests gained a timeout, the only bound of a request made from the test's own goroutine; one mutation per client. Cycle 2: the two client bounds are asserted on the clients the tests use and the give-up is played on a 50 ms client, one mutation per question; the attribution barrier is a channel a cleanup can open, one mutation for the abort and one for the wait on the partner.",
+  "why": "A bare receive on such an event turns a guard that refuses early into a hang until the package timeout, and a falsify verdict cut short that way reads like a mutation with fewer catchers. awaitEvent asks three questions of a wait: did the event come, did it come before the deadline given, and if not, does the failure say what did not happen; one mutation per question, the first two both striking the deadline (unreachable, then early). awaitEventBefore adds three: did the subject return before the event, does the failure then carry the subject's error, and does an event that came win over a return that followed it; one mutation each, and a fourth for a nil return before the event. And one proving a race test does not lean on the helper alone: the subject produced the event, then returned nil without the step. And one on a call site, to show a real early refusal now fails at once with its cause instead of hanging. awaitWaitGroup (#963) asks two: does it give up at the deadline on a goroutine that never finishes, and does it wait for the goroutines that do finish; one mutation each. And one on a call site, a product deadlock, to show a subject that never releases now fails in about five seconds with a reason instead of hanging the package. Cycle 1 of #963 adds three helpers and two bounds. awaitReturn runs the second operation of a race test, which used to run unbounded on the test's own goroutine; it asks two questions, does it give up at the deadline and does it hand back the operation's error, one mutation each, and one on a call site, a lock the first operation never releases. goroutineErrors, in the machine package and in its copy in the Outscale pack, asks one, does report lose what was collected; one mutation per copy. And the request clients of the Outscale and emulator tests gained a timeout, the only bound of a request made from the test's own goroutine; one mutation per client. Cycle 2: the two client bounds are asserted on the clients the tests use and the give-up is played on a 50 ms client, one mutation per question; the attribution barrier is a channel a cleanup can open, one mutation for the abort and one for the wait on the partner. Cycle 3 (2026-11-16): the request clients and the waits on a request's answer get their own bound, requestTimeout (60 s), apart from subjectDeadline, after a legitimate 7.2 s round-trip failed main on macos-15-intel; one mutation per package puts awaitAnswer back on subjectDeadline.",
   "mutations": [
     {
       "label": "the deadline is removed in effect: the timer is armed for a million times what the caller gave, so a wait on an event that never comes blocks for fourteen hours, which is the bare `<-f.plugBegun` this issue replaces",
@@ -136,23 +136,23 @@
       "package": "./internal/providers/outscale/"
     },
     {
-      "label": "the Outscale tests' request client is built without its bound, the default http.Post behaviour this cycle replaced: a handler that never answers holds a post made from the test's own goroutine until the package timeout. The test asserts requestClient carries subjectDeadline",
+      "label": "the Outscale tests' request client is built without its bound, the default http.Post behaviour this cycle replaced: a handler that never answers holds a post made from the test's own goroutine until the package timeout. The test asserts requestClient carries requestTimeout, its own bound and not subjectDeadline since 2026-11-16",
       "file": "internal/providers/outscale/audit_test.go",
-      "find": "var requestClient = newRequestClient(subjectDeadline)\n",
-      "replace": "var requestClient = newRequestClient(0 * subjectDeadline)\n",
+      "find": "var requestClient = newRequestClient(requestTimeout)\n",
+      "replace": "var requestClient = newRequestClient(0 * requestTimeout)\n",
       "test": "TestARequestToAHandlerThatNeverAnswersGivesUp",
       "package": "./internal/providers/outscale/"
     },
     {
-      "label": "the emulator tests' request client is built without its bound, ts.Client() as it was: a handler that never answers holds a call made from the test's own goroutine until the package timeout. The test asserts callClient carries subjectDeadline",
+      "label": "the emulator tests' request client is built without its bound, ts.Client() as it was: a handler that never answers holds a call made from the test's own goroutine until the package timeout. The test asserts callClient carries requestTimeout, its own bound and not subjectDeadline since 2026-11-16",
       "file": "internal/core/emulator/assert_test.go",
-      "find": "\treturn boundedClient(ts, subjectDeadline)\n",
-      "replace": "\treturn boundedClient(ts, 0*subjectDeadline)\n",
+      "find": "\treturn boundedClient(ts, requestTimeout)\n",
+      "replace": "\treturn boundedClient(ts, 0*requestTimeout)\n",
       "test": "TestARequestToAHandlerThatNeverAnswersGivesUp",
       "package": "./internal/core/emulator/"
     },
     {
-      "label": "the Outscale client constructor drops the timeout it is given: requestClient still names subjectDeadline in its call, and no request gives up. The give-up is played on a 50 ms client and the test fails on its own 2 s budget, so the 30 s timeout separates a bite from a hang",
+      "label": "the Outscale client constructor drops the timeout it is given: requestClient still names requestTimeout in its call, and no request gives up. The give-up is played on a 50 ms client and the test fails on its own 2 s budget, so the 30 s timeout separates a bite from a hang",
       "file": "internal/providers/outscale/audit_test.go",
       "find": "\treturn &http.Client{Timeout: timeout}\n",
       "replace": "\treturn &http.Client{Timeout: 0 * timeout}\n",
@@ -161,7 +161,7 @@
       "timeout": "30s"
     },
     {
-      "label": "the emulator's bounded client drops the timeout it is given: callClient still names subjectDeadline, and no call gives up. The give-up is played on a 50 ms client and the test fails on its own 2 s budget, so the 30 s timeout separates a bite from a hang",
+      "label": "the emulator's bounded client drops the timeout it is given: callClient still names requestTimeout, and no call gives up. The give-up is played on a 50 ms client and the test fails on its own 2 s budget, so the 30 s timeout separates a bite from a hang",
       "file": "internal/core/emulator/assert_test.go",
       "find": "\tclient.Timeout = timeout\n",
       "replace": "\tclient.Timeout = 0 * timeout\n",
@@ -184,6 +184,22 @@
       "find": "\tb.left--\n\tif b.left == 0 {\n",
       "replace": "\tb.left--\n\tif b.left <= 1 {\n",
       "test": "TestABarrierHoldsUntilItsPartnerOrTheAbort",
+      "package": "./internal/core/emulator/"
+    },
+    {
+      "label": "awaitAnswer is bounded by subjectDeadline again, the 5 s that made a legitimate 7.2 s round-trip on macos-15-intel under -race fail on main on 2026-11-16: every wait on a request's answer goes back to failing as a hang on a slow runner",
+      "file": "internal/providers/outscale/audit_test.go",
+      "find": "\treturn awaitWithin(t, ch, requestTimeout, what, after)\n",
+      "replace": "\treturn awaitWithin(t, ch, 0*requestTimeout+subjectDeadline, what, after)\n",
+      "test": "TestAnAnswerIsAwaitedForRequestTimeout",
+      "package": "./internal/providers/outscale/"
+    },
+    {
+      "label": "awaitAnswer is bounded by subjectDeadline again, the 5 s that made a legitimate 7.2 s round-trip on macos-15-intel under -race fail on main on 2026-11-16: every wait on a request's answer goes back to failing as a hang on a slow runner",
+      "file": "internal/core/emulator/attribution_test.go",
+      "find": "\treturn awaitWithin(t, ch, requestTimeout, what, after)\n",
+      "replace": "\treturn awaitWithin(t, ch, 0*requestTimeout+subjectDeadline, what, after)\n",
+      "test": "TestAnAnswerIsAwaitedForRequestTimeout",
       "package": "./internal/core/emulator/"
     }
   ]
