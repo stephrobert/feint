@@ -1,3 +1,9 @@
+//go:build linux
+
+// The command drives Incus and uses GNU tools (df --output, declare -A in bash
+// 4): it runs on a Linux station only, so its tests are built on Linux only.
+// macOS runners measured 40 failures here on PR #993 before this constraint.
+
 // Package sandbox tests tools/review/sandbox.sh (#988, item 4): the command
 // that runs the tests of a pull request from outside the project in a
 // throwaway Incus container instead of on the maintainer's station.

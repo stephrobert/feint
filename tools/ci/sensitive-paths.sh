@@ -207,7 +207,11 @@ jq -er --arg sha "${head_sha}" --argjson trusted "${TRUSTED}" '
       else "none" end
   else error("unexpected shape") end' "${workdir}/reviews.json" >"${workdir}/verdict" 2>/dev/null ||
   cannot_judge "the reviews of pull request ${number} have a shape this script does not know"
-mapfile -t verdict <"${workdir}/verdict"
+# A read loop rather than mapfile: macOS ships bash 3.2, which has no mapfile,
+# and this script's tests run on the macOS runners too (measured: 63 failures,
+# "mapfile: command not found", on PR #993 before this line).
+verdict=()
+while IFS= read -r line; do verdict+=("${line}"); done <"${workdir}/verdict"
 kind="${verdict[0]:-}"
 who=("${verdict[@]:1}")
 
