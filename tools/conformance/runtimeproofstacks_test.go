@@ -90,7 +90,11 @@ func TestBothRuntimeJobsPinTheSameHost(t *testing.T) {
 
 	for _, pin := range []struct{ what, line string }{
 		{"the Zabbly signing key", "ZABBLY_FPR: '4EFC590696CB15B87C73A3AD82CC8797C838DCFD'"},
-		{"the Incus packages", "incus incus-client netcat-openbsd"},
+		// The release itself is INCUS_VERSION, declared once at the top of the
+		// workflow and held to machine.IncusTested by
+		// TestTheRuntimeProofInstallsTheTestedIncus (tools/ci, #979); what each job
+		// must carry is the install line that reads it.
+		{"the Incus packages", `"incus=1:${INCUS_VERSION}-*" "incus-client=1:${INCUS_VERSION}-*" netcat-openbsd`},
 		{"the OVN packages", "ovn-central ovn-host openvswitch-switch"},
 		{"the northbound socket", "network.ovn.northbound_connection unix:/run/ovn/ovnnb_db.sock"},
 		{"the runner's Docker FORWARD policy", "sudo iptables -P FORWARD ACCEPT"},

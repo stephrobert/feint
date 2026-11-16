@@ -1983,6 +1983,25 @@ persists nothing, the target fields being immutable after creation. Incus 7.3
 carries nothing that touches peer rows. **The asymmetric cascade appears to be
 unreported upstream.**
 
+**Re-measured on Incus 7.6, 2026-11-16** (station, Zabbly, OVN 24.03.8). The
+schema is the same in the v7.6.0 source (`target_network_id INTEGER NULL`, no
+foreign key). A row planted the same way, by removing the target's own row with
+`incus admin sql` and then deleting the target, answers exactly as on 7.2:
+
+```
+$ incus network peer delete fnt979a fnt979x
+Error: Failed deleting peer: Failed loading target network: Network not found
+$ incus network delete fnt979a
+Error: The network is currently in use
+```
+
+One detail moved: the 7.6 row reads `"status":"Created"` with no
+`target_network`, so its status no longer gives it away. 7.5 did change
+`PeerCreate` and `PeerDelete` (next section), and the ordinary path is now
+clean on 7.6: `peer delete` on the target, then `network delete` on the
+target, then `peer delete` on the source all return 0. The dangling row is not
+gone, it is only harder to make.
+
 Two further refusals belong to the same trap and are quoted from the
 maintainer's station in #455 rather than from the reproduction above, because
 they need a rule set to be attached and the two-subnet Net used here attaches
@@ -2115,6 +2134,37 @@ the case that matters and it is exact: three subnets give three networks, six
 rows, six `Created`. Nothing here is a reason to hand-repair a host — the next
 subnet event reconciles, and `feint clean --force` is what frees a station that
 carries the older, unremovable form.
+
+**Both rules changed upstream, in Incus 7.0.2 and 7.5.1, and this section stays
+because the floor is a 6.0.x release (6.0.5).** Commit `e3c6e740fe`, "Scope mutual peer lookups to the
+target network" (closing lxc/incus#3987, "Mutual network acl peerings fail",
+reported against 7.4; merged through #3988 on 2026-09-14), makes `PeerCreate`
+resolve the target network's id and filter on it, and `PeerDelete` now
+deactivates only the mutual row held by the target network. Replayed on the
+station on 2026-11-16, Incus 7.6, OVN 24.03.8, with the commands above:
+
+```
+$ incus network peer create fnt979a fnt979b fnt979b    -> pending  rc=0
+$ incus network peer create fnt979c fnt979b fnt979b    -> pending  rc=0
+$ incus network peer create fnt979b fnt979a fnt979a    -> Created  rc=0
+$ incus network peer delete fnt979b fnt979c            (full mesh first)
+  fnt979a: both halves still Created
+  fnt979c: {"name":"fnt979b","status":"Errored"}   (no target_network)
+$ incus network peer create fnt979c fnt979b fnt979b
+Error: Failed creating peer: A peer for that name already exists
+```
+
+So with the fix the first rule is gone, and the second has narrowed: a delete
+wrecks the far half of the pair it deletes, never a neighbour's. **Which
+releases carry it**, read in the upstream source on 2026-11-16 (`driver_ovn.go`
+at each tag, looking for the new target-network lookup): present in **7.0.2**
+and in **7.5.1** and later; absent from **every 6.0.x** (6.0.6 and the
+`stable-6.0` tip of 2026-10-30 included, and 6.0 is security-only since 7.0, so
+it will not come), and from **7.0.0, 7.0.1, 7.3 and 7.4**. The emulator keeps
+both remedies — the per-network locks and the rebuild of any pair not `Created`
+at both ends — because the floor, 6.0.5, carries the old rules, and on 7.6 they
+cost a wait and a read, nothing more. Dropping them becomes possible the day the
+floor is a release that carries the fix.
 
 ## Authentication is accepted, never verified
 
@@ -2404,7 +2454,9 @@ on 8080, which its group opens to the web block, and is refused on 9090, which
 no rule names, with both ports proved listening inside the target first.
 
 **What this requires.** `security.acls` on a bridged NIC exists from Incus
-**6.0.4** onwards. On 6.0.0, which Ubuntu 24.04 ships and will not move past, the
+**6.0.4** onwards, and the supported floor is **6.0.5**, whose nftables rule
+order in bridge mode carries a security fix 6.0.4 lacks (lxc/incus#2222). On
+6.0.0, which Ubuntu 24.04 ships and will not move past, the
 option is rejected outright and nothing is enforced. An ACL attached to a
 *network* is accepted from 6.0, but only filters between the bridge and the
 host, so it cannot separate two servers of the same subnet, which is precisely
@@ -2417,7 +2469,53 @@ port range, and every one of them translates. There is no rule sourced by
 another security group to worry about: that is the AWS model, where
 `UserIdGroupPair` exists; `instance/v1.SecurityGroupRule` has only `ip_range`.
 The `stateful` flag translates too, onto the runtime's `allow` and
-`allow-stateless`.
+`allow-stateless` — **under `--vm incus-ovn` only.** `allow-stateless` is an
+OVN action. Measured on Incus 7.6 on 2026-11-16: a rule set holding it, used by
+a bridge network, is refused whole on write, `ACL is used by network
+"fnt979br": Action "allow-stateless" is only supported on OVN networks`, and
+the refusal costs every rule beside it, since the set is written in one PUT.
+Incus 7.5 added the check (commit `814e2b7bea`, "Reject rules the host
+firewall can't apply", in lxc/incus#4016). Before it, by the v7.2.0 source and
+not by a run here, the action passed validation and the nftables driver then
+refused it as `Unrecognised action`, so the outcome was the same with a vaguer
+message.
+
+So the mode declares it (#979): `/_feint/health` publishes
+`capabilities.stateless_rules`, true under `--vm incus-ovn`, false under
+`--vm incus` and `--vm incus-vm`. Where it is false, a Scaleway group with
+`stateful: false` is **refused by the emulator itself**, before anything is
+sent to the runtime: the API keeps the group and its rules, and the log carries
+one warning naming the capability, with an error that names the mode, the
+reason and the remedy, `--vm incus-ovn`. Nothing approximates the group with a
+stateful `allow`, deliberately: return traffic let through is a difference a
+client can measure. The refusal is held by
+`TestABridgeModeRefusesAStatelessRuleSetByName`; the end-to-end path under a
+bridge mode has not been driven by a conformance suite.
+
+**What the refusal leaves on the host depends on the group's past** (Incus
+7.6, read in the driver on 2026-11-16, held by
+`TestAGroupTurnedStatelessKeepsItsOldSet` on the test runtime, not run on a
+station). The refused set is not written, and nothing is removed. A machine
+that did not wear the group yet gets no set from it. A group that was
+stateful before, and was written then, **keeps that older version on the
+host, attached to its machines and enforced as it was**, until the group is
+stateful again or the server wears no refused stateless group any more; a
+server that moves to another stateless group keeps the old set. This is
+deliberate: it is the same
+choice the driver makes for any refused set, never to attach "all but the
+refused one", because dropping a set that denies traffic would open what the
+API describes as closed. The warning says it in those words. A reset
+(`Reapply`) lists such a group under skipped and leaves the older version in
+place too.
+
+The same refusal, with the floor's reason instead, covers a host below the
+supported Incus (6.0.5). A mode asked for by name refuses to start there,
+naming the reason. Under `--vm auto`, OVN is passed over and the bridge mode
+starts with `capabilities.firewall` and `capabilities.isolation` withdrawn;
+the driver then writes no rule set and no isolation set
+(`TestABelowFloorHostWritesNoRuleSet`, `TestABelowFloorHostWritesNoIsolation`),
+and nothing is rewritten until the host runs 6.0.5 or later. What an earlier
+run wrote stays.
 
 The bound is that none of this applies to a server with no backing machine,
 which is the default configuration and what CI runs.
@@ -2425,7 +2523,9 @@ which is the default configuration and what CI runs.
 **The bound a routed NIC adds (#337).** A server that joins no private network
 gets its public address on a `routed` NIC (#202) — and a routed NIC accepts
 **no security option at all**. Measured on Incus 7.2, cold, one key at a time,
-and the wording of the same refusal on the 7.3 CI runner:
+and the wording of the same refusal on the 7.3 CI runner. Incus 7.6 is read,
+not run: `nic_routed.go` at v7.6.0 still declares no `security.*` key, and
+7.6's new filtering flags (lxc/incus#4097) are for OVN NICs only:
 
 | device | key | Incus answers |
 |---|---|---|
@@ -2732,7 +2832,8 @@ of the corpus sanitiser's minting space, and nothing about the boot changed.)
 `never` is measured, not inferred: six alpine machines, ceilings of 45 s, 90 s
 and 180 s, none of them carried it. Station of the maintainer, 2026-08-29,
 `--vm incus-ovn`, Incus 7.2, OVN 24.03.6, `CreateVms` itself 22.0–22.5 s
-throughout (#562's constant, unchanged).
+throughout (#562's constant, unchanged). Measured on 7.2, not re-measured on
+7.6: neither the timing nor the alpine `never` was replayed during #979.
 
 ### Why alpine and not the other two
 
@@ -3079,7 +3180,13 @@ cannot be changed on a live OVN NIC without re-plugging it —
 `UpdatableFields` in the runtime's `nic_ovn.go` at v7.2.0 lists no
 `security.*` key but `security.acls` itself (the rest are `limits.*` and
 `connected`), and the re-plug was measured to cost the guest every
-address it carried. A flexible IP still rides the NIC's own route keys as in
+address it carried. At v7.6.0 the list also holds the three filtering flags
+and `ipv4.address.external`, but still none of the default-action keys, and
+the re-plug is unchanged: measured on 2026-11-16, Incus 7.6, setting
+`security.acls.default.ingress.action` on a running container's OVN NIC moved
+the guest's `eth0` from ifindex 306 to 310 and left it with no IPv4 address,
+while `security.acls`, `security.ipv4_filtering` and `security.mac_filtering`
+kept ifindex 306 and the address. A flexible IP still rides the NIC's own route keys as in
 bridge mode (`ipv4.routes.external`, whose l2proxy ingress mode answers ARP
 for the address on the uplink and delivers packets carrying the public
 destination), but since those keys are not live-updatable either, attaching
@@ -3109,7 +3216,10 @@ in use by virtio-balloon-pci,id=qemu_balloon
 ```
 
 Measured on Incus 7.x with the emulator's own fixture: a server created, started
-and then attached to a private network. The container modes attach it without
+and then attached to a private network. Not re-measured on 7.6: on 2026-11-16
+the station had KVM (`/dev/kvm`, qemu 11.1.3) but no virtual-machine image, every
+`feint/*` image being a container, and 7.6's "Various VM bugfixes"
+(lxc/incus#4159) do not say whether the slot conflict moved. The container modes attach it without
 trouble, because a veth pair needs no PCI slot.
 
 Two things follow, and both are in the code rather than only here.
@@ -4265,7 +4375,7 @@ What a `200` from `CreateLoadBalancer` means here, stated rather than implied:
 - **A backend on another subnet is withheld; the ones on the balancer's own
   subnet are distributed** (#457 measured the boundary on Incus 7.2 with OVN,
   2026-08-25, re-measured 2026-08-26; #483 measured what refusing the whole
-  spec over it cost). The two-tier architecture — a load balancer on the
+  spec over it cost; measured on 7.2, not re-measured on 7.6). The two-tier architecture — a load balancer on the
   public subnet, machines spread over others — is the ordinary shape, and the
   runtime cannot take it whole: the driver distributes to the backends inside
   the balancer's own block, withholds the others by name before the write, and
@@ -4764,7 +4874,8 @@ operator's own default bridge, which this emulator refuses to put anything on.
 
 Both come from one place: the host route. **The third attempt takes the address
 off the device without taking the device off the instance**, which is neither of
-the two, and Incus 7.2 accepts it on a running instance:
+the two, and Incus 7.2 accepts it on a running instance (measured on 7.2; not
+re-measured command by command on 7.6):
 
 ```console
 $ incus config device set <machine> eth0 ipv4.address=          # 1, the host route goes
@@ -4981,6 +5092,37 @@ receiving NIC's own rule set answering, since the group under test opened
 neither. So the router does forward for the subnet when it is addressed
 directly; what fails is the scope-link form's ARP, exactly as the capture
 shows.
+
+**Re-measured on Incus 7.6, 2026-11-16** (OVN 24.03.8), on throwaway networks
+built the way the emulator builds them: a bridge uplink carrying both subnets
+in `ipv4.routes`, one OVN network with `ipv4.nat=true` and one with
+`ipv4.nat=false`, one container on each. Same scope-link routes, and the NAT
+network is still unreachable from the station, its ARP still unanswered:
+
+```console
+$ ip route | grep 10.251
+10.251.1.0/24 dev fnt979up proto static scope link
+10.251.2.0/24 dev fnt979up proto static scope link
+$ ping -c2 10.251.1.10        # ipv4.nat=true
+2 packets transmitted, 0 received
+$ ping -c2 10.251.2.10        # ipv4.nat=false
+2 packets transmitted, 2 received
+$ ip neigh show dev fnt979up
+10.250.79.101 lladdr 10:66:6a:6e:9b:6c   # fnt979b's router on the uplink
+10.251.1.10 FAILED
+10.251.2.10 lladdr 10:66:6a:6e:9b:6c     # answered by that router
+```
+
+The NAT-off network answers because the runtime publishes the NIC addresses
+of a network without NAT on an l2proxy uplink (a bridge uplink has no
+`ovn.ingress_mode`, which counts as l2proxy): since 7.4 by proxy ARP on the
+router port, before that by NAT rules (lxc/incus#3775). This is the first
+configuration on record in which the station reaches a private address, and it
+is consistent with #491's counter-witness, though nobody recorded that
+network's NAT setting, so it does not explain it. The same run also
+re-measured a public /32 on 7.6: `ipv4.routes.external=203.0.113.79/32` on the
+NIC, and the station's ping to it answered, the neighbour entry carrying the
+router's MAC — l2proxy still answers for the published address, by proxy ARP.
 
 **Why it will not lift here, measured.** The earlier wording said the fix was
 to post the route `via` the network's router instead of `dev`-only, as if the
@@ -5403,3 +5545,43 @@ section names the symptom, its versions and its date, and names no cause.
 **It is awkward to reproduce on purpose.** The second apply repairs the outputs,
 so a tree that has been applied twice shows nothing. Reproducing it needs a
 clean state, and it is the first apply that carries the evidence.
+
+## Incus releases between the floor (6.0.5) and the tested one (7.6) are read, not measured
+
+feint supports every Incus from `machine.IncusMinimum`, 6.0.5, to
+`machine.IncusTested`, 7.6. Only 7.6 runs the proof: the nightly runtime leg,
+green on the maintainer's station on 2026-11-16 (1466 s), and the sections of
+this page that name Incus 7.6 with that date, re-measured or re-read then (the
+peering replay, the stateless refusal, the in-place `security.acls` update, the
+routed NIC, the re-plug). Every other section still names the release it was
+measured on.
+
+The releases in between were read from their changelogs, not run.
+[runtime-incus.md](runtime-incus.md) sorts them, and the rows it marks
+*possible* or *likely* are held by no test and no measurement. Grouped by the
+measurement that would settle them:
+
+- **OVN peering, ports and start races** (J1 on 6.0.x and 7.0.2, J5, J14, I4,
+  I9; I5 and J1 on 7.6 are measured, in the peering section): the runtime leg
+  and the race tests on a 6.0.6 and a 7.0.2 station, with the per-network
+  locks removed in a scratch copy. The locks stay until then.
+- **ACL actions on write** (I2, half measured): `allow-stateless` on a bridge
+  network was measured refused whole on 7.6; the PUT of every other action
+  feint emits (reject, drop, allow) on 7.6, and a bad rule still refusing the
+  whole PUT, are not.
+- **The bridge firewall on the 6.0.x line** (J3, J4, J16): the network suite's
+  firewall and isolation checks under `--vm incus` on 6.0.5 and 6.0.6. J16 is
+  settled by source, not by a daemon: the bridge NIC ACL support of 6.9
+  (lxc/incus#1587) was backported before the floor under another title. At tag
+  `v6.0.4`, `internal/server/device/nic_bridged.go` holds 13 occurrences of
+  `security.acls` (0 at `v6.0.0`) and hands the rules to the nftables driver's
+  `InstanceSetupBridgeFilter` (read 2026-11-16).
+- **Uplink, external addresses and NAT** (J6, J7, J8, J11, J12, I3, I7, I15):
+  the runtime leg on 6.0.6 and 7.0.2, plus timing one uplink write with 15 OVN
+  networks, and the ARP probe on `feint-uplink` described in the uplink section.
+- **Names, events and error strings** (J9, J10, I6, I10, I13): the watch
+  conformance, the longest client-chosen names, and one probe per error phrase
+  feint matches, on 6.0.6 and 7.6.
+- **Images** (I12): `feint images` on 6.0.6.
+- **System minimums** (J13): `feint doctor` warns below Linux 6.12, nftables
+  1.0.0 and dnsmasq 2.90; what fails below them was not measured.

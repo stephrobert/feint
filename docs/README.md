@@ -52,6 +52,8 @@ small enough to read, and no cloud account.
   real client to a verdict, and what a green run still does not prove.
 - [clients.md](clients.md) — which client drives which pack, at which version,
   and the workflow that says so.
+- [runtime-incus.md](runtime-incus.md) — the Incus release behind `--vm`, how a
+  new one is noticed, and what changed upstream between the ones used here.
 
 ## I want to change it
 

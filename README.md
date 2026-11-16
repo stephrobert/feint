@@ -32,7 +32,7 @@
 >
 > **Proven**: 384 of the 409 mounted operations are driven by a real client, on every pull request: each pack's own official CLI, and an infrastructure engine wherever a pack admits one, all of them running against the emulator in CI. And every night, machines really boot: an ssh login on each provider's own default account, a firewall that filters, and subnets isolated under `incus-ovn`, the one mode that declares it. Starting machines needs a runtime the pull-request path does not have. The whole chain is described in [docs/conformance.md](docs/conformance.md).
 >
-> **Not proven**: quotas, prices, real capacity, identifier validation, authentication, eventual consistency. The 65 sections of [docs/limits.md](docs/limits.md) each say what one costs. An emulator with a single implicit account and no price list would have to invent those figures, and somebody would act on them.
+> **Not proven**: quotas, prices, real capacity, identifier validation, authentication, eventual consistency. The 66 sections of [docs/limits.md](docs/limits.md) each say what one costs. An emulator with a single implicit account and no price list would have to invent those figures, and somebody would act on them.
 >
 > **Unknown**: 25 operations are mounted and have never been driven by a client. Every one of them states why no official client reaches it, at the route and in [docs/routes.md](docs/routes.md). They are counted rather than glossed, one by one, in [coverage/evidence.json](coverage/evidence.json).
 >
@@ -240,14 +240,20 @@ Two things are needed only for what they enable:
 | What | Version | What it buys you |
 |---|---|---|
 | Go | 1.26 | Building from source. A released binary needs nothing. |
-| [Incus](https://linuxcontainers.org/incus/) | 7.2 recommended, **6.0.4 minimum** | `--vm`: powered-on servers become real containers or KVM machines you can `ssh` into. |
+| [Incus](https://linuxcontainers.org/incus/) | 7.6 recommended, **6.0.5 minimum** | `--vm`: powered-on servers become real containers or KVM machines you can `ssh` into. |
 | OVN (`ovn-central`, `ovn-host`, Open vSwitch) | optional | `--vm incus-ovn`: subnets that are actually separate, so two VPCs cannot reach each other. |
 
-6.0.4 is a floor rather than a preference: below it the runtime refuses ACLs on a
-NIC, and the failure reads like a Feint bug rather than a missing feature. Ubuntu
-24.04 ships 6.0.0 and will not move past it, so the Zabbly stable channel is the
+6.0.5 is a floor rather than a preference. Incus before 6.0.4 refuses ACLs on a NIC, so a security group attaches and blocks nothing. Incus before 6.0.5 orders its nftables firewall rules wrongly in bridge mode, a security bug fixed by lxc/incus#2222, and feint's bridge-mode firewall claims assume that fix.
+Below the floor the firewall is withdrawn in every mode, OVN included: a host
+below it is not supported, even though the floor's reason is a bridge-mode fix.
+Ubuntu 24.04 ships 6.0.0 and will not move past it, so the Zabbly stable channel is the
 practical way to a supported version. `feint doctor` checks all of this against
-the same 6.0.4, and says what to install, which is the point of having it.
+the same 6.0.5, and says what to install, which is the point of having it.
+
+7.6 is the release the nightly runtime proof installs, pinned to it rather than
+to whatever the channel serves that night. A scheduled check opens an issue when
+Zabbly stable publishes another, and `docs/runtime-incus.md` records what changed
+upstream between the releases this page has recommended.
 <!-- prereq:end -->
 
 ---
@@ -821,7 +827,9 @@ emulator never guesses an OS and never fetches anything on the boot path.
 That mode needs Incus and OVN, and how to install them differs enough per
 distribution to be worth measuring: **[docs/install.md](docs/install.md)** carries
 the commands, measured on a fresh virtual machine of Debian 12 and 13, Ubuntu 24.04
-and 26.04, Fedora 43 and 44, and Rocky 9. Rocky 10 is listed too, as *not
+and 26.04, Fedora 43 and 44, and Rocky 9. Debian 12 is no longer supported for
+`--vm incus-ovn`: its OVN and Open vSwitch are older than what Incus 7.4 and
+later require, and the page says so. Rocky 10 is listed too, as *not
 measured*: EPEL and Zabbly still package no Incus for Enterprise Linux 10, and
 the COPR chroot that appeared for it (checked 2026-07-30) has not been driven
 by the install play yet.
@@ -860,7 +868,7 @@ on 2026-07-29:
 | `--vm` | Machines | Addresses | Firewall | **Isolation** | **Balancing** | Own kernel | Needs |
 |---|:--:|:--:|:--:|:--:|:--:|:--:|---|
 | `off` *(default)* | — | — | — | — | — | — | nothing |
-| `incus` | yes | yes | yes | **no** | **no** | no | Incus 6.0.4+ |
+| `incus` | yes | yes | yes | **no** | **no** | no | Incus 6.0.5+ |
 | `incus-vm` | yes | yes | yes | **no** | **no** | yes | Incus + KVM |
 | `incus-ovn` | yes | yes | yes | **yes** | **yes** | no | Incus + `ovn-central`, `ovn-host`, Open vSwitch |
 
@@ -883,16 +891,22 @@ security group of their own. An OVN network is a logical network with its own
 router, so the separation is the topology's rather than a rule's.
 
 Everything else — the block, the address on the interface, the firewall applying
-without a restart, a flexible IP routed and revoked — holds identically in both.
-So the bridge mode is not a lesser emulator; it is the same emulator without
-subnet isolation, at a much lower installation cost.
+without a restart, a flexible IP routed and revoked — holds identically in both,
+with two more exceptions that are OVN only: load balancing (above), and
+**stateless security-group rules** (#979), which the bridge modes refuse by name
+because Incus applies `allow-stateless` only on OVN networks
+(`capabilities.stateless_rules`, and the bound in `docs/limits.md`). So the
+bridge mode is not a lesser emulator; it is the same emulator without subnet
+isolation, load balancing and stateless rules, at a much lower installation
+cost.
 
 **Ask the emulator rather than guessing.** It declares what the running mode can
 prove:
 
 ```bash
 curl -s localhost:4599/_feint/health | jq .capabilities
-# {"machines":true,"addresses":true,"firewall":true,"isolation":false,"own_kernel":false}
+# {"machines":true,"addresses":true,"firewall":true,"isolation":false,"own_kernel":false,
+#  "balancing":false,"stateless_rules":false, ...}
 ```
 
 `--vm auto` picks the most capable runtime that answers — OVN first, then the

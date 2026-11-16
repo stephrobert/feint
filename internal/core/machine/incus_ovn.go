@@ -453,7 +453,21 @@ func (d *Incus) NativeIsolation() bool { return d.OVN }
 //
 // (A,B) and (C,B) are two different pairs, so a per-pair key would have let
 // precisely that through; a lock on each end lets neither in while the other
-// works. That is the shape of #456: a Net of N subnets declares N(N-1) halves
+// works.
+//
+// Incus 7.6 no longer has the rule. Its PeerCreate resolves the target
+// network's id first and filters on it (NetworkID, v7.6.0 driver_ovn.go;
+// commit e3c6e740fe "Scope mutual peer lookups to the target network", closing
+// lxc/incus#3987, merged through lxc/incus#3988 on 2026-09-14), and the same
+// three commands replayed on the station on 2026-11-16, Incus 7.6, OVN
+// 24.03.8, end with `incus network peer create B A A -> Created, rc=0`. The
+// fix is in 7.0.2 and in 7.5.1 and later; it is in no 6.0.x release (6.0.6
+// and the stable-6.0 tip of 2026-10-30 included) and not in 7.0.0, 7.0.1, 7.3
+// or 7.4 (driver_ovn.go read at each tag, 2026-11-16). The lock stays: the
+// supported floor, IncusMinimum, is a 6.0.x release. On 7.6 the lock costs a
+// wait between two creates that share a network, and nothing else.
+//
+// That is the shape of #456: a Net of N subnets declares N(N-1) halves
 // as its subnets appear, and only a Net with three or more can have two of them
 // aiming at one network at once — which is why the two-subnet fixtures never
 // tripped it and a stranger's three-subnet Net did.
@@ -571,6 +585,16 @@ const peerCreated = "Created"
 // rebuilt rather than patched: the row that looks wrong and the row that looks
 // right are the same peering.
 //
+// Incus 7.6 narrows the blast, and does not remove the wreck. Its PeerDelete
+// deactivates only the mutual row, the one held by the target network
+// (v7.6.0 driver_ovn.go, the `peer.NetworkID != targetNetID` clause). Replayed
+// on the station on 2026-11-16, Incus 7.6, same mesh: `peer delete B C` left
+// A's halves Created and turned C's half aiming at B into
+// {"name":"B","status":"Errored"} with no target, and `peer create C B B`
+// still answered "A peer for that name already exists". So the wrecked row is
+// now the deleted pair's own far half rather than a neighbour's, and the
+// rebuild below is still what turns it back into a peering.
+//
 // The ordinary path costs two reads and nothing else: a pair being declared for
 // the first time has no rows to take down, so an apply performs no delete and
 // leaves no wreck behind.
@@ -677,7 +701,9 @@ func (d *Incus) removePeerRow(ctx context.Context, network string, row peerRow) 
 // the measurement): the locks stop this process from making that state, but a
 // crashed run, or a run of a version without them, leaves it on the host, and
 // nothing a user can type repairs it. So it is reconciled and the create is
-// re-issued once.
+// re-issued once. On Incus 7.5 and later the runtime no longer answers it to
+// the sequence peerLock documents (measured on 7.6, 2026-11-16); the branch
+// serves the older runtimes the floor still admits.
 // TestASecondPendingHalfIsReconciledRatherThanReported fails without the branch.
 func (d *Incus) declarePeerHalf(ctx context.Context, from, to string) error {
 	_, err := d.run(ctx, "network", "peer", "create", from, to, to)

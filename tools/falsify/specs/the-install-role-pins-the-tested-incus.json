@@ -1,0 +1,62 @@
+{
+  "package": "./tools/ci/",
+  "note": "#979, item 2: the install role tools/install/ansible/roles/feint_host installed Zabbly's newest Incus with no version, so the machines that prove docs/install.md could run a release the runtime proof never ran. vars/debian.yml now pins feint_host_incus_version to machine.IncusTested, and TestTheInstallRoleInstallsTheTestedIncus holds it there. Mutations 1 to 3 are the real file departing from the pin; 4 to 7 are rolePinProblems' questions, one each; 8 is the count that keeps the real-file test from passing on a list it never read. NOT HERE: the Debian 12 refusal task of tasks/debian.yml, which no Go test can run; it was exercised by ansible-playbook --check on 2026-11-16 (see the lot's report).",
+  "mutations": [
+    {
+      "label": "the role installs incus with no version again, as before #979",
+      "file": "tools/install/ansible/roles/feint_host/vars/debian.yml",
+      "find": "  - \"incus=1:{{ feint_host_incus_version }}-*\"\n",
+      "replace": "  - incus\n",
+      "test": "TestTheInstallRoleInstallsTheTestedIncus"
+    },
+    {
+      "label": "the role pins a release other than the one the proof runs",
+      "file": "tools/install/ansible/roles/feint_host/vars/debian.yml",
+      "find": "feint_host_incus_version: \"7.6\"",
+      "replace": "feint_host_incus_version: \"7.5\"",
+      "test": "TestTheInstallRoleInstallsTheTestedIncus"
+    },
+    {
+      "label": "the client package is pinned to one build, which stops installing at Zabbly's next rebuild",
+      "file": "tools/install/ansible/roles/feint_host/vars/debian.yml",
+      "find": "  - \"incus-client=1:{{ feint_host_incus_version }}-*\"\n",
+      "replace": "  - \"incus-client=1:7.6-ubuntu24.04-202611072126\"\n",
+      "test": "TestTheInstallRoleInstallsTheTestedIncus"
+    },
+    {
+      "label": "an unpinned package is not reported",
+      "file": "tools/ci/incus_pin_test.go",
+      "find": "\t\tcase !pinned:\n\t\t\tproblems = append(problems, \"installs \"+name+\" with no version: the machines",
+      "replace": "\t\tcase !pinned && false:\n\t\t\tproblems = append(problems, \"installs \"+name+\" with no version: the machines",
+      "test": "TestRolePinProblemsAsksEachQuestionApart"
+    },
+    {
+      "label": "a package spelt other than with the role's variable is accepted",
+      "file": "tools/ci/incus_pin_test.go",
+      "find": "\t\tcase version != rolePinWant:",
+      "replace": "\t\tcase version != rolePinWant && false:",
+      "test": "TestRolePinProblemsAsksEachQuestionApart"
+    },
+    {
+      "label": "the declared release is not compared with machine.IncusTested",
+      "file": "tools/ci/incus_pin_test.go",
+      "find": "\t\tif release := decls[0][1]; release != tested {\n\t\t\tproblems = append(problems, \"pins feint_host_incus_version",
+      "replace": "\t\tif release := decls[0][1]; release != tested && false {\n\t\t\tproblems = append(problems, \"pins feint_host_incus_version",
+      "test": "TestRolePinProblemsAsksEachQuestionApart"
+    },
+    {
+      "label": "a role with no declared release is accepted, and its glob expands to nothing apt can find",
+      "file": "tools/ci/incus_pin_test.go",
+      "find": "\tcase 0:\n\t\tproblems = append(problems, \"installs Incus and declares no feint_host_incus_version\")",
+      "replace": "\tcase 0:\n\t\tproblems = append(problems[:0:0], problems...)",
+      "test": "TestRolePinProblemsAsksEachQuestionApart"
+    },
+    {
+      "label": "the block list is never read, so the real-file test passes on a role it found no package in",
+      "file": "tools/ci/incus_pin_test.go",
+      "find": "\t\t\titems = append(items, item)\n\t\t}",
+      "replace": "\t\t\titems = append(items, item[:0])\n\t\t}",
+      "test": "TestTheInstallRoleInstallsTheTestedIncus"
+    }
+  ]
+}

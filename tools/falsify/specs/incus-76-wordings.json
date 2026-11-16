@@ -1,0 +1,82 @@
+{
+  "package": "./internal/core/machine/",
+  "mutations": [
+    {
+      "label": "isNotFound goes deaf to the 7.6 wording of a missing instance",
+      "file": "internal/core/machine/cli.go",
+      "find": "\t\"instance not found\",\n",
+      "replace": "\t\"instance not found!\",\n",
+      "test": "TestEveryMatchedWordingOfIncus76IsRecognised"
+    },
+    {
+      "label": "isNotFound goes deaf to the 7.6 wording of a missing network, the #455 peer refusal included",
+      "file": "internal/core/machine/cli.go",
+      "find": "\t\"network not found\",\n",
+      "replace": "\t\"network not found!\",\n",
+      "test": "TestEveryMatchedWordingOfIncus76IsRecognised"
+    },
+    {
+      "label": "isNotFound goes deaf to the 7.6 wording of a missing rule set",
+      "file": "internal/core/machine/cli.go",
+      "find": "\t\"network acl not found\",\n",
+      "replace": "\t\"network acl not found!\",\n",
+      "test": "TestEveryMatchedWordingOfIncus76IsRecognised"
+    },
+    {
+      "label": "isNotFound goes deaf to the 7.6 wording of a missing forward",
+      "file": "internal/core/machine/cli.go",
+      "find": "\t\"network forward not found\",\n",
+      "replace": "\t\"network forward not found!\",\n",
+      "test": "TestEveryMatchedWordingOfIncus76IsRecognised"
+    },
+    {
+      "label": "isNotRunning goes deaf to the 7.6 wording of a stopped instance",
+      "file": "internal/core/machine/cli.go",
+      "find": "\treturn strings.Contains(strings.ToLower(err.Error()), \"is not running\")",
+      "replace": "\treturn strings.Contains(strings.ToLower(err.Error()), \"is not running!\")",
+      "test": "TestEveryMatchedWordingOfIncus76IsRecognised"
+    },
+    {
+      "label": "isBusy goes deaf to the 7.6 wording of an instance held by another operation",
+      "file": "internal/core/machine/incus.go",
+      "find": "strings.Contains(strings.ToLower(err.Error()), \"instance is busy\")",
+      "replace": "strings.Contains(strings.ToLower(err.Error()), \"instance is busy!\")",
+      "test": "TestEveryMatchedWordingOfIncus76IsRecognised"
+    },
+    {
+      "label": "isTransientConflict goes deaf to the 7.6 ETag refusal",
+      "file": "internal/core/machine/incus.go",
+      "find": "\t\tstrings.Contains(said, \"etag doesn't match\") ||",
+      "replace": "\t\tstrings.Contains(said, \"etag doesn't match!\") ||",
+      "test": "TestEveryMatchedWordingOfIncus76IsRecognised"
+    },
+    {
+      "label": "isTransientConflict goes deaf to the OVSDB port-group collision as 7.6 relays it",
+      "file": "internal/core/machine/incus.go",
+      "find": "\t\tstrings.Contains(said, \"transaction causes multiple rows\")",
+      "replace": "\t\tstrings.Contains(said, \"transaction causes multiple rows!\")",
+      "test": "TestEveryMatchedWordingOfIncus76IsRecognised"
+    },
+    {
+      "label": "isTransientConflict widens to any daemon error, so a refusal no retry changes is retried",
+      "file": "internal/core/machine/incus.go",
+      "find": "\t\tstrings.Contains(said, \"transaction causes multiple rows\")",
+      "replace": "\t\tstrings.Contains(said, \"transaction causes multiple rows\") ||\n\t\tstrings.Contains(said, \"error:\")",
+      "test": "TestTheIncus76WordingsThatMeanSomethingElseAreNotRetried"
+    },
+    {
+      "label": "isAlreadyExists goes deaf to the 7.6 wording of a duplicate create",
+      "file": "internal/core/machine/incus_firewall.go",
+      "find": "\treturn err != nil && strings.Contains(strings.ToLower(err.Error()), \"already exists\")",
+      "replace": "\treturn err != nil && strings.Contains(strings.ToLower(err.Error()), \"already exists!\")",
+      "test": "TestEveryMatchedWordingOfIncus76IsRecognised"
+    },
+    {
+      "label": "balancerGone goes deaf to the 7.6 wording of a missing load balancer",
+      "file": "internal/core/machine/incus_balancer.go",
+      "find": "\treturn strings.Contains(strings.ToLower(err.Error()), \"load balancer not found\")",
+      "replace": "\treturn strings.Contains(strings.ToLower(err.Error()), \"load balancer not found!\")",
+      "test": "TestEveryMatchedWordingOfIncus76IsRecognised"
+    }
+  ]
+}

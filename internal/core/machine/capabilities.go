@@ -145,6 +145,18 @@ type Capabilities struct {
 	// answers the host there, which is why the Scaleway ssh chain holds in
 	// both modes and a chain reading a subnet-internal address holds in one.
 	PrivateFromHost bool `json:"private_from_host"`
+	// StatelessRules: a rule the API declares stateless is enforced without
+	// connection tracking, so return traffic is not let through behind it.
+	//
+	// The third claim that separates the modes, and it was found by measuring
+	// a release rather than a mode. Measured on Incus 7.6 on 2026-11-16: a rule
+	// set holding allow-stateless, used by a bridge network, is refused whole,
+	// `Action "allow-stateless" is only supported on OVN networks` (a check
+	// Incus 7.5 added; 7.2 refused the same rule later, in its nftables
+	// driver). So the bridge modes declare it false, and EnsureFirewall
+	// refuses such a set itself, by name and with the remedy, before sending
+	// anything (#979). Under OVN the action is native.
+	StatelessRules bool `json:"stateless_rules"`
 }
 
 // Capable is implemented by a driver that declares what it delivers. It is an
@@ -226,6 +238,8 @@ func (d *Incus) Capabilities() Capabilities {
 		// covered" after the host refused a rule set is the lying 200 this
 		// project exists to refuse.
 		caps.FirewallPublicWhenJoined = false
+		// And the stateless half: it is a property of the same rule sets.
+		caps.StatelessRules = false
 	}
 	// And the same rule for the balancer (#457). A load balancer the daemon
 	// rejected after this driver had accepted it is the host saying this process
@@ -266,5 +280,8 @@ func (d *Incus) declaredCapabilities() Capabilities {
 		Balancing:                d.OVN,
 		OwnKernel:                d.VM,
 		PrivateFromHost:          !d.OVN,
+		// OVN's, and only OVN's: Incus 7.5 and later refuse allow-stateless
+		// on a bridge network (measured on 7.6, 2026-11-16, #979).
+		StatelessRules: d.OVN,
 	}
 }

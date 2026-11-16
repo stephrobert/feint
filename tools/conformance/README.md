@@ -17,7 +17,7 @@ silence, so you find out at once — but the list is worth having up front:
 | `terraform` or `tofu` | `scaleway/terraform.sh` | [terraform.io](https://developer.hashicorp.com/terraform/install) or [opentofu.org](https://opentofu.org/docs/intro/install/) |
 | `octl` | `outscale/octl.sh` | [octl releases](https://github.com/outscale/octl/releases) (a plain binary, with a checksums file) |
 | `exo` | `exoscale/exo-cli.sh` | [exoscale/cli releases](https://github.com/exoscale/cli/releases) |
-| `incus` | the `network.sh` suites and `ssh.sh` | [Zabbly packages](https://github.com/zabbly/incus), 6.0.4 or later |
+| `incus` | the `network.sh` suites and `ssh.sh` | [Zabbly packages](https://github.com/zabbly/incus), 6.0.5 or later |
 | the machine images | the `ssh.sh` suites | `feint images --vm incus`, once, minutes |
 
 `mise run conformance` runs everything that needs no machine runtime, which is

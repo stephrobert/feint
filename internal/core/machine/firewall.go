@@ -19,6 +19,56 @@ import (
 // half-applied ERROR-then-200 is the exact divergence #337 removed.
 var ErrFirewallUnenforceable = errors.New("the runtime has no mechanism to enforce a rule set on this interface")
 
+// ErrStatelessUnenforceable reports a rule set holding a stateless rule, on a
+// mode that declares it cannot enforce one (Capabilities.StatelessRules false).
+// It is the driver's own refusal, made before any command: nothing reached the
+// daemon, so it withdraws no capability, and the control plane keeps the group.
+//
+// Typed for the same reason as ErrFirewallUnenforceable: it is a declared
+// limit with a remedy, not an operational failure, and the log says so at the
+// level a declaration deserves.
+var ErrStatelessUnenforceable = errors.New("this runtime mode cannot enforce a stateless rule")
+
+// ErrFirewallUnverified reports a rule set not written because Verify found,
+// at startup, that this host cannot enforce rule sets: a daemon below
+// IncusMinimum (#979). Before, Verify withdrew the published capability and
+// the driver went on writing and attaching rule sets anyway, on the very
+// daemon the floor exists to keep out. Typed like the two above: a declared
+// limit with its reason, said at the level a declaration deserves.
+// TestABelowFloorHostWritesNoRuleSet fails without the refusal.
+var ErrFirewallUnverified = errors.New("this host cannot enforce rule sets")
+
+// keptAsWritten is what a refused rule set leaves on the host, said in every
+// refusal: nothing is removed. A set never written reaches no machine, and a
+// set written earlier under the same name stays attached and enforced as it
+// was. The conservative choice ApplyMachine documents — never apply "all but
+// the refused set" — and the one TestAGroupTurnedStatelessKeepsItsOldSet holds.
+const keptAsWritten = "the rule set is not written: machines that did not wear it yet get none, " +
+	"and a version written earlier under this name stays attached and enforced as it was"
+
+// statelessExit is when a stateless refusal stops holding the older set in
+// place. Only the stateless message carries it: below the floor nothing is
+// rewritten at all (floorExit).
+const statelessExit = ", until the group is stateful again or the server wears no refused stateless group " +
+	"any more (a server that moves to another stateless group keeps the old set)"
+
+// floorExit is the below-floor refusal's only way out.
+func floorExit() string {
+	return "; nothing is rewritten until the host runs Incus " + VersionText(IncusMinimum[:]) + " or later"
+}
+
+// HasStatelessRule reports whether a rule set asks for a rule that tracks no
+// connection. The runtime's word for it is the action, so the question is
+// asked of the action and of nothing a provider names.
+func (s FirewallSpec) HasStatelessRule() bool {
+	for _, rule := range s.Rules {
+		if rule.Action == "allow-stateless" {
+			return true
+		}
+	}
+	return false
+}
+
 // Firewalls are what makes an emulated security group more than documentation.
 //
 // Every local cloud emulator stores rules and filters nothing. MiniStack says so

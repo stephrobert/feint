@@ -1,0 +1,202 @@
+{
+  "package": "./internal/cli/",
+  "note": "#979: feint doctor prints no OVN command on Debian 12, whose OVN 23.03.1 and Open vSwitch 3.1.0 are below the 24.03.0 and 3.3.0 Incus 7.4 and later require, and the mode line names stateless rules, with one plain line in a bridge mode saying such a group is refused. One mutation per question; each case of doctor_runtime979_test.go passes every other question and fails only its own. Mutations 1 to 6 hold the table of releases whose own OVN is too old (Debian 12 and, since the first correction cycle, Ubuntu 22.04), one clause each. Mutations 15 to 28 are the second pass of the lot: an installed OVN and Open vSwitch judged by version against machine.OVNMinimum and machine.OVSMinimum on every distribution, and the warning that the installed Incus is not machine.IncusTested. NOT HERE: the line as printed by checkRuntime, which builds the real Incus driver and has no seam; capabilityLines is what it calls.",
+  "mutations": [
+    {
+      "label": "Debian 12 named by its VERSION_ID is no longer recognised, so doctor prints the OVN install Incus 7.6 refuses",
+      "file": "internal/cli/doctor_setup.go",
+      "find": "\t\tif (values[\"ID\"] == r.id && values[\"VERSION_ID\"] == r.version) ||",
+      "replace": "\t\tif (values[\"ID\"] == r.id && values[\"VERSION_ID\"] == r.version+\"!\") ||",
+      "test": "TestDebian12GetsNoOVNCommand"
+    },
+    {
+      "label": "VERSION_ID 12 is read without its ID, so a release 12 of another distribution loses its OVN commands",
+      "file": "internal/cli/doctor_setup.go",
+      "find": "\t\tif (values[\"ID\"] == r.id && values[\"VERSION_ID\"] == r.version) ||",
+      "replace": "\t\tif (values[\"ID\"] != \"\" && values[\"VERSION_ID\"] == r.version) ||",
+      "test": "TestDebian12GetsNoOVNCommand"
+    },
+    {
+      "label": "a derivative naming bookworm as its codename is no longer recognised",
+      "file": "internal/cli/doctor_setup.go",
+      "find": "\t\t\tvalues[\"VERSION_CODENAME\"] == r.codename ||",
+      "replace": "\t\t\tvalues[\"VERSION_CODENAME\"] == r.codename+\"!\" ||",
+      "test": "TestDebian12GetsNoOVNCommand"
+    },
+    {
+      "label": "a derivative naming bookworm as its Debian base is no longer recognised",
+      "file": "internal/cli/doctor_setup.go",
+      "find": "\t\t\tvalues[\"DEBIAN_CODENAME\"] == r.codename || values[\"UBUNTU_CODENAME\"] == r.codename {",
+      "replace": "\t\t\tvalues[\"DEBIAN_CODENAME\"] == r.codename+\"!\" || values[\"UBUNTU_CODENAME\"] == r.codename {",
+      "test": "TestDebian12GetsNoOVNCommand"
+    },
+    {
+      "label": "a derivative naming jammy as its Ubuntu base is no longer recognised, so Mint 21 is handed OVN 22.03",
+      "file": "internal/cli/doctor_setup.go",
+      "find": "\t\t\tvalues[\"DEBIAN_CODENAME\"] == r.codename || values[\"UBUNTU_CODENAME\"] == r.codename {",
+      "replace": "\t\t\tvalues[\"DEBIAN_CODENAME\"] == r.codename || values[\"UBUNTU_CODENAME\"] == r.codename+\"!\" {",
+      "test": "TestDebian12GetsNoOVNCommand"
+    },
+    {
+      "label": "Ubuntu 22.04 leaves the table, so doctor prints the OVN install of a 22.03 and 2.17 pairing",
+      "file": "internal/cli/doctor_setup.go",
+      "find": "\t{\"Ubuntu 22.04\", \"ubuntu\", \"22.04\", \"jammy\",",
+      "replace": "\t{\"Ubuntu 22.04\", \"ubuntu\", \"22.04!\", \"jammy!\",",
+      "test": "TestDebian12GetsNoOVNCommand"
+    },
+    {
+      "label": "the OVN step stops consulting the release, so Debian 12 is handed the OVN install again",
+      "file": "internal/cli/doctor_setup.go",
+      "find": "\t\t\tif s.distro.ovnBelowTested {",
+      "replace": "\t\t\tif s.distro.ovnBelowTested && false {",
+      "test": "TestDebian12GetsNoOVNCommand"
+    },
+    {
+      "label": "the OVN step refuses every release, so Debian 13 and Ubuntu 24.04 lose their commands",
+      "file": "internal/cli/doctor_setup.go",
+      "find": "\t\t\tif s.distro.ovnBelowTested {",
+      "replace": "\t\t\tif s.distro.ovnBelowTested || true {",
+      "test": "TestDebian12GetsNoOVNCommand"
+    },
+    {
+      "label": "the refusal stops saying why, with the versions",
+      "file": "internal/cli/doctor_setup.go",
+      "find": "\t\t\t\tc.detail += \" \" + ovnBelowTestedWhy(s.distro.oldOVN)",
+      "replace": "\t\t\t\tc.detail += \" \" + ovnBelowTestedWhy(s.distro.oldOVN)[:0]",
+      "test": "TestDebian12UnderAutoIsOptionalAndSaysWhy"
+    },
+    {
+      "label": "the wiring step still prints its commands for an OVN doctor told the reader not to install",
+      "file": "internal/cli/doctor_setup.go",
+      "find": "\tcase (!s.ovsInstalled || !s.ovnInstalled) && s.distro.ovnBelowTested:",
+      "replace": "\tcase (!s.ovsInstalled || !s.ovnInstalled) && s.distro.ovnBelowTested && false:",
+      "test": "TestDebian12GetsNoOVNCommand"
+    },
+    {
+      "label": "the mode line stops naming stateless rules",
+      "file": "internal/cli/doctor.go",
+      "find": "{caps.StatelessRules, \"apply stateless rules\"}, ",
+      "replace": "{caps.StatelessRules, \"apply firewalls\"}, ",
+      "test": "TestDoctorSaysWhatTheModeDoesWithStatelessRules"
+    },
+    {
+      "label": "the mode line reads the firewall in place of stateless rules, so a bridge mode claims them",
+      "file": "internal/cli/doctor.go",
+      "find": "{caps.StatelessRules, \"apply stateless rules\"}, ",
+      "replace": "{caps.Firewall, \"apply stateless rules\"}, ",
+      "test": "TestDoctorSaysWhatTheModeDoesWithStatelessRules"
+    },
+    {
+      "label": "a bridge mode no longer says a stateless group is refused there",
+      "file": "internal/cli/doctor.go",
+      "find": "\tif caps.Firewall && !caps.StatelessRules {",
+      "replace": "\tif caps.Firewall && !caps.StatelessRules && false {",
+      "test": "TestDoctorSaysWhatTheModeDoesWithStatelessRules"
+    },
+    {
+      "label": "a mode with no firewall at all is told its security groups are refused",
+      "file": "internal/cli/doctor.go",
+      "find": "\tif caps.Firewall && !caps.StatelessRules {",
+      "replace": "\tif !caps.StatelessRules {",
+      "test": "TestDoctorSaysWhatTheModeDoesWithStatelessRules"
+    },
+    {
+      "label": "OVN and Open vSwitch are accepted when either one is recent enough",
+      "file": "internal/cli/doctor_setup.go",
+      "find": "\tif versionAtLeast(s.ovnVersion, ovnFloor) && versionAtLeast(s.ovsVersion, ovsFloor) {",
+      "replace": "\tif versionAtLeast(s.ovnVersion, ovnFloor) || versionAtLeast(s.ovsVersion, ovsFloor) {",
+      "test": "TestAnOVNOlderThanTheTestedIncusNeedsIsAStep"
+    },
+    {
+      "label": "Open vSwitch's version is no longer compared, so a Debian 12 Open vSwitch 3.1.0 reads as installed and fine",
+      "file": "internal/cli/doctor_setup.go",
+      "find": "\tif versionAtLeast(s.ovnVersion, ovnFloor) && versionAtLeast(s.ovsVersion, ovsFloor) {",
+      "replace": "\tif versionAtLeast(s.ovnVersion, ovnFloor) && (versionAtLeast(s.ovsVersion, ovsFloor) || true) {",
+      "test": "TestAnOVNOlderThanTheTestedIncusNeedsIsAStep"
+    },
+    {
+      "label": "OVN's version is no longer compared, so an OVN 23.03 reads as installed and fine",
+      "file": "internal/cli/doctor_setup.go",
+      "find": "\tif versionAtLeast(s.ovnVersion, ovnFloor) && versionAtLeast(s.ovsVersion, ovsFloor) {",
+      "replace": "\tif (versionAtLeast(s.ovnVersion, ovnFloor) || true) && versionAtLeast(s.ovsVersion, ovsFloor) {",
+      "test": "TestAnOVNOlderThanTheTestedIncusNeedsIsAStep"
+    },
+    {
+      "label": "an unreadable version is judged anyway, and reads as too old",
+      "file": "internal/cli/doctor_setup.go",
+      "find": "\tif s.ovnVersion == nil || s.ovsVersion == nil {",
+      "replace": "\tif (s.ovnVersion == nil || s.ovsVersion == nil) && false {",
+      "test": "TestAnOVNVersionUnderAutoAndUnreadable"
+    },
+    {
+      "label": "Debian 12 is handed the apt command to upgrade an OVN it has no newer package of",
+      "file": "internal/cli/doctor_setup.go",
+      "find": "\tcase s.distro.ovnBelowTested || s.distro.family == \"\":",
+      "replace": "\tcase s.distro.family == \"\" && !s.distro.ovnBelowTested:",
+      "test": "TestAnOVNOlderThanTheTestedIncusNeedsIsAStep"
+    },
+    {
+      "label": "an unknown system is told to run dnf",
+      "file": "internal/cli/doctor_setup.go",
+      "find": "\tcase s.distro.ovnBelowTested || s.distro.family == \"\":",
+      "replace": "\tcase s.distro.ovnBelowTested || s.distro.family == \"!\":",
+      "test": "TestAnOVNOlderThanTheTestedIncusNeedsIsAStep"
+    },
+    {
+      "label": "the Debian family loses the command that upgrades its OVN",
+      "file": "internal/cli/doctor_setup.go",
+      "find": "\t\tc.commands, c.root = commands(\"debian-ovn\"), true",
+      "replace": "\t\tc.commands, c.root = commands(\"debian-ovn\")[:0], true",
+      "test": "TestAnOVNOlderThanTheTestedIncusNeedsIsAStep"
+    },
+    {
+      "label": "an OVN version is written 23.3.1, a release nobody can look up",
+      "file": "internal/cli/doctor_setup.go",
+      "find": "\ttext := fmt.Sprintf(\"%d.%02d\", v[0], v[1])",
+      "replace": "\ttext := fmt.Sprintf(\"%d.%d\", v[0], v[1])",
+      "test": "TestAnOVNOlderThanTheTestedIncusNeedsIsAStep"
+    },
+    {
+      "label": "the probe reads a version anywhere in the output, so a first line without one borrows the next line's",
+      "file": "internal/cli/doctor_setup.go",
+      "find": "\tline, _, _ := strings.Cut(out, \"\\n\")",
+      "replace": "\tline, _, _ := strings.Cut(out, \"\\x00\")",
+      "test": "TestTheProbeReadsOVNAndOVSVersions"
+    },
+    {
+      "label": "the probe never asks Open vSwitch its version",
+      "file": "internal/cli/doctor_setup.go",
+      "find": "\t\tif out, err := p.run(ctx, \"ovs-vsctl\", \"--version\"); err == nil {",
+      "replace": "\t\tif out, err := p.run(ctx, \"ovs-vsctl\", \"--version!\"); err == nil {",
+      "test": "TestTheProbeReadsOVNAndOVSVersions"
+    },
+    {
+      "label": "an Incus other than the tested release is reported as plainly fine",
+      "file": "internal/cli/doctor_setup.go",
+      "find": "\tcase !testedSeries(s.incusVersion):",
+      "replace": "\tcase !testedSeries(s.incusVersion) && false:",
+      "test": "TestDoctorSaysWhenIncusIsNotTheTestedRelease"
+    },
+    {
+      "label": "another minor release counts as the tested one",
+      "file": "internal/cli/doctor_setup.go",
+      "find": "len(v) >= 2 && v[0] == incusRecommended[0] && v[1] == incusRecommended[1]",
+      "replace": "len(v) >= 2 && v[0] == incusRecommended[0] && (v[1] == incusRecommended[1] || true)",
+      "test": "TestDoctorSaysWhenIncusIsNotTheTestedRelease"
+    },
+    {
+      "label": "another major release counts as the tested one",
+      "file": "internal/cli/doctor_setup.go",
+      "find": "len(v) >= 2 && v[0] == incusRecommended[0] && v[1] == incusRecommended[1]",
+      "replace": "len(v) >= 2 && (v[0] == incusRecommended[0] || true) && v[1] == incusRecommended[1]",
+      "test": "TestDoctorSaysWhenIncusIsNotTheTestedRelease"
+    },
+    {
+      "label": "the warning becomes a missing step, as if a supported Incus had to be replaced",
+      "file": "internal/cli/doctor_setup.go",
+      "find": "\t\tout = append(out, check{id: stepIncus, group: groupMachines, state: verdictWarn,\n\t\t\ttitle:  fmt.Sprintf(\"Incus %s is installed; feint",
+      "replace": "\t\tout = append(out, check{id: stepIncus, group: groupMachines, state: verdictWarn, step: true,\n\t\t\ttitle:  fmt.Sprintf(\"Incus %s is installed; feint",
+      "test": "TestDoctorSaysWhenIncusIsNotTheTestedRelease"
+    }
+  ]
+}

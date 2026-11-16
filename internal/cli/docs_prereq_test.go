@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/stephrobert/feint/internal/core/machine"
 )
 
 // The table must follow the constants, not merely happen to agree with them
@@ -21,9 +23,11 @@ func TestPrereqTableFollowsTheVersionConstants(t *testing.T) {
 		t.Fatalf("the table does not carry the recommended series %s:\n%s", versionText(incusRecommended[:]), before)
 	}
 
-	floor, series := incusMinimum, incusRecommended
-	t.Cleanup(func() { incusMinimum, incusRecommended = floor, series })
-	incusMinimum = [3]int{9, 9, 9}
+	// machine.IncusMinimum too: the reasons on the page are
+	// machine.IncusBelowMinimum's sentences, which read it (#979).
+	floor, series, runtimeFloor := incusMinimum, incusRecommended, machine.IncusMinimum
+	t.Cleanup(func() { incusMinimum, incusRecommended, machine.IncusMinimum = floor, series, runtimeFloor })
+	incusMinimum, machine.IncusMinimum = [3]int{9, 9, 9}, [3]int{9, 9, 9}
 	incusRecommended = [2]int{9, 9}
 
 	after := renderPrereq("")

@@ -315,5 +315,6 @@ func (r *Recorder) Capabilities() Capabilities {
 		OwnKernel:          true,
 		Balancing:          true,
 		PrivateFromHost:    true,
+		StatelessRules:     true,
 	}
 }

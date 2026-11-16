@@ -28,7 +28,13 @@ import (
 // `peer delete`, `network unset security.acls`, `acl delete`, `network delete`.
 // `incus network peer edit` cannot repair it either: it returns 0 and persists
 // nothing, the target fields being immutable after creation. Verified on Incus
-// 7.2, and 7.3's changelog carries nothing that touches peer rows.
+// 7.2, and re-measured on 7.6 on 2026-11-16 (station, OVN 24.03.8): the
+// schema is unchanged in v7.6.0, and a row planted the same way answers
+// `peer delete` with the same "Failed loading target network: Network not
+// found" and `network delete` with "The network is currently in use". One
+// detail moved: 7.6 reports the dangling row as "Created", not "Errored", so
+// its status says nothing about it. 7.5 and 7.6 did change PeerCreate and
+// PeerDelete (see peerLock and ensurePeering), not this.
 //
 // So the row is beyond every command the runtime offers, and the only supported
 // way to reach it is `incus admin sql`, which is the runtime's own mechanism

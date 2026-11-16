@@ -347,6 +347,10 @@ func (s GroupSync) Reapply(ctx context.Context, groups []*resource.Resource) Rec
 		// Not Failed: a runtime that enforces nothing is the documented
 		// degraded mode, not an error, and the caller already knows whether
 		// one was asked. Skipped is the answer for "nobody could act on it".
+		// Skipped removes nothing: a set the runtime refused (a stateless
+		// group on a bridge, a host below the floor) leaves on the host the
+		// version written earlier under its name, attached as it was
+		// (TestAGroupTurnedStatelessKeepsItsOldSet).
 		done.Skipped = append(done.Skipped, group.ID)
 	}
 	return done

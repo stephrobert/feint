@@ -78,6 +78,24 @@ func (b Binding) SyncRuleSet(ctx context.Context, fw firewaller, spec FirewallSp
 		return false
 	}
 	if err := fw.EnsureFirewall(ctx, spec); err != nil {
+		// A declared limit is said at the level a declaration deserves, with
+		// the capability it is published under (#979); the error carries the
+		// mode, the reason and the remedy.
+		// TestAStatelessRefusalIsReportedAsTheDeclaredLimit fails without it.
+		if errors.Is(err, ErrStatelessUnenforceable) {
+			b.logger().Warn("the security group is stateless and this runtime cannot enforce "+
+				"stateless rules (capabilities.stateless_rules=false, docs/limits.md); the API keeps "+
+				"its rules, and "+keptAsWritten+statelessExit,
+				"provider", b.Provider, "firewall", spec.Name, "error", err)
+			return false
+		}
+		if errors.Is(err, ErrFirewallUnverified) {
+			b.logger().Warn("this host is below what the runtime supports and enforces no rule set "+
+				"(capabilities.firewall=false, docs/limits.md); the API keeps the group's rules, and "+
+				keptAsWritten+floorExit(),
+				"provider", b.Provider, "firewall", spec.Name, "error", err)
+			return false
+		}
 		b.logger().Error("could not write the firewall rules",
 			"provider", b.Provider, "firewall", spec.Name, "error", err)
 		return false

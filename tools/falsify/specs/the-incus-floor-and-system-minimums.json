@@ -1,0 +1,115 @@
+{
+  "package": "./internal/cli/",
+  "note": "#979, third pass: the Incus floor rises from 6.0.4 to 6.0.5 (Stéphane's decision: 6.0.4 orders its bridge-mode nftables rules wrongly, a security bug fixed in 6.0.5 by lxc/incus#2222), refused by serve and by feint doctor naming that reason; and feint doctor warns below the system minimums Incus 7.0 raised (Linux 6.12, nftables 1.0.0, dnsmasq 2.90), read without root. Mutations 1 to 4 are the runtime's floor and its reason, 5 and 6 doctor's, 7 to 15 the system check and its probe, one question each. NOT HERE: the real /proc and the real tools (realHostProbe has no test seam beyond the fields the fakes replace).",
+  "mutations": [
+    {
+      "label": "the floor is 6.0.4 again, so a daemon without the nftables ordering fix is served",
+      "file": "internal/core/machine/verify.go",
+      "find": "var IncusMinimum = [3]int{6, 0, 5}",
+      "replace": "var IncusMinimum = [3]int{6, 0, 4}",
+      "test": "TestVerifyRefusesTheFirewallBelowTheFloor",
+      "package": "./internal/core/machine/"
+    },
+    {
+      "label": "a daemon below 6.0.4 is given the 6.0.4 reason",
+      "file": "internal/core/machine/verify.go",
+      "find": "\tif olderThan(v, IncusNICACLs) {",
+      "replace": "\tif olderThan(v, IncusNICACLs) && false {",
+      "test": "TestIncusBelowMinimumNamesEachFloorsReason",
+      "package": "./internal/core/machine/"
+    },
+    {
+      "label": "6.0.4 is told it refuses NIC ACLs, which it accepts",
+      "file": "internal/core/machine/verify.go",
+      "find": "\tif olderThan(v, IncusNICACLs) {",
+      "replace": "\tif olderThan(v, IncusNICACLs) || true {",
+      "test": "TestIncusBelowMinimumNamesEachFloorsReason",
+      "package": "./internal/core/machine/"
+    },
+    {
+      "label": "serve withdraws the firewall without saying why",
+      "file": "internal/core/machine/verify.go",
+      "find": "VersionText(IncusMinimum[:]), IncusBelowMinimum(got))",
+      "replace": "VersionText(IncusMinimum[:]), IncusBelowMinimum(got)[:0])",
+      "test": "TestVerifyRefusesTheFirewallBelowTheFloor",
+      "package": "./internal/core/machine/"
+    },
+    {
+      "label": "doctor refuses 6.0.4 without saying why",
+      "file": "internal/cli/doctor_setup.go",
+      "find": "\t\t\tdetail: machine.IncusBelowMinimum(threeParts(s.incusVersion)) + \" \" + incusSource(s.distro)}",
+      "replace": "\t\t\tdetail: machine.IncusBelowMinimum(threeParts(s.incusVersion))[:0] + \" \" + incusSource(s.distro)}",
+      "test": "TestDoctorRefusesIncus604AndSaysWhy"
+    },
+    {
+      "label": "doctor reads every version as 0.0.0 when it gives the reason",
+      "file": "internal/cli/doctor_setup.go",
+      "find": "\tcopy(out[:], v)",
+      "replace": "\tcopy(out[:], v[:0])",
+      "test": "TestDoctorRefusesIncus604AndSaysWhy"
+    },
+    {
+      "label": "a component below its minimum is not reported",
+      "file": "internal/cli/doctor_setup.go",
+      "find": "\t\tcase !versionAtLeast(part.version, firstLineVersion(f.floor)):",
+      "replace": "\t\tcase !versionAtLeast(part.version, firstLineVersion(f.floor)) && false:",
+      "test": "TestDoctorWarnsBelowTheSystemMinimumsOfIncus7"
+    },
+    {
+      "label": "an unreadable version is judged as too old",
+      "file": "internal/cli/doctor_setup.go",
+      "find": "\t\tcase part.version == nil:",
+      "replace": "\t\tcase part.version == nil && false:",
+      "test": "TestDoctorWarnsBelowTheSystemMinimumsOfIncus7"
+    },
+    {
+      "label": "a tool absent from the host is reported as unreadable",
+      "file": "internal/cli/doctor_setup.go",
+      "find": "\t\tcase !found:",
+      "replace": "\t\tcase !found && false:",
+      "test": "TestDoctorWarnsBelowTheSystemMinimumsOfIncus7"
+    },
+    {
+      "label": "a host where nothing was read gets an empty verdict line",
+      "file": "internal/cli/doctor_setup.go",
+      "find": "\tcase len(met) == 0:",
+      "replace": "\tcase len(met) == 0 && false:",
+      "test": "TestDoctorWarnsBelowTheSystemMinimumsOfIncus7"
+    },
+    {
+      "label": "the kernel is compared with the nftables minimum",
+      "file": "internal/cli/doctor_setup.go",
+      "find": "\t{\"Linux\", \"\", machine.KernelMinimum},",
+      "replace": "\t{\"Linux\", \"\", machine.NftablesMinimum},",
+      "test": "TestDoctorWarnsBelowTheSystemMinimumsOfIncus7"
+    },
+    {
+      "label": "the probe loses the kernel's version",
+      "file": "internal/cli/doctor_setup.go",
+      "find": "\t\t\t\tparts[f.label] = systemPart{version: firstLineVersion(text)}",
+      "replace": "\t\t\t\tparts[f.label] = systemPart{version: firstLineVersion(text[:0])}",
+      "test": "TestTheProbeReadsTheSystemVersions"
+    },
+    {
+      "label": "the probe loses each tool's version",
+      "file": "internal/cli/doctor_setup.go",
+      "find": "\t\t\tparts[f.label] = systemPart{version: firstLineVersion(string(out))}",
+      "replace": "\t\t\tparts[f.label] = systemPart{version: firstLineVersion(string(out[:0]))}",
+      "test": "TestTheProbeReadsTheSystemVersions"
+    },
+    {
+      "label": "the probe runs a tool the host does not have",
+      "file": "internal/cli/doctor_setup.go",
+      "find": "\t\t\tif _, err := p.lookPath(f.tool); err != nil {",
+      "replace": "\t\t\tif _, err := p.lookPath(f.tool); err != nil && false {",
+      "test": "TestTheProbeReadsTheSystemVersions"
+    },
+    {
+      "label": "the system check is never reported",
+      "file": "internal/cli/doctor_setup.go",
+      "find": "\tif c := systemCheck(s); c.id != \"\" {",
+      "replace": "\tif c := systemCheck(s); c.id != \"\" && false {",
+      "test": "TestDoctorWarnsBelowTheSystemMinimumsOfIncus7"
+    }
+  ]
+}

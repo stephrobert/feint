@@ -33,6 +33,7 @@ func bareStation() station {
 func readyStation() station {
 	s := bareStation()
 	s.ovsInstalled, s.ovnInstalled, s.nbSocket, s.brInt = true, true, true, true
+	s.ovnVersion, s.ovsVersion = []int{24, 3, 8}, []int{3, 3, 9} // the station, 2026-11-16
 	s.pools = []string{"default"}
 	s.bridges = map[string]map[string]string{"incusbr0": {}}
 	s.missingImages = nil
@@ -157,7 +158,7 @@ func TestEachRemedyIsTheExactCommand(t *testing.T) {
 	old := bareStation()
 	old.incusVersion = []int{6, 0, 0}
 	tooOld := byID(setupChecks(old, "incus-ovn"), stepIncus)
-	if tooOld.title != "Incus 6.0.0 is too old: 6.0.4 or later is needed." || !reflect.DeepEqual(tooOld.commands, incus.commands) {
+	if tooOld.title != "Incus 6.0.0 is too old: 6.0.5 or later is needed." || !reflect.DeepEqual(tooOld.commands, incus.commands) {
 		t.Errorf("Incus too old: %q %q", tooOld.title, tooOld.commands)
 	}
 	// Fedora gets dnf, never apt.

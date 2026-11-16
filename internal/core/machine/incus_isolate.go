@@ -146,6 +146,18 @@ func (d *Incus) IsolateNetwork(ctx context.Context, network string, foreign []st
 		return d.RemoveFirewall(ctx, name)
 	}
 
+	// Below the floor, isolation is part of the firewall Verify withdrew
+	// (#979): lxc/incus#2222, the fix 6.0.4 lacks, is about "ACLs +
+	// isolation". So no isolation set is written or attached, before any
+	// write; the detach above, a removal, is left as it was, and what an
+	// earlier run attached stays.
+	// TestABelowFloorHostWritesNoIsolation fails without it.
+	if d.firewallWhy != "" {
+		return fmt.Errorf("isolation of %s: this host cannot enforce rule sets (%s), so the isolation set is not "+
+			"written or attached, and one attached earlier stays as it was%s: %w",
+			network, d.firewallWhy, floorExit(), ErrFirewallUnverified)
+	}
+
 	if _, err := d.run(ctx, "network", "acl", "show", name); err != nil {
 		if !isNotFound(err) {
 			return fmt.Errorf("inspect isolation of %s: %w", network, err)

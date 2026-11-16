@@ -57,6 +57,17 @@ on:
 
 permissions: {}
 
+# The Incus release both jobs install, and the only place this workflow writes
+# it (#979). Before, `apt-get install incus` took whatever Zabbly stable had
+# published last, so a new upstream release changed the runtime under the proof
+# and nothing said so. The value is machine.IncusTested, the constant the doctor
+# and the install page read: TestTheRuntimeProofInstallsTheTestedIncus fails
+# when the two differ, or when any step installs Incus without this version.
+# incus-release.yml compares it with the channel every night and keeps one
+# issue open while they differ.
+env:
+  INCUS_VERSION: '7.6'
+
 jobs:
   runtime:
     name: ${{ matrix.mode }}
@@ -91,8 +102,8 @@ jobs:
           cache: false
 
       # The Zabbly stable channel, not the distro package, and the reason is in
-      # docs/install.md: Ubuntu 24.04 ships Incus 6.0.0, below the 6.0.4 floor
-      # where NIC ACLs start being accepted — a security group then attaches
+      # docs/install.md: Ubuntu 24.04 ships Incus 6.0.0, below 6.0.4, the release
+      # where NIC ACLs start being accepted (the floor is 6.0.5) — a security group then attaches
       # and enforces nothing, which looks exactly like a bug in feint.
       #
       # The key is verified against a pinned fingerprint before apt trusts it.
@@ -124,7 +135,23 @@ jobs:
           Signed-By: /etc/apt/keyrings/zabbly.asc
           EOF
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends incus incus-client netcat-openbsd
+          # The pinned upstream release, any build of it. Zabbly keeps the last
+          # two builds only (two of 7.6 and none of 7.5 on 2026-11-16), so a pin
+          # on the build timestamp would fail at the next rebuild; the glob still
+          # refuses every other upstream release.
+          if ! sudo apt-get install -y --no-install-recommends \
+              "incus=1:${INCUS_VERSION}-*" "incus-client=1:${INCUS_VERSION}-*" netcat-openbsd; then
+            echo "::error::Zabbly stable does not serve Incus ${INCUS_VERSION}, the pinned release. It serves:" >&2
+            apt-cache madison incus >&2 || true
+            echo "The pin is machine.IncusTested; the issue incus-release.yml opens names the release to move to." >&2
+            exit 1
+          fi
+          # What ran is what was pinned, or the verdict says nothing about it.
+          got="$(incus --version)"
+          if [ "${got}" != "${INCUS_VERSION}" ]; then
+            echo "::error::installed Incus ${got}, pinned ${INCUS_VERSION}" >&2
+            exit 1
+          fi
           sudo incus --version
 
       # OVN and Open vSwitch from the Ubuntu archive — docs/install.md measures
@@ -664,7 +691,23 @@ jobs:
           Signed-By: /etc/apt/keyrings/zabbly.asc
           EOF
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends incus incus-client netcat-openbsd
+          # The pinned upstream release, any build of it. Zabbly keeps the last
+          # two builds only (two of 7.6 and none of 7.5 on 2026-11-16), so a pin
+          # on the build timestamp would fail at the next rebuild; the glob still
+          # refuses every other upstream release.
+          if ! sudo apt-get install -y --no-install-recommends \
+              "incus=1:${INCUS_VERSION}-*" "incus-client=1:${INCUS_VERSION}-*" netcat-openbsd; then
+            echo "::error::Zabbly stable does not serve Incus ${INCUS_VERSION}, the pinned release. It serves:" >&2
+            apt-cache madison incus >&2 || true
+            echo "The pin is machine.IncusTested; the issue incus-release.yml opens names the release to move to." >&2
+            exit 1
+          fi
+          # What ran is what was pinned, or the verdict says nothing about it.
+          got="$(incus --version)"
+          if [ "${got}" != "${INCUS_VERSION}" ]; then
+            echo "::error::installed Incus ${got}, pinned ${INCUS_VERSION}" >&2
+            exit 1
+          fi
           sudo incus --version
 
       - name: Install and wire OVN

@@ -85,6 +85,27 @@ type aclBody struct {
 	Config      map[string]string `json:"config"`
 }
 
+// statelessRefusal says why a stateless rule set is not written, by its cause.
+// A bridge mode cannot carry the action at all, and the remedy is the OVN
+// mode; an OVN mode Verify narrowed is a host that cannot, and naming the OVN
+// mode there would send the reader to the mode already in use (#979).
+// TestAnOVNHostVerifyNarrowedNamesItsOwnReason holds the second half.
+func (d *Incus) statelessRefusal(spec FirewallSpec) error {
+	if d.OVN {
+		why := d.statelessWhy
+		if why == "" {
+			why = "the host refused an earlier rule set, so this process claims to enforce none"
+		}
+		return fmt.Errorf("firewall %s holds a stateless rule, and this host cannot enforce one under --vm %s (%s), so %s%s: %w",
+			spec.Name, d.Name(), why, keptAsWritten, statelessExit, ErrStatelessUnenforceable)
+	}
+	return fmt.Errorf("firewall %s holds a stateless rule, and --vm %s cannot enforce one: "+
+		"Incus applies allow-stateless only on OVN networks (before 7.5 its bridge firewall has no "+
+		"such action, from 7.5 it refuses it outside OVN; measured on Incus 7.6, 2026-11-16), so %s%s; "+
+		"run with --vm incus-ovn to enforce stateless security groups: %w",
+		spec.Name, d.Name(), keptAsWritten, statelessExit, ErrStatelessUnenforceable)
+}
+
 // EnsureFirewall implements Firewaller.
 //
 // The whole set is replaced in one PUT rather than patched rule by rule. A
@@ -100,6 +121,30 @@ type aclBody struct {
 func (d *Incus) EnsureFirewall(ctx context.Context, spec FirewallSpec) error {
 	if !safeName.MatchString(spec.Name) {
 		return fmt.Errorf("invalid firewall name %q", spec.Name)
+	}
+	// A stateless rule on a mode that declares it cannot enforce one is
+	// refused here, before any command, by name and with the remedy (#979).
+	// Sent anyway, the daemon refuses the whole set — measured on Incus 7.6 on
+	// 2026-11-16, `Action "allow-stateless" is only supported on OVN networks`
+	// — and the refusal used to reach the log as one more raw daemon error,
+	// with every other rule of the group lost beside it. Asked of the
+	// published capability, not of the mode's name, so a host Verify narrowed
+	// is refused the same way. It is not firewallRefused: the host refused
+	// nothing, and the firewall capability stays what the host made it.
+	// TestABridgeModeRefusesAStatelessRuleSetByName fails without this, and
+	// TestAnOVNModeWritesAStatelessRuleSet holds the accepting half.
+	//
+	// A host Verify found below the floor writes no rule set at all (#979):
+	// the published capability was withdrawn, and writing anyway would put
+	// rule sets on the daemon the floor keeps out. Nothing is removed — the
+	// destructive paths are untouched — so what an earlier run wrote stays.
+	// TestABelowFloorHostWritesNoRuleSet fails without it.
+	if d.firewallWhy != "" {
+		return fmt.Errorf("firewall %s: this host cannot enforce rule sets (%s), so %s%s: %w",
+			spec.Name, d.firewallWhy, keptAsWritten, floorExit(), ErrFirewallUnverified)
+	}
+	if spec.HasStatelessRule() && !d.Capabilities().StatelessRules {
+		return d.statelessRefusal(spec)
 	}
 
 	if _, err := d.run(ctx, "network", "acl", "show", spec.Name); err != nil {
@@ -177,7 +222,8 @@ func (d *Incus) EnsureFirewall(ctx context.Context, spec FirewallSpec) error {
 
 // isAlreadyExists recognises the daemon refusing to create an object that is
 // already there — "The network ACL already exists" is the wording Incus 7.2
-// answers the loser of two concurrent creates with.
+// answers the loser of two concurrent creates with, and 7.6 still does
+// (2026-11-16, TestEveryMatchedWordingOfIncus76IsRecognised).
 func isAlreadyExists(err error) bool {
 	return err != nil && strings.Contains(strings.ToLower(err.Error()), "already exists")
 }
@@ -301,7 +347,10 @@ func (d *Incus) ApplyFirewall(ctx context.Context, machine string, binding Firew
 		// and confirmed by the 7.3 wording of the same refusal: every security
 		// option is an invalid device option there — security.acls, its two
 		// default actions, and both filtering flags — so there is no mechanism
-		// to enforce with, only keys to be refused on.
+		// to enforce with, only keys to be refused on. Still true of 7.6 by its
+		// source, not by a live run: nic_routed.go at v7.6.0 declares no
+		// security.* key, and lxc/incus#4097 brought the filtering flags to OVN
+		// NICs only.
 		//
 		// Detaching skips it: no rule set has ever been attached to a routed
 		// NIC, so an empty binding has nothing to take back. A binding that
@@ -364,6 +413,18 @@ func (d *Incus) ApplyFirewall(ctx context.Context, machine string, binding Firew
 			// the NIC's own default, reject; a permissive group states its
 			// openness as a catch-all allow rule inside the rule set, which
 			// EnsureFirewall replaces live.
+			//
+			// Re-measured on Incus 7.6 on 2026-11-16 (OVN 24.03.8), on a
+			// running container, by the guest's ifindex: security.acls kept
+			// it (306), security.acls.default.ingress.action changed it
+			// (306 -> 310) and the guest came back with no IPv4 address at
+			// all. So security.acls is still the one *rule set* key updated
+			// in place. What 7.6 did widen is the rest of the list:
+			// UpdatableFields at v7.6.0 adds security.mac_filtering,
+			// security.ipv4_filtering, security.ipv6_filtering (lxc/incus#4097) and
+			// ipv4/ipv6.address.external, and setting the first two on the
+			// same live NIC kept ifindex 306 and the address. This code sets
+			// none of them.
 			//
 			// One case takes more than the joined list: no rule set to attach,
 			// on a network that carries the emulator's isolation set. That
@@ -596,7 +657,15 @@ func toACLRules(rule FirewallRule) []aclRule {
 	switch rule.Action {
 	// allow-stateless is a real runtime action, and the translation of a
 	// stateless security group: dropping it here would silently turn the
-	// group's rules back into stateful ones.
+	// group's rules back into stateful ones. It is an OVN action only:
+	// measured on Incus 7.6 on 2026-11-16, a PUT of a set holding
+	// allow-stateless that a bridge network uses is refused whole, `ACL is
+	// used by network "…": Action "allow-stateless" is only supported on OVN
+	// networks` (validation added in 7.5). 7.2 refused it later, by its
+	// source rather than a run here: acl_firewall.go passed it through ("TODO:
+	// add NOTRACK support") and the nftables driver then answered
+	// `Unrecognised action`. So EnsureFirewall refuses a set holding one on a
+	// mode without Capabilities.StatelessRules, before this runs (#979).
 	case "allow", "allow-stateless", "drop", "reject":
 	default:
 		return nil

@@ -1,0 +1,289 @@
+Package: incus
+Priority: optional
+Section: admin
+Installed-Size: 236347
+Maintainer: Zabbly <info@zabbly.com>
+Architecture: amd64
+Version: 1:7.6-ubuntu24.04-202611072126
+Depends: incus-base (= 1:7.6-ubuntu24.04-202611072126), genisoimage, libnuma1, libpixman-1-0, libpng16-16t64, librados2, librbd1, libseccomp2, libspice-server1, libusb-1.0-0, libusbredirparser1t64
+Filename: pool/main/i/incus/incus_7.6-ubuntu24.04-202611072126_amd64.deb
+Size: 95169866
+MD5sum: d73313c7e7b444ca7ab77eedc7eb5ed9
+SHA1: d1a636a84d4cf5af9210c606563505ea15e3fd87
+SHA256: 99789b3777b69d8f80be591f765369c04d8c88313d320c92f6789b93e166135e
+SHA512: 5330bcaba1174af9f77477c34ffc605a665d1cb92d835cfb299af534327b46b4d527dc291da1877213ee7bec732cffceb73dbc82745109b8ab488b3cb56b928f
+Description: Incus - Container and virtualization daemon
+ Incus provides the ability to run containers and virtual machines locally
+ along with very flexible networking and storage akin to what's offered
+ in a public cloud environment.
+ .
+ This package contains everything needed to run containers and VMs.
+ .
+ This build of Incus is provided for free by Zabbly.
+ Zabbly can be contacted for commercial support and development on Incus.
+Homepage: https://linuxcontainers.org
+
+Package: incus
+Priority: optional
+Section: admin
+Installed-Size: 236347
+Maintainer: Zabbly <info@zabbly.com>
+Architecture: amd64
+Version: 1:7.6-ubuntu24.04-202611071352
+Depends: incus-base (= 1:7.6-ubuntu24.04-202611071352), genisoimage, libnuma1, libpixman-1-0, libpng16-16t64, librados2, librbd1, libseccomp2, libspice-server1, libusb-1.0-0, libusbredirparser1t64
+Filename: pool/main/i/incus/incus_7.6-ubuntu24.04-202611071352_amd64.deb
+Size: 95169692
+MD5sum: 336a8fb8dd3e0d2466d1406dfa3dc9bc
+SHA1: 0b516b7be4b463ec1897e9670a03c91f3c561b09
+SHA256: b2076567bd6bb7bf6a2a5c6736ea7549ea58e2f8dca0fef1085a9e48433a6b91
+SHA512: f27ac2ff453c07ef6e80a1169de8c2fb9a16b638660e0fe7865a8e2bc4066de34887c4d8d53a4133d55d8cf5c6e0d91099de574c8f887965e80cfb48e7fc8fe9
+Description: Incus - Container and virtualization daemon
+ Incus provides the ability to run containers and virtual machines locally
+ along with very flexible networking and storage akin to what's offered
+ in a public cloud environment.
+ .
+ This package contains everything needed to run containers and VMs.
+ .
+ This build of Incus is provided for free by Zabbly.
+ Zabbly can be contacted for commercial support and development on Incus.
+Homepage: https://linuxcontainers.org
+
+Package: incus-base
+Priority: optional
+Section: admin
+Installed-Size: 241152
+Maintainer: Zabbly <info@zabbly.com>
+Architecture: amd64
+Source: incus
+Version: 1:7.6-ubuntu24.04-202611072126
+Replaces: incus (<< 1:7.6-ubuntu24.04-202611072126), incus-tools
+Depends: systemd | systemd-standalone-sysusers | systemd-sysusers, apparmor, attr, ca-certificates, dnsmasq-base, e2fsprogs, fuse3, gnutls-bin, incus-client (= 1:7.6-ubuntu24.04-202611072126), iproute2, nftables | iptables, iputils-ping, iw, kmod, libacl1, libaio1t64, libapparmor1, libbsd0, libbtrfs0t64, libcap2, libdevmapper1.02.1, libfuse3-3, libgcc-s1, libgnutls30, libgpgme11t64, libjson-glib-1.0-0, libnet1, libnftables1, libnl-3-200, libprotobuf-c1, libseccomp2, libselinux1, libsqlite3-0, libudev1, libuv1t64, lshw, pci.ids, rsync, gdisk, squashfs-tools, xdelta3, xz-utils
+Recommends: nftables, iptables
+Suggests: btrfs-progs, ceph-common, lvm2, xfsprogs, zfsutils-linux | openzfs-zfsutils
+Breaks: incus (<< 1:7.6-ubuntu24.04-202611072126), incus-tools
+Filename: pool/main/i/incus/incus-base_7.6-ubuntu24.04-202611072126_amd64.deb
+Size: 58366002
+MD5sum: adcfcad4f4f61d2214f87c0634e867eb
+SHA1: 780c284b3edc2d12c66daea534d84d829ae4e023
+SHA256: d518a2be3e1ba33d9ce1f59c4f7d0c45d7f280715f14bccc218d02670dae8f42
+SHA512: 43be38e74a6b0d019e2ef2595926c1c678e771b16e2b70332c32e98314d86577a9dbb2fff85b0207d7953e931db73600dce55980b726d559d4cc5be53cdfe691
+Description: Incus - Container and virtualization daemon (container-only)
+ Incus provides the ability to run containers and virtual machines locally
+ along with very flexible networking and storage akin to what's offered
+ in a public cloud environment.
+ .
+ This package contains only what's needed to run containers.
+ .
+ This build of Incus is provided for free by Zabbly.
+ Zabbly can be contacted for commercial support and development on Incus.
+Homepage: https://linuxcontainers.org
+
+Package: incus-base
+Priority: optional
+Section: admin
+Installed-Size: 241152
+Maintainer: Zabbly <info@zabbly.com>
+Architecture: amd64
+Source: incus
+Version: 1:7.6-ubuntu24.04-202611071352
+Replaces: incus (<< 1:7.6-ubuntu24.04-202611071352), incus-tools
+Depends: systemd | systemd-standalone-sysusers | systemd-sysusers, apparmor, attr, ca-certificates, dnsmasq-base, e2fsprogs, fuse3, gnutls-bin, incus-client (= 1:7.6-ubuntu24.04-202611071352), iproute2, nftables | iptables, iputils-ping, iw, kmod, libacl1, libaio1t64, libapparmor1, libbsd0, libbtrfs0t64, libcap2, libdevmapper1.02.1, libfuse3-3, libgcc-s1, libgnutls30, libgpgme11t64, libjson-glib-1.0-0, libnet1, libnftables1, libnl-3-200, libprotobuf-c1, libseccomp2, libselinux1, libsqlite3-0, libudev1, libuv1t64, lshw, pci.ids, rsync, gdisk, squashfs-tools, xdelta3, xz-utils
+Recommends: nftables, iptables
+Suggests: btrfs-progs, ceph-common, lvm2, xfsprogs, zfsutils-linux | openzfs-zfsutils
+Breaks: incus (<< 1:7.6-ubuntu24.04-202611071352), incus-tools
+Filename: pool/main/i/incus/incus-base_7.6-ubuntu24.04-202611071352_amd64.deb
+Size: 58367328
+MD5sum: 3d9f481576b4b35d9a850cb643773b6f
+SHA1: d953831a969a54b3d88150eb7821a6a8a8ab19d4
+SHA256: 1e6c0836d8a443a49d14502d7b5003b204b597441c43b54f2a007e9c60cd879d
+SHA512: 6389c538ec1cbc8f601cf5fd9994224cbe86f67ddf512ae4b6a4b82e4193eddc2bb8ff54abc779bb2434414cbb1b2664f7fac99e33e4509b24e27f5b3b8ea9ac
+Description: Incus - Container and virtualization daemon (container-only)
+ Incus provides the ability to run containers and virtual machines locally
+ along with very flexible networking and storage akin to what's offered
+ in a public cloud environment.
+ .
+ This package contains only what's needed to run containers.
+ .
+ This build of Incus is provided for free by Zabbly.
+ Zabbly can be contacted for commercial support and development on Incus.
+Homepage: https://linuxcontainers.org
+
+Package: incus-client
+Priority: optional
+Section: admin
+Installed-Size: 28761
+Maintainer: Zabbly <info@zabbly.com>
+Architecture: amd64
+Source: incus
+Version: 1:7.6-ubuntu24.04-202611072126
+Replaces: incus (<< 1:7.6-ubuntu24.04-202611072126)
+Recommends: sshfs
+Suggests: bash-completion, spice-client-gtk | virt-viewer
+Breaks: incus (<< 1:7.6-ubuntu24.04-202611072126)
+Filename: pool/main/i/incus/incus-client_7.6-ubuntu24.04-202611072126_amd64.deb
+Size: 9012560
+MD5sum: b359648f782820b50aaac065072231bc
+SHA1: 978409e304df3ce2494e9a0bc357808c412cfcb6
+SHA256: a3cb85f769c1595705eca7f65f24dbac2f7f88f7014d0d1adcfdb685085f21c0
+SHA512: c6580f74b8a6ef3df3e93c2c16101e3c829f173f227698c7fe7084a61dae0d427c7605bc3f44a784676915562b7cc0417c19691b1b7ff0d52beb0ccab3b20b72
+Description: Incus - Command line client
+ Incus provides the ability to run containers and virtual machines locally
+ along with very flexible networking and storage akin to what's offered
+ in a public cloud environment.
+ .
+ This package contains the command line client.
+ .
+ This build of Incus is provided for free by Zabbly.
+ Zabbly can be contacted for commercial support and development on Incus.
+Homepage: https://linuxcontainers.org
+
+Package: incus-client
+Priority: optional
+Section: admin
+Installed-Size: 28761
+Maintainer: Zabbly <info@zabbly.com>
+Architecture: amd64
+Source: incus
+Version: 1:7.6-ubuntu24.04-202611071352
+Replaces: incus (<< 1:7.6-ubuntu24.04-202611071352)
+Recommends: sshfs
+Suggests: bash-completion, spice-client-gtk | virt-viewer
+Breaks: incus (<< 1:7.6-ubuntu24.04-202611071352)
+Filename: pool/main/i/incus/incus-client_7.6-ubuntu24.04-202611071352_amd64.deb
+Size: 9012762
+MD5sum: 980743371696cb3cb11c0cbe773b1746
+SHA1: 478307304051429393670ffdd4628336491c29fc
+SHA256: 9c91abad9a444f30f53ec82b4d12d37833b21ae9da123f0ed8d09a009fd29320
+SHA512: 5ff1f8dcd8aa0e3478b8a57aa35c73bcc583df2ae934d57f34f936ddef50265477042a1bd5dcfd7570c21b9e05ff433aa00cff090052e1ed915803d9c9705d0e
+Description: Incus - Command line client
+ Incus provides the ability to run containers and virtual machines locally
+ along with very flexible networking and storage akin to what's offered
+ in a public cloud environment.
+ .
+ This package contains the command line client.
+ .
+ This build of Incus is provided for free by Zabbly.
+ Zabbly can be contacted for commercial support and development on Incus.
+Homepage: https://linuxcontainers.org
+
+Package: incus-extra
+Priority: optional
+Section: admin
+Installed-Size: 127964
+Maintainer: Zabbly <info@zabbly.com>
+Architecture: amd64
+Source: incus
+Version: 1:7.6-ubuntu24.04-202611072126
+Replaces: distrobuilder, incus (<< 1:7.6-ubuntu24.04-202611072126), incus-migrate
+Recommends: debootstrap, gdisk, genisoimage, incus, libwin-hivex-perl, rsync, wimtools
+Breaks: distrobuilder, incus (<< 1:7.6-ubuntu24.04-202611072126), incus-migrate
+Filename: pool/main/i/incus/incus-extra_7.6-ubuntu24.04-202611072126_amd64.deb
+Size: 41393430
+MD5sum: 00e656682ba143b263f4b0bf600c6d12
+SHA1: a38a0892dc63203ec32cff6b0e39e0542eed2efb
+SHA256: a97c1aa28d84f3a8099d10a3dc136deaee4b9c3fb809e804bc2fad2d78689b28
+SHA512: cc3470f1bd7757c78c63bdad861cb2cb5a78d4556e49cce3482a63252d09171336bbd4682e68b9c048317d35a3cc4bcb77005ed6e1df0437544fc954624991ac
+Description: Incus - Extra tools
+ Incus provides the ability to run containers and virtual machines locally
+ along with very flexible networking and storage akin to what's offered
+ in a public cloud environment.
+ .
+ This package contains the following additional command line tools:
+  - distrobuilder
+  - fuidshift
+  - incus-benchmark
+  - incus-compose
+  - incus-migrate
+  - incus-simplestreams
+  - lxc-to-incus
+ .
+ This build of Incus is provided for free by Zabbly.
+ Zabbly can be contacted for commercial support and development on Incus.
+Homepage: https://linuxcontainers.org
+
+Package: incus-extra
+Priority: optional
+Section: admin
+Installed-Size: 127964
+Maintainer: Zabbly <info@zabbly.com>
+Architecture: amd64
+Source: incus
+Version: 1:7.6-ubuntu24.04-202611071352
+Replaces: distrobuilder, incus (<< 1:7.6-ubuntu24.04-202611071352), incus-migrate
+Recommends: debootstrap, gdisk, genisoimage, incus, libwin-hivex-perl, rsync, wimtools
+Breaks: distrobuilder, incus (<< 1:7.6-ubuntu24.04-202611071352), incus-migrate
+Filename: pool/main/i/incus/incus-extra_7.6-ubuntu24.04-202611071352_amd64.deb
+Size: 41392938
+MD5sum: 3e2018a0b8dc825814e539d77a34feff
+SHA1: 00b538ebe4cf0b1ca51cadc2fcd5f6ab65f2ea99
+SHA256: c318202ba47d99bd2796a3924af38f2d3384f397bdd610af03e21d668b7fcbeb
+SHA512: c6fdd1cfbe961608e6beb5852b7e5e20d8f1b1f40fbc8f507e070be4ad6b2b2db4d440624e8a6c7bc45de52fb2a3c066650aa813d7cabcd98fd09a1f658e5917
+Description: Incus - Extra tools
+ Incus provides the ability to run containers and virtual machines locally
+ along with very flexible networking and storage akin to what's offered
+ in a public cloud environment.
+ .
+ This package contains the following additional command line tools:
+  - distrobuilder
+  - fuidshift
+  - incus-benchmark
+  - incus-compose
+  - incus-migrate
+  - incus-simplestreams
+  - lxc-to-incus
+ .
+ This build of Incus is provided for free by Zabbly.
+ Zabbly can be contacted for commercial support and development on Incus.
+Homepage: https://linuxcontainers.org
+
+Package: incus-ui-canonical
+Priority: optional
+Section: admin
+Installed-Size: 4573
+Maintainer: Zabbly <info@zabbly.com>
+Architecture: amd64
+Source: incus
+Version: 1:7.6-ubuntu24.04-202611072126
+Depends: incus
+Filename: pool/main/i/incus/incus-ui-canonical_7.6-ubuntu24.04-202611072126_amd64.deb
+Size: 1230766
+MD5sum: 996857fb9158cb3701d95b4517ad1cd7
+SHA1: edd7490c7fb5cf1587e10c6872b1262de18b6379
+SHA256: a5fc3433fe1afc26569d65da6346586dfee955c1c7d4846ef7595da1ef85ee61
+SHA512: f2ecca9c0547cc14e2b27d818f674ecdc4563bef324ceb50e323feca2f113b9909688682419c0d9286a721acd38e022bcfbeffc3cdbb34180786b3ba316a8bcd
+Description: Incus - Web interface (canonical)
+ Incus provides the ability to run containers and virtual machines locally
+ along with very flexible networking and storage akin to what's offered
+ in a public cloud environment.
+ .
+ This package contains a web interface based on canonical/lxd-ui.
+ .
+ This build of Incus is provided for free by Zabbly.
+ Zabbly can be contacted for commercial support and development on Incus.
+Homepage: https://linuxcontainers.org
+
+Package: incus-ui-canonical
+Priority: optional
+Section: admin
+Installed-Size: 4573
+Maintainer: Zabbly <info@zabbly.com>
+Architecture: amd64
+Source: incus
+Version: 1:7.6-ubuntu24.04-202611071352
+Depends: incus
+Filename: pool/main/i/incus/incus-ui-canonical_7.6-ubuntu24.04-202611071352_amd64.deb
+Size: 1230690
+MD5sum: 34aaca46118f5903b22c35cef876a221
+SHA1: c4d63c5586eb0e8b4a28b5806907d52275a8b422
+SHA256: df9fc7847ff3c3e20d6913b926588f03faa66f66d95b3f7244575284b178cb9c
+SHA512: 86823525a3ae70da0c3d899f2a8241b71646c5ff092910ee64374478ae7562d8eefef0bad141e543c7beed4bd111a17d45f28354fe594f7ce9397093891bc7a9
+Description: Incus - Web interface (canonical)
+ Incus provides the ability to run containers and virtual machines locally
+ along with very flexible networking and storage akin to what's offered
+ in a public cloud environment.
+ .
+ This package contains a web interface based on canonical/lxd-ui.
+ .
+ This build of Incus is provided for free by Zabbly.
+ Zabbly can be contacted for commercial support and development on Incus.
+Homepage: https://linuxcontainers.org

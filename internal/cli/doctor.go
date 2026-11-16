@@ -288,29 +288,7 @@ func checkRuntime(ctx context.Context, mode string, host hostProbe) []check {
 	}
 
 	caps := rt.Capabilities()
-	can, cannot := []string{}, []string{}
-	for _, item := range []struct {
-		ok   bool
-		text string
-	}{{caps.Addresses, "give addresses"}, {caps.Firewall, "apply firewalls"}, {caps.Isolation, "isolate VPCs"}, {caps.OwnKernel, "give each machine its own kernel"}} {
-		if item.ok {
-			can = append(can, item.text)
-		} else {
-			cannot = append(cannot, item.text)
-		}
-	}
-	line := check{title: "This mode (" + rt.Name() + ")", state: verdictOK}
-	if len(can) > 0 {
-		line.title += " can " + joinAnd(can)
-		if len(cannot) > 0 {
-			line.title += ", and"
-		}
-	}
-	if len(cannot) > 0 {
-		line.title += " cannot " + joinOr(cannot)
-	}
-	line.title += "."
-	out = append(out, line)
+	out = append(out, capabilityLines(rt.Name(), caps)...)
 
 	// The one that surprises people: auto never picks a VM, and until recently
 	// it never picked OVN either — so an operator with everything installed got
@@ -321,6 +299,46 @@ func checkRuntime(ctx context.Context, mode string, host hostProbe) []check {
 			state:  verdictWarn,
 			detail: "Subnets of different VPCs will reach each other, and the conformance suite reports it as a skip. The OVN steps above make auto choose incus-ovn.",
 		})
+	}
+	return out
+}
+
+// capabilityLines says what the mode can and cannot do, in one line, then
+// one plain line per refusal the reader would otherwise meet only at apply
+// time.
+//
+// Stateless rules joined the line with #979: Incus 7.5 and later accept
+// allow-stateless only on OVN networks, so a bridge mode refuses a security
+// group holding a stateless rule. Before, doctor said nothing about it, and a
+// bridge-mode reader learnt it from a WARN in the emulator's log.
+// TestDoctorSaysWhatTheModeDoesWithStatelessRules fails without either half.
+func capabilityLines(name string, caps machine.Capabilities) []check {
+	can, cannot := []string{}, []string{}
+	for _, item := range []struct {
+		ok   bool
+		text string
+	}{{caps.Addresses, "give addresses"}, {caps.Firewall, "apply firewalls"}, {caps.StatelessRules, "apply stateless rules"}, {caps.Isolation, "isolate VPCs"}, {caps.OwnKernel, "give each machine its own kernel"}} {
+		if item.ok {
+			can = append(can, item.text)
+		} else {
+			cannot = append(cannot, item.text)
+		}
+	}
+	line := check{title: "This mode (" + name + ")", state: verdictOK}
+	if len(can) > 0 {
+		line.title += " can " + joinAnd(can)
+		if len(cannot) > 0 {
+			line.title += ", and"
+		}
+	}
+	if len(cannot) > 0 {
+		line.title += " cannot " + joinOr(cannot)
+	}
+	line.title += "."
+	out := []check{line}
+	if caps.Firewall && !caps.StatelessRules {
+		out = append(out, check{state: verdictOK,
+			title: "In this mode a security group with a stateless rule is refused: only --vm incus-ovn applies stateless rules."})
 	}
 	return out
 }
@@ -357,9 +375,8 @@ func missingImageNames(ctx context.Context, rt machine.Runtime) ([]string, error
 	return names, nil
 }
 
-// incusMinimum is the version below which NIC ACLs are refused, and the failure
-// looks like a bug in this emulator rather than a version floor: a security
-// group is created, attached, and enforces nothing.
+// incusMinimum is the oldest Incus this emulator supports, 6.0.5 since #979;
+// machine.IncusBelowMinimum says why, for each older release.
 //
 // Read from the runtime rather than declared here since #181: `serve` checks the
 // same floor before publishing `firewall: true`, and two copies is how the two
@@ -367,18 +384,19 @@ func missingImageNames(ctx context.Context, rt machine.Runtime) ([]string, error
 // exactly the shape of defect that issue was filed for.
 var incusMinimum = machine.IncusMinimum
 
-// incusRecommended is the series every measurement in docs/limits.md was taken
-// on, and the one docs/install.md installs. It is not a floor: a 6.0.4 host runs
+// incusRecommended is the series the runtime proof installs, read from
+// machine.IncusTested (#979). It is not a floor: a host at incusMinimum runs
 // everything this emulator asks for.
 //
-// Declared beside the floor because the documentation reads both from here. The
-// prerequisites table used to restate them by hand, which is how a page ends up
-// recommending a version nobody measured.
-var incusRecommended = [2]int{7, 2}
+// Read rather than declared, like the floor: it was {7, 2} here while the
+// workflow installed whatever Zabbly published last and the station ran 7.6.
+// The prerequisites table used to restate it by hand, which is how a page ends
+// up recommending a version nobody measured.
+var incusRecommended = machine.IncusTestedSeries()
 
 // versionText renders a version tuple the way the documentation and the
 // diagnostics both cite it. Written once: the two strings below used to spell
-// "6.0.4" out beside incusMinimum, so a change to the floor would have moved the
+// the floor out beside incusMinimum, so a change to the floor would have moved the
 // check without moving what it tells the operator to install.
 //
 // It forwards to the runtime's copy for the same reason the floor does: the
