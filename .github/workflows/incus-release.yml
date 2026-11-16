@@ -1,0 +1,94 @@
+# Is the Incus the runtime proof pins still the one Zabbly stable serves? (#979)
+#
+# Dependabot cannot follow Incus: it comes from the Zabbly apt channel, and no
+# Dependabot ecosystem reads an apt channel. runtime-proof.yml now installs one
+# pinned release (INCUS_VERSION, equal to machine.IncusTested), so a new upstream
+# release no longer changes the runtime under the proof in silence; this
+# workflow is what makes the opposite silence impossible too, a pin that ages
+# while upstream moves on.
+#
+# Each night it reads the channel's Packages index (the file apt reads on the
+# runner the proof uses: noble, amd64) and compares the newest `incus` with the
+# pin. One issue while they differ, updated, never one per night; closed the
+# first night they match. The decision lives in tools/ci/incus-release.sh, not
+# in a run: block, because a run: block only executes on GitHub's runners and
+# this repository has paid for CI fixes that existed only as comments.
+# tools/ci/incus_release_test.go drives every branch of it.
+#
+# An index that cannot be fetched or read is a red job, never a green one, and
+# night-report.yml turns a red scheduled night into its own issue: "could not
+# look" and "nothing moved" are different answers.
+#
+# Issues only: GitHub Actions cannot open pull requests on this repository.
+name: Incus release
+
+on:
+  schedule:
+    # Daily, away from runtime-proof.yml (02:31) and conformance.yml (03:43).
+    # Incus ships about monthly; a daily read costs one 3 KB download.
+    - cron: '23 6 * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  follow:
+    name: Zabbly stable against the pinned Incus
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read # checkout, for the script and the workflow it reads the pin from
+      issues: write # the one issue
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The suite and the architecture of this runner, which is the image the
+      # runtime proof runs on: the index it reads is the one that proof's apt
+      # would read. Over HTTPS, and unsigned: a forged index could at worst open
+      # a false issue, never install anything.
+      - name: Fetch the Zabbly stable index
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC1091
+          codename="$(. /etc/os-release && echo "${VERSION_CODENAME}")"
+          arch="$(dpkg --print-architecture)"
+          tools/ci/fetch.sh "https://pkgs.zabbly.com/incus/stable/dists/${codename}/main/binary-${arch}/Packages.gz" "${RUNNER_TEMP}/Packages.gz"
+          gunzip -f "${RUNNER_TEMP}/Packages.gz"
+
+      # --apply on scheduled nights only. A dispatch is somebody asking and
+      # watching the answer: it prints the verdict and the body, exits 2 on a
+      # difference, and writes nothing.
+      - name: Compare, then open, update or close the issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          FEINT_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          if [ "${EVENT}" = schedule ]; then
+            tools/ci/incus-release.sh --apply .github/workflows/runtime-proof.yml "${RUNNER_TEMP}/Packages"
+          else
+            tools/ci/incus-release.sh .github/workflows/runtime-proof.yml "${RUNNER_TEMP}/Packages"
+          fi
+
+  # A red night opens an issue, a green one closes it: the mechanism every
+  # scheduled workflow adopts (TestEveryScheduledWorkflowReportsOrSaysWhyNot).
+  # Here it carries the third outcome, the night the index could not be read.
+  night:
+    name: A red night opens the issue, a green one closes it
+    needs: [follow]
+    if: always() && github.event_name == 'schedule'
+    permissions:
+      contents: read
+      actions: read
+      issues: write
+    uses: ./.github/workflows/night-report.yml

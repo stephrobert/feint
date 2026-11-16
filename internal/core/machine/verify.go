@@ -34,14 +34,37 @@ import (
 //
 // TestVerifyNarrowsWhatTheHostCannotDeliver fails without this.
 
-// IncusMinimum is the daemon version below which NIC ACLs are refused, and the
-// failure looks like a bug in this emulator rather than a version floor: a
-// security group is created, attached, and enforces nothing.
+// IncusMinimum is the oldest daemon this emulator supports. It was 6.0.4, the
+// first release that accepts ACLs on a NIC (IncusNICACLs), until #979 raised it
+// to 6.0.5: 6.0.4 still orders its nftables firewall rules wrongly in bridge
+// mode, a security bug fixed in 6.0.5 by lxc/incus#2222 ("Fix security issue
+// due to rule ordering in nftables (ACLs + isolation)", backported as "Fix
+// ordering of basic rules"), and feint's bridge-mode firewall claims assume
+// that fix. Read from the 6.0.5 commit list, not measured on a 6.0.4 daemon.
 //
 // It lives here rather than in the diagnostics because two callers need it and
 // a second copy is how the two drift — the same failure shape #171 was filed
 // for, expressed in versions. `feint doctor` reads it from here.
-var IncusMinimum = [3]int{6, 0, 4}
+// TestVerifyRefusesTheFirewallBelowTheFloor holds 6.0.4 refused and 6.0.5
+// accepted.
+var IncusMinimum = [3]int{6, 0, 5}
+
+// IncusNICACLs is the first release that accepts ACLs on a NIC. Below it a
+// security group is created, attached, and enforces nothing, and the failure
+// looks like a bug in this emulator. The floor until #979; still the reason a
+// daemon older than it is refused, said apart from IncusMinimum's.
+var IncusNICACLs = [3]int{6, 0, 4}
+
+// IncusBelowMinimum says in one sentence what a daemon older than IncusMinimum
+// lacks, so `serve` and `feint doctor` give the same reason.
+// TestIncusBelowMinimumNamesEachFloorsReason fails when either reason is lost.
+func IncusBelowMinimum(v [3]int) string {
+	if olderThan(v, IncusNICACLs) {
+		return "Incus before " + VersionText(IncusNICACLs[:]) + " refuses ACLs on a NIC, so a security group attaches and blocks nothing."
+	}
+	return "Incus before " + VersionText(IncusMinimum[:]) + " orders its nftables firewall rules wrongly in bridge mode, " +
+		"a security bug fixed by lxc/incus#2222, and feint's bridge-mode firewall claims assume that fix."
+}
 
 // ovnNorthbound is the server setting an OVN network cannot be created without.
 // Reading it creates nothing and leaves nothing, which `auto` requires: it runs
@@ -87,8 +110,9 @@ func (d *Incus) Verify(ctx context.Context) (Capabilities, []string) {
 	declared := d.declaredCapabilities()
 	verified := declared
 	var unmet []string
+	d.firewallWhy, d.statelessWhy = "", ""
 
-	if declared.Isolation || declared.Balancing {
+	if declared.Isolation || declared.Balancing || declared.StatelessRules {
 		// One probe, two claims: both are OVN's, and both are false on a host
 		// with no northbound connection. Asking twice would double the startup
 		// cost of every run to learn the same fact, and — worse — could report
@@ -105,6 +129,13 @@ func (d *Incus) Verify(ctx context.Context) (Capabilities, []string) {
 				verified.Balancing = false
 				unmet = append(unmet, "balancing: "+why)
 			}
+			// Stateless rules are an OVN action too (#979): with no
+			// northbound there is no OVN network to carry them.
+			if declared.StatelessRules {
+				verified.StatelessRules = false
+				unmet = append(unmet, "stateless rules: "+why)
+				d.statelessWhy = why
+			}
 		}
 	}
 
@@ -117,7 +148,16 @@ func (d *Incus) Verify(ctx context.Context) (Capabilities, []string) {
 			// A capability that outlived the one it rests on would be the
 			// declaration saying more than the host does.
 			verified.FirewallPublicWhenJoined = false
+			verified.StatelessRules = false
+			// And isolation (#979): below the floor IsolateNetwork writes no
+			// set either, so publishing isolation would promise what is no
+			// longer written. TestABelowFloorHostWritesNoIsolation holds it.
+			verified.Isolation = false
 			unmet = append(unmet, "firewall: "+why)
+			d.firewallWhy = why
+			if declared.StatelessRules {
+				d.statelessWhy = why
+			}
 		}
 	}
 
@@ -204,15 +244,13 @@ func (d *Incus) firewallAge(ctx context.Context) (bool, string) {
 		return true, ""
 	}
 	if olderThan(got, IncusMinimum) {
-		return false, fmt.Sprintf(
-			"the daemon is %s and NIC ACLs are refused below %s, so a security group "+
-				"attaches and enforces nothing",
-			payload.Environment.ServerVersion, VersionText(IncusMinimum[:]))
+		return false, fmt.Sprintf("the daemon is %s, below the supported %s: %s",
+			payload.Environment.ServerVersion, VersionText(IncusMinimum[:]), IncusBelowMinimum(got))
 	}
 	return true, ""
 }
 
-// parseVersion reads "7.2" or "6.0.4" into a comparable tuple.
+// parseVersion reads "7.2" or "6.0.5" into a comparable tuple.
 func parseVersion(s string) ([3]int, bool) {
 	var out [3]int
 	m := serverVersion.FindStringSubmatch(strings.TrimSpace(s))

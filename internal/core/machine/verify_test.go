@@ -76,11 +76,11 @@ func TestVerifyNarrowsWhatTheHostCannotDeliver(t *testing.T) {
 		t.Error("isolation survived a host with no northbound connection: this is " +
 			"the capability a suite keying on it would assert and the host cannot deliver")
 	}
-	// Two lines now, one per OVN-borne capability, and each must name what was
-	// checked: a narrowing that says "isolation: unavailable" sends the reader
-	// nowhere.
-	if len(unmet) != 2 {
-		t.Errorf("a host with no OVN must narrow both OVN capabilities, got %v", unmet)
+	// Three lines now, one per OVN-borne capability (stateless rules joined
+	// isolation and balancing in #979), and each must name what was checked: a
+	// narrowing that says "isolation: unavailable" sends the reader nowhere.
+	if len(unmet) != 3 {
+		t.Errorf("a host with no OVN must narrow all three OVN capabilities, got %v", unmet)
 	}
 	for _, line := range unmet {
 		if !strings.Contains(line, ovnNorthbound) {
@@ -128,8 +128,8 @@ func TestAnUnsetNorthboundIsTheDefaultAndNotAnAbsence(t *testing.T) {
 	if caps.Isolation {
 		t.Error("isolation survived a host with no northbound socket at all")
 	}
-	if len(unmet) != 2 {
-		t.Errorf("a host with no northbound socket must narrow both OVN capabilities, got %v", unmet)
+	if len(unmet) != 3 {
+		t.Errorf("a host with no northbound socket must narrow all three OVN capabilities, got %v", unmet)
 	}
 	for _, line := range unmet {
 		if !strings.Contains(line, ovnDefaultNorthbound) {
@@ -180,7 +180,22 @@ func TestVerifyRefusesTheFirewallBelowTheFloor(t *testing.T) {
 	}
 	// The floor itself, on the boundary rather than near it.
 	if exact := hostSaying("tcp:10.0.0.1:6641", VersionText(IncusMinimum[:])); !mustVerify(t, exact).Firewall {
-		t.Error("the floor version itself was refused: 6.0.4 runs everything this emulator asks for")
+		t.Error("the floor version itself was refused: 6.0.5 runs everything this emulator asks for")
+	}
+	// 6.0.4, the old floor, is refused now, and for its own reason (#979).
+	_, unmet = hostSaying("tcp:10.0.0.1:6641", "6.0.4").Verify(context.Background())
+	if len(unmet) != 1 || !strings.Contains(unmet[0], "lxc/incus#2222") {
+		t.Errorf("6.0.4 must be refused naming the nftables ordering fix, got %v", unmet)
+	}
+}
+
+// One case per floor: each version is past the other floor and below this one.
+func TestIncusBelowMinimumNamesEachFloorsReason(t *testing.T) {
+	if got := IncusBelowMinimum([3]int{6, 0, 0}); !strings.Contains(got, "refuses ACLs on a NIC") || strings.Contains(got, "#2222") {
+		t.Errorf("6.0.0: %s", got)
+	}
+	if got := IncusBelowMinimum([3]int{6, 0, 4}); !strings.Contains(got, "lxc/incus#2222") || strings.Contains(got, "refuses ACLs") {
+		t.Errorf("6.0.4: %s", got)
 	}
 }
 

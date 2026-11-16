@@ -237,15 +237,44 @@ the README's on purpose: one source, spliced into both.
 | What | Version | What it buys you |
 |---|---|---|
 | Go | 1.26 | Building from source. A released binary needs nothing. |
-| [Incus](https://linuxcontainers.org/incus/) | 7.2 recommended, **6.0.4 minimum** | `--vm`: powered-on servers become real containers or KVM machines you can `ssh` into. |
+| [Incus](https://linuxcontainers.org/incus/) | 7.6 recommended, **6.0.5 minimum** | `--vm`: powered-on servers become real containers or KVM machines you can `ssh` into. |
 | OVN (`ovn-central`, `ovn-host`, Open vSwitch) | optional | `--vm incus-ovn`: subnets that are actually separate, so two VPCs cannot reach each other. |
 
-6.0.4 is a floor rather than a preference: below it the runtime refuses ACLs on a
-NIC, and the failure reads like a Feint bug rather than a missing feature. Ubuntu
-24.04 ships 6.0.0 and will not move past it, so the Zabbly stable channel is the
+6.0.5 is a floor rather than a preference. Incus before 6.0.4 refuses ACLs on a NIC, so a security group attaches and blocks nothing. Incus before 6.0.5 orders its nftables firewall rules wrongly in bridge mode, a security bug fixed by lxc/incus#2222, and feint's bridge-mode firewall claims assume that fix.
+Below the floor the firewall is withdrawn in every mode, OVN included: a host
+below it is not supported, even though the floor's reason is a bridge-mode fix.
+Ubuntu 24.04 ships 6.0.0 and will not move past it, so the Zabbly stable channel is the
 practical way to a supported version. `feint doctor` checks all of this against
-the same 6.0.4, and says what to install, which is the point of having it.
+the same 6.0.5, and says what to install, which is the point of having it.
+
+7.6 is the release the nightly runtime proof installs, pinned to it rather than
+to whatever the channel serves that night. A scheduled check opens an issue when
+Zabbly stable publishes another, and `docs/runtime-incus.md` records what changed
+upstream between the releases this page has recommended.
 <!-- prereq:end -->
+
+**What you install is not pinned; what proves it is.** The commands on this
+page, and the ones `feint doctor` prints, install the newest Incus of the
+Zabbly stable channel, with no version. This is a decision, not an oversight:
+Zabbly keeps only its latest release (on 2026-11-16 its index held two builds
+of 7.6 and nothing older), so a pinned command would stop installing at the
+next release. The nightly runtime proof and the install role
+(`tools/install/ansible`) do pin the tested release, the one in the table
+above. When the Incus you run is another release, `feint doctor` says so as a
+warning, `Incus X is installed; feint is tested on Y`, and it still runs: the
+floor is what is required. [runtime-incus.md](runtime-incus.md) says what
+changed between releases.
+
+**What the tested Incus needs from the system.** Incus 7.0 raised its minimum
+requirements to Linux 6.12, nftables 1.0.0, dnsmasq 2.90, Open vSwitch 2.15.0
+and OVN 23.03.0, and 7.4 raised the last two again, to Open vSwitch 3.3.0 and
+OVN 24.03.0 (release announcements; [runtime-incus.md](runtime-incus.md), J13
+and I14). They apply to the tested release in the table above. `feint doctor`
+reads all five without root (the kernel from `/proc`, the tools from their
+`--version`): the kernel, nftables and dnsmasq below their minimum are a
+warning, because what fails there was not measured with feint; OVN and Open
+vSwitch below theirs are a missing step for `--vm incus-ovn`. Ubuntu 24.04's
+original kernel is 6.8, below 6.12.
 
 ## What was actually proven, and where
 
@@ -290,7 +319,7 @@ other.
 | Release | Incus from | OVN from | Verdict |
 |---|---|---|---|
 | Debian 13 | Zabbly | distribution | **proven**: subnet created on `incus-ovn`, four clients passed |
-| Debian 12 | Zabbly | distribution | installs; the subnet proof predates a driver fix and is being re-run |
+| Debian 12 | Zabbly | distribution | **not supported for `incus-ovn` with Incus 7.4 and later**: its OVN 23.03.1 and Open vSwitch 3.1.0 are below the 24.03.0 and 3.3.0 that Incus now requires (read, not measured; see below) |
 | Ubuntu 24.04 LTS | Zabbly | distribution | installs; same |
 | Ubuntu 26.04 LTS | Zabbly | distribution | installs; same |
 | Fedora 43 | distribution | distribution | installs; same |
@@ -298,7 +327,7 @@ other.
 | Rocky 9 | `neelc/incus` COPR | CentOS NFV SIG | installs; same |
 | Rocky 10 | `neelc/incus` COPR (`rhel+epel-10`) | CentOS NFV SIG | **not measured**: the chroot appeared after this table was taken |
 
-Six of those say *installs* rather than *proven*, and the distinction is
+Five of those say *installs* rather than *proven*, and the distinction is
 deliberate. They were measured against a build whose OVN driver created its
 uplink without delegating any route, so the packages went on and the first
 emulated subnet would have failed. The driver was fixed and Debian 13 re-run
@@ -366,6 +395,20 @@ ansible-playbook --ask-become-pass tools/install/ansible/local.yml
 sg incus-admin -c 'feint images'
 ```
 
+**The role refuses OVN on Debian 12 and Ubuntu 22.04 themselves.** It reads
+`ansible_distribution_release`, which on a derivative is the derivative's own
+codename (Linux Mint 21 gives `vanessa`, not `jammy`), so a derivative of those
+releases is not caught by the role. `feint doctor` catches it, from the
+`UBUNTU_CODENAME` or `DEBIAN_CODENAME` its `/etc/os-release` declares.
+
+**The playbook stops working when Zabbly moves on, until the pin moves.** It
+installs `incus=1:<tested>-*`, and Zabbly keeps only the builds of its latest
+release. The day a release after the tested one is published, the install step
+fails with `no available installation candidate for incus=1:7.6-*` (the
+message measured with a wrong pin on 2026-11-16), and keeps failing until the
+pin moves. `incus-release.yml` opens the issue that asks for that move the same
+day. The commands of this page are not pinned, so they keep working.
+
 `feint serve` itself needs neither uv nor Ansible. uv is for the repository's
 Python tasks and for installing Ansible; Ansible is for this playbook only.
 
@@ -374,12 +417,29 @@ Python tasks and for installing Ansible; Ansible is for this playbook only.
 Both distributions package Incus, and neither packages what this page was
 measured on. Ubuntu 24.04 ships 6.0.0, below the floor in the table above, where
 **NIC ACLs start being accepted**: a security group then attaches and enforces
-nothing, which looks exactly like a bug in feint. Debian 13 is not in that case —
-trixie ships 6.0.4-2, clearing that floor exactly — so "too old" would be wrong
-about it. What no distribution ships is the recommended series, the one every
-measurement here and every file-and-line citation in `docs/limits.md` was taken
-on. So the packaging the Incus maintainer publishes is used on all four releases,
-which also leaves one procedure to follow instead of one per release.
+nothing, which looks exactly like a bug in feint. Debian 13 ships 6.0.4-2, which
+accepts NIC ACLs but is now one release below the floor: 6.0.4 still orders its
+nftables firewall rules wrongly in bridge mode, a security bug fixed in 6.0.5
+(lxc/incus#2222). What no distribution ships is the recommended release, the one the
+nightly runtime proof installs (the table above). It is not the release every
+measurement in `docs/limits.md` was taken on: a section there names the
+release it was measured on, and several still name 7.2. [runtime-incus.md](runtime-incus.md#the-record-of-releases)
+keeps the register of which release proved what and what changed upstream in
+between. So the packaging the Incus maintainer publishes is used on all four
+releases, which also leaves one procedure to follow instead of one per release.
+
+**Debian 12 is not supported for `--vm incus-ovn` with the recommended Incus.**
+Since Incus 7.4, its OVN driver needs OVN 24.03.0 and Open vSwitch 3.3.0 or
+later. Debian 12 ships OVN 23.03.1 and Open vSwitch 3.1.0 (sources.debian.org,
+bookworm, read 2026-11-16), so the last command of the block below installs a
+pairing that Incus refuses. Incus itself installs from Zabbly and runs
+`--vm incus` and `--vm incus-vm`, without isolation between VPCs. This is read
+from the release announcement and the package archive, not measured on a
+Debian 12 machine. `feint doctor` prints no OVN command on Debian 12, and says
+why. Debian 13 and Ubuntu 24.04 ship versions at or above that floor. On any
+distribution, an OVN or Open vSwitch already installed is checked by version
+(`ovn-nbctl --version`, `ovs-vsctl --version`, both readable without root), and
+doctor reports one below that floor as a missing step.
 
 <!-- setup:debian:start -->
 <!-- Generated by `mise run docs:coverage`. Do not edit by hand. -->
@@ -402,6 +462,8 @@ printf '%s\n' 'Enabled: yes' 'Types: deb' 'URIs: https://pkgs.zabbly.com/incus/s
 sudo apt-get update
 sudo apt-get install -y --no-install-recommends incus incus-client
 
+# Not on Debian 12 or Ubuntu 22.04: their own OVN and Open vSwitch are below
+# OVN 24.03.0 and Open vSwitch 3.3.0, which Incus 7.4 and later require.
 sudo apt-get install -y --no-install-recommends ovn-central ovn-host openvswitch-switch
 ```
 <!-- setup:debian:end -->
@@ -409,6 +471,11 @@ sudo apt-get install -y --no-install-recommends ovn-central ovn-host openvswitch
 ### Fedora 43, Fedora 44
 
 The one place this is simple: both are in Fedora's own repositories.
+
+That Incus is Fedora's, not the tested release: Fedora 43 and 44 ship Incus
+6.23 (`incus-6.23-3` in `updates`, read through mdapi.fedoraproject.org on
+2026-11-16). It clears the 6.0.5 floor, and `feint doctor` warns that feint is
+tested on another release. Nothing was measured on that version.
 
 <!-- setup:fedora:start -->
 <!-- Generated by `mise run docs:coverage`. Do not edit by hand. -->
@@ -424,6 +491,12 @@ sudo dnf install -y ovn ovn-central ovn-host openvswitch
 ### Rocky 9
 
 Three repositories, none enabled by default, and one of them is not official.
+
+That Incus comes from the `neelc/incus` COPR, not from Zabbly, and is not the
+tested release: the COPR's latest successful build is Incus 7.0.0 (`7.0.0-2`,
+built 2026-11-03, COPR API read on 2026-11-16). It clears the 6.0.5 floor, and
+`feint doctor` warns that feint is tested on another release. Nothing was
+measured on that version.
 
 <!-- setup:rocky:start -->
 <!-- Generated by `mise run docs:coverage`. Do not edit by hand. -->
@@ -553,13 +626,16 @@ The verdict that matters:
 feint start --vm auto
 curl -s localhost:4599/_feint/health | jq .capabilities
 # "isolation": true   -> two VPCs cannot reach each other
-# "isolation": false  -> everything else works; subnets are not separated
+# "isolation": false  -> subnets are not separated; no load balancing and no
+#                        stateless rules either, both OVN only as well
 ```
 
 `isolation: false` means OVN is installed and not wired, or not installed at all.
 [docs/limits.md](limits.md) says exactly what the bridge mode can and cannot do:
 one assertion of the whole network suite changes verdict with it, and it is that
-one.
+one. Two capabilities are OVN only besides isolation: `balancing` (an Outscale
+load balancer distributing real connections) and `stateless_rules` (a security
+group with a stateless rule, which a bridge mode refuses by name).
 
 ---
 

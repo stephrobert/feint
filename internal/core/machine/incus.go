@@ -132,6 +132,12 @@ type Incus struct {
 	// the honest answer, because no host was consulted to contradict it.
 	verified *Capabilities
 
+	// firewallWhy and statelessWhy are why Verify narrowed the firewall and
+	// the stateless rules, "" when it did not. Written by Verify with
+	// verified, read by EnsureFirewall: a refusal names the host's reason,
+	// never a remedy that does not apply (#979).
+	firewallWhy, statelessWhy string
+
 	// firewallDenied is set once the host has refused a rule set (#454), and
 	// makes Capabilities answer firewall=false from then on.
 	//
@@ -981,6 +987,12 @@ func (d *Incus) Attach(ctx context.Context, name string, att Attachment) error {
 		// Measured raw on the station (2026-08-28, Incus 7.2, OVN): a detach
 		// fired 25–200 ms into a ~400 ms device add killed 11 adds of 14 with
 		// exactly that error. Same lock as the detach, so the two take turns.
+		// Not re-measured on Incus 7.6: 7.3 made OVN logical switch ports
+		// persistent (lxc/incus#3587) and 7.4 fixed MAC bindings on deletion
+		// (lxc/incus#3879), either of which may move this window. What would settle it
+		// is the raw race replayed against a real 7.6 daemon with the lock
+		// removed in a scratch copy — a concurrent harness, which nothing in
+		// this repository drives yet. Until then the lock stays.
 		// The attach-per-machine lock above orders nothing here: the detach
 		// never takes it. Lock order is attach-lock then network-lock,
 		// nowhere the reverse. TestAHotAttachAndAnIsolationDetachTakeTurns
@@ -1991,17 +2003,22 @@ func (d *Incus) Stop(ctx context.Context, name string) error {
 
 // isBusy reads "another operation still holds this instance" out of a failed
 // command — `Error: Instance is busy running a "update" operation` is the
-// wording Incus 7.2 uses. Busy is a promise of later, not a verdict: the
-// operation holding the instance ends, and a teardown that gives up on the
-// first refusal leaves a running machine the control plane no longer
-// describes, which is #493's tail.
+// wording Incus 7.2 uses, and 7.6 answers `Failed to create instance update
+// operation: Instance is busy running a "stop" operation` (2026-11-16,
+// TestEveryMatchedWordingOfIncus76IsRecognised). Busy is a promise of later,
+// not a verdict: the operation holding the instance ends, and a teardown that
+// gives up on the first refusal leaves a running machine the control plane no
+// longer describes, which is #493's tail.
 func isBusy(err error) bool {
 	return err != nil && strings.Contains(strings.ToLower(err.Error()), "instance is busy")
 }
 
 // isTransientConflict reads "another edit crossed this one" out of a failed
 // command: the three shapes measured on Incus 7.2 during parallel applies and
-// destroys, every one of which succeeds when simply asked again.
+// destroys, every one of which succeeds when simply asked again. All three
+// were provoked again on Incus 7.6 (OVN 24.03.8) on 2026-11-16 — the port
+// group collision in one round of six, two NICs taking one fresh rule set at
+// once — and TestEveryMatchedWordingOfIncus76IsRecognised holds their text.
 //
 //   - "Instance is busy running a … operation": another operation holds the
 //     instance (isBusy, #493);
@@ -2032,6 +2049,14 @@ func isTransientConflict(err error) bool {
 // runUntilFree runs one command, waiting out "Instance is busy" refusals until
 // the budget is spent. Any other outcome — success, or a different error —
 // returns at once.
+//
+// The wording still holds on Incus 7.6 (2026-11-16). What was not re-measured
+// is how often it is met: 7.5 and 7.6 fixed concurrent stop handling and a
+// start/restart race (lxc/incus#3997, lxc/incus#4268, lxc/incus#4296), so the parallel destroys
+// that produced #493 may now meet fewer busy refusals, or none. Settling it
+// takes the same parallel apply and destroy replayed against a real 7.6
+// daemon, counting the refusals; until then the retry stays, at no cost when
+// nothing is busy.
 //
 // It exists for the stop and delete of a teardown (#493): a failed device
 // update elsewhere in a parallel destroy holds the instance for seconds, both

@@ -5,8 +5,8 @@
     {
       "label": "one pass: the setup checks stop at the first missing step, so a station missing OVN hears nothing about its wiring, its Incus initialisation or its images until it reruns doctor, which is the journey of 2026-11-15",
       "file": "internal/cli/doctor_setup.go",
-      "find": "\t\t\tout = append(out, c)\n\t\tdefault:\n\t\t\tout = append(out, check{id: stepOVN,",
-      "replace": "\t\t\tout = append(out, c)\n\t\t\treturn out\n\t\tdefault:\n\t\t\tout = append(out, check{id: stepOVN,",
+      "find": "\t\t\tout = append(out, c)\n\t\tdefault:\n\t\t\tout = append(out, ovnVersionCheck(",
+      "replace": "\t\t\tout = append(out, c)\n\t\t\treturn out\n\t\tdefault:\n\t\t\tout = append(out, ovnVersionCheck(",
       "test": "TestDoctorListsEveryMissingStepInOnePass"
     },
     {

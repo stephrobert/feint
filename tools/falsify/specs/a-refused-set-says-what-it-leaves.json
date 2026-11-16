@@ -1,0 +1,122 @@
+{
+  "package": "./internal/core/machine/",
+  "note": "#979, correction cycle 1: a refused rule set says what it leaves (the refused version is not written; a version written earlier under the same name stays attached and enforced), a host Verify found below the floor writes no rule set, a stateless refusal on an OVN host Verify narrowed names the host's reason rather than the mode in use, and incus-release.sh comments once per release. One mutation per question. Correction cycle 2 adds: isolation refused below the floor and Isolation withdrawn with the firewall; the way out of each refusal said apart; the role's guard held to doctor's table. NOT HERE: the Ansible guard on bookworm and jammy (exercised by ansible-playbook --check, not by a Go test).",
+  "mutations": [
+    {
+      "label": "a host below the floor writes and attaches rule sets again",
+      "file": "internal/core/machine/incus_firewall.go",
+      "find": "\tif d.firewallWhy != \"\" {",
+      "replace": "\tif d.firewallWhy != \"\" && false {",
+      "test": "TestABelowFloorHostWritesNoRuleSet"
+    },
+    {
+      "label": "Verify withdraws the firewall without keeping the reason the gate reads",
+      "file": "internal/core/machine/verify.go",
+      "find": "\t\t\td.firewallWhy = why\n",
+      "replace": "\t\t\td.firewallWhy = why[:0]\n",
+      "test": "TestABelowFloorHostWritesNoRuleSet"
+    },
+    {
+      "label": "the below-floor refusal is logged as one more operational error",
+      "file": "internal/core/machine/firewall_binding.go",
+      "find": "\t\tif errors.Is(err, ErrFirewallUnverified) {",
+      "replace": "\t\tif errors.Is(err, ErrFirewallUnverified) && false {",
+      "test": "TestABelowFloorRefusalIsReportedAsTheDeclaredLimit"
+    },
+    {
+      "label": "an OVN host Verify narrowed is told to run the OVN mode it already runs",
+      "file": "internal/core/machine/incus_firewall.go",
+      "find": "\tif d.OVN {\n\t\twhy := d.statelessWhy",
+      "replace": "\tif d.OVN && false {\n\t\twhy := d.statelessWhy",
+      "test": "TestAnOVNHostVerifyNarrowedNamesItsOwnReason"
+    },
+    {
+      "label": "Verify narrows stateless rules without keeping the host's reason",
+      "file": "internal/core/machine/verify.go",
+      "find": "\t\t\t\tunmet = append(unmet, \"stateless rules: \"+why)\n\t\t\t\td.statelessWhy = why",
+      "replace": "\t\t\t\tunmet = append(unmet, \"stateless rules: \"+why)\n\t\t\t\td.statelessWhy = why[:0]",
+      "test": "TestAnOVNHostVerifyNarrowedNamesItsOwnReason"
+    },
+    {
+      "label": "the stateless warning stops saying the older version stays",
+      "file": "internal/core/machine/firewall_binding.go",
+      "find": "\"its rules, and \"+keptAsWritten+statelessExit,",
+      "replace": "\"its rules, and \"+keptAsWritten[:0]+statelessExit,",
+      "test": "TestAGroupTurnedStatelessKeepsItsOldSet"
+    },
+    {
+      "label": "the bridge refusal stops saying what it leaves on the host",
+      "file": "internal/core/machine/incus_firewall.go",
+      "find": "\t\tspec.Name, d.Name(), keptAsWritten, statelessExit, ErrStatelessUnenforceable)",
+      "replace": "\t\tspec.Name, d.Name(), keptAsWritten[:0], statelessExit, ErrStatelessUnenforceable)",
+      "test": "TestABridgeModeRefusesAStatelessRuleSetByName"
+    },
+    {
+      "label": "the open issue is commented every night, whatever release it already names",
+      "file": "tools/ci/incus-release.sh",
+      "find": "  if grep -qxF \"Release notes for ${latest}:\" <<<\"${last}\"; then\n    already=true",
+      "replace": "  if grep -qxF \"Release notes for ${latest}:\" <<<\"${last}\"; then\n    already=false",
+      "test": "TestIncusReleaseCommentsOncePerRelease",
+      "package": "./tools/ci/"
+    },
+    {
+      "label": "an issue that cannot be read ends the run green, as if there were nothing to judge",
+      "file": "tools/ci/incus-release.sh",
+      "find": "    echo \"incus-release: could not read issue #${existing} to tell whether ${latest} was already reported\" >&2\n    exit 1",
+      "replace": "    echo \"incus-release: could not read issue #${existing} to tell whether ${latest} was already reported\" >&2\n    exit 0",
+      "test": "TestIncusReleaseCommentsOncePerRelease",
+      "package": "./tools/ci/"
+    },
+    {
+      "label": "the stateless warning stops naming its way out",
+      "file": "internal/core/machine/firewall_binding.go",
+      "find": "\"its rules, and \"+keptAsWritten+statelessExit,",
+      "replace": "\"its rules, and \"+keptAsWritten+statelessExit[:0],",
+      "test": "TestAGroupTurnedStatelessKeepsItsOldSet"
+    },
+    {
+      "label": "the below-floor refusal stops saying that nothing is rewritten before 6.0.5",
+      "file": "internal/core/machine/incus_firewall.go",
+      "find": "\t\t\tspec.Name, d.firewallWhy, keptAsWritten, floorExit(), ErrFirewallUnverified)",
+      "replace": "\t\t\tspec.Name, d.firewallWhy, keptAsWritten, floorExit()[:0], ErrFirewallUnverified)",
+      "test": "TestABelowFloorHostWritesNoRuleSet"
+    },
+    {
+      "label": "a host below the floor writes and attaches its isolation sets again",
+      "file": "internal/core/machine/incus_isolate.go",
+      "find": "\tif d.firewallWhy != \"\" {",
+      "replace": "\tif d.firewallWhy != \"\" && false {",
+      "test": "TestABelowFloorHostWritesNoIsolation"
+    },
+    {
+      "label": "Verify keeps publishing isolation on a host where no isolation set is written",
+      "file": "internal/core/machine/verify.go",
+      "find": "\t\t\tverified.Isolation = false\n\t\t\tunmet = append(unmet, \"firewall: \"+why)",
+      "replace": "\t\t\tverified.Isolation = declared.Isolation\n\t\t\tunmet = append(unmet, \"firewall: \"+why)",
+      "test": "TestABelowFloorHostWritesNoIsolation"
+    },
+    {
+      "label": "a below-floor isolation refusal is logged as one more operational error",
+      "file": "internal/core/machine/isolate.go",
+      "find": "\tif errors.Is(err, ErrFirewallUnverified) {\n\t\tlog.Warn(",
+      "replace": "\tif errors.Is(err, ErrFirewallUnverified) && false {\n\t\tlog.Warn(",
+      "test": "TestABelowFloorIsolationIsReportedAsTheDeclaredLimit"
+    },
+    {
+      "label": "the role's guard forgets Ubuntu 22.04, which doctor still names",
+      "file": "tools/install/ansible/roles/feint_host/tasks/debian.yml",
+      "find": "ansible_distribution_release in [\"bookworm\", \"jammy\"]",
+      "replace": "ansible_distribution_release in [\"bookworm\"]",
+      "test": "TestTheRoleRefusesOVNOnTheReleasesDoctorNames",
+      "package": "./tools/ci/"
+    },
+    {
+      "label": "doctor exports its releases' display names in place of their codenames",
+      "file": "internal/cli/doctor_setup.go",
+      "find": "\t\tnames = append(names, r.codename)",
+      "replace": "\t\tnames = append(names, r.name)",
+      "test": "TestTheRoleRefusesOVNOnTheReleasesDoctorNames",
+      "package": "./tools/ci/"
+    }
+  ]
+}

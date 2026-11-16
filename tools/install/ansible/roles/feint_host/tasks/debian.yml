@@ -39,6 +39,24 @@
       Architectures: {{ 'arm64' if ansible_architecture == 'aarch64' else 'amd64' }}
       Signed-By: /etc/apt/keyrings/zabbly.asc
 
+# Incus 7.4 and later need OVN 24.03.0 and Open vSwitch 3.3.0. Debian 12 ships
+# OVN 23.03.1 and Open vSwitch 3.1.0 (sources.debian.org, read 2026-11-16),
+# Ubuntu 22.04 OVN 22.03.8 and Open vSwitch 2.17.12 (Launchpad, jammy-updates,
+# read 2026-11-16). Installing them beside the pinned Incus builds a pairing it
+# refuses, so the play stops here and says so (#979; the same releases doctor
+# names in internal/cli/doctor_setup.go, oldOVNReleases). Read, not measured on
+# either release.
+- name: Refuse OVN where the distribution's is older than the tested Incus needs
+  ansible.builtin.fail:
+    msg: >-
+      {{ ansible_distribution }} {{ ansible_distribution_version }} ships an OVN and
+      Open vSwitch older than the OVN 24.03.0 and Open vSwitch 3.3.0 that Incus
+      {{ feint_host_incus_version }} requires. Set feint_host_want_ovn to false for
+      --vm incus, or use Debian 13 or Ubuntu 24.04.
+  when:
+    - feint_host_want_ovn | bool
+    - ansible_distribution_release in ["bookworm", "jammy"]
+
 - name: Install Incus and OVN
   ansible.builtin.apt:
     name: "{{ feint_host_incus_packages + (feint_host_ovn_packages if feint_host_want_ovn | bool else []) }}"

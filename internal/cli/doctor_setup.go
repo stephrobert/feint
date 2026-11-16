@@ -40,6 +40,65 @@ import (
 type distro struct {
 	pretty string
 	family string // "debian", "fedora", "rocky", or "" when unknown
+	// oldOVN names the release when its own OVN and Open vSwitch are older
+	// than what machine.IncusTested needs; nil otherwise. Doctor then prints
+	// no OVN command for it and says why (ovnBelowTestedWhy).
+	oldOVN *oldOVNRelease
+	// ovnBelowTested is oldOVN != nil, kept as the question callers ask.
+	ovnBelowTested bool
+}
+
+// oldOVNRelease is a release whose own OVN and Open vSwitch are below
+// machine.OVNMinimum and machine.OVSMinimum, the minimums Incus 7.4 raised
+// (7.4 release announcement; docs/runtime-incus.md, I14). `apt-get install
+// ovn-central` there installs a pairing the tested Incus refuses. Each row is
+// read from the package archive, not measured on a machine of that release.
+//
+// Before #979 doctor printed the Debian OVN command on these releases like on
+// any other of the family. TestDebian12GetsNoOVNCommand fails without
+// the refusal.
+type oldOVNRelease struct {
+	name, id, version, codename, ovn, ovs, source string
+}
+
+var oldOVNReleases = []oldOVNRelease{
+	{"Debian 12", "debian", "12", "bookworm", "23.03.1", "3.1.0", "sources.debian.org, bookworm, read 2026-11-16"},
+	{"Ubuntu 22.04", "ubuntu", "22.04", "jammy", "22.03.8", "2.17.12", "Launchpad, jammy-updates, read 2026-11-16"},
+}
+
+// OldOVNCodenames is the codename of every release in oldOVNReleases. The
+// install role refuses OVN on the same releases, and
+// TestTheRoleRefusesOVNOnTheReleasesDoctorNames (tools/ci) holds its list to
+// this one, so the table is written once.
+func OldOVNCodenames() []string {
+	names := make([]string, 0, len(oldOVNReleases))
+	for _, r := range oldOVNReleases {
+		names = append(names, r.codename)
+	}
+	return names
+}
+
+// oldOVNOf finds the release os-release describes, by its own ID and
+// VERSION_ID, or for a derivative by the codename it names: VERSION_CODENAME,
+// or the base it declares (DEBIAN_CODENAME as LMDE does, UBUNTU_CODENAME as
+// Pop!_OS and Mint do).
+func oldOVNOf(values map[string]string) *oldOVNRelease {
+	for i, r := range oldOVNReleases {
+		if (values["ID"] == r.id && values["VERSION_ID"] == r.version) ||
+			values["VERSION_CODENAME"] == r.codename ||
+			values["DEBIAN_CODENAME"] == r.codename || values["UBUNTU_CODENAME"] == r.codename {
+			return &oldOVNReleases[i]
+		}
+	}
+	return nil
+}
+
+// ovnBelowTestedWhy says why no OVN command is printed on such a release, with
+// the versions it ships and the ones the tested Incus needs.
+func ovnBelowTestedWhy(r *oldOVNRelease) string {
+	return "Incus 7.4 and later need OVN " + machine.OVNMinimum + " and Open vSwitch " + machine.OVSMinimum + ", and " +
+		r.name + " ships OVN " + r.ovn + " and Open vSwitch " + r.ovs + " (" + r.source + "). " +
+		"Doctor prints no install command for a pairing the tested Incus refuses. Use Debian 13 or Ubuntu 24.04 for --vm incus-ovn; --vm incus works here, without isolation between VPCs."
 }
 
 func (d distro) label() string {
@@ -85,6 +144,8 @@ func parseOSRelease(text string) distro {
 			break
 		}
 	}
+	d.oldOVN = oldOVNOf(values)
+	d.ovnBelowTested = d.oldOVN != nil
 	return d
 }
 
@@ -116,6 +177,8 @@ var setupBlocks = map[string][]string{
 		"sudo apt-get install -y --no-install-recommends incus incus-client",
 	},
 	"debian-ovn": {
+		"# Not on Debian 12 or Ubuntu 22.04: their own OVN and Open vSwitch are below",
+		"# OVN " + machine.OVNMinimum + " and Open vSwitch " + machine.OVSMinimum + ", which Incus 7.4 and later require.",
 		"sudo apt-get install -y --no-install-recommends ovn-central ovn-host openvswitch-switch",
 	},
 	"fedora-incus": {
@@ -218,6 +281,9 @@ type hostProbe struct {
 	// images lists the machine images that are missing. Separate because it
 	// goes through the driver, which already knows which images it needs.
 	images func(ctx context.Context) (missing []string, err error)
+	// kernel returns the running kernel's release string; nil in a probe
+	// that does not read it.
+	kernel func() (string, error)
 }
 
 func realHostProbe() hostProbe {
@@ -243,6 +309,10 @@ func realHostProbe() hostProbe {
 		images: func(ctx context.Context) ([]string, error) {
 			return missingImageNames(ctx, machine.Use(machine.NewIncus()))
 		},
+		kernel: func() (string, error) {
+			b, err := os.ReadFile("/proc/sys/kernel/osrelease")
+			return string(b), err
+		},
 	}
 }
 
@@ -258,7 +328,14 @@ type station struct {
 
 	ovsInstalled bool
 	ovnInstalled bool
-	nbSocket     bool
+	// ovnVersion and ovsVersion are what `ovn-nbctl --version` and
+	// `ovs-vsctl --version` print, nil when unreadable.
+	ovnVersion []int
+	ovsVersion []int
+	nbSocket   bool
+	// system holds what the system floors of Incus 7.0 were read as, by
+	// label; a component absent from the host is absent from the map.
+	system map[string]systemPart
 	// ovsIDs is nil when Open vSwitch could not be asked (its socket is
 	// root-only on Debian: "database connection failed (Permission denied)").
 	ovsIDs map[string]string
@@ -333,6 +410,17 @@ func probeStation(ctx context.Context, p hostProbe) station {
 	s.ovsInstalled = ovsErr == nil
 	_, ovnErr := p.lookPath("ovn-nbctl")
 	s.ovnInstalled = ovnErr == nil
+	if s.ovnInstalled {
+		if out, err := p.run(ctx, "ovn-nbctl", "--version"); err == nil {
+			s.ovnVersion = firstLineVersion(string(out))
+		}
+	}
+	if s.ovsInstalled {
+		if out, err := p.run(ctx, "ovs-vsctl", "--version"); err == nil {
+			s.ovsVersion = firstLineVersion(string(out))
+		}
+	}
+	s.system = probeSystem(ctx, p)
 	s.nbSocket = p.exists("/run/ovn/ovnnb_db.sock")
 	s.brInt = p.exists("/sys/class/net/br-int")
 	if s.ovsInstalled {
@@ -362,6 +450,65 @@ func parseIncusVersion(out string) []int {
 		v[i], _ = strconv.Atoi(m[i+1])
 	}
 	return v
+}
+
+// dottedVersion matches the first release number on a line: `ovn-nbctl
+// 24.03.8`, `ovs-vsctl (Open vSwitch) 3.3.9`.
+var dottedVersion = regexp.MustCompile(`(\d+)\.(\d+)(?:\.(\d+))?`)
+
+// firstLineVersion reads the version on the first line only: ovn-nbctl
+// prints the Open vSwitch library's version on its second line, and reading
+// the whole output could take one for the other. nil when there is none.
+func firstLineVersion(out string) []int {
+	line, _, _ := strings.Cut(out, "\n")
+	m := dottedVersion.FindStringSubmatch(line)
+	if m == nil {
+		return nil
+	}
+	var v []int
+	for _, part := range m[1:] {
+		if part == "" {
+			break
+		}
+		n, err := strconv.Atoi(part)
+		if err != nil {
+			return nil
+		}
+		v = append(v, n)
+	}
+	return v
+}
+
+// ovnText writes an OVN version the way OVN does, year.month with the month on
+// two digits: 23.03.1, never 23.3.1, which names no release a reader can find.
+func ovnText(v []int) string {
+	if len(v) < 2 {
+		return versionText(v)
+	}
+	text := fmt.Sprintf("%d.%02d", v[0], v[1])
+	for _, n := range v[2:] {
+		text += "." + strconv.Itoa(n)
+	}
+	return text
+}
+
+// ovnFloor and ovsFloor are machine.OVNMinimum and machine.OVSMinimum as
+// numbers.
+var ovnFloor, ovsFloor = firstLineVersion(machine.OVNMinimum), firstLineVersion(machine.OVSMinimum)
+
+// threeParts pads a version read from `incus version` to the tuple the
+// runtime compares: 6.0 is 6.0.0.
+func threeParts(v []int) [3]int {
+	var out [3]int
+	copy(out[:], v)
+	return out
+}
+
+// testedSeries reports whether an Incus version is the release the runtime
+// proof runs, compared on major and minor: Zabbly publishes X.Y releases, and
+// the pin `1:X.Y-*` takes every build of one.
+func testedSeries(v []int) bool {
+	return len(v) >= 2 && v[0] == incusRecommended[0] && v[1] == incusRecommended[1]
 }
 
 func versionAtLeast(got []int, floor []int) bool {
@@ -445,7 +592,7 @@ func setupChecks(s station, mode string) []check {
 	case s.incusVersion != nil && !versionAtLeast(s.incusVersion, incusMinimum[:]):
 		c := check{id: stepIncus, group: groupMachines, state: verdictWarn, step: true,
 			title:  fmt.Sprintf("Incus %s is too old: %s or later is needed.", versionText(s.incusVersion), floor),
-			detail: "Below " + floor + " a security group attaches and blocks nothing. " + incusSource(s.distro)}
+			detail: machine.IncusBelowMinimum(threeParts(s.incusVersion)) + " " + incusSource(s.distro)}
 		if b := familyBlock(s.distro, "incus"); b != "" {
 			c.commands, c.root = commands(b), true
 		} else {
@@ -455,9 +602,21 @@ func setupChecks(s station, mode string) []check {
 	case s.incusVersion == nil:
 		out = append(out, check{id: stepIncus, group: groupMachines, state: verdictWarn,
 			title: "Incus is installed, but its version could not be read.", detail: "`incus version` gave nothing doctor could parse."})
+	case !testedSeries(s.incusVersion):
+		// Not a step and not a failure: above the floor everything runs. It
+		// says what was proven, which the user path cannot pin (#979: the
+		// install page installs Zabbly's latest, and Zabbly keeps no other).
+		// TestDoctorSaysWhenIncusIsNotTheTestedRelease fails without it.
+		out = append(out, check{id: stepIncus, group: groupMachines, state: verdictWarn,
+			title:  fmt.Sprintf("Incus %s is installed; feint is tested on %s.", versionText(s.incusVersion), machine.IncusTested),
+			detail: floor + " or later is needed, so it runs; what the runtime proof proved ran on " + machine.IncusTested + ". docs/runtime-incus.md records what changed between releases."})
 	default:
 		out = append(out, check{id: stepIncus, group: groupMachines, state: verdictOK,
 			title: fmt.Sprintf("Incus %s is installed (%s or later is needed).", versionText(s.incusVersion), floor)})
+	}
+
+	if c := systemCheck(s); c.id != "" {
+		out = append(out, c)
 	}
 
 	// The steps that need Incus are reported even when Incus is absent, each
@@ -485,14 +644,17 @@ func setupChecks(s station, mode string) []check {
 			if auto {
 				c.detail = optionalWhy
 			}
-			if b := familyBlock(s.distro, "ovn"); b != "" {
+			if s.distro.ovnBelowTested {
+				c.title = "OVN and Open vSwitch are not installed, and this release's own are too old for Incus " + machine.IncusTested + "."
+				c.detail += " " + ovnBelowTestedWhy(s.distro.oldOVN)
+			} else if b := familyBlock(s.distro, "ovn"); b != "" {
 				c.commands, c.root = commands(b), true
 			} else {
 				c.detail += " " + unknownFamily(s.distro)
 			}
 			out = append(out, c)
 		default:
-			out = append(out, check{id: stepOVN, group: groupMachines, state: verdictOK, title: "OVN and Open vSwitch are installed."})
+			out = append(out, ovnVersionCheck(s, auto, optionalWhy))
 		}
 		w := wiringCheck(s)
 		if auto && w.state != verdictOK {
@@ -533,6 +695,116 @@ func setupChecks(s station, mode string) []check {
 	return out
 }
 
+// systemPart is one system component as read: found on the host, and its
+// version, nil when its output named none.
+type systemPart struct {
+	version []int
+}
+
+// systemFloors are the system minimums of Incus 7.0 and later, in the order
+// doctor names them. tool is the command whose `--version` is read; "" is the
+// kernel, read from /proc.
+var systemFloors = []struct{ label, tool, floor string }{
+	{"Linux", "", machine.KernelMinimum},
+	{"nftables", "nft", machine.NftablesMinimum},
+	{"dnsmasq", "dnsmasq", machine.DnsmasqMinimum},
+}
+
+func probeSystem(ctx context.Context, p hostProbe) map[string]systemPart {
+	parts := map[string]systemPart{}
+	for _, f := range systemFloors {
+		switch {
+		case f.tool == "" && p.kernel != nil:
+			if text, err := p.kernel(); err == nil {
+				parts[f.label] = systemPart{version: firstLineVersion(text)}
+			} else {
+				parts[f.label] = systemPart{}
+			}
+		case f.tool != "":
+			if _, err := p.lookPath(f.tool); err != nil {
+				continue // absent: Incus's own packaging decides, not doctor
+			}
+			out, _ := p.run(ctx, f.tool, "--version")
+			parts[f.label] = systemPart{version: firstLineVersion(string(out))}
+		}
+	}
+	return parts
+}
+
+// systemCheck warns when the host is below a system minimum of Incus 7.0 and
+// later, and when a component's version cannot be read. A warning, never a
+// step: upstream lists these as requirements, and what breaks below them was
+// not measured here.
+func systemCheck(s station) check {
+	var below, unread, met []string
+	for _, f := range systemFloors {
+		part, found := s.system[f.label]
+		switch {
+		case !found:
+		case part.version == nil:
+			unread = append(unread, f.label)
+		case !versionAtLeast(part.version, firstLineVersion(f.floor)):
+			below = append(below, f.label+" "+versionText(part.version)+" (needs "+f.floor+")")
+		default:
+			met = append(met, f.label+" "+versionText(part.version))
+		}
+	}
+	const why = "Incus 7.0 raised its minimum system requirements to Linux " + machine.KernelMinimum +
+		", nftables " + machine.NftablesMinimum + " and dnsmasq " + machine.DnsmasqMinimum + "."
+	switch {
+	case len(below) > 0:
+		return check{id: "system", group: groupMachines, state: verdictWarn,
+			title:  "Below what Incus " + machine.IncusTested + " requires: " + strings.Join(below, ", ") + ".",
+			detail: why + " What fails below them was not measured with feint."}
+	case len(unread) > 0:
+		return check{id: "system", group: groupMachines, state: verdictWarn,
+			title:  "Doctor could not read the version of " + joinAnd(unread) + ".",
+			detail: why}
+	case len(met) == 0:
+		return check{}
+	}
+	return check{id: "system", group: groupMachines, state: verdictOK,
+		title: joinAnd(met) + " meet what Incus " + machine.IncusTested + " requires."}
+}
+
+// ovnVersionCheck judges an installed OVN and Open vSwitch against what
+// machine.IncusTested needs, on every distribution. Before, an installed OVN
+// was enough: Debian 12 or Ubuntu 22.04 with their own packages read "OVN and
+// Open vSwitch are installed" and failed at the first subnet.
+// TestAnOVNOlderThanTheTestedIncusNeedsIsAStep fails without the comparison.
+func ovnVersionCheck(s station, auto bool, optionalWhy string) check {
+	need := "OVN " + machine.OVNMinimum + " and Open vSwitch " + machine.OVSMinimum
+	if s.ovnVersion == nil || s.ovsVersion == nil {
+		return check{id: stepOVN, group: groupMachines, state: verdictWarn,
+			title:  "OVN and Open vSwitch are installed, but doctor could not read their versions.",
+			detail: "`ovn-nbctl --version` or `ovs-vsctl --version` gave nothing doctor could parse. Incus " + machine.IncusTested + " needs " + need + " or later."}
+	}
+	have := "OVN " + ovnText(s.ovnVersion) + " and Open vSwitch " + versionText(s.ovsVersion)
+	if versionAtLeast(s.ovnVersion, ovnFloor) && versionAtLeast(s.ovsVersion, ovsFloor) {
+		return check{id: stepOVN, group: groupMachines, state: verdictOK,
+			title: have + " are installed (" + need + " or later are needed)."}
+	}
+	c := check{id: stepOVN, group: groupMachines, state: verdictWarn, optional: auto, step: true,
+		title:  have + " are installed, and Incus " + machine.IncusTested + " needs " + need + " or later.",
+		detail: "Incus 7.4 raised these minimums, and its OVN driver refuses older ones: --vm incus-ovn would start and fail at the first subnet."}
+	if auto {
+		c.detail = optionalWhy + " " + c.detail
+	}
+	// Only the Debian family's install command also upgrades: `apt-get
+	// install` of an installed package moves it to the candidate, where `dnf
+	// install` answers "already installed".
+	switch {
+	case s.distro.ovnBelowTested || s.distro.family == "":
+		c.detail += " This distribution ships older ones: use Debian 13 or Ubuntu 24.04 for --vm incus-ovn; --vm incus works here, without isolation between VPCs."
+	case s.distro.family == "debian":
+		c.detail += " Upgrade them from your distribution's packages; if it ships nothing newer, use Debian 13 or Ubuntu 24.04."
+		c.commands, c.root = commands("debian-ovn"), true
+	default:
+		c.detail += " Upgrade them with your package manager (sudo dnf upgrade); if your distribution ships nothing newer, use Debian 13 or Ubuntu 24.04."
+	}
+	return c
+}
+
 // wiringWhy is why --vm incus-ovn needs the wiring; under auto it gives way
 // to the optional sentence.
 const wiringWhy = "Without this, creating a subnet fails, and the error does not say why."
@@ -552,6 +824,10 @@ func wiringCheck(s station) check {
 
 	remote := s.ovsIDs["ovn-remote"]
 	switch {
+	case (!s.ovsInstalled || !s.ovnInstalled) && s.distro.ovnBelowTested:
+		// Nothing to wire: the step it needs prints no install command here.
+		c.title, c.commands, c.root = "Open vSwitch is not connected to OVN.", nil, false
+		c.detail = "There is nothing to wire until OVN is installed, and the step above says why it is not, on this release."
 	case !s.ovsInstalled || !s.ovnInstalled:
 		c.title = "Open vSwitch is not connected to OVN."
 	case s.ovsIDs != nil && remote != "" && s.ovsIDs["ovn-encap-type"] != "" && s.ovsIDs["ovn-encap-ip"] != "" && s.nbSocket:

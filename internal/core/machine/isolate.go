@@ -166,6 +166,15 @@ func (b Binding) ReconcileIsolation(ctx context.Context, noun string,
 // TestAVanishedNetworkIsReportedRatherThanSwallowed fails when this reports
 // nothing.
 func report(log *slog.Logger, noun string, m IsolationMember, err error, verb string) {
+	// A host below the floor isolates nothing, by declaration (#979): said at
+	// warning level, with the reason, like the rule sets it also refuses.
+	// TestABelowFloorIsolationIsReportedAsTheDeclaredLimit fails without it.
+	if errors.Is(err, ErrFirewallUnverified) {
+		log.Warn("this host is below what the runtime supports, so the "+noun+"'s network is not isolated "+
+			"(capabilities.isolation=false, docs/limits.md)",
+			noun, m.ID, "network", m.Network, "error", err)
+		return
+	}
 	if errors.Is(err, ErrNetworkGone) {
 		log.Warn("the "+noun+"'s network was removed while its isolation was being reconciled, so none was applied",
 			noun, m.ID, "network", m.Network, "error", err)

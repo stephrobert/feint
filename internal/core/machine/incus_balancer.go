@@ -281,7 +281,9 @@ func (d *Incus) balancerRefused(err error) error {
 // Prose, and a last resort, exactly as isNotFound says of itself — which is why
 // it is used on one line only, the DELETE, where the alternative is a race
 // nobody can close structurally. The wording is the daemon's, measured on Incus
-// 7.2 on 2026-08-20: "Error: Network load balancer not found".
+// 7.2 on 2026-08-20: "Error: Network load balancer not found". Unchanged on
+// 7.6 (2026-11-16), where the DELETE says "Failed deleting load balancer:
+// Network load balancer not found" (TestEveryMatchedWordingOfIncus76IsRecognised).
 func balancerGone(err error) bool {
 	return strings.Contains(strings.ToLower(err.Error()), "load balancer not found")
 }

@@ -89,6 +89,13 @@ func NetworkName(prefix, id string) string {
 // and it is deliberately narrow: a broader match once read "Storage pool not
 // found" as "the instance is gone", so Remove reported success and left the
 // instance running.
+//
+// The first four were provoked on Incus 7.6 on 2026-11-16 and still match:
+// "Failed to fetch instance … Instance not found", "Network not found",
+// "Network ACL not found", "Network forward not found"
+// (TestEveryMatchedWordingOfIncus76IsRecognised). "Storage volume not found"
+// is the server's text in v7.2.0 and v7.6.0 alike; the client rewrites it
+// for `storage volume show`, which this driver never runs.
 var notFoundPhrases = []string{
 	"instance not found",
 	"network not found",

@@ -10,8 +10,9 @@
 # publishes is the address the machine carries. A security group's default policy closes a port,
 # for real. And authorising that port afterwards opens it without restarting anything.
 #
-# Requires a machine runtime that can enforce rules: `feint serve --vm incus` with Incus 6.0.4 or
-# later. Older runtimes reject security.acls on a bridged NIC, and the firewall steps are skipped
+# Requires a machine runtime that can enforce rules: `feint serve --vm incus` with Incus 6.0.5 or
+# later. Below 6.0.4 the runtime rejects security.acls on a bridged NIC, and 6.0.4 orders its
+# nftables rules wrongly (lxc/incus#2222); there the firewall steps are skipped
 # rather than silently passing. With --vm off the whole suite is skipped.
 #
 # Usage: tools/conformance/scaleway/network.sh [endpoint]

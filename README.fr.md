@@ -31,7 +31,7 @@
 >
 > **Prouvé** : 384 des 409 opérations montées sont pilotées par un vrai client, à chaque pull request. `scw`, `octl`, `exo`, Terraform et OpenTofu tournent contre l'émulateur en CI. Et chaque nuit, les machines démarrent réellement : connexion ssh sur le compte par défaut de chaque provider, pare-feu qui filtre, et subnets isolés sous `incus-ovn`, le seul mode qui le déclare. Démarrer des machines demande un runtime que le chemin des pull requests n'a pas. La chaîne complète est décrite dans [docs/conformance.md](docs/conformance.md).
 >
-> **Pas prouvé** : quotas, prix, capacité réelle, validation des identifiants, authentification, cohérence à terme. Les 65 sections de [docs/limits.md](docs/limits.md) disent chacune ce qu'elle coûte. Un émulateur avec un seul compte implicite et aucune grille tarifaire devrait inventer ces chiffres, et quelqu'un agirait dessus.
+> **Pas prouvé** : quotas, prix, capacité réelle, validation des identifiants, authentification, cohérence à terme. Les 66 sections de [docs/limits.md](docs/limits.md) disent chacune ce qu'elle coûte. Un émulateur avec un seul compte implicite et aucune grille tarifaire devrait inventer ces chiffres, et quelqu'un agirait dessus.
 >
 > **Inconnu** : 25 opérations sont montées et n'ont jamais été pilotées par un client. Chacune dit pourquoi aucun client officiel ne l'atteint, à la route et dans [docs/routes.md](docs/routes.md). Elles sont comptées plutôt qu'escamotées, une par une, dans [coverage/evidence.json](coverage/evidence.json).
 >
@@ -251,20 +251,31 @@ Terraform vers un émulateur, arrêtez de lire ici et allez à
 
 Deux choses ne servent qu'à ce qu'elles permettent : **Go 1.26** pour construire
 depuis les sources — un binaire publié n'a besoin de rien — et
-[**Incus**](https://linuxcontainers.org/incus/), 6.0.4 au minimum et 7.2
+[**Incus**](https://linuxcontainers.org/incus/), 6.0.5 au minimum et 7.6
 recommandé, pour `--vm` : les serveurs allumés deviennent alors de vrais
 conteneurs ou de vraies machines KVM dans lesquelles on peut entrer en `ssh`.
 **OVN** en plus (`ovn-central`, `ovn-host`, Open vSwitch) donne
 `--vm incus-ovn` : des subnets réellement séparés, donc deux VPC qui ne peuvent
 pas s'atteindre.
 
-6.0.4 est un plancher et non une préférence : en dessous, le runtime refuse les
+6.0.5 est un plancher et non une préférence. Sous 6.0.4, le runtime refuse les
 ACL sur une NIC, et l'échec ressemble à un bug de Feint plutôt qu'à une
-fonctionnalité manquante. Ubuntu 24.04 livre 6.0.0 et n'ira pas au-delà, donc le
+fonctionnalité manquante. La 6.0.4 ordonne encore mal ses règles nftables en
+mode pont, un défaut de sécurité corrigé en 6.0.5 par lxc/incus#2222, et ce que
+Feint affirme du pare-feu en mode pont suppose ce correctif. Ubuntu 24.04 livre 6.0.0 et n'ira pas au-delà, donc le
 canal stable Zabbly est la voie pratique vers une version supportée.
-`feint doctor` vérifie tout cela contre ce même 6.0.4, et dit quoi installer,
-ce qui est l'intérêt de l'avoir. Le tableau exact des versions est dans [la
-version anglaise](README.md#prerequisites), rendu depuis le code.
+`feint doctor` vérifie tout cela contre ce même 6.0.5, et dit quoi installer,
+ce qui est l'intérêt de l'avoir. Sous ce plancher, le pare-feu est retiré dans
+tous les modes, OVN compris : un hôte sous le plancher n'est pas pris en charge,
+même si la raison du plancher est un correctif du mode pont.
+
+« 7.6 recommandé » veut dire la version que la preuve runtime de chaque nuit
+installe, épinglée sur elle plutôt que sur ce que le canal sert ce soir-là. Une
+vérification planifiée ouvre une issue quand Zabbly stable publie une autre
+version, et [docs/runtime-incus.md](docs/runtime-incus.md) consigne ce qui a
+changé en amont entre les versions que cette page a recommandées. Le tableau
+exact des versions est dans [la version anglaise](README.md#prerequisites),
+rendu depuis le code.
 
 ### Un binaire publié
 
@@ -650,7 +661,11 @@ c'est celui qui porte l'argument du produit : **l'isolation entre deux VPC**.
 Le mode pont ne peut pas la livrer — deux bridges gérés d'un même hôte sont
 routés directement entre eux, le runtime le documente. OVN la livre par
 construction, un réseau logique ayant son propre routeur. Tout le reste — les
-machines, les adresses, le pare-feu — tient dans les deux modes.
+machines, les adresses, le pare-feu — tient dans les deux modes, à deux
+exceptions près, OVN seul elles aussi : l'équilibrage de charge, et les règles
+sans état d'un groupe de sécurité (#979), que les modes pont refusent par leur
+nom parce qu'Incus n'applique `allow-stateless` que sur un réseau OVN
+(`capabilities.stateless_rules`).
 
 Ce qu'un mode sait faire est **déclaré**, pas déduit d'un nom : voir
 `capabilities` sur `/_feint/health`. Et une capacité non déclarée vaut absente,

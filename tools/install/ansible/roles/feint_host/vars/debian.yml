@@ -3,7 +3,18 @@
 # 6.0.x and Ubuntu 24.04 carries 6.0.0, where NIC ACLs are refused below 6.0.4.
 # A security group then attaches and enforces nothing, which looks exactly like a
 # bug in feint. So the packaging the Incus maintainer publishes is used instead.
-feint_host_incus_packages: [incus, incus-client]
+#
+# Pinned to the release the runtime proof installs, machine.IncusTested
+# (internal/core/machine/incus_tested.go), so the machines that prove the
+# install page run the tested release and not whatever Zabbly published last.
+# `1:<release>-*` takes any build of that release and no other release, the
+# same spelling as runtime-proof.yml. TestTheInstallRoleInstallsTheTestedIncus
+# (tools/ci/incus_pin_test.go) fails when this disagrees with the constant, or
+# when a package goes unpinned (#979).
+feint_host_incus_version: "7.6"
+feint_host_incus_packages:
+  - "incus=1:{{ feint_host_incus_version }}-*"
+  - "incus-client=1:{{ feint_host_incus_version }}-*"
 feint_host_ovn_packages: [ovn-central, ovn-host, openvswitch-switch]
 feint_host_ovn_services: [openvswitch-switch, ovn-central, ovn-host]
 feint_host_zabbly_key_url: https://pkgs.zabbly.com/key.asc

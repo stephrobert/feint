@@ -1,0 +1,68 @@
+{
+  "package": "./internal/core/machine/",
+  "mutations": [
+    {
+      "label": "the guard stops asking whether the set holds a stateless rule, so every set is refused on a bridge",
+      "file": "internal/core/machine/incus_firewall.go",
+      "find": "\tif spec.HasStatelessRule() && !d.Capabilities().StatelessRules {",
+      "replace": "\tif (spec.HasStatelessRule() || true) && !d.Capabilities().StatelessRules {",
+      "test": "TestABridgeModeStillWritesAStatefulRuleSet"
+    },
+    {
+      "label": "the guard stops asking the capability, so OVN refuses a set it enforces natively",
+      "file": "internal/core/machine/incus_firewall.go",
+      "find": "\tif spec.HasStatelessRule() && !d.Capabilities().StatelessRules {",
+      "replace": "\tif spec.HasStatelessRule() && (!d.Capabilities().StatelessRules || true) {",
+      "test": "TestAnOVNModeWritesAStatelessRuleSet"
+    },
+    {
+      "label": "the guard asks the mode's name instead of the published capability, so a narrowed host still writes",
+      "file": "internal/core/machine/incus_firewall.go",
+      "find": "\tif spec.HasStatelessRule() && !d.Capabilities().StatelessRules {",
+      "replace": "\tif spec.HasStatelessRule() && (!d.OVN || (d.Capabilities().StatelessRules && false)) {",
+      "test": "TestTheStatelessRefusalReadsThePublishedCapability"
+    },
+    {
+      "label": "no rule is ever seen as stateless, so the bridge sends the set the daemon refuses whole",
+      "file": "internal/core/machine/firewall.go",
+      "find": "\t\tif rule.Action == \"allow-stateless\" {\n\t\t\treturn true\n\t\t}",
+      "replace": "\t\tif rule.Action == \"allow-stateless!\" {\n\t\t\treturn true\n\t\t}",
+      "test": "TestABridgeModeRefusesAStatelessRuleSetByName"
+    },
+    {
+      "label": "the refusal stops naming the remedy",
+      "file": "internal/core/machine/incus_firewall.go",
+      "find": "\"run with --vm incus-ovn to enforce stateless security groups: %w\",",
+      "replace": "\"to enforce stateless security groups: %w\",",
+      "test": "TestABridgeModeRefusesAStatelessRuleSetByName"
+    },
+    {
+      "label": "the bridge modes declare stateless rules",
+      "file": "internal/core/machine/capabilities.go",
+      "find": "\t\tStatelessRules: d.OVN,",
+      "replace": "\t\tStatelessRules: d.OVN || true,",
+      "test": "TestTheStatelessCapabilityIsDeclaredAndPublished"
+    },
+    {
+      "label": "a host refusal withdraws the firewall and leaves the stateless claim standing",
+      "file": "internal/core/machine/capabilities.go",
+      "find": "\t\tcaps.StatelessRules = false\n\t}",
+      "replace": "\t\tcaps.StatelessRules = caps.StatelessRules && true\n\t}",
+      "test": "TestTheStatelessCapabilityIsDeclaredAndPublished"
+    },
+    {
+      "label": "Verify keeps stateless rules on a host with no northbound",
+      "file": "internal/core/machine/verify.go",
+      "find": "\t\t\tif declared.StatelessRules {\n\t\t\t\tverified.StatelessRules = false",
+      "replace": "\t\t\tif declared.StatelessRules && false {\n\t\t\t\tverified.StatelessRules = false",
+      "test": "TestVerifyNarrowsStatelessRulesWithOVN"
+    },
+    {
+      "label": "the declared limit is logged as one more operational error",
+      "file": "internal/core/machine/firewall_binding.go",
+      "find": "\t\tif errors.Is(err, ErrStatelessUnenforceable) {",
+      "replace": "\t\tif errors.Is(err, ErrStatelessUnenforceable) && false {",
+      "test": "TestAStatelessRefusalIsReportedAsTheDeclaredLimit"
+    }
+  ]
+}

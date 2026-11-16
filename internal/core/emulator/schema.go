@@ -85,7 +85,15 @@ const (
 	// that branches on this version can tell a build that answers the
 	// question from one that never asked it. A verdict nobody reads is a
 	// confession nobody hears.
-	HealthSchemaVersion = 8
+	//
+	// 9 since #979: `capabilities` gained `stateless_rules` — a rule the API
+	// declares stateless is enforced without connection tracking. Additive,
+	// and the third claim that separates the modes: measured on Incus 7.6 on
+	// 2026-11-16, the runtime refuses allow-stateless on a bridge network, so
+	// the bridge modes declare it false and refuse a stateless group by name
+	// instead of losing every rule beside it. A suite that wants to prove a
+	// stateless group keys on this, never on a mode name.
+	HealthSchemaVersion = 9
 	// RoutesSchemaVersion is the shape of GET /_feint/routes.
 	//
 	// This one is not on the wire: the endpoint answers a bare JSON array — the

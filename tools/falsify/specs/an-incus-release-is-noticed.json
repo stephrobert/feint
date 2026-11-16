@@ -1,0 +1,162 @@
+{
+  "package": "./tools/ci/",
+  "mutations": [
+    {
+      "label": "every package whose name starts with incus is read as the runtime, so an incus-client one release ahead opens an issue about a runtime that did not move",
+      "file": "tools/ci/incus-release.sh",
+      "find": "/^Version:/ { if (pkg == \"incus\") print $2 }",
+      "replace": "/^Version:/ { if (pkg ~ /^incus/) print $2 }",
+      "test": "TestIncusReleaseReadsOnlyTheIncusPackage"
+    },
+    {
+      "label": "versions are sorted as text, so 7.9 reads newer than 7.10 and a pin of 7.9 is called the channel's latest while 7.10 is served",
+      "file": "tools/ci/incus-release.sh",
+      "find": "served=\"$(printf '%s' \"${served}\" | sort -uV)\"",
+      "replace": "served=\"$(printf '%s' \"${served}\" | sort -u)\"",
+      "test": "TestIncusReleaseComparesVersionsNumerically"
+    },
+    {
+      "label": "a workflow with no INCUS_VERSION passes, so a renamed variable reads as 'nothing moved' every night",
+      "file": "tools/ci/incus-release.sh",
+      "find": "there is no pin to compare\" >&2\n  exit 1",
+      "replace": "there is no pin to compare\" >&2\n  exit 0",
+      "test": "TestIncusReleaseRefusesWhatItCannotJudge"
+    },
+    {
+      "label": "two different pins are not refused as such; the run dies later on a reason that names the wrong question",
+      "file": "tools/ci/incus-release.sh",
+      "find": "if [ \"$(printf '%s\\n' \"${pins}\" | wc -l)\" -ne 1 ]; then",
+      "replace": "if [ \"$(printf '%s\\n' \"${pins}\" | wc -l)\" -ne 1 ] && false; then",
+      "test": "TestIncusReleaseRefusesWhatItCannotJudge"
+    },
+    {
+      "label": "a pin that is not a dotted release is compared anyway, so 'v7.6' against 7.6 opens an issue instead of refusing",
+      "file": "tools/ci/incus-release.sh",
+      "find": "if ! [[ \"${pinned}\" =~ ${release_re} ]]; then",
+      "replace": "if ! [[ \"${pinned}\" =~ ${release_re} ]] && false; then",
+      "test": "TestIncusReleaseRefusesWhatItCannotJudge"
+    },
+    {
+      "label": "an index that lists no incus package is not refused by name; the run fails on an empty version and says the wrong thing",
+      "file": "tools/ci/incus-release.sh",
+      "find": "if [ -z \"${versions}\" ]; then",
+      "replace": "if [ -z \"${versions}\" ] && false; then",
+      "test": "TestIncusReleaseRefusesWhatItCannotJudge"
+    },
+    {
+      "label": "a version in an unknown shape (7.7~rc1) is a pass, so a renamed scheme silences the follower for good",
+      "file": "tools/ci/incus-release.sh",
+      "find": "refusing to compare\" >&2\n    exit 1",
+      "replace": "refusing to compare\" >&2\n    exit 0",
+      "test": "TestIncusReleaseRefusesWhatItCannotJudge"
+    },
+    {
+      "label": "an issue lookup that fails reads as 'no issue open', so a rate limit opens a second issue",
+      "file": "tools/ci/incus-release.sh",
+      "find": "if ! listing=\"$(gh issue list --repo \"${repo}\" --state open --label \"${label}\" --json number,title)\"; then",
+      "replace": "if ! listing=\"$(gh issue list --repo \"${repo}\" --state open --label \"${label}\" --json number,title || echo '[]')\"; then",
+      "test": "TestIncusReleaseRefusesWhatItCannotJudge"
+    },
+    {
+      "label": "a night where the pin matches again leaves the issue open, so it says forever that a release is waiting",
+      "file": "tools/ci/incus-release.sh",
+      "find": "      gh issue close \"${existing}\" --repo \"${repo}\" --comment \"$(cat \"${body_file}\")\"",
+      "replace": "      [ -z \"${existing}\" ] && gh issue close \"${existing}\" --repo \"${repo}\" --comment \"$(cat \"${body_file}\")\"",
+      "test": "TestIncusReleaseClosesItsIssueWhenThePinMatchesAgain"
+    },
+    {
+      "label": "the issue is found by label alone, so the upstream-surface drift issue is closed on a quiet night or commented with an Incus release",
+      "file": "tools/ci/incus-release.sh",
+      "find": "select(.title == $t)",
+      "replace": "select(.title == $t or true)",
+      "test": "TestIncusReleaseIsQuietWhenThePinIsTheChannelsLatest"
+    },
+    {
+      "label": "the pin is always reported as still served, so the issue promises tonight's proof will install a release the channel dropped",
+      "file": "tools/ci/incus-release.sh",
+      "find": "pin_served=false",
+      "replace": "pin_served=true",
+      "test": "TestIncusReleaseNamesANewerRelease"
+    },
+    {
+      "label": "a pin ahead of the channel is described as a newer upstream release, naming a release that does not exist as the one to move to",
+      "file": "tools/ci/incus-release.sh",
+      "find": "direction=\"older\"",
+      "replace": "direction=\"newer\"",
+      "test": "TestIncusReleaseNamesAPinTheChannelDoesNotHave"
+    },
+    {
+      "label": "a run without --apply writes to GitHub, so a dispatch somebody runs to look opens the issue",
+      "file": "tools/ci/incus-release.sh",
+      "find": "if [ \"${apply}\" != true ]; then\n  exit 2",
+      "replace": "if [ \"${apply}\" != true ] && false; then\n  exit 2",
+      "test": "TestIncusReleaseNamesANewerRelease"
+    },
+    {
+      "label": "an Incus package installed with no version passes, which is exactly the runtime-proof.yml of before #979",
+      "file": "tools/ci/incus_pin_test.go",
+      "find": "\t\t\tcase !pinned:",
+      "replace": "\t\t\tcase !pinned && false:",
+      "test": "TestIncusPinProblemsAsksEachQuestionApart"
+    },
+    {
+      "label": "any version spelling passes, so one build pinned by timestamp is accepted and the proof stops installing at Zabbly's next rebuild",
+      "file": "tools/ci/incus_pin_test.go",
+      "find": "\t\t\tcase version != incusPinWant:",
+      "replace": "\t\t\tcase version != incusPinWant && false:",
+      "test": "TestIncusPinProblemsAsksEachQuestionApart"
+    },
+    {
+      "label": "the workflow's INCUS_VERSION is not compared with machine.IncusTested, so the page recommends one release and the proof runs another",
+      "file": "tools/ci/incus_pin_test.go",
+      "find": "\t\tif got := decls[0][1]; got != tested {",
+      "replace": "\t\tif got := decls[0][1]; got != tested && false {",
+      "test": "TestIncusPinProblemsAsksEachQuestionApart"
+    },
+    {
+      "label": "a workflow that installs the glob and declares no INCUS_VERSION passes, and apt finds nothing at run time",
+      "file": "tools/ci/incus_pin_test.go",
+      "find": "\tcase 0:\n\t\tproblems = append(problems, \"installs Incus and declares no INCUS_VERSION",
+      "replace": "\tcase -1:\n\t\tproblems = append(problems, \"installs Incus and declares no INCUS_VERSION",
+      "test": "TestIncusPinProblemsAsksEachQuestionApart"
+    },
+    {
+      "label": "two INCUS_VERSION declarations pass, so two jobs of one workflow can prove two releases",
+      "file": "tools/ci/incus_pin_test.go",
+      "find": "\tdefault:\n\t\tproblems = append(problems, \"declares INCUS_VERSION more than once: one workflow, one release\")\n\t}",
+      "replace": "\tdefault:\n\t\tif false {\n\t\t\tproblems = append(problems, \"declares INCUS_VERSION more than once: one workflow, one release\")\n\t\t}\n\t}",
+      "test": "TestIncusPinProblemsAsksEachQuestionApart"
+    },
+    {
+      "label": "no apt line is recognised, so the test reports no problem on a workflow it never read; the count of Incus packages in runtime-proof.yml is what refuses it",
+      "file": "tools/ci/incus_pin_test.go",
+      "find": "aptInstall       = regexp.MustCompile(`\\bapt(?:-get)?\\s+install\\b`)",
+      "replace": "aptInstall       = regexp.MustCompile(`\\bapt-never\\s+install\\b`)",
+      "test": "TestTheRuntimeProofInstallsTheTestedIncus"
+    },
+    {
+      "label": "the workflow pins another release than machine.IncusTested, the defect #979 was filed for in its pinned form",
+      "file": ".github/workflows/runtime-proof.yml",
+      "find": "env:\n  INCUS_VERSION: '7.6'",
+      "replace": "env:\n  INCUS_VERSION: '7.5'",
+      "test": "TestTheRuntimeProofInstallsTheTestedIncus"
+    },
+    {
+      "label": "incusRecommended goes back to a literal, the {7, 2} that stood while the station ran 7.6",
+      "file": "internal/cli/doctor.go",
+      "find": "var incusRecommended = machine.IncusTestedSeries()",
+      "replace": "var incusRecommended = [2]int{7, 2}\n\nvar _ = machine.IncusTestedSeries",
+      "test": "TestTheRecommendedIncusIsTheTestedOne",
+      "package": "./internal/cli/"
+    },
+    {
+      "label": "the tested version is read with a suffix tolerated, so '7.6 ' becomes 7.6 for the page while apt matches nothing",
+      "file": "internal/core/machine/incus_tested.go",
+      "find": "var testedVersion = regexp.MustCompile(`^(\\d+)\\.(\\d+)(?:\\.(\\d+))?$`)",
+      "replace": "var testedVersion = regexp.MustCompile(`^(\\d+)\\.(\\d+)(?:\\.(\\d+))?`)",
+      "test": "TestSeriesOfReadsOnlyAWholeRelease",
+      "package": "./internal/core/machine/"
+    }
+  ],
+  "note": "The subject is #979: Incus followed by nothing. runtime-proof.yml installed whatever Zabbly stable had published last, internal/cli/doctor.go named 7.2, and the station ran 7.6, three statements of one fact that nothing compared. machine.IncusTested is now the fact; incusRecommended reads it, TestTheRuntimeProofInstallsTheTestedIncus holds the workflow's INCUS_VERSION and every Incus apt line to it, and tools/ci/incus-release.sh compares the pin with the channel's Packages index every night. Mutations 1 to 13 are the follower's decisions: which package is the runtime, how versions compare, the five ways a run cannot be judged, and the one issue it opens, updates and closes. 14 to 19 are the pin test's questions, one each, and 19 is the count that keeps it from passing on a workflow it never read. 20 to 22 are the fact itself: the workflow's value, the doctor's read, the strict parse of the constant."
+}

@@ -17,6 +17,53 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Fixed
 
+- **The Incus floor rises from 6.0.4 to 6.0.5** (#979). 6.0.4 still orders
+  its nftables firewall rules wrongly in bridge mode, a security bug fixed in
+  6.0.5 by lxc/incus#2222 ("ACLs + isolation"), and feint's bridge-mode
+  firewall claims assume that fix (read from the 6.0.5 commit list, not
+  measured on a 6.0.4 daemon). On such a host a mode asked for by name refuses
+  to start and names the reason; `--vm auto` passes over OVN and starts the
+  bridge mode with the firewall and isolation capabilities withdrawn, and the
+  driver then writes no rule set and no isolation set until the host runs
+  6.0.5 or later. The withdrawal holds in every mode, OVN included: a host
+  below the floor is not supported, even though the floor's reason is a
+  bridge-mode fix. `feint doctor` reports such an Incus as too old, with the
+  same reason. Debian 13 ships 6.0.4 and is now below the floor with its own
+  package; the install page already uses Zabbly there. `feint doctor` also
+  warns below the system minimums Incus 7.0 raised (Linux 6.12, nftables
+  1.0.0, dnsmasq 2.90), read without root, and `docs/runtime-incus.md` now
+  sorts the changelogs from 6.0.4 to 7.6 for feint. A refused rule set (a
+  stateless group on a bridge mode, or any set on a host below the floor) now
+  says what it leaves: the refused version is not written, and a version
+  written earlier under the same name stays attached and enforced as it was.
+  The earlier wording, "enforced nowhere", was false for a group that had
+  been stateful. Ubuntu 22.04 joins Debian 12 among the releases doctor and
+  the install role give no OVN install, its OVN 22.03.8 and Open vSwitch
+  2.17.12 being below the floor.
+- **`feint doctor` printed an OVN install on Debian 12 that the tested Incus
+  refuses** (#979). Incus 7.4 and later need OVN 24.03.0 and Open vSwitch
+  3.3.0; Debian 12 ships OVN 23.03.1 and Open vSwitch 3.1.0 (read on
+  sources.debian.org on 2026-11-16, not measured on a Debian 12 machine).
+  Doctor now prints no OVN command there and says why, `docs/install.md` marks
+  Debian 12 as not supported for `--vm incus-ovn`, and the install role stops
+  before installing that pairing. The role also pins Incus to the release the
+  runtime proof installs (`incus=1:7.6-*`). Doctor's line about what a mode can
+  do now names stateless rules, and a bridge mode adds one line saying such a
+  group is refused there. On every distribution, an OVN or Open vSwitch already
+  installed is now read by version (`ovn-nbctl --version`, `ovs-vsctl
+  --version`) and one below that floor is a missing step; and doctor warns,
+  without failing, when the installed Incus is not the tested release. The
+  install page stays unpinned on purpose: Zabbly keeps only its latest release.
+- **A stateless security group under `--vm incus` or `--vm incus-vm` lost
+  every rule it carried, behind a raw runtime error** (#979). Measured on
+  Incus 7.6 on 2026-11-16: the runtime refuses `allow-stateless` on a bridge
+  network and refuses the whole rule set with it (a check Incus 7.5 added).
+  The driver now refuses such a set itself, before sending anything, with an
+  error that names the mode, the reason and the remedy (`--vm incus-ovn`),
+  and logs it as a declared limit. The API still accepts the group.
+  `/_feint/health` gained `capabilities.stateless_rules` (true under OVN,
+  false on the bridge modes): the health schema moves from 8 to 9.
+
 - **`feint run --fault` against a released emulator armed a different
   campaign than the file said** (#968). Measured on 2026-11-16 against the
   published v0.16.0 binary (faults schema 1): a rule with `"nth": 2` was

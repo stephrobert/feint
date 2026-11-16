@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/stephrobert/feint/internal/core/machine"
 )
 
 // What you need installed, and it is generated for the same reason the coverage
@@ -69,11 +71,23 @@ func renderPrereq(goMod string) string {
 	b.WriteString("| OVN (`ovn-central`, `ovn-host`, Open vSwitch) | optional |" +
 		" `--vm incus-ovn`: subnets that are actually separate, so two VPCs cannot reach each other. |\n")
 
-	fmt.Fprintf(&b, "\n%s is a floor rather than a preference: below it the runtime refuses ACLs on a\n", floor)
-	b.WriteString("NIC, and the failure reads like a Feint bug rather than a missing feature. Ubuntu\n")
+	// The reasons are machine.IncusBelowMinimum's own sentences, one per
+	// older release, so the page cannot give another reason than serve and
+	// doctor do (#979).
+	fmt.Fprintf(&b, "\n%s is a floor rather than a preference. %s %s\n", floor,
+		machine.IncusBelowMinimum([3]int{0, 0, 0}), machine.IncusBelowMinimum(machine.IncusNICACLs))
+	b.WriteString("Below the floor the firewall is withdrawn in every mode, OVN included: a host\n")
+	b.WriteString("below it is not supported, even though the floor's reason is a bridge-mode fix.\n")
+	b.WriteString("Ubuntu ")
 	b.WriteString("24.04 ships 6.0.0 and will not move past it, so the Zabbly stable channel is the\n")
 	fmt.Fprintf(&b, "practical way to a supported version. `feint doctor` checks all of this against\n"+
 		"the same %s, and says what to install, which is the point of having it.\n", floor)
+	// What "recommended" means, said where the number is (#979): the release the
+	// nightly runtime proof installs, pinned, not a preference somebody typed.
+	fmt.Fprintf(&b, "\n%s is the release the nightly runtime proof installs, pinned to it rather than\n", series)
+	b.WriteString("to whatever the channel serves that night. A scheduled check opens an issue when\n")
+	b.WriteString("Zabbly stable publishes another, and `docs/runtime-incus.md` records what changed\n")
+	b.WriteString("upstream between the releases this page has recommended.\n")
 	return b.String()
 }
 
