@@ -247,6 +247,38 @@ const (
 	Foreign
 )
 
+// procComm answers the command name the kernel recorded for a pid, trimmed the
+// way /proc writes it.
+//
+// A seam rather than a call, because the container case alive() now decides
+// needs a /proc whose pid 1 is this emulator, and no test runner can be one.
+// It is replaced the way clean.go's scans are: by assigning the variable in a
+// test, so the decision is exercised without a real signal to init.
+var procComm = func(pid int) (string, error) {
+	raw, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/comm")
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(raw)), nil
+}
+
+// namesThisEmulator reports whether a /proc comm name is this program: the
+// literal "feint", or the base name of the binary the record names.
+func namesThisEmulator(comm, binary string) bool {
+	return comm == "feint" || comm == filepath.Base(binary)
+}
+
+// pidOneIsThisEmulator reports whether pid 1 is the emulator a record names,
+// which is the image this repository builds: ENTRYPOINT /feint, so a `docker
+// exec` sees a process that is not pid 1 while the emulator is.
+//
+// An unreadable /proc answers false, and that is the stale reading: a host
+// without /proc has init at pid 1, and nothing this tool starts there is init.
+func pidOneIsThisEmulator(binary string) bool {
+	name, err := procComm(1)
+	return err == nil && namesThisEmulator(name, binary)
+}
+
 // alive decides whether a recorded instance is still the process that recorded
 // itself, and it is deliberately suspicious.
 //
@@ -264,6 +296,25 @@ func (i *Instance) alive() Liveness {
 	if i.PID <= 0 {
 		return Dead
 	}
+	// A record naming pid 1 is stale by construction, with one exception. Where
+	// this tool is started by a shell, init is pid 1 and nothing this tool
+	// started can be init: the record is stale and the port is free. It is
+	// checked before signal 0 because signal 0 on init answers EPERM to an
+	// unprivileged caller, and the EPERM branch below reads that as Foreign — so
+	// a stale record was described as "something else" and a start refused on a
+	// free port, with advice to stop or kill a process this tool must never
+	// signal (#924).
+	//
+	// The exception is the image this repository builds: it runs the emulator as
+	// pid 1 (Dockerfile, ENTRYPOINT /feint), so from `docker exec` this process
+	// is not pid 1 while the record is still right. The name /proc/1/comm
+	// carries settles it; when it names this program the record falls through to
+	// the same checks as any other live pid, and when it does not the record is
+	// stale. A host without /proc cannot answer that question, and there pid 1 is
+	// init.
+	if i.PID == 1 && os.Getpid() != 1 && !pidOneIsThisEmulator(i.Binary) {
+		return Dead
+	}
 	// Signal 0 performs error checking without sending a signal: ESRCH means no
 	// such process, EPERM means it exists and belongs to somebody else.
 	err := syscall.Kill(i.PID, 0)
@@ -278,9 +329,8 @@ func (i *Instance) alive() Liveness {
 		return Foreign
 	}
 
-	if comm, readErr := os.ReadFile("/proc/" + strconv.Itoa(i.PID) + "/comm"); readErr == nil {
-		name := strings.TrimSpace(string(comm))
-		if name == filepath.Base(i.Binary) || name == "feint" {
+	if name, readErr := procComm(i.PID); readErr == nil {
+		if namesThisEmulator(name, i.Binary) {
 			return Alive
 		}
 		return Foreign
