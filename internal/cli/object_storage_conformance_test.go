@@ -110,7 +110,7 @@ func TestMountedS3OfficialAWSCLIBytes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	proxyClient := &http.Client{Transport: &http.Transport{Proxy: http.ProxyURL(localProxy)}, Timeout: 5 * time.Second}
+	proxyClient := &http.Client{Transport: &http.Transport{Proxy: http.ProxyURL(localProxy)}, Timeout: conformanceRequestTimeout}
 	defer proxyClient.CloseIdleConnections()
 	control, err := http.NewRequestWithContext(t.Context(), "GET", "http://must-not-forward.invalid/_feint/health", nil)
 	if err != nil {

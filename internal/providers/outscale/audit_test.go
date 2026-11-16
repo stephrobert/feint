@@ -46,11 +46,21 @@ func post(t *testing.T, ts *httptest.Server, action, body string) (int, map[stri
 // (#963): http.Post used the default client, which has none, so a handler that
 // never answered held the test on a call it made from its own goroutine, where
 // no awaitSubject could reach it, until the package timeout.
-var requestClient = newRequestClient(subjectDeadline)
+var requestClient = newRequestClient(requestTimeout)
+
+// requestTimeout bounds one request round-trip of this package's tests, and
+// it is not subjectDeadline on purpose. Its only job is to turn a handler that
+// never answers into a failure instead of a hang until the package's
+// 10-minute timeout, so it only has to sit far under that. It does not measure
+// speed: a legitimate request on a slow runner under -race took 7.2 s on
+// macos-15-intel on 2026-11-16, and the 5 s bound it then had failed
+// TestUpdateVmValidatesWhatCreateValidates on main. subjectDeadline stays 5 s
+// for the waits on an event the fakes produce in microseconds.
+const requestTimeout = 60 * time.Second
 
 // newRequestClient builds a client whose every request gives up after timeout.
 // TestARequestToAHandlerThatNeverAnswersGivesUp proves the give-up on a client
-// built here with 50 ms, and that requestClient carries subjectDeadline.
+// built here with 50 ms, and that requestClient carries requestTimeout.
 func newRequestClient(timeout time.Duration) *http.Client {
 	return &http.Client{Timeout: timeout}
 }
@@ -119,7 +129,7 @@ func TestConcurrentCreatesDoNotShareAnAddress(t *testing.T) {
 			addresses[i], _ = vm["PrivateIp"].(string)
 		}()
 	}
-	awaitGroup(t, &wg, "the twelve concurrent CreateVms never all returned")
+	awaitAnswers(t, &wg, "the twelve concurrent CreateVms never all returned")
 	errs.report(t)
 
 	seen := map[string]int{}
@@ -361,7 +371,7 @@ func TestASubnetDoesNotDeleteUnderARace(t *testing.T) {
 			_, _, err := postFrom(ts, "DeleteSubnet", `{"SubnetId":"`+subnetID+`"}`)
 			errs.add(err)
 		}()
-		awaitGroup(t, &wg, fmt.Sprintf("round %d: the racing CreateVms and DeleteSubnet never both returned", round))
+		awaitAnswers(t, &wg, fmt.Sprintf("round %d: the racing CreateVms and DeleteSubnet never both returned", round))
 		errs.report(t)
 
 		// The invariant, whichever of the two won: no machine names a Subnet the
@@ -449,7 +459,7 @@ func TestACreateWhoseResourceVanishesLeavesNoMachineBehind(t *testing.T) {
 		t.Fatalf("the restore answered %d; the store was not emptied", res.StatusCode)
 	}
 	release()
-	awaitSubject(t, done, "the create never returned once the runtime was released")
+	awaitAnswer(t, done, "the create never returned once the runtime was released")
 	errs.report(t)
 
 	if left := runtime.running(); len(left) != 0 {
@@ -580,7 +590,7 @@ func TestTwoConcurrentStartsReachTheRuntimeOnce(t *testing.T) {
 	awaitSubject(t, runtime.startEntered, "neither StartVms reached the runtime's Start")
 	time.Sleep(50 * time.Millisecond)
 	release()
-	awaitGroup(t, &wg, "the two StartVms never both returned once the runtime was released")
+	awaitAnswers(t, &wg, "the two StartVms never both returned once the runtime was released")
 	errs.report(t)
 
 	if n := runtime.starts(vmID); n > 1 {
@@ -661,7 +671,7 @@ func TestANetDoesNotDeleteUnderASubnetBeingCreated(t *testing.T) {
 	awaitSubject(t, runtime.networkEntered, "CreateSubnet never reached the runtime's EnsureNetwork")
 	post(t, ts, "DeleteNet", `{"NetId":"`+netID+`"}`)
 	release()
-	awaitSubject(t, done, "CreateSubnet never returned once the runtime was released")
+	awaitAnswer(t, done, "CreateSubnet never returned once the runtime was released")
 	errs.report(t)
 
 	// Whoever won, no Subnet may name a Net the pack no longer serves.
@@ -725,7 +735,7 @@ func TestSubnetCreateDoesNotHoldTheAddressingLockAcrossTheRuntime(t *testing.T) 
 		t.Error("an unrelated CreateNet waited on a runtime network call: the addressing lock is held across it")
 	}
 	release()
-	awaitSubject(t, done, "CreateSubnet never returned once the runtime was released")
+	awaitAnswer(t, done, "CreateSubnet never returned once the runtime was released")
 	// The unrelated create is not waited on when it lost the race: its
 	// failure, if it comes later, lands here unread, on a test already red.
 	errs.report(t)
@@ -853,8 +863,8 @@ func TestUpdateVmAndStartVmsDoNotOverwriteEachOther(t *testing.T) {
 	// Give the update time to land in the middle if it can.
 	time.Sleep(50 * time.Millisecond)
 	release()
-	awaitSubject(t, started, "StartVms never returned once the runtime was released")
-	status := awaitSubject(t, updated, "UpdateVm never answered once the start was released")
+	awaitAnswer(t, started, "StartVms never returned once the runtime was released")
+	status := awaitAnswer(t, updated, "UpdateVm never answered once the start was released")
 	errs.report(t)
 
 	if status != http.StatusOK {
@@ -1547,16 +1557,98 @@ const subjectDeadline = 5 * time.Second
 // Call it from the test's own goroutine.
 func awaitSubject[T any](t *testing.T, ch <-chan T, what string) T {
 	t.Helper()
-	timer := time.NewTimer(subjectDeadline)
-	defer timer.Stop()
+	return awaitWithin(t, ch, subjectDeadline, what, time.After)
+}
+
+// awaitAnswer is awaitSubject for a channel fed once a request has had its
+// answer: what it waits on includes a round-trip, so it is bounded by
+// requestTimeout, not by subjectDeadline.
+func awaitAnswer[T any](t *testing.T, ch <-chan T, what string) T {
+	t.Helper()
+	return awaitAnswerOn(t, ch, what, time.After)
+}
+
+// awaitAnswerOn is awaitAnswer with its clock handed in, and it is where the
+// bound is chosen. TestAnAnswerIsAwaitedForRequestTimeout hands it a clock
+// that records the bound it is asked for, so the test sleeps on nothing.
+func awaitAnswerOn[T any](t fataler, ch <-chan T, what string, after func(time.Duration) <-chan time.Time) T {
+	t.Helper()
+	return awaitWithin(t, ch, requestTimeout, what, after)
+}
+
+// fataler is the part of *testing.T the bounded waits use, so their own test
+// can hand them a recorder instead.
+type fataler interface {
+	Helper()
+	Fatalf(format string, args ...any)
+}
+
+// awaitWithin receives one value from ch, or fails the test once after(within)
+// has fired, naming what did not happen.
+func awaitWithin[T any](t fataler, ch <-chan T, within time.Duration, what string, after func(time.Duration) <-chan time.Time) T {
+	t.Helper()
 	select {
 	case v := <-ch:
 		return v
-	case <-timer.C:
+	case <-after(within):
 	}
-	t.Fatalf("waited %v and %s", subjectDeadline, what)
+	t.Fatalf("waited %v and %s", within, what)
 	var zero T
 	return zero
+}
+
+// An answer is awaited for requestTimeout, not for subjectDeadline: what
+// awaitAnswer waits on includes a request round-trip, and a legitimate one
+// took 7.2 s on a slow -race runner (macos-15-intel, 2026-11-16), past the
+// five seconds of subjectDeadline. The clock is handed in, so nothing sleeps.
+func TestAnAnswerIsAwaitedForRequestTimeout(t *testing.T) {
+	t.Parallel()
+	var asked []time.Duration
+	clock := func(fires bool) func(time.Duration) <-chan time.Time {
+		return func(d time.Duration) <-chan time.Time {
+			asked = append(asked, d)
+			if !fires {
+				return nil
+			}
+			fired := make(chan time.Time, 1)
+			fired <- time.Time{}
+			return fired
+		}
+	}
+
+	// The accepting half: an answer that came is handed back, and nothing fails.
+	came := make(chan int, 1)
+	came <- 7
+	rec := &fatalRecorder{}
+	if got := awaitAnswerOn(rec, came, "the answer never came", clock(false)); got != 7 || len(rec.fatals) != 0 {
+		t.Errorf("an answer that came: got %d and %q, want 7 and no failure", got, rec.fatals)
+	}
+
+	// The refusing half: an answer that never comes fails, naming what did not
+	// happen, once the bound has passed.
+	rec = &fatalRecorder{}
+	awaitAnswerOn(rec, make(chan int), "the answer never came", clock(true))
+	if len(rec.fatals) != 1 || !strings.Contains(rec.fatals[0], "the answer never came") {
+		t.Errorf("an answer that never came: failures %q, want one naming it", rec.fatals)
+	}
+
+	if len(asked) != 2 {
+		t.Fatalf("the clock was asked %d times, want once per wait (2)", len(asked))
+	}
+	for _, d := range asked {
+		if d != requestTimeout {
+			t.Errorf("awaitAnswer waits %v, want requestTimeout (%v): a round-trip on a slow runner fails as a hang", d, requestTimeout)
+		}
+	}
+}
+
+// fatalRecorder stands in for *testing.T in the bounded waits' own test.
+type fatalRecorder struct{ fatals []string }
+
+func (r *fatalRecorder) Helper() {}
+
+func (r *fatalRecorder) Fatalf(format string, args ...any) {
+	r.fatals = append(r.fatals, fmt.Sprintf(format, args...))
 }
 
 // goroutineErrors is where a goroutine running the subject puts its failure, in
@@ -1618,12 +1710,24 @@ func releaseAtCleanup(t *testing.T, ch chan struct{}) func() {
 // run the subject.
 func awaitGroup(t *testing.T, wg *sync.WaitGroup, what string) {
 	t.Helper()
+	awaitSubject(t, groupDone(wg), what)
+}
+
+// awaitAnswers is awaitGroup for goroutines that each send a request: it is
+// bounded by requestTimeout, like awaitAnswer.
+func awaitAnswers(t *testing.T, wg *sync.WaitGroup, what string) {
+	t.Helper()
+	awaitAnswer(t, groupDone(wg), what)
+}
+
+// groupDone is a channel closed once wg is done.
+func groupDone(wg *sync.WaitGroup) <-chan struct{} {
 	done := make(chan struct{})
 	go func() {
 		wg.Wait()
 		close(done)
 	}()
-	awaitSubject(t, done, what)
+	return done
 }
 
 // errorRecorder stands in for *testing.T in goroutineErrors' own test.
@@ -1680,12 +1784,12 @@ func TestGoroutineErrorsReportsEveryFailure(t *testing.T) {
 // instead of holding its caller: post runs on the test's own goroutine, where
 // no awaitSubject reaches, so the client's timeout is the only bound it has
 // (#963). The give-up is played on a client built with 50 ms, so the test does
-// not sit out the real five seconds on every run; that requestClient is built
-// with subjectDeadline is asserted apart.
+// not sit out the real requestTimeout on every run; that requestClient is
+// built with requestTimeout is asserted apart.
 func TestARequestToAHandlerThatNeverAnswersGivesUp(t *testing.T) {
 	t.Parallel()
-	if requestClient.Timeout != subjectDeadline {
-		t.Errorf("requestClient gives up after %v, want subjectDeadline (%v): a post from the test's own goroutine is unbounded", requestClient.Timeout, subjectDeadline)
+	if requestClient.Timeout != requestTimeout {
+		t.Errorf("requestClient gives up after %v, want requestTimeout (%v): a post from the test's own goroutine is unbounded", requestClient.Timeout, requestTimeout)
 	}
 	never := make(chan struct{})
 	ts := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { <-never }))

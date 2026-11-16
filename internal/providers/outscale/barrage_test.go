@@ -1,7 +1,6 @@
 package outscale_test
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -41,16 +40,16 @@ func newOutscaleBarrageServer(t *testing.T) (*httptest.Server, *store.Store) {
 }
 
 // postRaw is post() without the testing.T: a goroutine may not call t.Fatalf,
-// and a helper that does turns a failure into undefined behaviour.
+// and a helper that does turns a failure into undefined behaviour. It sends
+// through requestClient, so a handler that never answers fails at
+// requestTimeout: ts.Client() has no timeout and held the caller until the
+// package timeout.
 func postRaw(ts *httptest.Server, action, body string) (int, map[string]any) {
-	resp, err := ts.Client().Post(ts.URL+"/api/v1/"+action, "application/json", strings.NewReader(body))
+	status, decoded, err := postWith(requestClient, ts, action, body)
 	if err != nil {
 		return -1, nil
 	}
-	defer func() { _ = resp.Body.Close() }()
-	var decoded map[string]any
-	_ = json.NewDecoder(resp.Body).Decode(&decoded)
-	return resp.StatusCode, decoded
+	return status, decoded
 }
 
 func TestAnOutscaleBarrageLeavesTheStoreCoherent(t *testing.T) {

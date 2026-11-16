@@ -260,7 +260,7 @@ func TestARunKeepsAFailedLabOnlyWhenAsked(t *testing.T) {
 		}
 
 		// And it is a real emulator, not a port held open.
-		client := &http.Client{Timeout: 5 * time.Second}
+		client := &http.Client{Timeout: conformanceRequestTimeout}
 		res, err := client.Get(receipt.Endpoint + "/_feint/health")
 		if err != nil {
 			t.Fatalf("the kept lab does not answer: %v", err)
@@ -311,3 +311,12 @@ func TestARunRemovesAMeasuredRerouteFromItsChild(t *testing.T) {
 		t.Errorf("the receipt does not say what it removed: %v", receipt.Stripped)
 	}
 }
+
+// conformanceRequestTimeout bounds one request round-trip of the conformance
+// tests to a local emulator. It only has to turn a peer that never answers
+// into a failure well under the package timeout; it does not measure speed.
+// A legitimate request on a slow runner under -race took 7.2 s on
+// macos-15-intel on 2026-11-16 and broke a 5 s bound, so it is generous. It
+// mirrors requestTimeout of the Outscale and emulator tests, which a test
+// helper cannot share across packages.
+const conformanceRequestTimeout = 60 * time.Second

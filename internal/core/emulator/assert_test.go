@@ -91,7 +91,7 @@ func call(t *testing.T, ts *httptest.Server, method, path, body string, probe bo
 // test binary ("Fail in goroutine after TestX has completed"), and every later
 // test of the package goes unrun.
 //
-// The request is bounded by subjectDeadline: ts.Client() has no timeout, so a
+// The request is bounded by requestTimeout: ts.Client() has no timeout, so a
 // handler that never answered held a call made from the test's own goroutine,
 // where no awaitSubject reaches, until the package timeout.
 func callFrom(ts *httptest.Server, method, path, body string, probe bool) (map[string]any, int, error) {
@@ -99,11 +99,22 @@ func callFrom(ts *httptest.Server, method, path, body string, probe bool) (map[s
 }
 
 // callClient is the client callFrom sends with: ts's own, bounded by
-// subjectDeadline. TestARequestToAHandlerThatNeverAnswersGivesUp asserts the
+// requestTimeout. TestARequestToAHandlerThatNeverAnswersGivesUp asserts the
 // bound, and plays the give-up on a client of 50 ms built by boundedClient.
 func callClient(ts *httptest.Server) *http.Client {
-	return boundedClient(ts, subjectDeadline)
+	return boundedClient(ts, requestTimeout)
 }
+
+// requestTimeout bounds one request round-trip of this package's tests, and
+// it is not subjectDeadline on purpose. Its only job is to turn a handler that
+// never answers into a failure instead of a hang until the package's
+// 10-minute timeout, so it only has to sit far under that. It does not measure
+// speed: a legitimate request on a slow runner under -race took 7.2 s on
+// macos-15-intel on 2026-11-16, and the 5 s bound it then had failed
+// TestUpdateVmValidatesWhatCreateValidates (internal/providers/outscale) on
+// main. subjectDeadline stays 5 s
+// for the waits on an event the fakes produce in microseconds.
+const requestTimeout = 60 * time.Second
 
 // boundedClient is a copy of ts's client whose every request gives up after
 // timeout.

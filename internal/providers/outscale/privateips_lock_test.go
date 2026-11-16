@@ -147,9 +147,12 @@ func TestAnAddressLinkDoesNotHoldTheAddressLockAcrossTheRuntime(t *testing.T) {
 		blocked <- status
 	}()
 
+	// Bounded by requestTimeout: reaching the runtime takes the request's way
+	// to the handler, half a round-trip, and a round-trip took 7.2 s on a slow
+	// -race runner (macos-15-intel, 2026-11-16).
 	select {
 	case <-rt.entered:
-	case <-time.After(5 * time.Second):
+	case <-time.After(requestTimeout):
 		t.Fatal("the link never reached the runtime, so this test measured nothing")
 	}
 
@@ -163,18 +166,22 @@ func TestAnAddressLinkDoesNotHoldTheAddressLockAcrossTheRuntime(t *testing.T) {
 		done <- status
 	}()
 
+	// Bounded by requestTimeout, not by a few seconds: this waits on a request
+	// round-trip, which took 7.2 s on a slow -race runner (macos-15-intel,
+	// 2026-11-16). A lock held across the runtime call holds the allocation
+	// until the release below, so it still fails, at the bound.
 	select {
 	case status := <-done:
 		if status != http.StatusOK {
 			t.Errorf("the concurrent allocation answered %d", status)
 		}
-	case <-time.After(3 * time.Second):
+	case <-time.After(requestTimeout):
 		t.Error("a second allocation waited on a lock held across a runtime call: " +
 			"one interface reconfiguration blocks every address this pack hands out")
 	}
 
 	close(rt.release)
-	if status := awaitSubject(t, blocked, "the link never answered once the runtime was released"); status != http.StatusOK {
+	if status := awaitAnswer(t, blocked, "the link never answered once the runtime was released"); status != http.StatusOK {
 		t.Errorf("the link itself answered %d", status)
 	}
 }
