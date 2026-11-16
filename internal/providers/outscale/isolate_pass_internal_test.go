@@ -81,7 +81,7 @@ func TestConcurrentSubnetCreatesShareTheirIsolationPasses(t *testing.T) {
 		p.isolateNetworks(context.Background())
 		close(firstDone)
 	}()
-	<-driver.firstStarted
+	awaitSubject(t, driver.firstStarted, "the first pass never reached the driver")
 
 	// The burst lands while the first pass is reading: five more subnets, five
 	// more callers. None may be satisfied by the pass in flight.
@@ -126,8 +126,8 @@ func TestConcurrentSubnetCreatesShareTheirIsolationPasses(t *testing.T) {
 	}
 
 	close(driver.release)
-	<-firstDone
-	<-burstDone
+	awaitSubject(t, firstDone, "the first caller never returned once its pass was released")
+	awaitSubject(t, burstDone, "the burst callers never all returned once the held pass ended")
 
 	seen := driver.networksSeen()
 	passes := 0
@@ -147,4 +147,30 @@ func TestConcurrentSubnetCreatesShareTheirIsolationPasses(t *testing.T) {
 		t.Fatalf("a burst of %d callers inside one pass cost %d passes; sharing means the pass in flight plus one, and one per caller is #473's slope (calls: %v)",
 			burst, passes, seen)
 	}
+}
+
+// subjectDeadline bounds this file's waits on something the code under test
+// must do: reach the fake runtime, or return once released. The fakes answer
+// in microseconds, so five seconds is reached only when the event is not
+// coming (#963).
+const subjectDeadline = 5 * time.Second
+
+// awaitSubject receives one value from ch, or fails the test once
+// subjectDeadline has passed, naming what did not happen (#963). A bare receive
+// there turns a subject that refused early or deadlocked into a hang until the
+// package timeout, without the test's name. It is a copy of the shape of awaitEvent (internal/core/machine, await_test.go), kept here because a test helper cannot be imported across packages.
+//
+// Call it from the test's own goroutine.
+func awaitSubject[T any](t *testing.T, ch <-chan T, what string) T {
+	t.Helper()
+	timer := time.NewTimer(subjectDeadline)
+	defer timer.Stop()
+	select {
+	case v := <-ch:
+		return v
+	case <-timer.C:
+	}
+	t.Fatalf("waited %v and %s", subjectDeadline, what)
+	var zero T
+	return zero
 }

@@ -110,6 +110,7 @@ func TestConcurrentOVNDeletesWithdrawEveryBlock(t *testing.T) {
 
 	start := make(chan struct{})
 	var wg sync.WaitGroup
+	var errs goroutineErrors
 	for i := 1; i <= deletes; i++ {
 		name := "fnt-wd" + strconv.Itoa(i)
 		wg.Add(1)
@@ -117,12 +118,13 @@ func TestConcurrentOVNDeletesWithdrawEveryBlock(t *testing.T) {
 			defer wg.Done()
 			<-start
 			if err := d.RemoveNetwork(context.Background(), name); err != nil {
-				t.Errorf("remove %s: %v", name, err)
+				errs.Errorf("remove %s: %v", name, err)
 			}
 		}()
 	}
 	close(start)
-	wg.Wait()
+	awaitWaitGroup(t, &wg, eventDeadline, "the concurrent RemoveNetwork calls never all returned, so the uplink withdrawal deadlocked")
+	errs.report(t)
 
 	h.mu.Lock()
 	defer h.mu.Unlock()

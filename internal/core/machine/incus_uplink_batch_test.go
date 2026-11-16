@@ -67,6 +67,7 @@ func TestConcurrentOVNCreatesShareTheirUplinkWrites(t *testing.T) {
 	const creates = 8
 	start := make(chan struct{})
 	var wg sync.WaitGroup
+	var errs goroutineErrors
 	for i := 0; i < creates; i++ {
 		spec := NetworkSpec{
 			Name: "fnt-batch" + strconv.Itoa(i),
@@ -77,12 +78,13 @@ func TestConcurrentOVNCreatesShareTheirUplinkWrites(t *testing.T) {
 			defer wg.Done()
 			<-start
 			if err := d.EnsureNetwork(context.Background(), spec); err != nil {
-				t.Errorf("create %s: %v", spec.Name, err)
+				errs.Errorf("create %s: %v", spec.Name, err)
 			}
 		}()
 	}
 	close(start)
-	wg.Wait()
+	awaitWaitGroup(t, &wg, eventDeadline, "the concurrent EnsureNetwork calls never all returned, so the uplink batch deadlocked")
+	errs.report(t)
 
 	mu.Lock()
 	defer mu.Unlock()

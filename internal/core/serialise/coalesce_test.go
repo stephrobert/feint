@@ -97,8 +97,8 @@ func TestRunWaitsForAPassThatSawTheCall(t *testing.T) {
 // hanging until go test's alarm.
 const testWait = 10 * time.Second
 
-// awaitClosed waits for ch to close, at most testWait, and fails naming what did
-// not happen. It is a minimal copy of the shape of awaitEvent
+// awaitClosed waits for ch to close or to carry a value, at most testWait, and
+// fails naming what did not happen. It is a minimal copy of the shape of awaitEvent
 // (internal/core/machine, await_test.go), kept here because a test helper is
 // not importable across packages and this package needs only the bare wait.
 func awaitClosed(t *testing.T, ch <-chan struct{}, what string) {
@@ -109,6 +109,33 @@ func awaitClosed(t *testing.T, ch <-chan struct{}, what string) {
 	case <-ch:
 	case <-timer.C:
 		t.Fatalf("waited %v and %s", testWait, what)
+	}
+}
+
+// awaitGroup is wg.Wait() bounded by awaitClosed (#963). The goroutines a test
+// counts on wg run the coalescer, so a bare wg.Wait() is a wait on the subject,
+// and a pass that never wakes its waiters holds it until go test's alarm.
+func awaitGroup(t *testing.T, wg *sync.WaitGroup, what string) {
+	t.Helper()
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+	awaitClosed(t, done, what)
+}
+
+// awaitParked polls Waiting until at least n callers are parked, at most
+// testWait, and fails naming what did not happen (#963). Polled, because
+// parking is the one event the coalescer does not signal.
+func awaitParked(t *testing.T, c *Coalescer, n int, what string) {
+	t.Helper()
+	deadline := time.Now().Add(testWait)
+	for c.Waiting() < n {
+		if time.Now().After(deadline) {
+			t.Fatalf("waited %v and %s: Waiting is %d, want %d", testWait, what, c.Waiting(), n)
+		}
+		time.Sleep(time.Millisecond)
 	}
 }
 
@@ -137,7 +164,7 @@ func TestABurstOfCallersSharesItsPasses(t *testing.T) {
 		}()
 	}
 	close(start)
-	wg.Wait()
+	awaitGroup(t, &wg, "the burst of callers never all returned, so a pass never woke its waiters")
 
 	if got := passes.Load(); got >= callers {
 		t.Fatalf("%d callers ran %d passes: nothing was coalesced", callers, got)
@@ -174,7 +201,7 @@ func TestWaitingCountsTheCallersParkedOnAPass(t *testing.T) {
 		once.Do(func() { close(started) })
 		<-held
 	})
-	<-started
+	awaitClosed(t, started, "the first pass never began on an idle coalescer")
 
 	const burst = 5
 	var wg sync.WaitGroup
@@ -191,7 +218,7 @@ func TestWaitingCountsTheCallersParkedOnAPass(t *testing.T) {
 	}
 
 	close(held)
-	wg.Wait()
+	awaitGroup(t, &wg, "the parked callers never all returned once the held pass ended")
 	if got := c.Waiting(); got != 0 {
 		t.Errorf("Waiting is %d once every caller returned, want 0", got)
 	}
@@ -226,30 +253,26 @@ func TestALateCallerNeedsAPassOfItsOwn(t *testing.T) {
 	}
 
 	go c.Run(pass) // pass 1, held open
-	<-started
+	awaitClosed(t, started, "pass 1 never began on an idle coalescer")
 
 	// One caller arrives while pass 1 runs: it will be covered by pass 2.
 	intime := make(chan struct{})
 	go func() { c.Run(pass); close(intime) }()
-	for c.Waiting() < 1 {
-		time.Sleep(time.Millisecond)
-	}
+	awaitParked(t, &c, 1, "the in-time caller never parked on pass 1")
 
 	close(first) // pass 1 ends, pass 2 begins and is held
-	<-started
+	awaitClosed(t, started, "pass 2 never began once pass 1 ended, so the parked caller was never woken")
 
 	// The straggler arrives now, with pass 2 already running. Nothing pass 2
 	// does can cover it, so it must run a third.
 	late := make(chan struct{})
 	go func() { c.Run(pass); close(late) }()
-	for c.Waiting() < 1 {
-		time.Sleep(time.Millisecond)
-	}
+	awaitParked(t, &c, 1, "the straggler never parked on pass 2")
 
 	close(second) // pass 2 ends, pass 3 begins for the straggler
-	<-started
-	<-intime
-	<-late
+	awaitClosed(t, started, "pass 3 never began for the straggler once pass 2 ended")
+	awaitClosed(t, intime, "the in-time caller never returned once pass 2 ended")
+	awaitClosed(t, late, "the straggler never returned once pass 3 ended")
 
 	if got := passes.Load(); got != 3 {
 		t.Fatalf("a burst with one straggler cost %d passes, want 3: two for the burst and one the late caller cannot share", got)

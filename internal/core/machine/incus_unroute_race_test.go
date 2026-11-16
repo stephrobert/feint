@@ -272,8 +272,10 @@ func TestAPublicAddressEditAndAnIsolationDetachTakeTurns(t *testing.T) {
 	// this event fails here at once with the subject's own error, instead of
 	// hanging the package (#935).
 	awaitEventBefore(t, f.editStarted, returned, eventDeadline, "the device edit never began, so UnrouteAddress refused or stalled before it")
-	detachErr = d.IsolateNetwork(context.Background(), racedNetwork, nil)
-	wg.Wait()
+	detachErr = awaitReturn(t, eventDeadline, "the isolation detach never returned, so it deadlocked against the subject", func() error {
+		return d.IsolateNetwork(context.Background(), racedNetwork, nil)
+	})
+	awaitWaitGroup(t, &wg, eventDeadline, "UnrouteAddress never returned after the detach, so the withdrawal deadlocked")
 
 	if failures := f.failures(); len(failures) != 0 {
 		t.Fatalf("the isolation detach landed inside the device edit (#493):\n%s\nunroute: %v\ndetach: %v",
@@ -323,8 +325,10 @@ func TestARouteAddressEditAndAnIsolationDetachTakeTurns(t *testing.T) {
 	// this event fails here at once with the subject's own error, instead of
 	// hanging the package (#935).
 	awaitEventBefore(t, f.editStarted, returned, eventDeadline, "the device edit never began, so RouteAddress refused or stalled before it")
-	detachErr = d.IsolateNetwork(context.Background(), racedNetwork, nil)
-	wg.Wait()
+	detachErr = awaitReturn(t, eventDeadline, "the isolation detach never returned, so it deadlocked against the subject", func() error {
+		return d.IsolateNetwork(context.Background(), racedNetwork, nil)
+	})
+	awaitWaitGroup(t, &wg, eventDeadline, "RouteAddress never returned after the detach, so the route edit deadlocked")
 
 	if failures := f.failures(); len(failures) != 0 {
 		t.Fatalf("the isolation detach landed inside the route edit (#493):\n%s\nroute: %v\ndetach: %v",

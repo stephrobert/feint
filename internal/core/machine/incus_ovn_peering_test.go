@@ -418,7 +418,7 @@ func mesh(t *testing.T, d *Incus, members []string) []error {
 			}
 		}(i, member)
 	}
-	wg.Wait()
+	awaitWaitGroup(t, &wg, eventDeadline, "the members' PeerNetworks calls never all returned, so the peering deadlocked")
 	close(failures)
 	var errs []error
 	for err := range failures {
@@ -565,18 +565,20 @@ func TestPeeringTwoDisjointPairsDoesNotQueue(t *testing.T) {
 	d := peerDriver(f)
 
 	var wg sync.WaitGroup
+	var errs goroutineErrors
 	start := time.Now()
 	for _, pair := range [][2]string{{"fnt-aaa", "fnt-bbb"}, {"fnt-ccc", "fnt-ddd"}} {
 		wg.Add(1)
 		go func(pair [2]string) {
 			defer wg.Done()
 			if err := d.PeerNetworks(context.Background(), pair[0], []string{pair[1]}); err != nil {
-				t.Errorf("peer %s with %s: %v", pair[0], pair[1], err)
+				errs.Errorf("peer %s with %s: %v", pair[0], pair[1], err)
 			}
 		}(pair)
 	}
-	wg.Wait()
+	awaitWaitGroup(t, &wg, eventDeadline, "the two disjoint PeerNetworks calls never both returned, so the peering deadlocked")
 	elapsed := time.Since(start)
+	errs.report(t)
 
 	if limit := f.beat * 3 / 2; elapsed > limit {
 		t.Fatalf("two peerings sharing no network took %v, over %v: they queued behind one lock, "+

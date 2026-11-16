@@ -71,7 +71,7 @@ func TestTwoMachinesAttachWithoutQueueing(t *testing.T) {
 			_ = d.Attach(context.Background(), machine, Attachment{Network: network})
 		}(name, network)
 	}
-	wg.Wait()
+	awaitWaitGroup(t, &wg, eventDeadline, "the two Attach calls never both returned, so an attachment deadlocked")
 	elapsed := time.Since(start)
 
 	// One beat plus slack. Two beats means the two machines queued.

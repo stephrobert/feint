@@ -67,8 +67,8 @@ poussée dit quoi jouer ensuite et refuse un chemin qu'aucune règle ne trie —
 un chemin non trié est une absence, pas une décision (#564).
 
 Il imprime aussi **les falsifications que le diff a méritées**, lues dans
-`tools/falsify/specs/` plutôt que retenues : 260 specs nomment 310 fichiers
-distincts en 1933 mutations, et une spec qui mute un fichier que vous avez
+`tools/falsify/specs/` plutôt que retenues : 260 specs nomment 315 fichiers
+distincts en 2047 mutations, et une spec qui mute un fichier que vous avez
 touché est le sous-ensemble de `falsify:all` que votre changement peut avoir
 empêché de mordre. Chaque lot d'ici a suivi cette discipline à la main et l'a
 écrit dans sa pull request, ce qui veut dire qu'il l'a aussi oubliée à la main :

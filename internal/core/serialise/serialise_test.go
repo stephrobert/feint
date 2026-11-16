@@ -30,7 +30,7 @@ func TestLockExcludesTwoHoldersOfOneDomain(t *testing.T) {
 			inside.Add(-1)
 		}()
 	}
-	wg.Wait()
+	awaitGroup(t, &wg, "the eight holders of one domain never all returned, so one of them never released it")
 
 	if overlap.Load() {
 		t.Fatal("two holders were inside one domain at the same time")
@@ -85,7 +85,7 @@ func TestLockDoesNotQueueDifferentDomains(t *testing.T) {
 		t.Fatal("four different domains could not be held at once: the lock is global, not per domain")
 	}
 	close(release)
-	left.Wait()
+	awaitGroup(t, &left, "the four holders never all left once released, so a release never returned")
 }
 
 // A map that keeps one mutex per domain a session ever named is the memory

@@ -37,6 +37,7 @@ func TestTransitionExcludesASecondActionOnTheTarget(t *testing.T) {
 	var inside atomic.Int32
 	var overlap atomic.Bool
 	var wg sync.WaitGroup
+	var errs goroutineErrors
 	for range 8 {
 		wg.Add(1)
 		go func() {
@@ -52,11 +53,12 @@ func TestTransitionExcludesASecondActionOnTheTarget(t *testing.T) {
 				res.State = "running"
 			})
 			if err != nil {
-				t.Errorf("transition: %v", err)
+				errs.Errorf("transition: %v", err)
 			}
 		}()
 	}
-	wg.Wait()
+	awaitWaitGroup(t, &wg, eventDeadline, "the eight transitions on one target never all returned, so one of them never released the target")
+	errs.report(t)
 
 	if overlap.Load() {
 		t.Fatal("two changes ran on one target at the same time")

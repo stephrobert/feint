@@ -35,7 +35,7 @@ func TestSerialiseExcludesTwoActionsOnOneTarget(t *testing.T) {
 			inside.Add(-1)
 		}()
 	}
-	wg.Wait()
+	awaitWaitGroup(t, &wg, eventDeadline, "the eight actions on one target never all returned, so one of them never released the target")
 
 	if overlap.Load() {
 		t.Fatal("two actions ran on one target at the same time")
