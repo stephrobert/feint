@@ -81,6 +81,10 @@ jobs:
       - name: Harden the runner
         uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
+        # Audit, not block (#988): this job had no green run to measure on
+        # 2026-11-16 (scheduled or conditional path), so a host list would be
+        # a guess, and a missing host cancels the whole block. See
+        # docs/limits.md, "The CI's egress block narrows the surface".
           egress-policy: audit
 
       - name: Checkout

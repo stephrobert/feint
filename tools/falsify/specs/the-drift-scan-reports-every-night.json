@@ -20,8 +20,8 @@
       "label": "the pull request opens every scheduled night whatever the scan found, which teaches everyone to close them unread",
       "file": ".github/workflows/drift.yml",
       "package": "./tools/ci/",
-      "find": "    if: github.event_name == 'schedule' && (needs.drift.outputs.changed == 'true' || needs.drift.outputs.contracts == 'true')\n    runs-on: ubuntu-24.04\n    permissions:\n      contents: write        # push the branch",
-      "replace": "    if: github.event_name == 'schedule' && (needs.drift.outputs.changed == 'true' || needs.drift.outputs.contracts == 'true' || true)\n    runs-on: ubuntu-24.04\n    permissions:\n      contents: write        # push the branch",
+      "find": "    if: github.event_name == 'schedule' && (needs.drift.outputs.changed == 'true' || needs.drift.outputs.contracts == 'true')\n    runs-on: ubuntu-24.04\n    # Measured: 22 s at most, 4 scheduled runs from 2026-10-28 to 2026-11-16.\n    # Three times the longest, rounded up to five minutes (#988).\n    timeout-minutes: 5\n    permissions:\n      contents: write        # push the branch",
+      "replace": "    if: github.event_name == 'schedule' && (needs.drift.outputs.changed == 'true' || needs.drift.outputs.contracts == 'true' || true)\n    runs-on: ubuntu-24.04\n    # Measured: 22 s at most, 4 scheduled runs from 2026-10-28 to 2026-11-16.\n    # Three times the longest, rounded up to five minutes (#988).\n    timeout-minutes: 5\n    permissions:\n      contents: write        # push the branch",
       "test": "TestTheDriftWorkflowReportsEveryNight"
     },
     {

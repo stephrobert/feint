@@ -67,8 +67,8 @@ poussée dit quoi jouer ensuite et refuse un chemin qu'aucune règle ne trie —
 un chemin non trié est une absence, pas une décision (#564).
 
 Il imprime aussi **les falsifications que le diff a méritées**, lues dans
-`tools/falsify/specs/` plutôt que retenues : 269 specs nomment 326 fichiers
-distincts en 2244 mutations, et une spec qui mute un fichier que vous avez
+`tools/falsify/specs/` plutôt que retenues : 274 specs nomment 341 fichiers
+distincts en 2398 mutations, et une spec qui mute un fichier que vous avez
 touché est le sous-ensemble de `falsify:all` que votre changement peut avoir
 empêché de mordre. Chaque lot d'ici a suivi cette discipline à la main et l'a
 écrit dans sa pull request, ce qui veut dire qu'il l'a aussi oubliée à la main :
@@ -265,11 +265,18 @@ l'on saute par habitude est pire que pas de gate.
 ### Si vous contribuez depuis un fork
 
 Rien ne tournera sur votre pull request tant qu'un mainteneur ne l'aura pas
-approuvée. GitHub garde chaque workflow en `action_required` pour les
-contributions venant de forks, ce qui est le bon défaut — c'est ce qui empêche un
-fork de modifier un workflow pour lire les secrets de ce dépôt — mais cela veut
-dire que `gh pr checks` répond « no checks reported » et que vous n'avez aucun
-retour, pas même un échec.
+approuvée, et l'approbation est redemandée à chaque push. D'ici là, GitHub garde
+chaque exécution de workflow en `action_required`. Le dépôt l'applique à tout
+contributeur qui n'en est pas membre, pas seulement à un premier contributeur :
+le réglage vaut `all_external_contributors` depuis le 2026-11-16. Avant cette
+date, il valait `first_time_contributors`. Un compte qui avait déjà une pull
+request fusionnée lançait donc la CI sans aucune approbation.
+
+L'approbation empêche du code venu de l'extérieur de tourner sur les runners de
+ce dépôt avant que quelqu'un l'ait lu. Le prix est pour vous : `gh pr checks`
+répond « no checks reported » et vous n'avez aucun retour, pas même un échec.
+Une pull request dont la CI n'a pas démarré n'est pas ignorée. Elle attend un
+lecteur.
 
 Les gates locaux ne sont donc pas un confort pour vous, ce sont les seuls dont
 vous disposez jusqu'à ce que quelqu'un regarde :
@@ -376,8 +383,28 @@ seulement quand elle est le sujet : `core`, `machine`, `conformance`. État :
 `wontfix` : le mot du projet pour « hors périmètre » est un refus dans le pack,
 avec une raison.
 
-**Les milestones** sont les six vagues de la séquence de la roadmap — un ordre,
-pas un calendrier, donc elles ne portent pas de date d'échéance.
+**Les milestones** sont des thèmes, pas des versions, et elles ne portent pas de
+date d'échéance : un ordre, jamais un calendrier. Cette phrase disait « les six
+vagues de la séquence de la roadmap ». Ce n'était plus vrai depuis 0.9.0, et la
+phrase est restée là trois mois de releases plus tard. C'est ainsi que deux
+milestones ont fini titrées d'après des tags publiés, `0.14.0` et `0.15.0`,
+avec 19 et 10 issues ouvertes à elles deux.
+
+La règle est donc maintenant vérifiable plutôt que décrite, et elle est plus
+étroite qu'il n'y paraît : **une milestone ouverte ne revendique jamais une
+version déjà taguée.** Une milestone pour du travail encore à venir peut porter
+son numéro. `1.0.0` en est une, et c'est le cas où le tag doit attendre la
+milestone, pas l'inverse. Ce qui est refusé, c'est une affirmation sur le passé
+que les tags démentent. La seconde moitié est son miroir : la version qu'on
+tague ne doit porter aucune issue ouverte sous son propre nom.
+
+`tools/release/milestone-gate.sh` pose les deux questions avant un tag, et le
+dit quand il n'a pas pu mesurer, au lieu de refuser pour une raison qui ne tient
+pas au dépôt. Dans `tools/ci`,
+`TestTheMilestoneGateRefusesAVersionOnAnOpenMilestone` est piloté par le
+contenu qui l'a motivé, et `TestTheMilestoneGateAcceptsTheShippedShape` garde
+honnête la moitié qui accepte : un portillon qui refuserait tout tag passerait
+le premier test et enseignerait `--no-verify`.
 
 `tools/issues/setup.sh` crée les labels et les milestones (`--dry-run` montre ce
 qu'il ferait) ; `tools/issues/batches/` contient les dix-huit définitions de lots,
@@ -416,6 +443,74 @@ transporte.
 cz check --rev-range origin/main..HEAD   # ce que la CI dira
 cz bump --dry-run                        # la version qu'impliquent vos commits
 ```
+
+## Qui répond d'une pull request
+
+Trois règles, décidées le 2026-11-16. Elles valent pour tout le monde, quel que
+soit ce qui a écrit le code.
+
+### Une personne identifiable en répond
+
+**Une contribution a un auteur identifiable, qui en répond.** La section sur les
+contributions assistées par IA, plus bas, le dit déjà : l'humain qui soumet est
+l'auteur, et il prend la responsabilité de chaque ligne, licence comprise. Voici
+ce qui en découle. Une pull request qu'aucune personne identifiable ne peut
+porter est fermée, même si son code est correct. Le défaut qu'elle visait est
+alors corrigé dans le dépôt, depuis l'issue.
+
+Vous n'avez pas à donner votre nom civil. Ce qui compte, c'est qu'une personne
+se tienne derrière le compte : un profil qui montre un historique de travail
+humain, ici ou ailleurs. Des issues ouvertes, des relectures, des discussions,
+des contributions qui se lisent comme les vôtres. Un compte sans trace publique
+ne peut pas porter un changement. Un compte piloté comme une campagne
+automatisée non plus.
+
+Ce qui s'est passé, pour que la règle se lise avec sa raison. Le 2026-11-16, un
+compte créé en 2016, presque inactif jusque-là, sans nom ni bio, a ouvert trois
+pull requests ici en trois minutes (#985, #986, #987). Le soir même, il en
+avait ouvert plus de 180 sur GitHub, depuis plus de 40 forks : un agent IA
+lancé en campagne. Ses commits ne portaient pas le trailer `Assisted-by:`
+avant qu'on le lui demande. Le code a été lu, relu, et
+il était correct. Les trois pull requests ont quand même été fermées, et le
+travail est refait dans le dépôt depuis les issues. Lire un diff dit si le code
+est correct. Cela ne dit pas qui en répondra plus tard, ni ce que le même compte
+enverra ensuite (#988).
+
+### Pas de campagne
+
+Gardez quelques pull requests ouvertes à la fois par compte, pas plus. Une série
+de changements se discute d'abord dans une issue : dites ce que vous comptez
+envoyer, et attendez une réponse avant d'ouvrir la suivante. Plusieurs pull
+requests ouvertes en quelques minutes, par un compte que personne ici ne
+connaît, se lisent comme une campagne, quel que soit leur contenu.
+
+### Un chemin sensible passe d'abord par une issue
+
+Certains fichiers font tourner du code sur les runners de la CI ou sur la
+machine d'un mainteneur, ou décident de ce que lancent les autres contrôles. Un
+changement à cet endroit se lit comme de la configuration et agit comme du code.
+Ces chemins demandent une issue, et une réponse dedans, avant la pull request.
+La liste vit dans un seul fichier, [`tools/ci/sensitive-paths.txt`](tools/ci/sensitive-paths.txt) :
+`.github/` (workflows, gabarits, `CODEOWNERS`, rulesets), les scripts shell et
+Python sous `tools/`, le code qui juge une pull request (`tools/ci/`,
+`tools/review/`, `tools/testplan/`), `go.mod`, `go.sum`, les dépendances Python
+verrouillées par hash sous `tools/`, `pyproject.toml`, `uv.lock`, `mise.toml`,
+`.pre-commit-config.yaml`, le `Dockerfile`, les configurations des linters et
+des scanners, et `tools/falsify/specs/` (une spec falsify est du code, pour la
+raison donnée dans [Falsifier une garde](#falsifier-une-garde)).
+
+Dites dans l'issue ce que vous voulez changer et pourquoi. Le contrôle
+« Sensitive paths » reste rouge sur une pull request venue de l'extérieur qui
+touche l'un de ces chemins, tant que le mainteneur n'a pas lu le changement et
+approuvé la pull request par une revue. L'approbation vaut pour le commit sur
+lequel elle a été donnée : un push après elle remet le contrôle au rouge,
+jusqu'à ce que la nouvelle tête soit approuvée à son tour. Tant que le mainteneur
+ne l'a pas ajouté aux contrôles requis, ce rouge n'empêche pas la fusion à lui
+seul : c'est sa relecture qui décide. Le mainteneur lit une telle
+pull request avec `tools/review/external-pr.sh` et lance ses tests, s'il les
+lance, dans un conteneur jetable avec `tools/review/sandbox.sh` (voir
+[`tools/review/README.md`](tools/review/README.md)), jamais sur un poste de
+travail.
 
 ## Contributions assistées par IA
 
@@ -464,6 +559,11 @@ Déclarez quand un modèle a écrit une part substantielle du changement. Ne vou
 embêtez pas pour l'orthographe, le formatage, ou une complétion qui vous a
 épargné trois frappes.
 
+**Le trailer est exigé, pas demandé.** Une pull request dont un modèle a écrit
+une part substantielle, et dont les commits ne le portent pas, est fermée. Cette
+page le demandait seulement, et les trois pull requests du 2026-11-16 décrites
+plus haut sont arrivées sans lui.
+
 `Co-Authored-By` pour un outil reste interdit, et `Signed-off-by` venant d'autre
 chose qu'une personne aussi. Ces trailers affirment une paternité et certifient
 une origine ; un modèle ne peut faire ni l'un ni l'autre. L'humain qui soumet est
@@ -502,6 +602,10 @@ la documentation, et n'inventez jamais un format.**
 
 ### Ce qui est refusé d'emblée
 
+- Une pull request dont aucune personne identifiable ne répond, ou qui fait
+  partie d'une campagne. Voir [Qui répond d'une pull request](#qui-répond-dune-pull-request).
+- Une pull request dont un modèle a écrit une part substantielle sans qu'un
+  trailer `Assisted-by:` le dise.
 - Une pull request dont la suite de conformance n'a pas été lancée, et qui le dit
   ou le montre.
 - Un lot de changements sur plusieurs packs sans une seule affirmation relisible.
@@ -512,7 +616,8 @@ la documentation, et n'inventez jamais un format.**
 - Tout ce dont la justification annoncée est d'améliorer une métrique —
   pourcentage de couverture, nombre de routes — plutôt que de débloquer un client.
 
-Rien de tout cela ne vise l'IA. C'est ce que le projet demandait déjà à tout le
+Rien de tout cela ne vise l'IA. Le trailer demande de dire qu'un modèle a servi,
+pas de s'en passer. Le reste est ce que le projet demandait déjà à tout le
 monde ; l'écrire est ce qui rend la réponse identique pour les deux.
 
 ## Code

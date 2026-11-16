@@ -162,8 +162,8 @@
     {
       "label": "the runtime proof's closing doorstep runs on the failure path too, so a leg that already died reports its wreckage as a leak and buries the finding under a second red",
       "file": ".github/workflows/runtime-proof.yml",
-      "find": "      - name: What this leg left on the host\n        run: sudo tools/conformance/guard.sh leftovers-after \"${{ matrix.mode }}\"",
-      "replace": "      - name: What this leg left on the host\n        if: always()\n        run: sudo tools/conformance/guard.sh leftovers-after \"${{ matrix.mode }}\"",
+      "find": "      - name: What this leg left on the host\n        env:\n          MODE: ${{ matrix.mode }}\n        run: sudo tools/conformance/guard.sh leftovers-after \"$MODE\"",
+      "replace": "      - name: What this leg left on the host\n        if: always()\n        env:\n          MODE: ${{ matrix.mode }}\n        run: sudo tools/conformance/guard.sh leftovers-after \"$MODE\"",
       "test": "TestTheRuntimeProofEndsOnItsOwnDoorstep",
       "package": "./tools/conformance/"
     }

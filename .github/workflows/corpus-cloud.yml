@@ -36,6 +36,11 @@ jobs:
   replay:
     name: Reissue the Scaleway corpus at Scaleway
     runs-on: ubuntu-24.04
+    # NEVER measured green: the 3 scheduled runs (2026-09-01 to 2026-11-01)
+    # stopped at the missing-secret check, 29 s at most. Thirty minutes for a
+    # replay of free objects. The account check below runs under always(),
+    # which a cancellation by timeout still runs.
+    timeout-minutes: 30
     permissions:
       contents: read
     outputs:
@@ -182,6 +187,9 @@ jobs:
     needs: replay
     if: needs.replay.outputs.moved == 'true'
     runs-on: ubuntu-24.04
+    # NEVER ran: no replay has moved yet. drift.yml's propose does the same
+    # push and pull request in 22 s at most.
+    timeout-minutes: 10
     permissions:
       contents: write        # push the branch
       pull-requests: write   # open the PR
@@ -196,6 +204,10 @@ jobs:
       - name: Harden runner
         uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
+        # Audit, not block (#988): this job had no green run to measure on
+        # 2026-11-16 (scheduled or conditional path), so a host list would be
+        # a guess, and a missing host cancels the whole block. See
+        # docs/limits.md, "The CI's egress block narrows the surface".
           egress-policy: audit
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

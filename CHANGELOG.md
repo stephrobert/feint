@@ -17,6 +17,42 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Security
 
+- **How this repository receives an outside contribution is now a control,
+  not a habit** (#988). On 2026-11-16 an account with no public identity opened
+  three pull requests here among more than 180 it opened across GitHub that day, and their
+  code was run on the maintainer's station to verify it. Now:
+  - a check, "Sensitive paths", stays red on an outside pull request that touches
+    a path listed in `tools/ci/sensitive-paths.txt` (workflows, scripts,
+    `go.mod`, `mise.toml`, hooks, the `Dockerfile`, falsify specs, the Python
+    requirements, the code that judges a pull request) until the owner, a
+    member or a collaborator approves it as a review on its head commit; a push
+    after the approval turns it red again. It reads the event, the file list
+    and the reviews only, never the pull request's code; a pull request can still rewrite the workflow itself,
+    which the approval of every outside run and the review are there to catch.
+    Its decisions are tested against a simulated `gh`; the refusal has not yet
+    been seen on a real outside pull request. It becomes a required check once
+    the maintainer adds it after this lands;
+  - `tools/review/external-pr.sh <n>` reads an outside pull request without
+    running it (what to read first in the diff, facts about the account, links
+    with merged outside code), and `tools/review/sandbox.sh <n>` runs its tests
+    in a throwaway, unprivileged Incus container with no network and nothing
+    from the station; `tools/review/README.md` says what each does not see;
+  - `harden-runner` blocks egress in 16 workflows, from host lists measured on
+    their last runs; the rest stay in audit, each with its reason (TruffleHog
+    by decision: blocking would blind its verification);
+  - CI no longer reports to HashiCorp (`CHECKPOINT_DISABLE`; measured on
+    2026-11-16 under strace in an isolated network namespace: `terraform
+    version` made 12 DNS connections without it, none with it) and no longer lets Chrome call Google from the `page` job; the
+    `scw` CLI's crash report to Scaleway has no switch and is stopped by the
+    block in CI only, which `docs/limits.md` says;
+  - every job has a `timeout-minutes`, no workflow uses an `-latest` image,
+    every workflow starts from `permissions: {}`, and no `${{ }}` reaches a
+    `run:` (three did), each held by a test over every workflow;
+  - `mise run lint-shell` now also checks scripts git does not track yet;
+  - `CONTRIBUTING.md` says who answers for a pull request: someone
+    identifiable, with the `Assisted-by:` trailer when a model wrote part of it,
+    no campaigns, and a sensitive path through an issue first.
+
 - **A falsify spec's `env` and `package` can no longer make `go test` run
   another program** (#989). A spec is a JSON file and reads like data in
   review, but its `env` went into the environment of `go test` and its

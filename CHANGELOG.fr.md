@@ -19,6 +19,49 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Sécurité
 
+- **La façon dont ce dépôt reçoit une contribution extérieure est désormais un
+  contrôle, et non plus une habitude** (#988). Le 2026-11-16, un compte sans identité
+  publique a ouvert trois pull requests ici, parmi plus de 180 qu'il a ouvertes sur GitHub ce
+  jour-là, et leur code a tourné sur la station du mainteneur pour être vérifié.
+  Désormais :
+  - un contrôle, « Sensitive paths », reste rouge sur une pull request
+    extérieure qui touche un chemin de `tools/ci/sensitive-paths.txt`
+    (workflows, scripts, `go.mod`, `mise.toml`, crochets, `Dockerfile`, specs
+    falsify, dépendances Python, code qui juge une pull request) tant que le
+    propriétaire, un membre ou un collaborateur ne l'a pas approuvée par une
+    revue sur son commit de tête ; un push après l'approbation le remet au
+    rouge. Il lit l'événement, la liste des fichiers et les revues, jamais le
+    code de la pull request ; une pull request peut
+    encore réécrire le workflow lui-même, ce que l'approbation de chaque
+    exécution extérieure et la relecture sont là pour attraper. Ses décisions
+    sont testées contre un `gh` simulé ; le refus n'a pas encore été vu sur une
+    vraie pull request extérieure. Il devient un contrôle requis une fois que le
+    mainteneur l'ajoute après la fusion ;
+  - `tools/review/external-pr.sh <n>` lit une pull request extérieure sans
+    l'exécuter (ce qu'il faut lire en premier dans le diff, des faits sur le
+    compte, les liens avec le code extérieur déjà fusionné), et
+    `tools/review/sandbox.sh <n>` lance ses tests dans un conteneur Incus
+    jetable, non privilégié, sans réseau et sans rien de la station ;
+    `tools/review/README.md` dit ce que chacun ne voit pas ;
+  - `harden-runner` bloque les sorties réseau dans 16 workflows, à partir de
+    listes d'hôtes mesurées sur leurs derniers runs ; les autres restent en
+    audit, chacun avec sa raison (TruffleHog par décision : bloquer aveuglerait
+    sa vérification) ;
+  - la CI ne rend plus compte à HashiCorp (`CHECKPOINT_DISABLE` ; mesuré le
+    2026-11-16 sous strace dans un espace réseau isolé : `terraform version`
+    faisait 12 connexions DNS sans la variable, aucune avec) et ne laisse plus Chrome appeler Google depuis le job
+    `page` ; le rapport de plantage du CLI `scw` vers Scaleway n'a pas
+    d'interrupteur et n'est coupé que par le blocage en CI, ce que dit
+    `docs/limits.md` ;
+  - chaque job a un `timeout-minutes`, aucun workflow n'utilise d'image
+    `-latest`, chaque workflow part de `permissions: {}`, et aucun `${{ }}`
+    n'atteint un `run:` (trois le faisaient), chacun tenu par un test sur tous
+    les workflows ;
+  - `mise run lint-shell` vérifie aussi les scripts que git ne suit pas encore ;
+  - `CONTRIBUTING.fr.md` dit qui répond d'une pull request : une personne
+    identifiable, avec le trailer `Assisted-by:` quand un modèle en a écrit une
+    part, pas de campagne, et un chemin sensible qui passe d'abord par une issue.
+
 - **Le `env` et le `package` d'une spec falsify ne peuvent plus faire lancer un
   autre programme à `go test`** (#989). Une spec est un fichier JSON et se lit
   comme une donnée en revue, mais son `env` partait dans l'environnement de

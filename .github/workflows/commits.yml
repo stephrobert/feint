@@ -33,7 +33,21 @@ jobs:
       - name: Harden the runner
         uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
-          egress-policy: audit
+          # Blocked to the hosts this job was measured reaching on 2026-11-16:
+          # every `domain resolved` line harden-runner logged in its last three
+          # green runs (43924911818, 43924092665, 43922019523).
+          # Variable hosts are one wildcard per family. Left out on purpose:
+          # harden-runner's own endpoint, which its agent allows, and
+          # api.snapcraft.io, snapd on the runner image, never called by a step.
+          # Block narrows what this job reaches; it does not stop a decided leak:
+          # docs/limits.md, "The CI's egress block narrows the surface" (#988).
+          egress-policy: block
+          allowed-endpoints: >
+            files.pythonhosted.org:443
+            github.com:443
+            hosted-compute-*.githubapp.com:443
+            pypi.org:443
+            results-receiver.actions.githubusercontent.com:443
 
       # The whole range has to be reachable: cz checks base..head, and a shallow
       # clone would hand it a range git cannot resolve.

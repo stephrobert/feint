@@ -132,7 +132,10 @@ done < <("$FEINT_BIN" env outscale --endpoint "$ENDPOINT" 2>/dev/null)
   || fail "doorway init failed"
 # 60 seconds, not six minutes: the failure this step exists to catch used to
 # present as a retry backoff indistinguishable from a dead emulator.
-if ! (cd "$doorway" && timeout 60 env -i HOME="$doorway/home" PATH="$PATH" TF_IN_AUTOMATION=1 TF_INPUT=0 \
+# CHECKPOINT_DISABLE is named again because `env -i` drops the one the CI and
+# mise.toml set: without it Terraform asks checkpoint-api.hashicorp.com for a
+# newer version, a real service, and it says nothing about the doorway (#988).
+if ! (cd "$doorway" && timeout 60 env -i HOME="$doorway/home" PATH="$PATH" TF_IN_AUTOMATION=1 TF_INPUT=0 CHECKPOINT_DISABLE=1 \
       "${doorway_env[@]}" "$TF" plan -no-color -input=false >doorway-plan.out 2>&1); then
   cat "$doorway/doorway-plan.out" >&2
   fail "an env-only shell could not reach a plan: the endpoint shape feint env prints is wrong for the current provider"

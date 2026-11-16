@@ -1,0 +1,174 @@
+{
+  "package": "./tools/ci/",
+  "mutations": [
+    {
+      "label": "a step's own timeout-minutes answers for the job, so a job whose one step is bounded holds the runner 360 minutes on every other step",
+      "file": "tools/ci/job_bounds_test.go",
+      "find": "regexp.MustCompile(`^    timeout-minutes:(.*)$`)",
+      "replace": "regexp.MustCompile(`^\\s+timeout-minutes:(.*)$`)",
+      "test": "TestJobTimeoutProblemAsksEachQuestion"
+    },
+    {
+      "label": "a job with no timeout-minutes at all is not named as such: the state of 23 jobs in 12 workflows on 2026-11-16",
+      "file": "tools/ci/job_bounds_test.go",
+      "find": "if len(values) == 0 {\n\t\treturn \"no job-level",
+      "replace": "if len(values) == 0 && false {\n\t\treturn \"no job-level",
+      "test": "TestJobTimeoutProblemAsksEachQuestion"
+    },
+    {
+      "label": "a job that declares timeout-minutes twice is read on its last value instead of refused as a shape nobody reads",
+      "file": "tools/ci/job_bounds_test.go",
+      "find": "if len(values) > 1 {\n\t\treturn fmt.Sprintf(\"timeout-minutes declared",
+      "replace": "if len(values) > 1 && false {\n\t\treturn fmt.Sprintf(\"timeout-minutes declared",
+      "test": "TestJobTimeoutProblemAsksEachQuestion"
+    },
+    {
+      "label": "zero, an expression or an empty value counts as a bound",
+      "file": "tools/ci/job_bounds_test.go",
+      "find": "if err != nil || minutes < 1 {",
+      "replace": "if (err != nil || minutes < 1) && false {",
+      "test": "TestJobTimeoutProblemAsksEachQuestion"
+    },
+    {
+      "label": "a bound above GitHub's default of 360 is accepted, though it bounds nothing silence did not",
+      "file": "tools/ci/job_bounds_test.go",
+      "find": "if minutes > githubDefaultTimeout {",
+      "replace": "if minutes > githubDefaultTimeout*10 {",
+      "test": "TestJobTimeoutProblemAsksEachQuestion"
+    },
+    {
+      "label": "a job calling a workflow from another repository is exempted, and that workflow's jobs are walked by nobody",
+      "file": "tools/ci/job_bounds_test.go",
+      "find": "if strings.HasPrefix(m[1], \"./.github/workflows/\") {",
+      "replace": "if strings.HasPrefix(m[1], \"./.github/workflows/\") || true {",
+      "test": "TestJobTimeoutProblemAsksEachQuestion"
+    },
+    {
+      "label": "the reusable-workflow exemption is keyed on any `uses:`, so a step that uses an action answers for the job",
+      "file": "tools/ci/job_bounds_test.go",
+      "find": "regexp.MustCompile(`^    uses:\\s*(\\S+)`)",
+      "replace": "regexp.MustCompile(`^\\s+(?:- )?uses:\\s*(\\S+)`)",
+      "test": "TestJobTimeoutProblemAsksEachQuestion"
+    },
+    {
+      "label": "the walk over the real workflows: secrets.yml loses its bound, and the repository test must name it",
+      "file": ".github/workflows/secrets.yml",
+      "find": "    timeout-minutes: 5\n",
+      "replace": "    # timeout-minutes: 5\n",
+      "test": "TestEveryJobBoundsItsOwnRun"
+    },
+    {
+      "label": "only `runs-on:` lines are read, so a moving image reached through a matrix passes",
+      "file": "tools/ci/job_bounds_test.go",
+      "find": "if label := movingImage.FindString(stripInlineComment(line)); label != \"\" {",
+      "replace": "if label := movingImage.FindString(stripInlineComment(line)); label != \"\" && strings.Contains(line, \"runs-on:\") {",
+      "test": "TestRunnerLabelProblemAsksEachQuestion"
+    },
+    {
+      "label": "a YAML comment naming a moving image is refused, so the comment that says why it was removed cannot be written",
+      "file": "tools/ci/job_bounds_test.go",
+      "find": "\t\tif strings.HasPrefix(strings.TrimSpace(line), \"#\") {\n\t\t\tcontinue\n\t\t}\n\t\tif label",
+      "replace": "\t\tif strings.HasPrefix(strings.TrimSpace(line), \"#\") && false {\n\t\t\tcontinue\n\t\t}\n\t\tif label",
+      "test": "TestRunnerLabelProblemAsksEachQuestion"
+    },
+    {
+      "label": "ubuntu-latest, the one this repository actually used, drops out of the list",
+      "file": "tools/ci/job_bounds_test.go",
+      "find": "regexp.MustCompile(`\\b(ubuntu|macos|windows)-latest\\b`)",
+      "replace": "regexp.MustCompile(`\\b(macos|windows|ubuntu-x)-latest\\b`)",
+      "test": "TestRunnerLabelProblemAsksEachQuestion"
+    },
+    {
+      "label": "the walk over the real workflows: adoption-metrics.yml goes back to ubuntu-latest",
+      "file": ".github/workflows/adoption-metrics.yml",
+      "find": "    runs-on: ubuntu-24.04\n",
+      "replace": "    runs-on: ubuntu-latest\n",
+      "test": "TestNoJobRunsOnAMovingImage"
+    },
+    {
+      "label": "a workflow with no top-level permissions is not named as such, and every job that names none inherits the repository default",
+      "file": "tools/ci/job_bounds_test.go",
+      "find": "if len(values) == 0 {\n\t\treturn \"no top-level",
+      "replace": "if len(values) == 0 && false {\n\t\treturn \"no top-level",
+      "test": "TestTopPermissionsProblemAsksEachQuestion"
+    },
+    {
+      "label": "a block of scopes at the top is not named as such: the `contents: read` adoption-metrics.yml carried until #988",
+      "file": "tools/ci/job_bounds_test.go",
+      "find": "if value == \"\" {\n\t\treturn \"grants a block",
+      "replace": "if value == \"\" && false {\n\t\treturn \"grants a block",
+      "test": "TestTopPermissionsProblemAsksEachQuestion"
+    },
+    {
+      "label": "any value at the top is accepted, a block, read-all or write-all",
+      "file": "tools/ci/job_bounds_test.go",
+      "find": "if value == \"{}\" {",
+      "replace": "if value == \"{}\" || true {",
+      "test": "TestTopPermissionsProblemAsksEachQuestion"
+    },
+    {
+      "label": "two top-level permissions are read on the last instead of refused as a shape nobody reads",
+      "file": "tools/ci/job_bounds_test.go",
+      "find": "if len(values) > 1 {\n\t\treturn fmt.Sprintf(\"top-level",
+      "replace": "if len(values) > 1 && false {\n\t\treturn fmt.Sprintf(\"top-level",
+      "test": "TestTopPermissionsProblemAsksEachQuestion"
+    },
+    {
+      "label": "an inline comment is read as part of the value, so `permissions: {} # comment` is refused and the accepted form cannot carry its reason",
+      "file": "tools/ci/job_bounds_test.go",
+      "find": "if before, _, found := strings.Cut(value, \" #\"); found {",
+      "replace": "if before, _, found := strings.Cut(value, \" #\"); found && false {",
+      "test": "TestTopPermissionsProblemAsksEachQuestion"
+    },
+    {
+      "label": "the walk over the real workflows: adoption-metrics.yml grants contents: read at the top again",
+      "file": ".github/workflows/adoption-metrics.yml",
+      "find": "permissions: {}\n\nconcurrency:",
+      "replace": "permissions:\n  contents: read\n\nconcurrency:",
+      "test": "TestEveryWorkflowGrantsNothingAtTheTop"
+    },
+    {
+      "label": "an inline `run:` is not read, so `guard.sh \"${{ matrix.mode }}\"` passes",
+      "file": "tools/ci/job_bounds_test.go",
+      "find": "if strings.Contains(value, \"${{\") {",
+      "replace": "if strings.Contains(value, \"${{\") && false {",
+      "test": "TestRunExpressionsAsksEachQuestion"
+    },
+    {
+      "label": "a script is read only to its first blank line, so an expression further down passes",
+      "file": "tools/ci/job_bounds_test.go",
+      "find": "for i+1 < len(lines) && scriptContinues(lines[i+1], keyIndent) {",
+      "replace": "for i+1 < len(lines) && scriptContinues(lines[i+1], keyIndent) && strings.TrimSpace(lines[i+1]) != \"\" {",
+      "test": "TestRunExpressionsAsksEachQuestion"
+    },
+    {
+      "label": "a folded script (`run: >-`) is not read at all",
+      "file": "tools/ci/job_bounds_test.go",
+      "find": "if !strings.HasPrefix(value, \"|\") && !strings.HasPrefix(value, \">\") {",
+      "replace": "if !strings.HasPrefix(value, \"|\") && (!strings.HasPrefix(value, \">\") || true) {",
+      "test": "TestRunExpressionsAsksEachQuestion"
+    },
+    {
+      "label": "a script runs on past its own end, so the step's env: values are reported as pasted into the shell",
+      "file": "tools/ci/job_bounds_test.go",
+      "find": "return len(line)-len(strings.TrimLeft(line, \" \")) > keyIndent",
+      "replace": "return len(line)-len(strings.TrimLeft(line, \" \")) >= keyIndent",
+      "test": "TestRunExpressionsAsksEachQuestion"
+    },
+    {
+      "label": "a step written `- run:` is not recognised as a script",
+      "file": "tools/ci/job_bounds_test.go",
+      "find": "regexp.MustCompile(`^(\\s*)(- )?run:(.*)$`)",
+      "replace": "regexp.MustCompile(`^(\\s*)(-x )?run:(.*)$`)",
+      "test": "TestRunExpressionsAsksEachQuestion"
+    },
+    {
+      "label": "the walk over the real workflows: runtime-proof.yml pastes matrix.mode into the shell again",
+      "file": ".github/workflows/runtime-proof.yml",
+      "find": "        run: sudo tools/conformance/guard.sh leftovers-after \"$MODE\"",
+      "replace": "        run: sudo tools/conformance/guard.sh leftovers-after \"$MODE\" \"${{ matrix.mode }}\"",
+      "test": "TestNoExpressionIsPastedIntoAShell"
+    }
+  ],
+  "note": "The subject is #988, item 6 and its neighbours: four rules every workflow is now held to, each asked of every job of every file. Measured on origin/main 78bd9d8 on 2026-11-16: 23 jobs in 12 workflows carried no timeout-minutes, so each could hold a runner for GitHub's default of 360 minutes; adoption-metrics.yml ran on ubuntu-latest and granted contents: read at the top; three run: lines pasted an expression into the shell, runtime-proof.yml matrix.mode and steps.count.outputs.streak, which the issue named, and drift.yml needs.drift.outputs.undecided, which it did not. Each helper is mutated once per question, with a case that fails that question only, and each walk over the real workflows is mutated once by putting the measured defect back in the file it came from: a table can be right while the walk reads nothing."
+}

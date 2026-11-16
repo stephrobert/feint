@@ -23,6 +23,11 @@ ruff = "0.14.9"          # Python lint + format
 # on one port is the precondition for a stale emulator answering somebody
 # else's measurement, which is the incident the rest of #309 guards against.
 FEINT_ADDR = "{{ get_env(name='FEINT_ADDR', default='127.0.0.1:4599') }}"
+# Terraform and OpenTofu would otherwise ask checkpoint-api.hashicorp.com for a
+# newer version on every command a local suite runs, which is a call to a real
+# service from a run meant to reach nothing but the emulator (#988). HashiCorp
+# documents CHECKPOINT_DISABLE as the off switch; the CI sets it as well.
+CHECKPOINT_DISABLE = "1"
 # Where the upstream SDK checkouts live. The drift scan reads them as source; it never imports them.
 FEINT_SDK_SCALEWAY = "{{config_root}}/.upstream/scaleway-sdk-go"
 FEINT_SDK_OUTSCALE = "{{config_root}}/.upstream/osc-sdk-go"
@@ -470,7 +475,10 @@ run = "tools/conformance/outscale/octl.sh http://$FEINT_ADDR"
 
 [tasks.lint-shell]
 description = "shellcheck every script in the repository"
-run = "git ls-files -z '*.sh' | xargs -0 shellcheck --severity=style"
+# --others --exclude-standard as well as --cached: a script not yet added to git
+# is the one being written, and `git ls-files` alone skipped it, so the task
+# answered green on a fault it never read (#988). Ignored files stay out.
+run = "git ls-files -z --cached --others --exclude-standard '*.sh' | xargs -0 shellcheck --severity=style"
 
 # Deliberately NOT in prepush, and the reason is the one CLAUDE.md gives for
 # keeping conformance out of the hook, in a sharper form: prepush is offline,

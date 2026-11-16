@@ -338,10 +338,25 @@ def spawn_and_wait(binary: str, profile: str, port: int, diagnosis: IO[bytes]):
             "--no-first-run",
             "--disable-extensions",
             # Nothing here should ever reach the network, and a browser that
-            # phones home makes the run depend on somebody's connectivity.
+            # phones home makes the run depend on somebody's connectivity. The
+            # three flags above this comment's last line were not enough:
+            # harden-runner logged the `page` job resolving www.google.com,
+            # clients2.google.com and content-autofill.googleapis.com in 3 runs
+            # of 3 on 2026-11-16. The flags after them are the ones Chrome's own
+            # launcher (chrome-launcher, flags.ts) passes to silence those
+            # services. Whether they suffice is measured by the CI, not here:
+            # the job runs in `egress-policy: block` without those hosts, so a
+            # lookup that survives is annotated by name (#988).
             "--disable-background-networking",
             "--disable-component-update",
             "--disable-sync",
+            "--disable-features=AutofillServerCommunication,OptimizationHints,Translate,"
+            "MediaRouter,CertificateTransparencyComponentUpdater",
+            "--disable-client-side-phishing-detection",
+            "--disable-default-apps",
+            "--disable-domain-reliability",
+            "--metrics-recording-only",
+            "--no-default-browser-check",
             # Determinism: the same viewport everywhere, and no animation to
             # catch mid-flight. The page honours prefers-reduced-motion, so this
             # is what stops a capture landing on frame three of a fade.

@@ -37,6 +37,10 @@ jobs:
   drift:
     name: Compare with the upstream SDK
     runs-on: ubuntu-24.04
+    # Measured: 123 s at most on pull requests (9 runs, 2026-11-16), 106 s on the 20
+    # scheduled runs from 2026-10-28 to 2026-11-16.
+    # Three times the longest, rounded up to five minutes (#988).
+    timeout-minutes: 10
     permissions:
       contents: read
     outputs:
@@ -68,6 +72,11 @@ jobs:
       - name: Harden runner
         uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
+          # Audit, not block, though this job runs the pull request's code:
+          # the three runs measured on 2026-11-16 were all pull requests, so
+          # the scheduled path, the one that feeds the drift pull request and
+          # issue, has no measured host list, and a block on a partial list
+          # would break the night this workflow exists for (#988).
           egress-policy: audit
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -349,6 +358,9 @@ jobs:
     needs: drift
     if: github.event_name == 'schedule' && (needs.drift.outputs.changed == 'true' || needs.drift.outputs.contracts == 'true')
     runs-on: ubuntu-24.04
+    # Measured: 22 s at most, 4 scheduled runs from 2026-10-28 to 2026-11-16.
+    # Three times the longest, rounded up to five minutes (#988).
+    timeout-minutes: 5
     permissions:
       contents: write        # push the branch
       pull-requests: write   # open the PR
@@ -488,6 +500,9 @@ jobs:
     # never close what it opened.
     if: always() && github.event_name == 'schedule' && (needs.drift.outputs.changed == 'true' || needs.drift.outputs.contracts == 'true' || needs.drift.outputs.undecided == 'failure')
     runs-on: ubuntu-24.04
+    # Measured: 16 s at most, 4 scheduled runs from 2026-10-28 to 2026-11-16.
+    # Three times the longest, rounded up to five minutes (#988).
+    timeout-minutes: 5
     permissions:
       contents: read
       issues: write
@@ -528,7 +543,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           FEINT_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: tools/ci/drift-report.sh --apply "${{ needs.drift.outputs.undecided }}" /tmp/triage.txt
+          UNDECIDED: ${{ needs.drift.outputs.undecided }}
+        run: tools/ci/drift-report.sh --apply "$UNDECIDED" /tmp/triage.txt
 
   # EVERY SOURCE WAS MEASURED, OR THE NIGHT IS RED.
   #
@@ -560,6 +576,9 @@ jobs:
     needs: drift
     if: always() && github.event_name == 'schedule'
     runs-on: ubuntu-24.04
+    # Measured: 12 s at most, 4 scheduled runs from 2026-10-28 to 2026-11-16.
+    # Three times the longest, rounded up to five minutes (#988).
+    timeout-minutes: 5
     permissions: {}
     steps:
       - name: Harden runner

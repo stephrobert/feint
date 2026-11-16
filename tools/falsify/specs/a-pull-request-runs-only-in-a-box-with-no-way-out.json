@@ -1,0 +1,415 @@
+{
+ "package": "./tools/review/sandbox/",
+ "note": "The subject is tools/review/sandbox.sh (#988, item 4): the command that runs the tests of a pull request from outside the project in a throwaway Incus container instead of on the station. Exit 0: tests green; 2: tests red; 1: cannot judge.\n\nEach mutation removes one refusal, one limit of the box, one step of the order (network cut before the code enters), the trap that stops the box, or one class of control character the output escaper writes out. The tests run the real script against a real throwaway git repository and a stand-in `incus` (tools/review/sandbox/testdata/incus) that records every call and keeps just enough state to answer.\n\nWhat this does not falsify: that a real Incus behaves as the stand-in says (measured by hand on 2026-11-16 on Incus 7.6, see the pull request), that a pull request cannot escape the container through the kernel it shares with the station, that the order of the stages holds if a stage is moved (the tests prove the order on the calls that were made, not every reordering), and a pool that DOES apply a size: the stand-in answers what the box sees, only the dir pool of this station was measured (Incus 7.6 accepts size: on it and applies nothing, so the script refuses to run there).",
+ "mutations": [
+  {
+   "label": "a pull request number is no longer checked: `abc` goes on to a fetch that fails for another reason",
+   "file": "tools/review/sandbox.sh",
+   "find": "re_pr='^[1-9][0-9]{0,6}$'",
+   "replace": "re_pr='.*'",
+   "test": "TestAMalformedArgumentIsRefusedBeforeAnythingRuns/letters"
+  },
+  {
+   "label": "a package pattern is no longer checked: `-race` reaches `go test` as a flag",
+   "file": "tools/review/sandbox.sh",
+   "find": "re_pkg='^\\.(/[A-Za-z0-9_][A-Za-z0-9_.-]*)*(/\\.\\.\\.)?$'",
+   "replace": "re_pkg='.*'",
+   "test": "TestAMalformedArgumentIsRefusedBeforeAnythingRuns/flag-as-package"
+  },
+  {
+   "label": "a package pattern with `..` is no longer refused",
+   "file": "tools/review/sandbox.sh",
+   "find": "re_pkg='^\\.(/[A-Za-z0-9_][A-Za-z0-9_.-]*)*(/\\.\\.\\.)?$'",
+   "replace": "re_pkg='^\\.(/[A-Za-z0-9_.][A-Za-z0-9_.-]*)*(/\\.\\.\\.)?$'",
+   "test": "TestAMalformedArgumentIsRefusedBeforeAnythingRuns/package-dotdot"
+  },
+  {
+   "label": "an image with a remote prefix is accepted, so an image could be pulled from the network",
+   "file": "tools/review/sandbox.sh",
+   "find": "re_image='^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$'",
+   "replace": "re_image='.*'",
+   "test": "TestAMalformedArgumentIsRefusedBeforeAnythingRuns/remote-image"
+  },
+  {
+   "label": "a pool name is no longer checked",
+   "file": "tools/review/sandbox.sh",
+   "find": "re_pool='^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$'",
+   "replace": "re_pool='.*'",
+   "test": "TestAMalformedArgumentIsRefusedBeforeAnythingRuns/pool-space"
+  },
+  {
+   "label": "a deadline under 5 s is accepted",
+   "file": "tools/review/sandbox.sh",
+   "find": "((timeout_s >= 5 && timeout_s <= 7200))",
+   "replace": "((timeout_s >= 1 && timeout_s <= 7200))",
+   "test": "TestAMalformedArgumentIsRefusedBeforeAnythingRuns/timeout-too-small"
+  },
+  {
+   "label": "a deadline over two hours is accepted",
+   "file": "tools/review/sandbox.sh",
+   "find": "((timeout_s >= 5 && timeout_s <= 7200))",
+   "replace": "((timeout_s >= 5 && timeout_s <= 72000))",
+   "test": "TestAMalformedArgumentIsRefusedBeforeAnythingRuns/timeout-too-large"
+  },
+  {
+   "label": "a go.mod at the root is no longer a dependency file",
+   "file": "tools/review/sandbox.sh",
+   "find": "    go.mod | */go.mod | go.sum",
+   "replace": "    */go.mod | go.sum",
+   "test": "TestAChangedDependencyFileIsRefused/go.mod"
+  },
+  {
+   "label": "a go.mod in a subdirectory is no longer a dependency file",
+   "file": "tools/review/sandbox.sh",
+   "find": "go.mod | */go.mod | go.sum",
+   "replace": "go.mod | */go.mod.x | go.sum",
+   "test": "TestAChangedDependencyFileIsRefused/nested-go.mod"
+  },
+  {
+   "label": "a go.sum in a subdirectory is no longer a dependency file",
+   "file": "tools/review/sandbox.sh",
+   "find": "go.sum | */go.sum | go.work",
+   "replace": "go.sum | go.work",
+   "test": "TestAChangedDependencyFileIsRefused/nested-go.sum"
+  },
+  {
+   "label": "go.work and go.work.sum are no longer dependency files",
+   "file": "tools/review/sandbox.sh",
+   "find": "go.work | */go.work | go.work.sum | */go.work.sum | vendor/*",
+   "replace": "go.work.x | */go.work.x | go.work.sum.x | */go.work.sum.x | vendor/*",
+   "test": "TestAChangedDependencyFileIsRefused/go.work"
+  },
+  {
+   "label": "a vendor/ at the root is no longer a dependency path",
+   "file": "tools/review/sandbox.sh",
+   "find": "| vendor/* | */vendor/*) return 0 ;;",
+   "replace": "| */vendor/*) return 0 ;;",
+   "test": "TestAChangedDependencyFileIsRefused/vendor"
+  },
+  {
+   "label": "a vendor/ in a subdirectory is no longer a dependency path",
+   "file": "tools/review/sandbox.sh",
+   "find": "| vendor/* | */vendor/*) return 0 ;;",
+   "replace": "| vendor/*) return 0 ;;",
+   "test": "TestAChangedDependencyFileIsRefused/nested-vendor"
+  },
+  {
+   "label": "a deleted go.mod is not listed among the changes",
+   "file": "tools/review/sandbox.sh",
+   "find": "< <(git diff --name-only -z --no-renames \"${base_sha}\" \"${head_sha}\")",
+   "replace": "< <(git diff --name-only -z --no-renames --diff-filter=AM \"${base_sha}\" \"${head_sha}\")",
+   "test": "TestAChangedDependencyFileIsRefused/deleted-go.mod"
+  },
+  {
+   "label": "a go.mod renamed away is listed under its new name only",
+   "file": "tools/review/sandbox.sh",
+   "find": "< <(git diff --name-only -z --no-renames \"${base_sha}\" \"${head_sha}\")",
+   "replace": "< <(git diff --name-only -z --no-renames --find-renames \"${base_sha}\" \"${head_sha}\")",
+   "test": "TestAChangedDependencyFileIsRefused/go.mod-renamed-away"
+  },
+  {
+   "label": "a dependency file is found, then ignored",
+   "file": "tools/review/sandbox.sh",
+   "find": "((refused == 0)) || cannot \"the pull request changes",
+   "replace": "((refused == 0 || 1)) || cannot \"the pull request changes",
+   "test": "TestAChangedDependencyFileIsRefused/go.mod"
+  },
+  {
+   "label": "the container is no longer ephemeral: its stop no longer deletes it",
+   "file": "tools/review/sandbox.sh",
+   "find": "\"${name}\" --ephemeral --no-profiles >",
+   "replace": "\"${name}\" --ephemeral=false --no-profiles >",
+   "test": "TestTheBoxIsEphemeralUnprivilegedAndLimited"
+  },
+  {
+   "label": "the default profile applies again, and with it the default NIC",
+   "file": "tools/review/sandbox.sh",
+   "find": "\"${name}\" --ephemeral --no-profiles >",
+   "replace": "\"${name}\" --ephemeral --no-profiles=false >",
+   "test": "TestTheBoxIsEphemeralUnprivilegedAndLimited"
+  },
+  {
+   "label": "the container is privileged",
+   "file": "tools/review/sandbox.sh",
+   "find": "security.privileged: \"false\"",
+   "replace": "security.privileged: \"true\"",
+   "test": "TestTheBoxIsEphemeralUnprivilegedAndLimited"
+  },
+  {
+   "label": "the container may nest",
+   "file": "tools/review/sandbox.sh",
+   "find": "security.nesting: \"false\"",
+   "replace": "security.nesting: \"true\"",
+   "test": "TestTheBoxIsEphemeralUnprivilegedAndLimited"
+  },
+  {
+   "label": "no CPU limit",
+   "file": "tools/review/sandbox.sh",
+   "find": "  limits.cpu: \"2\"\n",
+   "replace": "  # limits.cpu: \"2\"\n",
+   "test": "TestTheBoxIsEphemeralUnprivilegedAndLimited"
+  },
+  {
+   "label": "no memory limit",
+   "file": "tools/review/sandbox.sh",
+   "find": "  limits.memory: 4GiB\n",
+   "replace": "  # limits.memory: 4GiB\n",
+   "test": "TestTheBoxIsEphemeralUnprivilegedAndLimited"
+  },
+  {
+   "label": "no process limit",
+   "file": "tools/review/sandbox.sh",
+   "find": "  limits.processes: \"4096\"\n",
+   "replace": "  # limits.processes: \"4096\"\n",
+   "test": "TestTheBoxIsEphemeralUnprivilegedAndLimited"
+  },
+  {
+   "label": "the guest API socket is left in the box",
+   "file": "tools/review/sandbox.sh",
+   "find": "security.guestapi: \"false\"",
+   "replace": "security.guestapi: \"true\"",
+   "test": "TestTheBoxIsEphemeralUnprivilegedAndLimited"
+  },
+  {
+   "label": "the root disk size is not requested",
+   "file": "tools/review/sandbox.sh",
+   "find": "    size: ${disk_size}\n",
+   "replace": "    # size: ${disk_size}\n",
+   "test": "TestTheBoxIsEphemeralUnprivilegedAndLimited"
+  },
+  {
+   "label": "a root disk the pool does not bound no longer stops the run",
+   "file": "tools/review/sandbox.sh",
+   "find": "if ((box_size > disk_limit)); then",
+   "replace": "if ((box_size > disk_limit && disk_limit < 0)); then",
+   "test": "TestADiskTheBoxCannotBoundIsRefused/the-host-disk"
+  },
+  {
+   "label": "an unreadable disk size is accepted",
+   "file": "tools/review/sandbox.sh",
+   "find": "if ! [[ ${box_size} =~ ${re_size} ]]; then",
+   "replace": "if ! [[ ${box_size} =~ ${re_size} || -n ${box_size} ]]; then",
+   "test": "TestADiskTheBoxCannotBoundIsRefused/unreadable"
+  },
+  {
+   "label": "a variable of the station is forwarded into the box",
+   "file": "tools/review/sandbox.sh",
+   "find": "  --env CGO_ENABLED=0\n)",
+   "replace": "  --env CGO_ENABLED=0\n  --env \"STATION_SECRET=${STATION_SECRET:-}\"\n)",
+   "test": "TestNothingOfTheStationEntersTheBox"
+  },
+  {
+   "label": "the station's home is mounted into the box",
+   "file": "tools/review/sandbox.sh",
+   "find": "    size: ${disk_size}\nEOF",
+   "replace": "    size: ${disk_size}\n  home:\n    type: disk\n    source: ${HOME}\n    path: /home/station\nEOF",
+   "test": "TestNothingOfTheStationEntersTheBox"
+  },
+  {
+   "label": "a connection that succeeds out of the box no longer stops the run",
+   "file": "tools/review/sandbox.sh",
+   "find": "|| cannot \"a connection out of the box succeeded: the network is not cut\"",
+   "replace": "|| true || cannot \"a connection out of the box succeeded: the network is not cut\"",
+   "test": "TestTheCodeEntersOnlyAfterTheNetworkIsMeasuredCut/connection-succeeds",
+   "timeout": "120s"
+  },
+  {
+   "label": "an interface besides lo no longer stops the run",
+   "file": "tools/review/sandbox.sh",
+   "find": "[[ ${ifaces} == lo ]] ||",
+   "replace": "[[ ${ifaces} == lo || -n ${ifaces} ]] ||",
+   "test": "TestTheCodeEntersOnlyAfterTheNetworkIsMeasuredCut/interface-left"
+  },
+  {
+   "label": "a NIC left in the instance's devices no longer stops the run",
+   "file": "tools/review/sandbox.sh",
+   "find": "*\"type: nic\"*) cannot",
+   "replace": "*\"type: nicX\"*) cannot",
+   "test": "TestTheCodeEntersOnlyAfterTheNetworkIsMeasuredCut/nic-left-in-config"
+  },
+  {
+   "label": "the NIC is not removed after go mod download",
+   "file": "tools/review/sandbox.sh",
+   "find": "bounded incus config device remove \"${name}\" net0 >\"${work}/stage.log\" 2>&1 || stage_fail net-remove",
+   "replace": "bounded true incus config device remove \"${name}\" net0 >\"${work}/stage.log\" 2>&1 || stage_fail net-remove",
+   "test": "TestTheCodeEntersOnlyAfterTheNetworkIsMeasuredCut/modules-then-cut-then-code"
+  },
+  {
+   "label": "a go.mod that requires modules is never downloaded",
+   "file": "tools/review/sandbox.sh",
+   "find": "  needs_modules=1\n",
+   "replace": "  needs_modules=0\n",
+   "test": "TestTheCodeEntersOnlyAfterTheNetworkIsMeasuredCut/modules-then-cut-then-code"
+  },
+  {
+   "label": "the network opens even when the go.mod requires nothing",
+   "file": "tools/review/sandbox.sh",
+   "find": "if ((needs_modules == 1)); then",
+   "replace": "if ((needs_modules == 1 || 1)); then",
+   "test": "TestTheCodeEntersOnlyAfterTheNetworkIsMeasuredCut/no-requirement-no-network"
+  },
+  {
+   "label": "the archive is the station's HEAD, not the pull request's head commit",
+   "file": "tools/review/sandbox.sh",
+   "find": "--output=\"${work}/pr.tar\" \"${head_sha}\"",
+   "replace": "--output=\"${work}/pr.tar\" HEAD",
+   "test": "TestTheCodeEntersAsAnArchiveOnly"
+  },
+  {
+   "label": "no trap: the container is not stopped when the run ends",
+   "file": "tools/review/sandbox.sh",
+   "find": "trap cleanup EXIT",
+   "replace": "trap : EXIT # cleanup",
+   "test": "TestTheBoxIsStoppedWhateverHappens/green"
+  },
+  {
+   "label": "the tests run in the foreground of the shell: a SIGTERM waits for them to end",
+   "file": "tools/review/sandbox.sh",
+   "find": "  } | head -c 4194304 >\"${work}/test.raw\"\n} &\nchild=$!",
+   "replace": "  } | head -c 4194304 >\"${work}/test.raw\"\n}\nchild=$!",
+   "test": "TestTheBoxIsStoppedWhateverHappens/sigterm-while-the-tests-run",
+   "timeout": "180s"
+  },
+  {
+   "label": "the global deadline is not enforced on external commands",
+   "file": "tools/review/sandbox.sh",
+   "find": "timeout --kill-after=5 \"${left}\" \"$@\" <\"${bounded_stdin}\" &",
+   "replace": ": timeout --kill-after=5 \"${left}\"; \"$@\" <\"${bounded_stdin}\" &",
+   "test": "TestTheBoxIsStoppedWhateverHappens/deadline-in-the-tests",
+   "timeout": "180s"
+  },
+  {
+   "label": "an instance without this run's label is stopped",
+   "file": "tools/review/sandbox.sh",
+   "find": "if [[ ${label} != \"${token}\" ]]; then",
+   "replace": "if [[ ${label} != \"${token}\" && -z ${token} ]]; then",
+   "test": "TestAnInstanceThatIsNotOursIsNeverStopped"
+  },
+  {
+   "label": "an image that is not on the station is launched anyway",
+   "file": "tools/review/sandbox.sh",
+   "find": "|| cannot \"the image ${image} is not on this station\"",
+   "replace": "|| true || cannot \"the image ${image} is not on this station\"",
+   "test": "TestAnImageThatIsNotOnTheStationIsNotLaunched"
+  },
+  {
+   "label": "a host Go that is not the pinned one is accepted",
+   "file": "tools/review/sandbox.sh",
+   "find": "[[ ${have_go} == \"go${want_go}\" ]] || cannot",
+   "replace": "[[ ${have_go} == \"go${want_go}\" || -n ${have_go} ]] || cannot",
+   "test": "TestTheHostGoMustBeThePinnedOne"
+  },
+  {
+   "label": "red tests exit 1, which reads as cannot judge",
+   "file": "tools/review/sandbox.sh",
+   "find": "    exit 2\n    ;;",
+   "replace": "    exit 1\n    ;;",
+   "test": "TestTheExitCodeSaysWhatWasMeasured/red"
+  },
+  {
+   "label": "green tests exit 1",
+   "file": "tools/review/sandbox.sh",
+   "find": "    exit 0\n    ;;",
+   "replace": "    exit 1\n    ;;",
+   "test": "TestTheExitCodeSaysWhatWasMeasured/green"
+  },
+  {
+   "label": "a go test that did not finish reads as red",
+   "file": "tools/review/sandbox.sh",
+   "find": "*) cannot \"go test did not finish normally (exit ${rc}); the output above is partial\" ;;",
+   "replace": "*) : cannot; printf 'sandbox: tests red: unfinished\\n'; exit 2 ;;",
+   "test": "TestTheExitCodeSaysWhatWasMeasured/go-test-did-not-finish"
+  },
+  {
+   "label": "the go in the box is not compared with the pinned one",
+   "file": "tools/review/sandbox.sh",
+   "find": "[[ \"$(cat \"${work}/stage.log\")\" == \"go version go${want_go} linux/\"* ]] || stage_fail gocheck",
+   "replace": "[[ \"$(cat \"${work}/stage.log\")\" == \"go version go${want_go} linux/\"* || -n \"$(cat \"${work}/stage.log\")\" ]] || stage_fail gocheck",
+   "test": "TestTheExitCodeSaysWhatWasMeasured/the-go-in-the-box-is-not-the-pinned-one"
+  },
+  {
+   "label": "testdata directories are tested as packages",
+   "file": "tools/review/sandbox.sh",
+   "find": "case \"/${f}\" in */testdata/* | */vendor/* | */_*) continue ;; esac",
+   "replace": "case \"/${f}\" in */testdata.x/* | */vendor/* | */_*) continue ;; esac",
+   "test": "TestThePackagesAreTheOnesThePullRequestTouches/derived-from-the-diff"
+  },
+  {
+   "label": "directories starting with an underscore are tested as packages",
+   "file": "tools/review/sandbox.sh",
+   "find": "case \"/${f}\" in */testdata/* | */vendor/* | */_*) continue ;; esac",
+   "replace": "case \"/${f}\" in */testdata/* | */vendor/* | */_ *) continue ;; esac",
+   "test": "TestThePackagesAreTheOnesThePullRequestTouches/derived-from-the-diff"
+  },
+  {
+   "label": "a directory with an unusual name is passed on to go test",
+   "file": "tools/review/sandbox.sh",
+   "find": "[[ ${d} =~ ${re_dir} ]] || cannot \"a Go file",
+   "replace": "[[ ${d} =~ ${re_dir} || -n ${d} ]] || cannot \"a Go file",
+   "test": "TestThePackagesAreTheOnesThePullRequestTouches/unusual-directory-name"
+  },
+  {
+   "label": "a package the pull request does not hold is passed to go test",
+   "file": "tools/review/sandbox.sh",
+   "find": "|| cannot \"the pull request has no directory ${p}\"",
+   "replace": "|| true || cannot \"the pull request has no directory ${p}\"",
+   "test": "TestThePackagesAreTheOnesThePullRequestTouches/a-named-directory-the-pull-request-lacks"
+  },
+  {
+   "label": "the package of a deleted file is tested",
+   "file": "tools/review/sandbox.sh",
+   "find": "< <(git diff --name-only -z --no-renames --diff-filter=AM \"${base_sha}\" \"${head_sha}\")",
+   "replace": "< <(git diff --name-only -z --no-renames --diff-filter=AM \"${base_sha}\" \"${head_sha}\"; git diff --name-only -z --diff-filter=D \"${base_sha}\" \"${head_sha}\")",
+   "test": "TestThePackagesAreTheOnesThePullRequestTouches/derived-from-the-diff"
+  },
+  {
+   "label": "a pull request that touches no Go package runs go test on nothing",
+   "file": "tools/review/sandbox.sh",
+   "find": "((${#pkgs[@]} > 0)) || cannot \"the pull request adds",
+   "replace": "((${#pkgs[@]} > -1)) || cannot \"the pull request adds",
+   "test": "TestThePackagesAreTheOnesThePullRequestTouches/no-go-file-touched"
+  },
+  {
+   "label": "the output reaches the terminal as it is",
+   "file": "tools/review/sandbox.sh",
+   "find": "python3 -I \"${escaper}\" <\"${work}/test.raw\"",
+   "replace": "cat \"${work}/test.raw\" # python3 -I \"${escaper}\"",
+   "test": "TestTheOutputIsEscaped"
+  },
+  {
+   "label": "a carriage return is kept: a line can overwrite the one above",
+   "file": "tools/review/sandbox/escape.py",
+   "find": "if ch in KEEP:",
+   "replace": "if ch in KEEP + \"\\r\":",
+   "test": "TestTheEscaperLeavesNoControlCharacter/carriage-return"
+  },
+  {
+   "label": "format characters (bidirectional overrides, zero-width) are kept",
+   "file": "tools/review/sandbox/escape.py",
+   "find": "ESCAPED_CATEGORIES = (\"Cc\", \"Cf\", \"Zl\", \"Zp\", \"Cs\", \"Co\")",
+   "replace": "ESCAPED_CATEGORIES = (\"Cc\", \"Zl\", \"Zp\", \"Cs\", \"Co\")",
+   "test": "TestTheEscaperLeavesNoControlCharacter/bidi-override"
+  },
+  {
+   "label": "line and paragraph separators are kept",
+   "file": "tools/review/sandbox/escape.py",
+   "find": "ESCAPED_CATEGORIES = (\"Cc\", \"Cf\", \"Zl\", \"Zp\", \"Cs\", \"Co\")",
+   "replace": "ESCAPED_CATEGORIES = (\"Cc\", \"Cf\", \"Cs\", \"Co\")",
+   "test": "TestTheEscaperLeavesNoControlCharacter/line-separator"
+  },
+  {
+   "label": "control characters (C0, DEL, C1) are kept",
+   "file": "tools/review/sandbox/escape.py",
+   "find": "ESCAPED_CATEGORIES = (\"Cc\", \"Cf\", \"Zl\", \"Zp\", \"Cs\", \"Co\")",
+   "replace": "ESCAPED_CATEGORIES = (\"Cf\", \"Zl\", \"Zp\", \"Cs\", \"Co\")",
+   "test": "TestTheEscaperLeavesNoControlCharacter/escape-sequence"
+  },
+  {
+   "label": "an invalid byte is written as a surrogate, not as its byte value",
+   "file": "tools/review/sandbox/escape.py",
+   "find": "if 0xDC80 <= cp <= 0xDCFF:",
+   "replace": "if cp < 0:",
+   "test": "TestTheEscaperLeavesNoControlCharacter/invalid-utf8"
+  }
+ ]
+}
