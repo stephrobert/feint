@@ -63,7 +63,7 @@ decision (#564).
 
 It also prints **the falsifications the diff has earned**, read off
 `tools/falsify/specs/` rather than remembered: 269 specs name 326 distinct files
-in 2239 mutations, and a spec that mutates a file you touched is the subset of
+in 2244 mutations, and a spec that mutates a file you touched is the subset of
 `falsify:all` your change can have stopped biting. Every batch here has followed
 that discipline by hand and said so in its pull request, which means it has also
 been forgotten by hand — `mise run check` cannot see a guard whose test still
@@ -222,6 +222,15 @@ the 0.8.0 CHANGELOG says neutralising any of three locks reds the barrage, and
 thirty runs later stayed green with a lock removed. So the mutation goes in
 `tools/falsify/specs/`, beside the guard, and `mise run falsify:all` replays
 every one of them nightly (`.github/workflows/falsify.yml`).
+
+**A spec is code, and it is reviewed as code.** It reads like JSON, but a
+mutation's `replace` is Go that `go test` compiles and runs, on the station that
+replays it and at the next night. So a spec gets the review a `.go` file gets,
+and a spec from someone else's branch is read before `mise run falsify` touches
+it. The two fields that reached `go test` without looking like code are closed
+at load (#989): `env` may only set a variable on the harness's exact list
+(`SPEC_ENV_KEYS`, today `FEINT_TESTCONTAINER`), and `package` is a relative Go
+package path, never a flag.
 
 The first full replay found four of eight specs no longer holding, and none of
 it was rot in the emulator: three mutations were written in the deleting style,

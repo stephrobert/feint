@@ -17,6 +17,27 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ## [Unreleased]
 
+### Sécurité
+
+- **Le `env` et le `package` d'une spec falsify ne peuvent plus faire lancer un
+  autre programme à `go test`** (#989). Une spec est un fichier JSON et se lit
+  comme une donnée en revue, mais son `env` partait dans l'environnement de
+  `go test` et son `package` dans ses arguments, sans contrôle. Mesuré le
+  2026-11-16 : une spec portant `"env": {"GOFLAGS": "-exec=<script>"}` a fait
+  tourner le script, sur la station qui la rejouait et, si elle avait été
+  commitée, à la nuit suivante de `falsify.yml`. Une spec est désormais refusée
+  au chargement, avant toute copie et toute exécution, si une clé de `env`
+  n'est pas sur une liste exacte (aujourd'hui `FEINT_TESTCONTAINER` seule :
+  plusieurs variables `FEINT_*` désignent un programme, comme `FEINT_BIN`) ou
+  si une valeur contient un caractère de contrôle, ou si un `package` n'est pas
+  un chemin de paquet Go relatif (`./…`, sans `..`, jamais un drapeau). Le refus
+  nomme la spec, le champ et la valeur, et `--lint` refuse de la même façon ; la
+  spec qui faisait tourner le script sur `main` est refusée, et le script ne
+  tourne pas. **Ce que ça ne ferme pas** : le `replace` d'une mutation est du
+  code Go que `go test` compile et exécute, par construction. Une spec se relit
+  comme un fichier `.go` avant d'être rejouée, celle d'un tiers avant tout, et
+  `CONTRIBUTING.fr.md` le dit désormais.
+
 ### Corrigé
 
 - **Le plancher d'Incus passe de 6.0.4 à 6.0.5** (#979). La 6.0.4 ordonne

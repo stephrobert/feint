@@ -1489,6 +1489,41 @@
       "find": "\t\t} else if keyed && !bytes.Contains(body, []byte(src)) {\n",
       "replace": "\t\t} else if keyed && !bytes.Contains(body, []byte(src)) && len(pins) < 0 {\n",
       "test": "TestAPinWhoseFunctionIsGoneIsRefused"
+    },
+    {
+      "label": "a spec may set any environment variable again (#989): `env` reaches `go test` unchecked, so GOFLAGS=-exec=, LD_PRELOAD or FEINT_BIN makes a JSON file run a program at the next night",
+      "file": "tools/falsify/falsify.py",
+      "find": "        if key not in SPEC_ENV_KEYS:",
+      "replace": "        if key not in SPEC_ENV_KEYS and False:",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "a FEINT_* value may carry a line break again (#989): the variable passes its name check and smuggles a second assignment in its value",
+      "file": "tools/falsify/falsify.py",
+      "find": "        if any(ord(c) < 0x20 or ord(c) == 0x7F for c in value):",
+      "replace": "        if any(ord(c) < 0x20 or ord(c) == 0x7F for c in value) and False:",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "a package may be any text again (#989): `-exec=<binary>` or `-toolexec=<binary>` reaches the argv of `go test` as a flag",
+      "file": "tools/falsify/falsify.py",
+      "find": "    if not SPEC_PACKAGE.fullmatch(package) or \"..\" in segments or \".\" in segments[1:]:",
+      "replace": "    if (not SPEC_PACKAGE.fullmatch(package) and False) or \"..\" in segments or \".\" in segments[1:]:",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "a package may climb out with `..` again (#989): the shape check alone accepts ./p/../../elsewhere/, a package outside the copied tree",
+      "file": "tools/falsify/falsify.py",
+      "find": "    if not SPEC_PACKAGE.fullmatch(package) or \"..\" in segments or \".\" in segments[1:]:",
+      "replace": "    if not SPEC_PACKAGE.fullmatch(package) or (\"..\" in segments and False) or \".\" in segments[1:]:",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
+    },
+    {
+      "label": "a package may hold a `.` segment again (#989): ./p/./ loads, finds no test, and the refusal that follows blames the test's name instead of the path",
+      "file": "tools/falsify/falsify.py",
+      "find": "    if not SPEC_PACKAGE.fullmatch(package) or \"..\" in segments or \".\" in segments[1:]:",
+      "replace": "    if not SPEC_PACKAGE.fullmatch(package) or \"..\" in segments or (\".\" in segments[1:] and False):",
+      "test": "TestTheFalsifyHarnessHoldsItsOwnSelftest"
     }
   ]
 }
