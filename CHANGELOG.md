@@ -37,6 +37,31 @@ what this project is judged on: **a response shape a client can observe**, and
   is now the eighth frozen surface (`internal/cli/testdata/frozen/run.json`,
   from version 3), read from a real run whose population holds a value for
   every key, and listed in the support window of `RELEASING.md`.
+- **`feint doctor` gave prose where a reader needed a command, and missed three
+  setup steps** (#974). Every remedy is now a command to paste, for the
+  distribution doctor runs on, `sudo` where root is needed, generated from the
+  same table as the blocks of `docs/install.md`. New checks: Incus initialised,
+  Open vSwitch wired to OVN (read from `br-int` when its settings need root, and
+  "cannot be told" when neither answers), uv and Ansible with their pinned
+  versions. Every missing step is listed in one run, numbered in the order of
+  the work. `feint doctor --fix` runs the steps that need no root after printing
+  the plan, and prints the root ones. `tools/install/ansible/local.yml` sets up
+  the local machine without Terraform state, and adds the user who runs it to
+  `incus-admin`; Ansible is pinned at ansible-core 2.22.0, and doctor checks
+  it. Names read from `/tmp` reach a printed command only in the exact shape
+  `feint run` gives them, on a directory owned by you with mode 0700, and
+  quoted. CLI surface version 37.
+
+  Two changes reach users of `tools/install/ansible/site.yml` too. The
+  `feint_host` role no longer gives `incusbr0` DHCP and OVN ranges (feint
+  creates its own uplink, `feint-uplink`) and no longer sets
+  `network.ovn.northbound_connection` to its default, which stored nothing.
+  `ansible.cfg` asked for the `yaml` stdout callback, which community.general
+  removed in 12.0.0: with ansible-core 2.22.0 every run stopped on it; it now
+  sets `callback_result_format = yaml`. The install page runs as your own user
+  and says `sudo` on each command that needs root, where it used to say "run as
+  root".
+
 - **A fault receipt line still in flight was published as a finished one**
   (#925). `GET /_feint/faults` reserves a line when a rule fires and fills
   it when the handler ends; in between it answered `status: 0,

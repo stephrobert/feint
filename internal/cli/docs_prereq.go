@@ -119,6 +119,10 @@ func prereqSplice(path, goMod string) (updated, current string, err error) {
 	if err != nil {
 		return "", "", err
 	}
+	// The install commands, from the table doctor prints them from (#974).
+	if out, err = spliceSetupDoc(out); err != nil {
+		return "", "", err
+	}
 	return out, string(body), nil
 }
 

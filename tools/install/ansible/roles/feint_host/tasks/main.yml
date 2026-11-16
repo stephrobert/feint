@@ -17,6 +17,23 @@
 - name: Install the runtime and OVN
   ansible.builtin.include_tasks: "{{ ansible_os_family | lower }}.yml"
 
+# Incus answers only the members of incus-admin, so without this the playbook
+# ends and the next command it tells you to run, `feint images`, is refused
+# (#974). getent first: the user module would otherwise create an account that
+# does not exist. The group applies to a new login, which local.yml says.
+- name: Is the account to add to incus-admin real
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ feint_host_incus_user }}"
+  when: feint_host_incus_user | length > 0
+
+- name: Let that account use Incus
+  ansible.builtin.user:
+    name: "{{ feint_host_incus_user }}"
+    groups: incus-admin
+    append: true
+  when: feint_host_incus_user | length > 0
+
 # --- Wiring -----------------------------------------------------------------
 #
 # The part nobody guesses, and the part that is the same on every distribution
@@ -97,74 +114,17 @@
   when: feint_host_storage.stdout | trim == ""
   changed_when: true
 
-# changed_when: false, and not because the task does nothing.
-#
-# Incus accepts this setting and does not read it back: `incus config get
-# network.ovn.northbound_connection` answers empty on a server where it was just
-# set, and `incus config show` does not carry it either. So there is no before
-# to compare against, and a task that claims a change it cannot observe is worse
-# than one that stays quiet — it makes every run look like work happened.
-#
-# Setting it again is harmless: the server takes the same value it already has.
-- name: Point Incus at the northbound database
-  ansible.builtin.command:
-    cmd: incus config set network.ovn.northbound_connection unix:/run/ovn/ovnnb_db.sock
-  changed_when: false
-  when: feint_host_want_ovn | bool
+# No northbound setting either. Incus finds the database on its own:
+# network.ovn.northbound_connection defaults to unix:/run/ovn/ovnnb_db.sock,
+# which is where ovn-central puts it, and setting it to that value stores
+# nothing (`incus config get` answers empty right after). The task that set it
+# was removed in #974 so the role and docs/install.md say the same thing.
 
-# An OVN network needs an uplink, and the uplink must be a managed bridge
-# carrying ipv4.ovn.ranges. `incus admin init --minimal` creates incusbr0
-# without it, so an OVN network created afterwards is refused for a reason that
-# points at the network rather than at the bridge.
-# The uplink, and this is where an install silently stops being an OVN install.
-#
-# `incus admin init --minimal` gives incusbr0 a random /24, so the address is
-# pinned first: the OVN and DHCP ranges are validated against the *current*
-# address, and a range outside it is refused with "does not fall within any of
-# the allowed networks". Two steps, not one, for the same reason — a single
-# command validates the new ranges against the old address.
-#
-# Neither step may fail quietly. An earlier version of this task carried
-# `failed_when: false`, so every one of these settings was refused and nothing
-# said so; the emulator then reported isolation true, because that capability
-# follows the driver mode rather than a working uplink, and the first attempt to
-# create a subnet failed with "Uplink network doesn't contain 10.190.1.0/24 in
-# its routes". A check that cannot fail is the defect this project exists to
-# avoid.
-- name: What the uplink bridge carries today
-  ansible.builtin.command:
-    cmd: incus network get incusbr0 ipv4.address
-  register: feint_host_uplink_now
-  changed_when: false
-  failed_when: false
-  when: feint_host_want_ovn | bool
-
-- name: Pin the uplink bridge to a predictable block
-  ansible.builtin.command:
-    cmd: incus network set incusbr0 ipv4.address={{ feint_host_uplink_cidr }}
-  changed_when: true
-  when:
-    - feint_host_want_ovn | bool
-    - (feint_host_uplink_now.stdout | default("") | trim) != feint_host_uplink_cidr
-
-- name: Which ranges it carries today
-  ansible.builtin.command:
-    cmd: incus network get incusbr0 ipv4.ovn.ranges
-  register: feint_host_ranges_now
-  changed_when: false
-  failed_when: false
-  when: feint_host_want_ovn | bool
-
-- name: Give it the DHCP and OVN ranges
-  ansible.builtin.command:
-    cmd: >-
-      incus network set incusbr0
-      ipv4.dhcp.ranges={{ feint_host_uplink_dhcp }}
-      ipv4.ovn.ranges={{ feint_host_uplink_ovn }}
-  changed_when: true
-  when:
-    - feint_host_want_ovn | bool
-    - (feint_host_ranges_now.stdout | default("") | trim) != feint_host_uplink_ovn
+# No uplink to prepare. An earlier version pinned incusbr0's address and gave
+# it DHCP and OVN ranges, copied from a manual OVN setup; feint never reads
+# them: it creates and manages its own uplink, feint-uplink, with its own
+# ranges (internal/core/machine/incus_ovn.go, DefaultUplinkName). Removed in
+# #974 on Stéphane's decision of 2026-11-16.
 
 # --- Go, only if asked ------------------------------------------------------
 #

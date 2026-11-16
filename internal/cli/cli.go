@@ -284,11 +284,19 @@ const (
 // and for a reader of the run receipt the four `faults_*` keys
 // (runReceiptSchemaVersion 2).
 //
+// Version 37 gives `doctor` its remedies as commands (#974): -v prints what a
+// check did not look at, --fix applies the steps that need no root after
+// printing the plan, --yes skips its question, and --clients adds the pinned
+// conformance clients to it. Four flags added; nothing was removed, no exit
+// code moved, and a pipeline keyed on version 36 keeps working. The prose
+// doctor prints changed, and was never a parsed surface; --stack-json did not
+// change.
+//
 // The surface itself is frozen in testdata/frozen/cli.json, compared by
 // TestTheFrozenSurfacesStillMatchTheirFixture, and a fixture regenerated
 // without bumping this constant fails TestASurfaceChangeDemandsItsVersionBump.
 // The procedure for a deliberate change is in RELEASING.md ("Frozen surfaces").
-const cliSurfaceVersion = 36
+const cliSurfaceVersion = 37
 
 // Run executes one command and returns the process exit code.
 func Run(args []string, stdout, stderr io.Writer) int {
@@ -474,12 +482,15 @@ Usage:
   feint logs       [--addr :4599] [-n 50] [-f]
                     The detached run's log.
 
-  feint doctor     [--addr :4599] [--vm auto] [--s3]
+  feint doctor     [--addr :4599] [--vm auto] [--s3] [-v]
                     [--stack <dir>] [--engine terraform|opentofu] [--stack-json]
+                    [--fix [--yes] [--clients]]
                     Diagnose the host: the port, the machine runtime and what it
                     can prove, the clients, and the ssh trap. A warning never
                     fails; only a broken thing does.
                     --s3 requires live, explicitly enabled byte storage.
+                    --fix runs the steps that need no root, after printing the
+                    plan and asking; root steps are printed, never run.
 
   feint images     [--vm auto] [--only ubuntu/24.04] [--check]
                     Build the machine images, which carry an ssh daemon so a

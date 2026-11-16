@@ -1,0 +1,53 @@
+# Install and wire everything feint needs, on the machine you run this on.
+#
+#   uv tool install ansible-core==2.22.0                               # once
+#   ansible-playbook --ask-become-pass tools/install/ansible/local.yml # from the clone's root
+#   sg incus-admin -c 'feint images'                                   # then, as you
+#
+# The playbook adds you to incus-admin, and only a new login picks the group
+# up: `sg incus-admin` runs the images build in that group without one.
+#
+# The same two roles as the first play of site.yml, aimed at this machine
+# instead of the provisioned test machines (#974). site.yml reads its hosts from
+# Terraform's state through the cloud.terraform collection, and its second play
+# pushes a binary with `incus file push` into the machine it targets: neither
+# applies to a local station, and running it here needed things nobody had
+# written down.
+#
+# Run it from the root of the clone, not from this directory: the ansible.cfg
+# beside this file enables only the cloud.terraform inventory plugin, so no
+# other inventory could be read from here. From the root, no inventory is
+# needed: `hosts: localhost` is Ansible's implicit localhost, which connects
+# locally.
+#
+# `feint doctor` prints this command when it finds this file, and only then.
+---
+- name: Install the runtime, OVN and the conformance clients on this machine
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: true
+  vars:
+    # The system interpreter, not the one Ansible runs under: the apt and dnf
+    # modules need the distribution's own bindings, which a uv-installed
+    # ansible-core does not carry.
+    ansible_python_interpreter: /usr/bin/python3
+    # Both engines, each as itself. The role's default installs OpenTofu and
+    # links it as `terraform`, which suits a throwaway test machine and would
+    # make `feint doctor` report "terraform OpenTofu" on a station.
+    feint_clients_want_terraform: true
+    feint_clients_want_tofu: true
+    # The person who ran the playbook joins incus-admin. Lookups run in the
+    # controller as that person, so USER is theirs even under become, which
+    # makes ansible_user_id root. SUDO_USER first, for `sudo ansible-playbook`.
+    feint_host_incus_user: "{{ lookup('ansible.builtin.env', 'SUDO_USER') or lookup('ansible.builtin.env', 'USER') }}"
+  roles:
+    - feint_host
+    - feint_clients
+  post_tasks:
+    - name: What to do next
+      ansible.builtin.debug:
+        msg: >-
+          {{ feint_host_incus_user }} is now in incus-admin, and only a new
+          login picks the group up. Build the machine images in that group
+          without one, as yourself: sg incus-admin -c 'feint images'

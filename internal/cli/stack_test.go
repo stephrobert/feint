@@ -73,7 +73,7 @@ func TestACleanStackGetsOneHonestRow(t *testing.T) {
 	if len(checks) != 1 || checks[0].state != verdictOK {
 		t.Fatalf("a clean stack should get one ok row, got: %+v", checks)
 	}
-	if !strings.Contains(checks[0].detail, "measured list") {
+	if !strings.Contains(checks[0].title, "measured list") {
 		t.Fatalf("the ok row does not state its scope, which licenses the belief it cannot back: %+v", checks[0])
 	}
 }

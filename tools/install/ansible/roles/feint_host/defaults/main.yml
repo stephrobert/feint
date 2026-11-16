@@ -15,10 +15,9 @@ feint_host_want_go: false
 feint_host_go_version: "1.26.5"
 feint_host_go_arch: "{{ 'arm64' if ansible_architecture == 'aarch64' else 'amd64' }}"
 
-
-# The uplink block. Pinned rather than left to the random /24 `incus admin init
-# --minimal` picks, because the OVN and DHCP ranges have to sit inside it and a
-# range that does not is refused.
-feint_host_uplink_cidr: "10.108.0.1/24"
-feint_host_uplink_dhcp: "10.108.0.10-10.108.0.99"
-feint_host_uplink_ovn: "10.108.0.100-10.108.0.199"
+# The account to add to incus-admin, so that it can run `incus` and
+# `feint images` without sudo. Empty by default, and deliberately: site.yml
+# targets throwaway machines where everything runs as root, and a name taken
+# from the controller there would make the user module create that account on
+# the target. local.yml sets it to the person who ran the playbook (#974).
+feint_host_incus_user: ""

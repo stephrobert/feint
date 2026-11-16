@@ -42,6 +42,32 @@ change ni l'un ni l'autre a sa place dans `git log`.
   (`internal/cli/testdata/frozen/run.json`, depuis la version 3), lue sur une
   vraie exécution dont la population donne une valeur à chaque clé, et
   listée dans la fenêtre de support de `RELEASING.md`.
+- **`feint doctor` donnait de la prose là où il fallait une commande, et
+  ignorait trois étapes d'installation** (#974). Chaque remède est désormais une
+  commande à coller, pour la distribution où doctor tourne, avec `sudo` quand il
+  faut être root, tirée de la même table que les blocs de `docs/install.md`.
+  Nouveaux contrôles : Incus initialisé, Open vSwitch relié à OVN (lu sur
+  `br-int` quand ses réglages demandent root, et « impossible à dire » quand
+  rien ne répond), uv et Ansible avec leurs versions épinglées. Toutes les
+  étapes manquantes sortent en une passe, numérotées dans l'ordre du travail.
+  `feint doctor --fix` lance les étapes sans root après avoir affiché le plan,
+  et imprime les autres. `tools/install/ansible/local.yml` installe la machine
+  locale sans état Terraform, et ajoute à `incus-admin` l'utilisateur qui le
+  lance ; Ansible est épinglé à ansible-core 2.22.0, et doctor le vérifie. Un
+  nom lu dans `/tmp` n'atteint une commande imprimée que s'il a la forme exacte
+  que lui donne `feint run`, sur un répertoire à vous en mode 0700, et entre
+  guillemets. Surface CLI version 37.
+
+  Deux changements touchent aussi les utilisateurs de
+  `tools/install/ansible/site.yml`. Le rôle `feint_host` ne donne plus de plages
+  DHCP et OVN à `incusbr0` (feint crée son propre uplink, `feint-uplink`) et ne
+  règle plus `network.ovn.northbound_connection` à sa valeur par défaut, ce qui
+  ne stockait rien. `ansible.cfg` demandait le callback de sortie `yaml`, retiré
+  par community.general en 12.0.0 : avec ansible-core 2.22.0, chaque exécution
+  s'arrêtait dessus ; il règle désormais `callback_result_format = yaml`. La page
+  d'installation se lance avec votre propre utilisateur et écrit `sudo` devant
+  chaque commande qui demande root, là où elle disait « à lancer en root ».
+
 - **Une ligne de reçu de panne encore en vol était publiée comme une ligne
   terminée** (#925). `GET /_feint/faults` réserve une ligne quand une règle
   se déclenche et la remplit quand le traitement finit ; entre les deux, elle

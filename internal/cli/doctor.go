@@ -40,9 +40,57 @@ type check struct {
 	title  string
 	state  verdict
 	detail string
-	// fix is what to do about it. A check that reports a problem without saying
-	// what to do is a check that sends the reader to the source.
+	// fix is what to do about it, in words. A check that reports a problem
+	// without saying what to do is a check that sends the reader to the source.
 	fix string
+
+	// The fields below came with #974: grouping, ordering and commands.
+	id    string
+	group string
+	// step marks a setup step: numbered, counted in the summary, done in order.
+	step bool
+	// optional marks a step the mode runs without (OVN under --vm auto): still
+	// numbered, counted apart, never marked as a failure.
+	optional bool
+	// foundAt and answered are where the report found a client and the first
+	// line it answered, so --fix names what it replaces without running it again.
+	foundAt, answered string
+	// needs names the steps that must be done first; the reader sees "(do step
+	// N first)" when one of them is missing too.
+	needs []string
+	after string // a free-form ordering note, for checks that are not steps
+	// commands is the remedy as lines to paste, in order. root says they need
+	// sudo, so `--fix` prints them and never runs them.
+	commands []string
+	root     bool
+	// verbose is a caveat about what the check looked at: printed under -v
+	// only, because the title already says exactly what was checked.
+	verbose string
+	// fixKey ties the check to an action `--fix` knows how to take.
+	fixKey string
+	paths  []string // the exact paths a cleanup step removes
+}
+
+const (
+	groupEmulator = "The emulator"
+	groupMachines = "Machines"
+	groupClients  = "Conformance clients (optional: only the test suites use them)"
+	groupTools    = "Repository tools (optional: serve needs neither)"
+	groupHost     = "This machine"
+	groupStack    = "This stack"
+)
+
+// validModes are the --vm values this binary knows. An unknown one is refused
+// before any probe, so a typo never reads as a host that lacks something.
+var validModes = map[string]bool{"off": true, "none": true, "incus": true, "incus-vm": true, "incus-ovn": true, "auto": true}
+
+func grouped(group string, checks ...check) []check {
+	for i := range checks {
+		if checks[i].group == "" {
+			checks[i].group = group
+		}
+	}
+	return checks
 }
 
 func doctor(args []string, stdout, stderr io.Writer) int {
@@ -53,48 +101,42 @@ func doctor(args []string, stdout, stderr io.Writer) int {
 	stackDir := fs.String("stack", "", "also read the Terraform or OpenTofu configuration in this directory and report what it appears to need")
 	stackEngine := fs.String("engine", "terraform", "which engine's loading rules to read the stack with: terraform or opentofu. They disagree about which files a module is")
 	stackJSON := fs.Bool("stack-json", false, "print the stack report as JSON instead of prose")
+	verbose := fs.Bool("v", false, "also print what each check did not look at")
+	fix := fs.Bool("fix", false, "apply the remedies that need no root, after printing the plan; root steps are printed, never run")
+	yes := fs.Bool("yes", false, "with --fix: run the plan without asking")
+	withClients := fs.Bool("clients", false, "with --fix: also install the pinned conformance clients into ~/.local/bin")
 	if err := fs.Parse(args); err != nil {
+		return exitError
+	}
+	if !validModes[*vm] {
+		fmt.Fprintf(stderr, "feint doctor: --vm %q is not a mode this binary knows: off, incus, incus-vm, incus-ovn, auto\n", *vm)
 		return exitError
 	}
 
 	ctx := context.Background()
-	checks := []check{
-		checkPort(*addr),
-		checkContracts(),
+	host := realHostProbe()
+	collect := func() []check {
+		return collectChecks(ctx, host, realToolProbe(), *addr, *vm, *withS3)
 	}
-	checks = append(checks, checkRuntime(ctx, *vm)...)
-	checks = append(checks, checkLeftoverDHCP())
-	checks = append(checks, checkLeftoverRunAuthorities())
-	checks = append(checks, checkClients()...)
-	checks = append(checks, checkEnvHazards()...)
-	checks = append(checks, checkStackHazards()...)
-	checks = append(checks, checkSSHConfig())
-	checks = append(checks, checkStackPreflight(*stackDir, *stackEngine, *stackJSON, stdout, stderr)...)
-	if *withS3 {
-		checks = append(checks, checkObjectStorage(*addr))
-	}
+	checks := collect()
+	playbook, checkout := playbookFound()
+	view := doctorView{mode: *vm, distro: probeDistro(host), verbose: *verbose,
+		color: colorWanted(stdout), playbook: playbook, checkout: checkout}
 
-	failed := 0
-	for _, c := range checks {
-		mark, stream := "ok  ", stdout
-		switch c.state {
-		case verdictWarn:
-			mark = "warn"
-		case verdictFail:
-			mark, stream = "FAIL", stderr
-			failed++
-		case verdictOK:
-		}
-
-		fmt.Fprintf(stream, "  %s  %s\n", mark, c.title)
-		if c.detail != "" {
-			fmt.Fprintf(stream, "        %s\n", c.detail)
-		}
-		if c.fix != "" && c.state != verdictOK {
-			fmt.Fprintf(stream, "        → %s\n", c.fix)
-		}
+	if *fix {
+		deps := realFixDeps(collect)
+		// Both ends: the plan goes to stdout, so a question asked while it is
+		// piped away would be a question about a plan nobody saw.
+		out, isFile := stdout.(*os.File)
+		tty := isTerminal(os.Stdin) && isFile && isTerminal(out)
+		return runFix(ctx, stdout, os.Stdin, tty, *yes, view,
+			buildFixPlan(checks, deps, *withClients), deps)
 	}
 
+	// The stack preflight prints its own report (and its JSON shape, which
+	// this command does not change) before the grouped checks.
+	checks = append(checks, grouped(groupStack, checkStackPreflight(*stackDir, *stackEngine, *stackJSON, stdout, stderr)...)...)
+	failed := renderDoctor(stdout, checks, view)
 	if failed > 0 {
 		fmt.Fprintf(stderr, "\n%d check(s) failed\n", failed)
 		return exitError
@@ -102,9 +144,28 @@ func doctor(args []string, stdout, stderr io.Writer) int {
 	return exitOK
 }
 
+// collectChecks runs every check, in the order the groups are printed. It is
+// the one list both the report and `--fix`'s re-check read, so a step `--fix`
+// verifies is the step the report showed.
+func collectChecks(ctx context.Context, host hostProbe, tools toolProbe, addr, mode string, withS3 bool) []check {
+	checks := grouped(groupEmulator, checkPort(addr), checkContracts())
+	if withS3 {
+		checks = append(checks, grouped(groupEmulator, checkObjectStorage(addr))...)
+	}
+	checks = append(checks, grouped(groupMachines, checkRuntime(ctx, mode, host)...)...)
+	checks = append(checks, grouped(groupClients, clientChecks(tools)...)...)
+	checks = append(checks, grouped(groupTools, toolChecks(tools)...)...)
+	checks = append(checks, grouped(groupHost, checkLeftoverRunAuthorities(), checkLeftoverDHCP())...)
+	checks = append(checks, grouped(groupHost, checkEnvHazards()...)...)
+	checks = append(checks, grouped(groupHost, checkSSHConfig())...)
+	checks = append(checks, grouped(groupStack, checkStackHazards()...)...)
+	return checks
+}
+
 func checkObjectStorage(addr string) check {
-	c := check{title: "live S3 storage", state: verdictFail,
-		fix: "start with --objectstore <private-directory>, then use feint env <provider> --s3"}
+	c := check{title: "Live S3 storage is not on at this address.", state: verdictFail,
+		fix:      "Start the emulator with a private directory for the objects, then point the clients at it:",
+		commands: []string{"feint start --objectstore <private-directory>", "feint env <provider> --s3"}}
 	endpoint, err := storageListenEndpoint(addr)
 	if err != nil {
 		c.detail = err.Error()
@@ -117,13 +178,15 @@ func checkObjectStorage(addr string) check {
 		c.detail = "S3 is explicitly disabled"
 	} else {
 		c.state = verdictOK
-		c.detail = fmt.Sprintf("%d declared door(s); %d blob bytes maximum; %d bytes per simple PUT; ancillary client lifecycles are not certified",
+		c.title = "Live S3 storage is on."
+		c.detail = fmt.Sprintf("%d declared door(s); %d blob bytes maximum; %d bytes per simple PUT.",
 			len(report.Doors), report.MaxBlobBytes, report.MaxObjectBytes)
 		for _, door := range report.Doors {
 			if door.Host != "" {
-				c.detail += "; host " + door.Host + " requires the local non-forwarding HTTP proxy"
+				c.detail += " Host " + door.Host + " needs the local non-forwarding HTTP proxy."
 			}
 		}
+		c.verbose = "Ancillary client lifecycles are not certified."
 	}
 	return c
 }
@@ -134,21 +197,20 @@ func checkPort(addr string) check {
 	listener, err := net.Listen("tcp", addr)
 	if err == nil {
 		_ = listener.Close()
-		return check{title: "the listen address " + addr + " is free", state: verdictOK}
+		return check{title: "Port " + addr + " is free.", state: verdictOK}
 	}
 	c := check{
-		title:  "the listen address " + addr + " is taken",
+		title:  "Port " + addr + " is taken by another program.",
 		state:  verdictFail,
-		detail: err.Error(),
-		fix:    "stop what holds it, or serve on another address with --addr",
+		detail: err.Error() + ". Stop what holds it, or pick another address with --addr.",
 	}
 	// If it is this emulator, say so: "already running" is a different problem
 	// from "something else took the port".
 	if healthy(addr, time.Second) {
 		c.state = verdictWarn
-		c.title = "an emulator already answers on " + addr
-		c.detail = ""
-		c.fix = "feint stop --addr " + addr + ", or use it as it is"
+		c.title = "An emulator already answers on " + addr + "."
+		c.detail = "Use it as it is, or stop it first:"
+		c.commands = []string{"feint stop --addr " + addr}
 	}
 	return c
 }
@@ -160,10 +222,9 @@ func checkContracts() check {
 	entries, err := os.ReadDir("contracts")
 	if err != nil {
 		return check{
-			title:  "no contracts/ directory here",
-			state:  verdictWarn,
-			detail: "responses will not be checked against the providers' API descriptions",
-			fix:    "run from the repository, or pass --contracts <dir>",
+			title:   "No contracts/ directory here: responses will not be checked against the providers' API descriptions.",
+			state:   verdictWarn,
+			verbose: "Run from a clone of the repository, or start with --contracts <dir>, to have them checked.",
 		}
 	}
 	count := 0
@@ -174,110 +235,126 @@ func checkContracts() check {
 	}
 	if count == 0 {
 		return check{
-			title: "contracts/ holds no API description",
-			state: verdictWarn,
-			fix:   "mise run contracts:update",
+			title:    "contracts/ holds no API description, so responses are not checked.",
+			state:    verdictWarn,
+			commands: []string{"mise run contracts:update"},
 		}
 	}
-	return check{title: fmt.Sprintf("%d API description(s) in contracts/", count), state: verdictOK}
+	return check{title: fmt.Sprintf("%d API descriptions in contracts/: responses are checked against them.", count), state: verdictOK}
 }
 
-// checkRuntime diagnoses the machine runtime, and the three things about it that
-// have each cost an afternoon.
-func checkRuntime(ctx context.Context, mode string) []check {
+// checkRuntime diagnoses the machine runtime: first the setup steps in the
+// order a reader must do them (setupChecks, #974), then what the mode can
+// prove once the driver is built.
+//
+// Before #974 this returned early when the Incus daemon did not answer, so the
+// version and the images were never reported on the station that most needed
+// them, and a driver refused for a missing OVN read "the --vm mode is not one
+// this binary knows" — false for incus-ovn, a mode this binary knows well.
+// TestDoctorListsEveryMissingStepInOnePass fails without the steps. An unknown
+// mode is now refused before any probe (TestAnUnknownModeIsRefusedBeforeAnyProbe);
+// the wording of a refused driver has no unit test, because machineDriver
+// builds the real Incus driver and offers no seam to make it refuse.
+func checkRuntime(ctx context.Context, mode string, host hostProbe) []check {
 	if mode == "off" || mode == "none" {
 		return []check{{
-			title:  "no machine runtime requested",
-			state:  verdictOK,
-			detail: "servers change state and nothing runs, which is the default and what CI uses",
+			title:   "Not checked: --vm off runs no machines. Servers change state and nothing runs, which is what CI uses.",
+			state:   verdictOK,
+			verbose: "Run feint doctor --vm incus-ovn (or incus, incus-vm, auto) to check what machines need.",
 		}}
+	}
+	out := setupChecks(probeStation(ctx, host), mode)
+	missing := false
+	for _, c := range out {
+		missing = missing || (c.step && c.state != verdictOK)
 	}
 
 	rt, err := machineDriver(mode, io.Discard)
 	if err != nil {
-		return []check{{title: "the --vm mode is not one this binary knows", state: verdictFail, detail: err.Error()}}
+		// First in the group: after the steps, "the steps above fix it"
+		// read as a promise about every step, which nobody had checked.
+		c := check{title: "--vm " + mode + " cannot start on this machine.", state: verdictFail, detail: err.Error() + "."}
+		if missing {
+			c.detail += " The numbered steps below are what doctor found missing."
+		}
+		return append([]check{c}, out...)
 	}
 	if !rt.Runs() {
-		return []check{{
-			title:  "no machine runtime is available",
-			state:  verdictWarn,
-			detail: "the Incus daemon does not answer",
-			fix:    "install Incus, or accept metadata-only machines",
-		}}
+		if !missing {
+			out = append(out, check{title: "No machine runtime answers.", state: verdictWarn,
+				detail: "Servers will change state without running anything until Incus answers."})
+		}
+		return out
 	}
 
 	caps := rt.Capabilities()
-	out := []check{{
-		title:  "machine runtime: " + rt.Name(),
-		state:  verdictOK,
-		detail: fmt.Sprintf("addresses %v, firewall %v, isolation %v, own kernel %v", caps.Addresses, caps.Firewall, caps.Isolation, caps.OwnKernel),
-	}}
+	can, cannot := []string{}, []string{}
+	for _, item := range []struct {
+		ok   bool
+		text string
+	}{{caps.Addresses, "give addresses"}, {caps.Firewall, "apply firewalls"}, {caps.Isolation, "isolate VPCs"}, {caps.OwnKernel, "give each machine its own kernel"}} {
+		if item.ok {
+			can = append(can, item.text)
+		} else {
+			cannot = append(cannot, item.text)
+		}
+	}
+	line := check{title: "This mode (" + rt.Name() + ")", state: verdictOK}
+	if len(can) > 0 {
+		line.title += " can " + joinAnd(can)
+		if len(cannot) > 0 {
+			line.title += ", and"
+		}
+	}
+	if len(cannot) > 0 {
+		line.title += " cannot " + joinOr(cannot)
+	}
+	line.title += "."
+	out = append(out, line)
 
 	// The one that surprises people: auto never picks a VM, and until recently
 	// it never picked OVN either — so an operator with everything installed got
 	// the one mode that cannot isolate two VPCs.
 	if mode == "auto" && !caps.Isolation {
 		out = append(out, check{
-			title:  "auto chose a mode that cannot isolate two VPCs",
+			title:  "auto chose a mode that cannot keep two VPCs apart.",
 			state:  verdictWarn,
-			detail: "subnets of different VPCs will reach each other; the conformance suite reports it as a skip",
-			fix:    "install ovn-central, ovn-host and Open vSwitch, or ask for --vm incus-ovn explicitly",
+			detail: "Subnets of different VPCs will reach each other, and the conformance suite reports it as a skip. The OVN steps above make auto choose incus-ovn.",
 		})
 	}
-	if mode == "auto" {
-		out = append(out, check{
-			title:  "auto never starts a virtual machine",
-			state:  verdictOK,
-			detail: "a VM costs tens of seconds where a container costs seconds; ask for --vm incus-vm to get one",
-		})
-	}
-	out = append(out, checkIncusVersion(ctx))
-	out = append(out, checkImages(ctx, rt))
 	return out
 }
 
-// checkImages reports the machine images that are not on the host (#203).
-//
-// It diagnoses and never builds, deliberately. A build launches a container,
-// installs a package and publishes an image: minutes, and a side effect on the
-// operator's station. That is the same arbitration `--vm off` already makes,
-// and the reason `mise run serve` does not start machines unless asked. So this
-// names what is missing and the exact command that makes it, and the operator
-// decides.
-//
-// An image set that is complete says so as an ok rather than staying silent: a
-// diagnostic that only speaks when something is wrong leaves the reader unable
-// to tell "checked and fine" from "never looked".
-//
-// TestDoctorNamesTheMissingImagesAndHowToBuildThem fails without this.
-func checkImages(ctx context.Context, rt machine.Runtime) check {
+func titleCase(s string) string {
+	if s == "" {
+		return s
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
+}
+
+func joinAnd(items []string) string { return joinWith(items, " and ") }
+func joinOr(items []string) string  { return joinWith(items, " or ") }
+
+func joinWith(items []string, last string) string {
+	if len(items) <= 1 {
+		return strings.Join(items, "")
+	}
+	return strings.Join(items[:len(items)-1], ", ") + last + items[len(items)-1]
+}
+
+// missingImageNames asks a driver which machine images are not on the host.
+// A driver that cannot list answers an error, never "nothing is missing":
+// TestDoctorDoesNotReadSilenceAsACompleteImageSet fails otherwise.
+func missingImageNames(ctx context.Context, rt machine.Runtime) ([]string, error) {
 	inventory, err := rt.Inventory(ctx)
 	if err != nil {
-		return check{
-			title:  "could not read the machine images",
-			state:  verdictWarn,
-			detail: err.Error(),
-			fix:    "check that the Incus daemon answers, then run `feint images`",
-		}
+		return nil, err
 	}
-	missing := machine.MissingImages(inventory)
-	if len(missing) == 0 {
-		return check{
-			title: fmt.Sprintf("%d machine image(s) present", len(inventory)),
-			state: verdictOK,
-			// What was measured is presence by name; the ssh daemon is the
-			// build recipe's promise, not this check's, and the wording says
-			// whose it is (#342: a green line claims what it looked at).
-			detail: "built by `feint images`, whose recipe installs an ssh daemon — a machine from them answers on port 22 without reaching a package repository",
-		}
+	names := []string{}
+	for _, spec := range machine.MissingImages(inventory) {
+		names = append(names, spec.Name)
 	}
-	return check{
-		title: fmt.Sprintf("%d machine image(s) missing", len(missing)),
-		state: verdictWarn,
-		detail: machine.ImageNames(missing) + " — no upstream image ships an ssh daemon, so " +
-			"a machine built from one installs it at first boot and needs outbound internet to do it",
-		fix: "feint images  (builds them locally; minutes, and it starts a container)",
-	}
+	return names, nil
 }
 
 // incusMinimum is the version below which NIC ACLs are refused, and the failure
@@ -309,44 +386,6 @@ var incusRecommended = [2]int{7, 2}
 // spelling.
 func versionText(parts []int) string { return machine.VersionText(parts) }
 
-func checkIncusVersion(ctx context.Context) check {
-	cmd := exec.CommandContext(ctx, "incus", "version") //nolint:gosec // a fixed binary name
-	out, err := cmd.Output()
-	if err != nil {
-		return check{title: "the incus client is not on PATH", state: verdictWarn,
-			fix: "install Incus " + versionText(incusMinimum[:]) + " or later"}
-	}
-	// `incus version` prints "Client version: X" and "Server version: Y"; the
-	// server is the one that enforces.
-	//
-	// The patch component is optional: 7.2 is a real answer and an earlier
-	// version of this check demanded three components, so it reported "could not
-	// read the Incus version" on a perfectly good installation. A diagnostic
-	// that cannot read the common case is worse than no diagnostic.
-	version := regexp.MustCompile(`(\d+)\.(\d+)(?:\.(\d+))?`).FindStringSubmatch(string(out))
-	if len(version) < 3 {
-		return check{title: "could not read the Incus version", state: verdictWarn, detail: firstLine(string(out))}
-	}
-	var got [3]int
-	for i := range got {
-		got[i], _ = strconv.Atoi(version[i+1])
-	}
-	for i := range got {
-		if got[i] != incusMinimum[i] {
-			if got[i] > incusMinimum[i] {
-				break
-			}
-			return check{
-				title:  fmt.Sprintf("Incus %s is below %s", versionText(got[:]), versionText(incusMinimum[:])),
-				state:  verdictWarn,
-				detail: "NIC ACLs are refused below that version, so a security group attaches and enforces nothing",
-				fix:    "upgrade Incus; Ubuntu ships 6.0.0, the Zabbly stable channel ships later",
-			}
-		}
-	}
-	return check{title: fmt.Sprintf("Incus %d.%d.%d, new enough for NIC ACLs", got[0], got[1], got[2]), state: verdictOK}
-}
-
 // checkLeftoverDHCP reports the DHCP services a run left holding an
 // address block (#316, #342): dnsmasq processes attributable to this emulator
 // whose network is gone — the interface with it, or the network object alone,
@@ -375,16 +414,16 @@ func checkLeftoverDHCP() check {
 	leftovers, err := findLeftoverDHCP()
 	if err != nil {
 		return check{
-			title:  "could not look for leftover DHCP services",
+			title:  "Could not look for leftover DHCP servers.",
 			state:  verdictWarn,
 			detail: err.Error(),
 		}
 	}
 	if len(leftovers) == 0 {
 		return check{
-			title:  "no DHCP service of the emulator's outlives its network",
-			state:  verdictOK,
-			detail: "checked: dnsmasq processes on interfaces this emulator names; a service of another owner is only diagnosable when a create fails on its block, and the create error names it",
+			title:   "No DHCP server of an earlier run outlives its network.",
+			state:   verdictOK,
+			verbose: "Checked: dnsmasq processes on interfaces this emulator names. A server of another owner shows only when a create fails on its block, and the create error names it.",
 		}
 	}
 	held := make([]string, 0, len(leftovers))
@@ -392,42 +431,11 @@ func checkLeftoverDHCP() check {
 		held = append(held, leftover.String())
 	}
 	return check{
-		title:  fmt.Sprintf("%d DHCP service(s) left behind by a run still hold an address block this emulator will want", len(leftovers)),
-		state:  verdictFail,
-		detail: strings.Join(held, "; "),
-		fix:    "the next run on such a block dies on 'Address already in use'; `feint clean` ends them, and `sudo feint clean --vm <mode>` ends the ones that belong to another user — `feint clean --check` says which is which without touching anything",
+		title:    fmt.Sprintf("%d DHCP server(s) left by an earlier run still hold an address block feint will need.", len(leftovers)),
+		state:    verdictFail,
+		detail:   strings.Join(held, "; ") + ". The next run on that block dies on 'Address already in use'. The first command says which are yours without touching anything; the second ends yours; the third ends those of another user.",
+		commands: []string{"feint clean --check", "feint clean", "sudo feint clean --vm <mode>"},
 	}
-}
-
-// checkClients reports which conformance clients are installed, with versions.
-// Absent ones are a warning: the suites fail loudly on their own, and a
-// diagnostic that fails because Terraform is missing would fail on every machine
-// that only cares about Scaleway.
-func checkClients() []check {
-	type client struct{ binary, args, why string }
-	clients := []client{
-		{"scw", "version", "the Scaleway CLI suite"},
-		{"octl", "--version", "the Outscale CLI suite"},
-		{"exo", "version", "the Exoscale CLI suite"},
-		{"terraform", "version", "the Terraform suite"},
-		{"tofu", "version", "the OpenTofu suite"},
-		{"jq", "--version", "every suite"},
-	}
-	out := make([]check, 0, len(clients))
-	for _, c := range clients {
-		path, err := exec.LookPath(c.binary)
-		if err != nil {
-			out = append(out, check{
-				title: c.binary + " is not installed",
-				state: verdictWarn,
-				fix:   "needed by " + c.why + "; see tools/conformance/README.md",
-			})
-			continue
-		}
-		version := firstLine(runQuiet(c.binary, c.args))
-		out = append(out, check{title: c.binary + " " + version, state: verdictOK, detail: path})
-	}
-	return out
 }
 
 // checkEnvHazards asks each mounted pack whether the operator's shell carries
@@ -456,15 +464,15 @@ func checkEnvHazards() []check {
 			// "nothing in this shell reroutes" claimed the shell; what was
 			// measured is the pack's list of known variables (#342).
 			out = append(out, check{
-				title:  "no variable measured to reroute " + p.Name() + " clients is set in this shell",
-				state:  verdictOK,
-				detail: "this checks the pack's measured list, not every way a shell can redirect a client",
+				title:   "No variable in this shell sends " + titleCase(p.Name()) + " clients to the real cloud.",
+				state:   verdictOK,
+				verbose: "This checks the variables measured to do it, not every way a shell can redirect a client.",
 			})
 			continue
 		}
 		for _, warning := range warnings {
 			out = append(out, check{
-				title: "this shell can reroute " + p.Name() + " clients to the real cloud",
+				title: "This shell can send " + titleCase(p.Name()) + " clients to the real cloud.",
 				state: verdictWarn,
 				fix:   warning,
 			})
@@ -511,7 +519,7 @@ func checkStackHazards() []check {
 		}
 		for _, warning := range hazards.StackHazards(config) {
 			out = append(out, check{
-				title: "this Terraform configuration can reach the real " + p.Name() + " cloud",
+				title: "This Terraform configuration can reach the real " + p.Name() + " cloud.",
 				state: verdictWarn,
 				fix:   warning,
 			})
@@ -519,9 +527,9 @@ func checkStackHazards() []check {
 	}
 	if len(out) == 0 {
 		out = append(out, check{
-			title:  fmt.Sprintf("no known escape signature in the %d Terraform file(s) here", files),
-			state:  verdictOK,
-			detail: "this checks the measured list (docs/limits.md), not every path a client could compose",
+			title:   fmt.Sprintf("None of the %d Terraform file(s) here uses a resource on the measured list of those that reach the real cloud.", files),
+			state:   verdictOK,
+			verbose: "This checks the measured list (docs/limits.md), not every path a client could compose.",
 		})
 	}
 	return out
@@ -538,14 +546,14 @@ func checkSSHConfig() check {
 	if err != nil {
 		// "Could not look" was reported as an ok for years; a green mark on an
 		// unasked question is the #342 family, so it warns now.
-		return check{title: "could not look for a ProxyJump in ~/.ssh/config", state: verdictWarn, detail: err.Error()}
+		return check{title: "Could not look for a ProxyJump in ~/.ssh/config.", state: verdictWarn, detail: err.Error()}
 	}
 	file, err := os.Open(filepath.Join(home, ".ssh", "config")) //nolint:gosec // the operator's own file
 	if err != nil {
 		if os.IsNotExist(err) {
-			return check{title: "no ~/.ssh/config to get in the way", state: verdictOK}
+			return check{title: "No ~/.ssh/config to get in the way.", state: verdictOK}
 		}
-		return check{title: "could not look for a ProxyJump in ~/.ssh/config", state: verdictWarn, detail: err.Error()}
+		return check{title: "Could not look for a ProxyJump in ~/.ssh/config.", state: verdictWarn, detail: err.Error()}
 	}
 	defer func() { _ = file.Close() }()
 
@@ -566,10 +574,9 @@ func checkSSHConfig() check {
 			for _, pattern := range strings.Fields(host) {
 				if pattern == "*" || strings.HasPrefix(pattern, "10.") {
 					return check{
-						title:  "a ProxyJump applies to " + pattern + " in ~/.ssh/config",
+						title:  "A ProxyJump applies to Host " + pattern + " in ~/.ssh/config.",
 						state:  verdictWarn,
-						detail: "it captures the runtime's private range, and ssh dies on 'timed out during banner exchange' while sshd is running and listening",
-						fix:    "narrow the Host pattern, or use ssh -F /dev/null as tools/conformance/scaleway/ssh.sh does",
+						detail: "It also catches the machines' private addresses, so ssh to them dies on 'timed out during banner exchange' while sshd is running. Narrow the Host pattern, or connect with ssh -F /dev/null as tools/conformance/scaleway/ssh.sh does.",
 					}
 				}
 			}
@@ -578,14 +585,20 @@ func checkSSHConfig() check {
 	// The claim matches the measurement: two patterns are checked, not every
 	// pattern ssh can compose ("10*" or "?0.*" would slip past) — #342.
 	return check{
-		title:  "no ProxyJump on a Host pattern of * or 10.* in ~/.ssh/config",
-		state:  verdictOK,
-		detail: "this checks the two measured patterns, not every pattern ssh can compose",
+		title:   "No ProxyJump on Host * or 10.* in ~/.ssh/config.",
+		state:   verdictOK,
+		verbose: "This checks the two measured patterns, not every pattern ssh can compose.",
 	}
 }
 
+// runQuiet runs a version probe, bounded: a binary on PATH that never exits
+// must not hang doctor (the rule of #963). CHECKPOINT_DISABLE keeps terraform
+// from calling HashiCorp's update service while it prints its version.
 func runQuiet(binary string, args ...string) string {
-	cmd := exec.Command(binary, args...) //nolint:gosec // binary and args are this file's own
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, binary, args...) //nolint:gosec // binary and args are this file's own
+	cmd.Env = append(os.Environ(), "CHECKPOINT_DISABLE=1")
 	out, err := cmd.Output()
 	if err != nil {
 		return ""
@@ -618,43 +631,147 @@ func firstLine(s string) string {
 // because the next run DIES on the address block it holds.
 //
 // TestDoctorTellsALeftoverAuthorityFromARunInFlight fails without this.
+//
+// What enters the report is filtered at intake, because the report turns names
+// read from a world-writable directory into commands a reader pastes and into
+// paths --fix removes. Any user can create /tmp/feint-run-x;touch${IFS}PWNED;#
+// or a name carrying an escape sequence. Only a name of the exact shape
+// os.MkdirTemp("", runDirPrefix) produces, on a real directory (not a link),
+// owned by this user with mode 0700, is considered (runDirIsOurs).
+// TestDoctorIgnoresARunDirectoryItDidNotMake fails without that filter, and the
+// printed paths are shell-quoted as a second line of defence (shellQuote).
 func checkLeftoverRunAuthorities() check {
 	entries, err := os.ReadDir(os.TempDir())
 	if err != nil {
-		return check{title: "could not look for leftover interception authorities",
+		return check{title: "Could not look for leftover `feint run` directories.",
 			state: verdictWarn, detail: err.Error()}
 	}
-	var stale, live []string
+	var stale, unknown, live []string
 	for _, entry := range entries {
-		if !entry.IsDir() || !strings.HasPrefix(entry.Name(), runDirPrefix) {
-			continue
-		}
 		path := filepath.Join(os.TempDir(), entry.Name())
-		if runOwnerAlive(path) {
-			live = append(live, entry.Name())
+		if runDirIsOurs(path, os.Getuid()) != nil {
 			continue
 		}
-		stale = append(stale, entry.Name())
-	}
-	switch {
-	case len(stale) == 0 && len(live) == 0:
-		return check{title: "no interception authority of `feint run` outlives its command",
-			state:  verdictOK,
-			detail: "checked: " + runDirPrefix + "* directories under " + os.TempDir() + "; a run of another user is not visible here, and none is readable by this one"}
-	case len(stale) == 0:
-		return check{title: fmt.Sprintf("%d `feint run` command(s) in flight own an interception authority", len(live)),
-			state:  verdictOK,
-			detail: strings.Join(live, "; ") + " — each belongs to a live process and goes when its command returns"}
-	default:
-		detail := strings.Join(stale, "; ")
-		if len(live) != 0 {
-			detail += fmt.Sprintf(" (and %d more owned by a live run, left alone)", len(live))
+		switch alive, known := runOwnerState(path); {
+		case alive:
+			live = append(live, path)
+		case !known:
+			unknown = append(unknown, path)
+		default:
+			stale = append(stale, path)
 		}
-		return check{title: fmt.Sprintf("%d interception authority directory(ies) outlived their `feint run`", len(stale)),
-			state:  verdictWarn,
-			detail: detail,
-			fix:    "each holds a public certificate in an owner-only directory, so it leaks nothing; remove them with `rm -rf " + filepath.Join(os.TempDir(), runDirPrefix) + "*` once no run is in flight"}
 	}
+	where := filepath.Join(os.TempDir(), runDirPrefix) + "<digits>"
+	switch {
+	case len(stale) == 0 && len(unknown) == 0 && len(live) == 0:
+		return check{title: "No leftover `feint run` directory in " + os.TempDir() + ".", state: verdictOK,
+			verbose: "Checked: " + where + ", yours, mode 0700. Directories of other users are not reported: they are not yours to remove."}
+	case len(stale) == 0 && len(unknown) == 0:
+		return check{title: fmt.Sprintf("%d `feint run` command(s) running; their directories go when they end.", len(live)),
+			state: verdictOK, verbose: strings.Join(live, ", ")}
+	case len(stale) > 0:
+		// The exact paths, never the glob: a run that starts between this
+		// report and the paste would match the glob and lose its directory.
+		// TestDoctorTellsALeftoverAuthorityFromARunInFlight fails without it.
+		// The notes about the other directories come before the sentence
+		// that leads into the command: after it, they sat between "safe:" and
+		// what it introduces. TestTheLeftoverNotesComeBeforeTheCommandSentence
+		// fails when they follow it.
+		detail := "They hold only a public certificate, so they leak nothing."
+		if len(live) > 0 {
+			detail += " " + moreOf(len(live), "belongs to a run still going, and is left alone.", "belong to a run still going, and are left alone.")
+		}
+		if len(unknown) > 0 {
+			detail += " " + moreOf(len(unknown), "has no owner record, so doctor cannot tell whether its run has ended; it is left alone: ",
+				"have no owner record, so doctor cannot tell whether their run has ended; they are left alone: ") + strings.Join(unknown, ", ") + "."
+		}
+		detail += " The process that made each one has exited, so removing them is safe:"
+		return check{title: fmt.Sprintf("%d directories left in %s by `feint run` commands that have ended.", len(stale), os.TempDir()),
+			state:    verdictWarn,
+			detail:   detail,
+			commands: []string{"rm -rf " + shellQuoteAll(stale)},
+			fixKey:   "leftovers", paths: stale}
+	default:
+		return check{title: fmt.Sprintf("%d `feint run` directories in %s have no owner record.", len(unknown), os.TempDir()),
+			state:    verdictWarn,
+			detail:   "An older feint wrote them, so doctor cannot tell whether their run has ended. If the first command lists no `feint run`, the second removes them:",
+			commands: []string{"pgrep -af 'feint run'", "rm -rf " + shellQuoteAll(unknown)}}
+	}
+}
+
+// moreOf is "1 more <one>" or "N more <many>": the notes about the other
+// leftovers agree in number. TestTheLeftoverNotesComeBeforeTheCommandSentence
+// fails on "1 more belong".
+func moreOf(n int, one, many string) string {
+	if n == 1 {
+		return "1 more " + one
+	}
+	return fmt.Sprintf("%d more %s", n, many)
+}
+
+// runDirName is the exact shape os.MkdirTemp("", runDirPrefix) gives a
+// directory: the prefix, then the decimal digits of a random number.
+var runDirName = regexp.MustCompile(`^` + regexp.QuoteMeta(runDirPrefix) + `[0-9]+$`)
+
+// runDirIsOurs answers whether path is a directory `feint run` could have made
+// for the user uid: the name MkdirTemp gives, a directory and not a link, owned
+// by uid, mode 0700. Anything else is refused with the reason, whatever it
+// holds. It is asked at intake by the report and again by --fix just before it
+// removes anything, since /tmp can change between the two.
+func runDirIsOurs(path string, uid int) error {
+	if !runDirName.MatchString(filepath.Base(path)) {
+		return fmt.Errorf("%q is not a name feint run gives its directories", filepath.Base(path))
+	}
+	info, err := os.Lstat(path)
+	if err != nil {
+		return err
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("%s is not a directory", path)
+	}
+	if info.Mode().Perm() != 0o700 {
+		return fmt.Errorf("%s has mode %o, feint run makes 700", path, info.Mode().Perm())
+	}
+	st, ok := info.Sys().(*syscall.Stat_t)
+	if !ok || int(st.Uid) != uid {
+		return fmt.Errorf("%s does not belong to you", path)
+	}
+	return nil
+}
+
+// shellQuote makes a value one word for a POSIX shell. A value made only of
+// characters no shell treats specially is left as it is, so the common path
+// reads plainly; anything else goes in single quotes.
+func shellQuote(value string) string {
+	if value != "" && strings.Trim(value, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_./-") == "" {
+		return value
+	}
+	return "'" + strings.ReplaceAll(value, "'", `'\''`) + "'"
+}
+
+func shellQuoteAll(values []string) string {
+	quoted := make([]string, len(values))
+	for i, v := range values {
+		quoted[i] = shellQuote(v)
+	}
+	return strings.Join(quoted, " ")
+}
+
+// runOwnerState answers whether the process that created this directory is
+// still running, and whether the directory said who that was. An absent or
+// malformed owner file is "unknown", not "dead": before #974 it counted as
+// dead, and the remedy then offered to delete the directory of a run an older
+// version had started — on 2026-11-15 one was in flight.
+func runOwnerState(dir string) (alive, known bool) {
+	raw, err := os.ReadFile(filepath.Join(dir, runOwnerFile)) //nolint:gosec // a path this command composed from TempDir and its own prefix
+	if err != nil {
+		return false, false
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(string(raw)))
+	if err != nil || pid <= 0 {
+		return false, false
+	}
+	return runOwnerAlive(dir), true
 }
 
 // runOwnerAlive answers whether the process that created this directory is
