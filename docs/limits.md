@@ -5674,15 +5674,25 @@ Three more doors stay open, each named where it is allowed:
   `release.yml`, `falsify.yml`, and every job with no measured green run,
   `drift.yml` included.
 
-## The "Sensitive paths" check is proven against a simulated GitHub, not yet on an outside pull request (#988)
+## The "Sensitive paths" check is measured on a branch of this repository (#997), not yet on a pull request from a fork (#988)
 
 `tools/ci/sensitive-paths.sh` passes an outside pull request that touches a
 path in `tools/ci/sensitive-paths.txt` only when a trusted reviewer's latest
 review approves the current head commit (`commit_id` equal to the head SHA).
 Its decisions are held by `tools/ci/sensitive_paths_test.go` against a
-simulated `gh`; as of 2026-11-16 no outside pull request has exercised it.
-Two behaviours of GitHub it relies on are read in the documentation, not
-measured here:
+simulated `gh`, and it is a required context since #994.
+
+Measured on 2026-11-19, on Dependabot's #997 (four workflows touched): red
+before the approval, and still blocking after it. The approval's own run (the
+workflow then listened to `pull_request_review: submitted`) came out green, but
+the push's red check run stayed on the head commit beside it: status rollup
+FAILURE, merge state BLOCKED, every required context green. Re-running the red
+run made it read the approval, and the merge state became CLEAN. So an approval
+starts no run any more, and the maintainer re-runs the red run the refusal
+names. That pull request came from a branch of this repository, not from a
+fork.
+
+What is still read in the documentation, not measured here:
 
 - that a review submitted from the web interface records the commit the
   reviewer was shown, so that a push landing while the review is written
@@ -5690,14 +5700,24 @@ measured here:
   that `commit_id` defaults to the latest commit when a review is created
   through the API; if the interface recorded the newest head, a push in that
   window would ride on the approval;
-- that the check run produced by a `pull_request_review` run attaches to the
-  pull request's head and counts for a required context. With
-  `all_external_contributors`, that run also waits for the maintainer to
-  approve it, documented, not observed.
+- that re-running the red run of a pull request from a fork reads the
+  approval the same way, and whether, with `all_external_contributors`, the
+  re-run or the run a dismissed review starts waits for the maintainer to
+  approve it. Until such a run runs, the earlier green stands alone;
+- that the red run a dismissed review starts blocks the merge the way the
+  push's red run did on #997. There the red run was the older one; after a
+  dismissal it is the newer one, beside an older green.
 
-The check is also not a required context yet: the maintainer adds `Sensitive
-paths` to `.github/rulesets/main.json` once the workflow is on `main`, since
-on the pull request that introduces it the base commit has no script and the
-job fails once. What closes this section: the first outside pull request that
-touches a sensitive path, with the check red before the approval, green after
-it, and red again after a push.
+What an approval starting no run costs, and it is a choice, not a defect: a
+request for changes a trusted reviewer submits after the check went green
+starts nothing either, so the check stays green until the next push or
+re-run. The ruleset requires no approving review
+(`required_approving_review_count: 0`), so GitHub's own review state is not
+expected to block in its place (not measured). What would lift it: a run on `submitted` that skips an
+approval and runs a request for changes, once a skipped check beside the
+push's red one is measured to keep the merge blocked.
+
+What closes this section: the first pull request from a fork that touches a
+sensitive path, with the check red before the approval, green after the
+approval and the re-run, and red again after a push, with whether that
+re-run waited for a run approval.

@@ -4,29 +4,58 @@
 # tested by tools/ci/sensitive_paths_test.go and falsified by
 # tools/falsify/specs/an-outside-pull-request-waits-on-a-sensitive-path.json.
 #
-# The job's name, "Sensitive paths", is meant to become a required context of
-# the ruleset: the maintainer adds it to .github/rulesets/main.json once this
-# workflow is on main (#988). From then on it must not change without changing
+# The job's name, "Sensitive paths", is a required context of the ruleset
+# (.github/rulesets/main.json, since #994). It must not change without changing
 # that file in the same step: a renamed job stops being required in silence.
 #
 # How it is used: the owner, a member or a collaborator passes at once. Anyone
 # else, Dependabot included, passes when no sensitive path is touched. When one
-# is, the job is red and lists the paths; the maintainer reads the change and
-# approves the pull request as a review, which re-runs the job
-# (`pull_request_review`). The approval counts on the commit GitHub recorded it
-# against (the review's commit_id), so a later push makes a head commit no
-# approval covers, and the job goes red again until the maintainer approves the
-# new head. A label did this job in the first version and was dropped: the
-# `labeled` event carries the head at the moment the label lands, so a push one
-# second before it was approved unread.
+# is, the job is red and lists the paths; the maintainer reads the change,
+# approves the pull request as a review, then RE-RUNS the red job, which reads
+# the approval and turns green. The approval counts on the commit GitHub
+# recorded it against (the review's commit_id), so a later push makes a head
+# commit no approval covers, and the job goes red again until the maintainer
+# approves the new head and re-runs it. A label did this job in the first
+# version and was dropped: the `labeled` event carries the head at the moment
+# the label lands, so a push one second before it was approved unread.
 #
-# Run approval, read in GitHub's documentation on 2026-11-16
+# Why the approval does not start a run of its own, measured on #997
+# (2026-11-19, a Dependabot pull request touching four workflows). The first
+# version listened to `pull_request_review: submitted`. The approval's run came
+# out green, and the merge stayed blocked: the red check run of the push stayed
+# on the head commit beside the green one (status rollup FAILURE, merge state
+# BLOCKED, every required context green). A green check run from another
+# workflow run does not replace a red one. Re-running the red run made it read
+# the approval, and the merge state became CLEAN.
+#
+# Why the approval's run does not do that re-run itself, which is reasoned and
+# not measured: #997 came from a branch of this repository, but the case this
+# check exists for is a pull request from a fork, where the token of a
+# `pull_request_review` run is read-only whatever the workflow asks for. A
+# re-run needs a trigger that runs in the base repository with a write token
+# (`pull_request_target`, `workflow_run`, `issue_comment`, …), and the
+# maintainer chose one more click over such a trigger on 2026-11-19. This
+# workflow listens to `pull_request` and `pull_request_review` and nothing
+# else (TestTheWorkflowListensToDismissalsUnderItsRequiredName). So the
+# approval starts nothing, and the refusal names the run to re-run
+# (tools/ci/sensitive-paths.sh, rerun_hint).
+#
+# A DISMISSED review still starts a run, and its red is expected to re-block
+# the pull request beside the earlier green: inferred from #997 (a red run
+# beside a green one blocked), not observed for a dismissal, where the order is
+# the other way round. After approving again, that run is re-run too. Run
+# approval, read in GitHub's documentation on 2026-11-16
 # (data/reusables/actions/workflow-run-approve-public-fork.md in github/docs):
 # a run needs approval when the pull request is CREATED BY a user the policy
-# names, or the event is TRIGGERED BY one. With all_external_contributors, the
-# run a maintainer's review triggers on an outside pull request therefore waits
-# for approval as well: approving the review is followed by approving the run.
-# Not yet observed on a real outside pull request.
+# names, or the event is TRIGGERED BY one, so with all_external_contributors
+# the run of a dismissal on a fork's pull request waits for approval as well,
+# and until it runs the earlier green stands alone. Not yet observed.
+#
+# What the approval no longer starting a run costs: a REQUEST FOR CHANGES
+# submitted after the check went green starts nothing either, so it does not
+# turn the check red; it counts at the next push or re-run. The ruleset
+# requires no approving review, so GitHub's own review state is not expected
+# to block in its place (not measured). Written in docs/limits.md.
 #
 # WHAT IT DOES NOT PROTECT, and it has to be read with the rest. Under
 # `pull_request` and `pull_request_review`, GitHub runs the workflow file of the pull request's merge
@@ -38,10 +67,10 @@
 # stands against that is human: the repository requires approval before any
 # workflow of an external contributor runs (fork approval set to
 # all_external_contributors, on every push), and .github/** is on the list, so
-# the maintainer reading the run approval is reading a workflow change. The only
-# trigger that would run main's version is `pull_request_target`, which this
-# repository does not use: it runs with a write token in the base repository's
-# context, a larger risk than the one it would close.
+# the maintainer reading the run approval is reading a workflow change. The
+# triggers that would run main's version (`pull_request_target`,
+# `workflow_run`) are not used here: they run with a write token in the base
+# repository's context, a larger risk than the one they would close.
 #
 # It never checks out the pull request's code and never needs to: it reads the
 # event payload and the API (the pull request, its files, its reviews) with a
@@ -53,7 +82,7 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
   pull_request_review:
-    types: [submitted, dismissed]
+    types: [dismissed]
 
 permissions: {}
 

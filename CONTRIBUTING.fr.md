@@ -68,7 +68,7 @@ un chemin non trié est une absence, pas une décision (#564).
 
 Il imprime aussi **les falsifications que le diff a méritées**, lues dans
 `tools/falsify/specs/` plutôt que retenues : 274 specs nomment 341 fichiers
-distincts en 2398 mutations, et une spec qui mute un fichier que vous avez
+distincts en 2402 mutations, et une spec qui mute un fichier que vous avez
 touché est le sous-ensemble de `falsify:all` que votre changement peut avoir
 empêché de mordre. Chaque lot d'ici a suivi cette discipline à la main et l'a
 écrit dans sa pull request, ce qui veut dire qu'il l'a aussi oubliée à la main :
@@ -501,12 +501,12 @@ raison donnée dans [Falsifier une garde](#falsifier-une-garde)).
 
 Dites dans l'issue ce que vous voulez changer et pourquoi. Le contrôle
 « Sensitive paths » reste rouge sur une pull request venue de l'extérieur qui
-touche l'un de ces chemins, tant que le mainteneur n'a pas lu le changement et
-approuvé la pull request par une revue. L'approbation vaut pour le commit sur
-lequel elle a été donnée : un push après elle remet le contrôle au rouge,
-jusqu'à ce que la nouvelle tête soit approuvée à son tour. Tant que le mainteneur
-ne l'a pas ajouté aux contrôles requis, ce rouge n'empêche pas la fusion à lui
-seul : c'est sa relecture qui décide. Le mainteneur lit une telle
+touche l'un de ces chemins, tant que le mainteneur n'a pas lu le changement,
+approuvé la pull request par une revue, puis relancé le contrôle rouge, qui lit
+alors l'approbation. L'approbation vaut pour le commit sur lequel elle a été
+donnée : un push après elle remet le contrôle au rouge, jusqu'à ce que la
+nouvelle tête soit approuvée à son tour et le contrôle rouge relancé. Le
+contrôle est requis : ce rouge empêche la fusion. Le mainteneur lit une telle
 pull request avec `tools/review/external-pr.sh` et lance ses tests, s'il les
 lance, dans un conteneur jetable avec `tools/review/sandbox.sh` (voir
 [`tools/review/README.md`](tools/review/README.md)), jamais sur un poste de
