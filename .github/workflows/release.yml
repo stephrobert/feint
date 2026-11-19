@@ -199,7 +199,7 @@ jobs:
 
       - name: Install Cosign
         if: ${{ !github.event.repository.private }}
-        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
 
       # By digest, never by tag: a signature over a tag blesses whatever the
       # tag points at later.
@@ -316,7 +316,7 @@ jobs:
 
       - name: Install Cosign
         if: ${{ !github.event.repository.private }}
-        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
 
       # One signature over checksums.txt covers every artifact, since each file's hash is in it.
       - name: Sign checksums (keyless)
