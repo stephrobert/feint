@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # The decision of the "Sensitive paths" job (.github/workflows/sensitive-paths.yml,
 # #988): a pull request from outside the project that changes a sensitive path
-# waits for the maintainer, who reads it and then APPROVES it as a review. The
-# approval counts only on the commit it was given on.
+# waits for the maintainer, who reads it, APPROVES it as a review, then re-runs
+# the red run (rerun_hint below). The approval counts only on the commit it was
+# given on.
 #
 # It reads only the event payload ($GITHUB_EVENT_PATH) and the GitHub API. It
 # never reads the pull request's code: the job checks out the BASE commit to get
@@ -36,6 +37,25 @@ refuse() {
   exit 2
 }
 
+# What turns this red into green once the approval is given. Approving does not
+# do it on its own, measured on #997 (2026-11-19): the run the approval started
+# came out green, and the red run of the push still held the merge (status
+# rollup FAILURE, merge state BLOCKED, every required context green) until it
+# was re-run; re-run, it read the approval and the merge state became CLEAN. A
+# red check run is not replaced by a green one from another workflow run, so
+# the approval no longer starts a run at all (the workflow listens to
+# `dismissed` only) and the refusal names the run to re-run. A cancelled run
+# (the concurrency group can cancel one when a push and the dismissal of a stale
+# approval start together) is named too, and the command has no --failed so
+# it re-runs either kind. Held by
+# TestARefusalNamesTheRunToReRun. GITHUB_RUN_ID is set by the runner and is
+# checked as digits before it is printed.
+rerun_hint() {
+  local how="Re-run all jobs on this run's page"
+  [[ "${GITHUB_RUN_ID:-}" =~ ^[0-9]+$ ]] && how="${how}, or: gh run rerun ${GITHUB_RUN_ID}"
+  echo "then re-run this job (${how}), and any other red or cancelled \"Sensitive paths\" run of this pull request: approving does not re-run them"
+}
+
 # Third-party text (file paths, logins) is printed between stop-commands
 # markers, so a path named `::error::...` is shown and not executed as a
 # workflow command. The token is random so the text cannot end the block.
@@ -56,9 +76,10 @@ event() {
   jq -er "$1" "${GITHUB_EVENT_PATH}" 2>/dev/null
 }
 
-# Both triggers (pull_request and pull_request_review) carry these three. The
-# review event's pull request object carries no changed_files, which is why
-# the count is read from the API below and not from here.
+# Both triggers (pull_request, and pull_request_review when a review is
+# dismissed) carry these three. The review event's pull request object carries
+# no changed_files, which is why the count is read from the API below and not
+# from here.
 number="$(event '.pull_request.number | numbers')" || cannot_judge "the payload has no pull request number"
 association="$(event '.pull_request.author_association | strings | select(length > 0)')" ||
   cannot_judge "the payload has no author_association"
@@ -224,15 +245,15 @@ case "${kind}" in
   blocked)
     echo "sensitive-paths: the latest review of these reviewers requests changes:"
     print_untrusted "${who[@]}"
-    refuse "a trusted reviewer requests changes; this check passes once that reviewer approves the head commit, or the review is dismissed and another trusted reviewer approves it."
+    refuse "a trusted reviewer requests changes; this check passes once that reviewer approves the head commit, or the review is dismissed and another trusted reviewer approves it, $(rerun_hint)."
     ;;
   stale)
     echo "sensitive-paths: these approvals were given on another commit than ${head_sha}:"
     print_untrusted "${who[@]}"
-    refuse "commits were pushed after the approval (or just before it was submitted), and an approval covers the commit that was read. Maintainer: read the new commits, then approve again."
+    refuse "commits were pushed after the approval (or just before it was submitted), and an approval covers the commit that was read. Maintainer: read the new commits, approve again, $(rerun_hint)."
     ;;
   none)
-    refuse "these paths need the maintainer's review. Maintainer: read the change, then approve the pull request (Files changed, Review changes, Approve); the approval re-runs this check on the commit you approved."
+    refuse "these paths need the maintainer's review. Maintainer: read the change, approve the pull request (Files changed, Review changes, Approve), $(rerun_hint)."
     ;;
   *)
     cannot_judge "the review verdict is not one this script knows"

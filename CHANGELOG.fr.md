@@ -34,9 +34,12 @@ change ni l'un ni l'autre a sa place dans `git log`.
     code de la pull request ; une pull request peut
     encore réécrire le workflow lui-même, ce que l'approbation de chaque
     exécution extérieure et la relecture sont là pour attraper. Ses décisions
-    sont testées contre un `gh` simulé ; le refus n'a pas encore été vu sur une
-    vraie pull request extérieure. Il devient un contrôle requis une fois que le
-    mainteneur l'ajoute après la fusion ;
+    sont testées contre un `gh` simulé, et c'est un contrôle requis (#994).
+    Après avoir approuvé, le mainteneur relance l'exécution rouge, que le refus
+    désigne : sur #997, une pull request de Dependabot, l'exécution lancée par
+    l'approbation est sortie verte à côté de la rouge du push, et la fusion est
+    restée bloquée jusqu'à la relance de la rouge ; une approbation ne lance
+    donc plus d'exécution ;
   - `tools/review/external-pr.sh <n>` lit une pull request extérieure sans
     l'exécuter (ce qu'il faut lire en premier dans le diff, des faits sur le
     compte, les liens avec le code extérieur déjà fusionné), et

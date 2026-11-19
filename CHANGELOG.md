@@ -29,9 +29,11 @@ what this project is judged on: **a response shape a client can observe**, and
     after the approval turns it red again. It reads the event, the file list
     and the reviews only, never the pull request's code; a pull request can still rewrite the workflow itself,
     which the approval of every outside run and the review are there to catch.
-    Its decisions are tested against a simulated `gh`; the refusal has not yet
-    been seen on a real outside pull request. It becomes a required check once
-    the maintainer adds it after this lands;
+    Its decisions are tested against a simulated `gh`, and it is a required
+    check (#994). After approving, the maintainer re-runs the red run, which the
+    refusal names: on Dependabot's #997 the approval's own run came out green
+    beside the push's red one and the merge stayed blocked until the red run
+    was re-run, so an approval no longer starts a run;
   - `tools/review/external-pr.sh <n>` reads an outside pull request without
     running it (what to read first in the diff, facts about the account, links
     with merged outside code), and `tools/review/sandbox.sh <n>` runs its tests

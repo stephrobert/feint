@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -53,6 +54,7 @@ type prCase struct {
 	rawReviews  string              // when set, the reviews answer verbatim
 	author      string              // the pull request's author; "" is "someone"
 	headRepo    string              // the head's repository; "" is the base, "-" is null (a deleted fork)
+	runID       string              // GITHUB_RUN_ID as the runner would set it; "" is unset
 }
 
 type prResult struct {
@@ -155,6 +157,9 @@ func runSensitivePaths(t *testing.T, c prCase) prResult {
 		"GH_STUB_DIR="+dir, "GH_STUB_LOG="+logPath,
 		"GITHUB_EVENT_PATH="+filepath.Join(dir, "event.json"),
 		"GITHUB_REPOSITORY=stephrobert/feint",
+		// Always set, so a test run inside a GitHub runner does not inherit
+		// the runner's own id.
+		"GITHUB_RUN_ID="+c.runID,
 	)
 	var stdout, stderr strings.Builder
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
@@ -498,24 +503,92 @@ func TestAPathCannotForgeAWorkflowCommand(t *testing.T) {
 	}
 }
 
-// The workflow wakes on what changes the verdict: a push and a review, both
-// its kinds (an approval submitted and an approval dismissed). Its job name is
-// the context the ruleset is to require. And it never runs main's workflow
-// with a write token.
-func TestTheWorkflowListensToReviewsUnderItsRequiredName(t *testing.T) {
+// The workflow wakes on a push and on a dismissed review, never on a submitted
+// one, and on nothing else. An approval's own run is green beside the push's red run, and a red
+// check run on the head blocks the merge whatever runs beside it (measured on
+// #997, 2026-11-19): that run proved nothing and promised a re-run it was not.
+// A dismissal's run is the opposite, its red re-blocks a withdrawn approval.
+// The job name is the context the ruleset requires. And no trigger runs with a
+// write token in the base repository.
+// triggerKey is a key at the trigger level of a workflow's `on:` block.
+var triggerKey = regexp.MustCompile(`^  ([A-Za-z_]+):`)
+
+func TestTheWorkflowListensToDismissalsUnderItsRequiredName(t *testing.T) {
 	workflow := readWorkflow(t, "sensitive-paths.yml")
 	for _, want := range []string{
 		"\n    name: Sensitive paths\n",
 		"\n  pull_request:\n    types: [opened, synchronize, reopened]\n",
-		"\n  pull_request_review:\n    types: [submitted, dismissed]\n",
+		"\n  pull_request_review:\n    types: [dismissed]\n",
 	} {
 		if !strings.Contains(workflow, want) {
 			t.Errorf("sensitive-paths.yml lacks %q", want)
 		}
 	}
-	for _, refused := range []string{"pull_request_target", "labeled", "checks: read"} {
-		if strings.Contains(workflow, refused) {
-			t.Errorf("sensitive-paths.yml still holds %q", refused)
+	_, on, found := strings.Cut(workflow, "\non:\n")
+	if !found {
+		t.Fatal("sensitive-paths.yml has no `on:` block written as such, so its triggers cannot be judged")
+	}
+	on, _, found = strings.Cut(on, "\npermissions:")
+	if !found {
+		t.Fatal("sensitive-paths.yml has no top-level permissions block to end its triggers")
+	}
+	// A closed list rather than a list of refusals: every trigger that runs
+	// in the base repository with a write token is refused at once, including
+	// one GitHub adds later.
+	var triggers []string
+	for _, line := range strings.Split(on, "\n") {
+		// Any key at the trigger level, with or without a value after the
+		// colon: `  workflow_dispatch: {}` is a trigger too.
+		if m := triggerKey.FindStringSubmatch(line); m != nil {
+			triggers = append(triggers, m[1])
+		}
+	}
+	if strings.Join(triggers, ",") != "pull_request,pull_request_review" {
+		t.Errorf("sensitive-paths.yml must trigger on pull_request and pull_request_review only, got %v:\n%s", triggers, on)
+	}
+	if strings.Contains(on, "submitted") {
+		t.Errorf("sensitive-paths.yml starts a run on a submitted review again:\n%s", on)
+	}
+	if strings.Contains(workflow, "checks: read") {
+		t.Error("sensitive-paths.yml still asks for checks: read")
+	}
+}
+
+// A refusal tells the maintainer how it turns green: approving is not enough,
+// the red run has to be re-run (#997). Every refusal that an approval answers
+// says it, with the run's id when the runner gives a numeric one, and nothing
+// when the variable holds anything else: it is printed in the log.
+func TestARefusalNamesTheRunToReRun(t *testing.T) {
+	refusals := map[string]prCase{
+		reasonUnread: sensitive("synchronize"),
+		reasonStale: sensitive("synchronize",
+			review(1, "stephrobert", "OWNER", "APPROVED", testOlderSHA)),
+		reasonBlocked: sensitive("synchronize",
+			review(1, "a-member", "MEMBER", "CHANGES_REQUESTED", testHeadSHA)),
+	}
+	for reason, c := range refusals {
+		c.runID = "44470974363"
+		r := runSensitivePaths(t, c)
+		expect(t, r, 2, reason)
+		for _, want := range []string{
+			"then re-run this job",
+			"gh run rerun 44470974363)",
+			"any other red or cancelled",
+			"approving does not re-run them",
+		} {
+			if !strings.Contains(r.stderr, want) {
+				t.Errorf("%s: the refusal does not say %q:\n%s", reason, want, r.stderr)
+			}
+		}
+		if strings.Contains(r.stderr, "re-runs this check") {
+			t.Errorf("%s: the refusal still promises that the approval re-runs the check:\n%s", reason, r.stderr)
+		}
+
+		c.runID = "1; curl evil"
+		r = runSensitivePaths(t, c)
+		expect(t, r, 2, "then re-run this job (Re-run all jobs on this run's page)")
+		if strings.Contains(r.stderr, "curl") {
+			t.Errorf("%s: a run id that is not digits reached the log:\n%s", reason, r.stderr)
 		}
 	}
 }

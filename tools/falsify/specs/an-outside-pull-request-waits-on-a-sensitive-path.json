@@ -1,6 +1,6 @@
 {
  "package": "./tools/ci/",
- "note": "The subject is the required check of #988: a pull request from outside the project that changes a sensitive path (tools/ci/sensitive-paths.txt) is red until a trusted reviewer (owner, member, collaborator) has approved it as a review on the head commit. The approval is bound to the commit GitHub recorded it against (the review's commit_id), so a push after it, or one second before it was submitted, leaves the head unapproved. The decision lives in tools/ci/sensitive-paths.sh, run by the `Sensitive paths` job of .github/workflows/sensitive-paths.yml from the base commit.\n\nCycle 1 of the review replaced the first mechanism, a label: the `labeled` event carries the head at the moment the label lands, so a push just before it was approved unread. The label's mutations went with it.\n\nEach mutation removes one refusal and names the test whose input fails that refusal only. Several refusals exit with the same code 2 (no approval, a stale approval, a reviewer blocking), so every test asserts the reason as well as the code: the mutation that ignores a blocking review on an approval-then-request sequence keeps exit 2 and loses the reason.\n\nCycle 2 added trust bound to who can push to the head (the head in this repository or in the author's own fork; a deleted fork is judged as outside) and made a review by a deleted account count for nothing instead of making the list unjudgeable.\\n\\nWhat this does not falsify: that GitHub runs this workflow at all, that the job name stays the required context once the maintainer adds it, how the review UI fills commit_id when the head moved under the reviewer (not observed on a real pull request), and anything a pull request achieves by rewriting the workflow itself, which the workflow's header says this check cannot stop.",
+ "note": "The subject is the required check of #988: a pull request from outside the project that changes a sensitive path (tools/ci/sensitive-paths.txt) is red until a trusted reviewer (owner, member, collaborator) has approved it as a review on the head commit. The approval is bound to the commit GitHub recorded it against (the review's commit_id), so a push after it, or one second before it was submitted, leaves the head unapproved. The decision lives in tools/ci/sensitive-paths.sh, run by the `Sensitive paths` job of .github/workflows/sensitive-paths.yml from the base commit.\n\nCycle 1 of the review replaced the first mechanism, a label: the `labeled` event carries the head at the moment the label lands, so a push just before it was approved unread. The label's mutations went with it.\n\nEach mutation removes one refusal and names the test whose input fails that refusal only. Several refusals exit with the same code 2 (no approval, a stale approval, a reviewer blocking), so every test asserts the reason as well as the code: the mutation that ignores a blocking review on an approval-then-request sequence keeps exit 2 and loses the reason.\n\nCycle 2 added trust bound to who can push to the head (the head in this repository or in the author's own fork; a deleted fork is judged as outside) and made a review by a deleted account count for nothing instead of making the list unjudgeable.\n\nAfter #997 (2026-11-19) the approval starts no run: its green run sat beside the push's red one and the merge stayed blocked until the red run was re-run. The workflow listens to dismissals only, and every refusal an approval answers names the run to re-run.\n\nWhat this does not falsify: that GitHub runs this workflow at all, that the job name stays the required context (the ruleset names it since #994), how the review UI fills commit_id when the head moved under the reviewer (not observed on a real pull request), and anything a pull request achieves by rewriting the workflow itself, which the workflow's header says this check cannot stop.",
  "mutations": [
   {
    "label": "every author is trusted whatever their association, so an outside pull request, Dependabot's included, passes on any path with no review as long as its head is in this repository or in its author's fork",
@@ -80,18 +80,18 @@
    "test": "TestAPathCannotForgeAWorkflowCommand"
   },
   {
-   "label": "the job is renamed, so its check run no longer carries the name the ruleset is to require: a renamed job stops being required in silence",
+   "label": "the job is renamed, so its check run no longer carries the name the ruleset requires: a renamed job stops being required in silence",
    "file": ".github/workflows/sensitive-paths.yml",
    "find": "    name: Sensitive paths\n",
    "replace": "    name: Sensitive paths (renamed)\n",
-   "test": "TestTheWorkflowListensToReviewsUnderItsRequiredName"
+   "test": "TestTheWorkflowListensToDismissalsUnderItsRequiredName"
   },
   {
-   "label": "the workflow no longer wakes when an approval is dismissed, so the green run of the approval stays the latest verdict on the head commit after the maintainer withdrew it",
+   "label": "the workflow no longer wakes when an approval is dismissed, so the run the maintainer re-ran after approving stays green on the head commit after the approval is withdrawn",
    "file": ".github/workflows/sensitive-paths.yml",
-   "find": "    types: [submitted, dismissed]\n",
-   "replace": "    types: [submitted] # dismissed\n",
-   "test": "TestTheWorkflowListensToReviewsUnderItsRequiredName"
+   "find": "    types: [dismissed]\n",
+   "replace": "    types: [] # dismissed\n",
+   "test": "TestTheWorkflowListensToDismissalsUnderItsRequiredName"
   },
   {
    "label": "the author's association alone decides trust again, so a collaborator's pull request from a branch of a stranger's fork passes every push the stranger makes, unread",
@@ -113,6 +113,34 @@
    "find": "     | select(.user.login | type == \"string\")]",
    "replace": "     | select((.user.login | type == \"string\") or true)]",
    "test": "TestAReviewFromADeletedAccountIsIgnored"
+  },
+  {
+   "label": "the approval starts a run of its own again: green beside the push's red run, it unblocks nothing (measured on #997) and tells the maintainer the check was re-run",
+   "file": ".github/workflows/sensitive-paths.yml",
+   "find": "    types: [dismissed]\n",
+   "replace": "    types: [submitted, dismissed]\n",
+   "test": "TestTheWorkflowListensToDismissalsUnderItsRequiredName"
+  },
+  {
+   "label": "the refusal no longer says that the red run has to be re-run after the approval, so the maintainer approves and waits on a merge that stays blocked",
+   "file": "tools/ci/sensitive-paths.sh",
+   "find": "approve the pull request (Files changed, Review changes, Approve), $(rerun_hint).",
+   "replace": "approve the pull request (Files changed, Review changes, Approve)$(rerun_hint >/dev/null).",
+   "test": "TestARefusalNamesTheRunToReRun"
+  },
+  {
+   "label": "GITHUB_RUN_ID is printed in the log without being checked as digits",
+   "file": "tools/ci/sensitive-paths.sh",
+   "find": "[[ \"${GITHUB_RUN_ID:-}\" =~ ^[0-9]+$ ]] && how=",
+   "replace": "[[ -n \"${GITHUB_RUN_ID:-}\" ]] && how=",
+   "test": "TestARefusalNamesTheRunToReRun"
+  },
+  {
+   "label": "a trigger that runs in the base repository with a write token joins the workflow (here workflow_dispatch, in the inline form a check on a trailing colon misses), which the closed list of triggers refuses",
+   "file": ".github/workflows/sensitive-paths.yml",
+   "find": "  pull_request_review:\n    types: [dismissed]\n",
+   "replace": "  pull_request_review:\n    types: [dismissed]\n  workflow_dispatch: {}\n",
+   "test": "TestTheWorkflowListensToDismissalsUnderItsRequiredName"
   }
  ]
 }

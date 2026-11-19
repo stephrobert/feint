@@ -60,7 +60,7 @@ conditional: if a block does not apply, write `N/A` rather than leaving it blank
       `tools/testplan/`, `go.mod`, `go.sum`, Python requirements, `mise.toml`,
       hooks, the `Dockerfile`, falsify specs…), the issue where the change was agreed is linked
       below; the "Sensitive paths" check stays red until the maintainer approves
-      the head commit. See "Who answers for a pull request" in
+      the head commit and re-runs it. See "Who answers for a pull request" in
       [CONTRIBUTING.md](../CONTRIBUTING.md)
 
 ### When a model wrote a substantive part of this — otherwise N/A

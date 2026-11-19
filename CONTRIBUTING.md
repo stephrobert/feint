@@ -63,7 +63,7 @@ decision (#564).
 
 It also prints **the falsifications the diff has earned**, read off
 `tools/falsify/specs/` rather than remembered: 274 specs name 341 distinct files
-in 2398 mutations, and a spec that mutates a file you touched is the subset of
+in 2402 mutations, and a spec that mutates a file you touched is the subset of
 `falsify:all` your change can have stopped biting. Every batch here has followed
 that discipline by hand and said so in its pull request, which means it has also
 been forgotten by hand — `mise run check` cannot see a guard whose test still
@@ -472,11 +472,12 @@ reason given in [Falsifying a guard](#falsifying-a-guard)).
 
 Say in the issue what you want to change and why. The check
 "Sensitive paths" stays red on a pull request from outside the project that
-touches one of these paths until the maintainer has read the change and
-approved the pull request as a review. The approval counts on the commit it was
-given on: a push after it turns the check red again, until the new head is
-approved in turn. Until the maintainer adds it to the required checks, that red
-does not stop a merge on its own: the maintainer's review decides. The maintainer reads such a pull
+touches one of these paths until the maintainer has read the change, approved
+the pull request as a review, and re-run the red check, which then reads the
+approval. The approval counts on the commit it was given on: a push after it
+turns the check red again, until the new head is approved in turn and the
+red check re-run. The check is required, so that red stops the merge. The
+maintainer reads such a pull
 request with `tools/review/external-pr.sh` and runs its tests, if at all, in a
 throwaway container with `tools/review/sandbox.sh` (see
 [`tools/review/README.md`](tools/review/README.md)), never on a workstation.
