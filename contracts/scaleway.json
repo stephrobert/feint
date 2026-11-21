@@ -9926,12 +9926,6 @@
     "images_count": {
      "type": "integer"
     },
-    "ips_count": {
-     "type": "integer"
-    },
-    "ips_unused": {
-     "type": "integer"
-    },
     "placement_groups_count": {
      "type": "integer"
     },
@@ -12747,9 +12741,6 @@
   "instance/v2alpha1.scaleway.instance.v2alpha1.ResourceCounts": {
    "closed": false,
    "properties": {
-    "flexible_ips": {
-     "type": "integer"
-    },
     "gpu_servers": {
      "type": "integer"
     },
@@ -12775,9 +12766,6 @@
      "type": "integer"
     },
     "templates": {
-     "type": "integer"
-    },
-    "unused_flexible_ips": {
      "type": "integer"
     },
     "volumes": {
