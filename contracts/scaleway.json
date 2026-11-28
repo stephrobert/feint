@@ -9926,12 +9926,6 @@
     "images_count": {
      "type": "integer"
     },
-    "ips_count": {
-     "type": "integer"
-    },
-    "ips_unused": {
-     "type": "integer"
-    },
     "placement_groups_count": {
      "type": "integer"
     },
@@ -12627,7 +12621,8 @@
    "enum": [
     "unknown_policy_type",
     "low_latency",
-    "max_availability"
+    "max_availability",
+    "max_availability_enforced"
    ]
   },
   "instance/v2alpha1.scaleway.instance.v2alpha1.PrivateNetworkInterface": {
@@ -12747,9 +12742,6 @@
   "instance/v2alpha1.scaleway.instance.v2alpha1.ResourceCounts": {
    "closed": false,
    "properties": {
-    "flexible_ips": {
-     "type": "integer"
-    },
     "gpu_servers": {
      "type": "integer"
     },
@@ -12775,9 +12767,6 @@
      "type": "integer"
     },
     "templates": {
-     "type": "integer"
-    },
-    "unused_flexible_ips": {
      "type": "integer"
     },
     "volumes": {
@@ -13860,7 +13849,8 @@
     "msgq_cluster",
     "edge_vpc_endpoint",
     "dviz_cluster",
-    "nats_cluster"
+    "nats_cluster",
+    "kvdb_instance"
    ]
   },
   "ipam/v1.scaleway.ipam.v1.Reverse": {
